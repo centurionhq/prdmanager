@@ -45,10 +45,19 @@ export function useCytoscape({ container, elements, stylesheet, createCytoscape,
       style: stylesheet ?? [],
       layout: layout ?? DEFAULT_LAYOUT,
     });
-    cy.fit(undefined, 30);
+    // `container` was only just attached to the DOM this same tick. Calling fit() synchronously here — even
+    // after cy.resize() — still computes a near-empty viewport on every load at real-repo scale (verified
+    // empirically); deferring one frame, after the browser has actually painted the container at its final
+    // layout size, is what makes fit() see real dimensions. A manual click of the "Encuadrar" button (running
+    // long after mount) never hits this, which is why the bug was easy to miss.
+    const fitFrame = requestAnimationFrame(() => {
+      cy.resize();
+      cy.fit(undefined, 30);
+    });
     cyRef.current = cy;
 
     return () => {
+      cancelAnimationFrame(fitFrame);
       cy.destroy();
       cyRef.current = null;
     };

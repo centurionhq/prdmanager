@@ -70,6 +70,36 @@ describe('useCytoscape', () => {
     expect(jsonSpy).not.toHaveBeenCalled();
   });
 
+  it('resizes and fits one frame after creation, not synchronously (the container has no measured size yet)', async () => {
+    const factory = vi.fn(headlessFactory);
+    const { result } = renderHook(() =>
+      useCytoscape({ container: null, elements: [{ group: 'nodes', data: { id: 'FR-001' } }], createCytoscape: factory }),
+    );
+
+    const cy = result.current.current as cytoscape.Core;
+    const resizeSpy = vi.spyOn(cy, 'resize');
+    const fitSpy = vi.spyOn(cy, 'fit');
+    expect(resizeSpy).not.toHaveBeenCalled();
+    expect(fitSpy).not.toHaveBeenCalled();
+
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(resizeSpy).toHaveBeenCalledTimes(1);
+    expect(fitSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels the pending fit frame on unmount instead of touching a destroyed cy', async () => {
+    const factory = vi.fn(headlessFactory);
+    const { result, unmount } = renderHook(() => useCytoscape({ container: null, elements: [], createCytoscape: factory }));
+    const cy = result.current.current as cytoscape.Core;
+    const fitSpy = vi.spyOn(cy, 'fit');
+
+    unmount();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(fitSpy).not.toHaveBeenCalled();
+  });
+
   it('calls cy.destroy() on unmount', () => {
     const factory = vi.fn(headlessFactory);
     const { result, unmount } = renderHook(() => useCytoscape({ container: null, elements: [], createCytoscape: factory }));

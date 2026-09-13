@@ -97,7 +97,8 @@
     "WO-072": "572b748391715b69f8dea74ce2fb83c036530a39be5054d336ec6f0873ce8163",
     "WO-073": "c3202cee0154d5a08e9cc7aeebf854429883b2c00f6790916dfeb20ebd0cb577",
     "WO-074": "bff9754b55a99d820be6bb2eb265b701e433b54bbadd64f8e13ee818f46893f5",
-    "WO-075": "4c03f46de372d6a0cb85cd977d609dc8bbc09cf07b0d45515a0a952bc5f507fd"
+    "WO-075": "4c03f46de372d6a0cb85cd977d609dc8bbc09cf07b0d45515a0a952bc5f507fd",
+    "WO-076": "0a39988f592306ecb61600fd32ca8579f75e243c2f451f41c3dfa808c25eb34a"
   },
   "governs": {
     "ADR-001": {
@@ -381,7 +382,7 @@
       "packages/web/src/client/components/WorkOrderList.tsx": "05815ebe106a91833379a6c863256dbe3bfd9a7373f8af8c7237bbd8745cf066",
       "packages/web/src/client/graph/apply-drift.ts": "922b00c8abfd37baa1b671aba02235cc0cec36f3a7d869ef3940310dda019fda",
       "packages/web/src/client/graph/to-elements.ts": "ba4e4d42494d3bb34d1edc1bad4bc57e0b6a207161580da6fc3c44cf8e5af999",
-      "packages/web/src/client/hooks/useCytoscape.ts": "1a58767d92de0d20fae6e29b16c67db813e066c446509e2554177006eea70d02",
+      "packages/web/src/client/hooks/useCytoscape.ts": "8e46a6238ddafbda7886475d75e4da230324db2891ad30a6c13995cb5abc529d",
       "packages/web/src/client/hooks/useGraphData.ts": "348d6d54613487f4374e9692dfb96698024272fae9bff0f27e283c6ab092f338",
       "packages/web/src/client/index.html": "8d5820e1efeac623555f6c2c090ab28a189ef52e5ba0f4d73798a16edbda4d03",
       "packages/web/src/client/main.tsx": "c4e7c0c596304894f6bdb7c31bd56dac208244a33b31b7704e4146088d24e943",
@@ -406,7 +407,7 @@
       "packages/web/tests/client/StatusState.test.tsx": "f8d96d31b3a4b0f897921101e77b1238e8dd38d9e0c3762a977348088c002551",
       "packages/web/tests/client/to-elements.test.ts": "8bed694b7a8e1c21842ca71c231a1decf8d622ae7f5e6ff9ba8980ae6c2fac3a",
       "packages/web/tests/client/TreeView.test.tsx": "26717a40abc32009631ea1797463213de9abc83fbddedb55860eaef37e7340c1",
-      "packages/web/tests/client/useCytoscape.test.tsx": "c3ab481b064e042d2bb7e7bdd14f38f6a06f63598be6bdde27d2dd9cdb5deb9b",
+      "packages/web/tests/client/useCytoscape.test.tsx": "8b94fe3b393cf77ac9a37e680ff131c0ea3b650997b38134301f5ecd63d01e92",
       "packages/web/tests/client/useGraphData.test.tsx": "e2e00353059f1c9f586f662ab51f5dfd24546e354ff931eccfa5511b01ce4e24",
       "packages/web/tests/client/WorkOrderList.test.tsx": "86d891578885ca89e650b08094d8b53aa3a0450ddd423f4345fd765d2715acf4",
       "packages/web/tests/integration/app.test.ts": "c1b766527d4c324cd3117a6fd6f020b76d873f3d87b18c7d9d352422e32ce212",

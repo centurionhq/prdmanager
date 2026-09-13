@@ -162,6 +162,7 @@ Nota general: cualquier tarea que agregue una dependencia nueva debe incluir `pa
 - [ ] DriftBanner y resaltado de nodos con drift en el canvas usando apply-drift
 - [ ] Estados de carga, vacío y error con sus tests
 - [ ] Auditoría de accesibilidad: navegación completa por teclado del árbol y el detalle, aria-labels, contraste 4.5:1 de los tokens en ambos temas
+- [ ] Corregir el encuadre inicial del canvas: fit() llamado en el mismo tick que la creación de cy ve el contenedor con tamaño 0 y produce un layout colapsado en cada carga a escala real de este repo; diferirlo un frame con requestAnimationFrame (cancelado si el componente se desmonta antes) y sus tests
 - [ ] E2E con Playwright del recorrido principal (cargar, buscar, seleccionar, ver detalle, ver drift) contra servidor real y Neo4j, corrido localmente (no en CI, ver Tests)
 - [ ] README con sección Web UI (incluyendo cómo correr en modo iteración con dos procesos), .env.example con PRDM_WEB_PORT, retiro de "UI web" de Fuera del MVP
 - [ ] Paso de build de @prdm/web en el workflow de CI (después de que el frontend compile)
