@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import process from 'node:process';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { discoverProjectRoot, Engine, loadConfig, Neo4jGraphDatabase } from '@prdm/core';
+import { AuthoringService, discoverProjectRoot, DraftStore, Engine, loadConfig, Neo4jGraphDatabase } from '@prdm/core';
 import { createPrdmServer } from './create.js';
 
 async function main(): Promise<void> {
@@ -20,7 +20,8 @@ async function main(): Promise<void> {
     `[prdm-graph] indexed ${report.documents} document(s); ${report.issues.length} issue(s); blocking=${report.hasBlockingIssues}`,
   );
 
-  const server = createPrdmServer({ config, store, engine });
+  const authoring = new AuthoringService({ engine, drafts: new DraftStore(config.authoring) });
+  const server = createPrdmServer({ config, store, engine, authoring });
   const transport = new StdioServerTransport();
 
   let closing = false;

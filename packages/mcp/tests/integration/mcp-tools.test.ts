@@ -4,7 +4,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { Engine, scanDocuments, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
+import { AuthoringService, DraftStore, Engine, scanDocuments, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
 import { commitAll, createFixtureRepo, git, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 import { createPrdmServer } from '../../src/create.js';
 
@@ -26,7 +26,16 @@ const EXPECTED_TOOLS = [
   'submit_feedback',
   'create_feature_request',
   'attach_artifact',
+  'get_project',
+  'draft_artifact',
+  'validate_draft',
+  'commit_artifact',
+  'list_drafts',
+  'discard_draft',
+  'get_closure_readiness',
 ];
+
+const EXPECTED_PROMPTS = ['implement_work_order', 'author_artifact'];
 
 function textOf(result: unknown): string {
   const { content } = result as CallToolResult;
@@ -60,7 +69,8 @@ beforeAll(async () => {
   engine = new Engine(config, store);
   await engine.refresh();
 
-  server = createPrdmServer({ config, store, engine });
+  const authoring = new AuthoringService({ engine, drafts: new DraftStore(config.authoring) });
+  server = createPrdmServer({ config, store, engine, authoring });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   client = new Client({ name: 'test-client', version: '0.0.0' });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -86,6 +96,18 @@ describe('prdm-graph MCP tools', () => {
       expect(typeof tool.annotations?.destructiveHint).toBe('boolean');
       expect(typeof tool.annotations?.idempotentHint).toBe('boolean');
     }
+  });
+
+  test('prompts/list and resources/list expose the authoring surface (WO-015)', async () => {
+    const { prompts } = await client.listPrompts();
+    const promptNames = prompts.map((p) => p.name);
+    for (const expected of EXPECTED_PROMPTS) expect(promptNames).toContain(expected);
+
+    const { resources } = await client.listResources();
+    expect(resources.map((r) => r.uri)).toContain('prdm://project');
+
+    const { resourceTemplates } = await client.listResourceTemplates();
+    expect(resourceTemplates.map((r) => r.uriTemplate)).toEqual(expect.arrayContaining(['graph://node/{id}', 'prdm://templates/{kind}']));
   });
 
   test('get_feature_branch renders the text lineage from MRD-001 down to WO-001', async () => {
