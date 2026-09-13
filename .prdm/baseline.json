@@ -309,7 +309,7 @@
       "packages/web/tsconfig.json": "e345db300a00446e2ac57f0b1128576d0ec132873b05049ecefb8663346dc9b4",
       "packages/web/tsconfig.server.json": "a6a64bb73e91813583c363a768f64bfc6c28bfaecfd219d1bd4bff6bdbad9a38",
       "packages/web/tsconfig.test-client.json": "c2387a60a63ad1703cc89302754d4ee4e95f1911eaff5c8f63c4529faded6ad6",
-      "README.md": "96743d7b85587d3b026065660fbf185342fd669d08d0f2059bf6b56795db3ea3",
+      "README.md": "85cc77b22f37751992463a2d2633a82e591eba5122c5c529b5c08b2b185459d7",
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957"
     },
     "ADR-006": {
@@ -630,7 +630,7 @@
       "packages/web/tsconfig.server.json": "a6a64bb73e91813583c363a768f64bfc6c28bfaecfd219d1bd4bff6bdbad9a38",
       "packages/web/tsconfig.test-client.json": "c2387a60a63ad1703cc89302754d4ee4e95f1911eaff5c8f63c4529faded6ad6",
       "packages/web/vite.config.ts": "bafbe6bc381c457a48b6ea79ed4e73f487b0d01de1493a587c2ae1a83245baf7",
-      "README.md": "96743d7b85587d3b026065660fbf185342fd669d08d0f2059bf6b56795db3ea3",
+      "README.md": "85cc77b22f37751992463a2d2633a82e591eba5122c5c529b5c08b2b185459d7",
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957",
       "tsconfig.json": "8a21dc4844e7b5eb4e0092c70cb7756fef7dd6159a32b802056a1bf6d4ed9357",
       "tsconfig.test.json": "43b83c2d9456c528bb3ab68d908dc80eba0645793f465fef7a348407a1ebdd47",
@@ -733,7 +733,7 @@
       "packages/web/tsconfig.server.json": "a6a64bb73e91813583c363a768f64bfc6c28bfaecfd219d1bd4bff6bdbad9a38",
       "packages/web/tsconfig.test-client.json": "c2387a60a63ad1703cc89302754d4ee4e95f1911eaff5c8f63c4529faded6ad6",
       "packages/web/vite.config.ts": "bafbe6bc381c457a48b6ea79ed4e73f487b0d01de1493a587c2ae1a83245baf7",
-      "README.md": "96743d7b85587d3b026065660fbf185342fd669d08d0f2059bf6b56795db3ea3",
+      "README.md": "85cc77b22f37751992463a2d2633a82e591eba5122c5c529b5c08b2b185459d7",
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957",
       "tsconfig.json": "8a21dc4844e7b5eb4e0092c70cb7756fef7dd6159a32b802056a1bf6d4ed9357",
       "tsconfig.test.json": "43b83c2d9456c528bb3ab68d908dc80eba0645793f465fef7a348407a1ebdd47",
@@ -896,7 +896,7 @@
       ".env.example": "f2a698075e37dbf138e9c870e458c964b0f3d7b0a3cbe824e272e3acb393cfa5",
       "package-lock.json": "5abdd9a4e94d5766ea877a46986bd89baaa7fb258547c957a6643f5e09999cdb",
       "package.json": "90a7290cd55d98b3e4efe60d0289f93a944a3b923531635274ef9f4e59c75349",
-      "README.md": "96743d7b85587d3b026065660fbf185342fd669d08d0f2059bf6b56795db3ea3",
+      "README.md": "85cc77b22f37751992463a2d2633a82e591eba5122c5c529b5c08b2b185459d7",
       "tsconfig.json": "8a21dc4844e7b5eb4e0092c70cb7756fef7dd6159a32b802056a1bf6d4ed9357",
       "tsconfig.test.json": "43b83c2d9456c528bb3ab68d908dc80eba0645793f465fef7a348407a1ebdd47",
       "vitest.config.ts": "c1a0fdc07a9bb4d41c730689d8fb3583d62bf6eba480913de83d0ac2ffca9c35"
@@ -917,7 +917,7 @@
       "packages/mcp/src/tools-read.ts": "40897ef5bcbab69c31e08d4677fcfbe1b1a24dd5379c462308e925775349bd46",
       "packages/mcp/src/tools-write.ts": "342263c9ce93d2fd281220e973a7db7c040c923a32dc6eb94aec57e941210168",
       "packages/mcp/src/tools.ts": "6ec2ed53185561c1a64c5c1b179ec5c2914b8474944749688c9d4aa2349fc8ef",
-      "README.md": "96743d7b85587d3b026065660fbf185342fd669d08d0f2059bf6b56795db3ea3"
+      "README.md": "85cc77b22f37751992463a2d2633a82e591eba5122c5c529b5c08b2b185459d7"
     },
     "SDD-010": {
       ".env.example": "f2a698075e37dbf138e9c870e458c964b0f3d7b0a3cbe824e272e3acb393cfa5",
@@ -1039,7 +1039,7 @@
       "packages/testkit/src/fixture.ts": "5649facc1b52770e1058907b4f7443bedf41d9f465333366222a5599bcea9088",
       "packages/testkit/src/index.ts": "1a0cd1a12858e128c2569ad20dfc7f4d7ffdf8f7c0437f12aedcbf60748883aa",
       "packages/testkit/src/tmp.ts": "d7ddf9b3063acc3aa77c390525bd684b6a2db00cd1a07f2d622b95e6c969bbfa",
-      "README.md": "96743d7b85587d3b026065660fbf185342fd669d08d0f2059bf6b56795db3ea3",
+      "README.md": "85cc77b22f37751992463a2d2633a82e591eba5122c5c529b5c08b2b185459d7",
       "vitest.config.ts": "c1a0fdc07a9bb4d41c730689d8fb3583d62bf6eba480913de83d0ac2ffca9c35"
     }
   }
