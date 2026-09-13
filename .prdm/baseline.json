@@ -127,7 +127,7 @@
       "packages/mcp/src/tools.ts": "6ec2ed53185561c1a64c5c1b179ec5c2914b8474944749688c9d4aa2349fc8ef"
     },
     "SDD-002": {
-      ".github/workflows/prdm-sync.yml": "04255ff6c140e94f14dd0cb013d5d024f997bb9f0ff42b904a94d01677e16252",
+      ".github/workflows/prdm-sync.yml": "e01ccaa5b88938783a117728f8821fef9d16f33353a43ce1ff35437495c9321a",
       "package.json": "f3d2ad6281b811c0eb03659f615636f40edfe07d0aed17cb91ec6683aaf6889b",
       "packages/cli/package.json": "c301862285d9e9ee57b527182c124d5dc264106590fc2b8d5d00694d838e11a4",
       "packages/cli/src/commands/artifacts.ts": "9c2b3bb39b25ce062b110fde851de2395fa0c362f6dfe84da89efa8044f2f6d7",
