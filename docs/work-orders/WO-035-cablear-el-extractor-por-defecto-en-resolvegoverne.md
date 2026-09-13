@@ -2,7 +2,7 @@
 id: "WO-035"
 type: "WO"
 title: "Cablear el extractor por defecto en resolveGoverned con fallback automático a Legacy por extensión"
-status: "in_progress"
+status: "done"
 created_at: "2026-09-13"
 implements: ["SDD-004"]
 impacts_paths: ["packages/core/src/sync/code-refs.ts","packages/core/src/sync/symbol-extractor.ts","packages/core/src/sync/tree-sitter-extractor.ts","packages/core/src/sync/legacy-extractor.ts","packages/core/src/sync/symbol-cache.ts","packages/core/src/engine.ts","packages/core/src/index.ts","packages/core/src/scaffold/gitignore.ts",".gitignore","packages/core/package.json","packages/core/src/sync/code-refs.ts#resolveGoverned"]
@@ -10,6 +10,9 @@ source_task: "8e2e88d0f766d018"
 tags: ["parser","tree-sitter","drift","dogfooding"]
 assigned_to: "agent:claude"
 claimed_at: "2026-09-13T15:28:08.236Z"
+completed_at: "2026-09-13T15:31:04.944Z"
+resolved_by: ["c2002e5f026e188a8df847d22db18e4ee071d264"]
+blueprint_hashes: {"SDD-004":"0bd01301602a94fa03d5ebb3cd988190220267efb1b8f417e0f87ef499c74041"}
 ---
 
 ## Objetivo
