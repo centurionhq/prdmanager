@@ -39,6 +39,26 @@ describe('useCytoscape', () => {
     expect(result.current.current).toBe(cy);
   });
 
+  it('preserves an existing node\'s live position across an elements refresh (never snaps it back to (0,0))', () => {
+    const factory = vi.fn(headlessFactory);
+    const initial: cytoscape.ElementDefinition[] = [{ group: 'nodes', data: { id: 'FR-001' } }];
+    const { result, rerender } = renderHook(
+      ({ elements }: { elements: cytoscape.ElementDefinition[] }) => useCytoscape({ container: null, elements, createCytoscape: factory }),
+      { initialProps: { elements: initial } },
+    );
+
+    const cy = result.current.current as cytoscape.Core;
+    const node = cy.getElementById('FR-001');
+    node.position({ x: 123, y: 456 });
+
+    // A refresh's plain ElementDefinition carries no position of its own (drift badging, a re-fetched full
+    // graph, …) — the hook must still keep whatever position the node already has on screen.
+    const refreshed: cytoscape.ElementDefinition[] = [{ group: 'nodes', data: { id: 'FR-001', drift: true } }];
+    rerender({ elements: refreshed });
+
+    expect(cy.getElementById('FR-001').position()).toEqual({ x: 123, y: 456 });
+  });
+
   it('does not call cy.json() on a re-render with the same elements array', () => {
     const factory = vi.fn(headlessFactory);
     const elements: cytoscape.ElementDefinition[] = [];

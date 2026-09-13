@@ -1,0 +1,102 @@
+.wrap {
+  position: relative;
+  border-radius: var(--radius-lg);
+  border: var(--border-width) solid var(--color-border);
+  overflow: hidden;
+  min-height: 0;
+  background:
+    radial-gradient(circle at 1px 1px, var(--color-border) 1px, transparent 1.2px) 0 0 / 24px 24px,
+    var(--color-bg);
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.tools {
+  position: absolute;
+  right: var(--space-sm);
+  top: var(--space-sm);
+  display: grid;
+  gap: 6px;
+  z-index: 5;
+}
+
+.toolButton {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid var(--color-border-strong);
+  background: var(--color-bg-elevated-solid);
+  color: var(--color-fg-muted);
+  cursor: pointer;
+}
+
+.toolButton:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.refreshButton {
+  position: absolute;
+  left: var(--space-sm);
+  top: var(--space-sm);
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 12px / 1 var(--font-mono);
+  padding: 7px 12px;
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--color-border-strong);
+  background: var(--color-bg-elevated-solid);
+  color: var(--color-fg);
+  cursor: pointer;
+}
+
+.refreshButton:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  box-shadow: 0 0 14px -2px var(--color-accent-glow);
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.notice {
+  position: absolute;
+  bottom: var(--space-sm);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  font: 12px / 1 var(--font-mono);
+  color: var(--color-status-warning);
+  background: var(--color-bg-elevated-solid);
+  border: var(--border-width) solid var(--color-status-warning);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-bg) 60%, transparent);
+}
