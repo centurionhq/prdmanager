@@ -44,6 +44,8 @@ async function runCommitsRange(deps: CliDeps, range: string): Promise<void> {
   const check = await checkCommitRange(deps.root, range);
   for (const entry of check.commits.filter((c) => !c.result.ok)) deps.stdout(formatEntry(entry));
   if (check.grandfatheredGrowthMessage) deps.stdout(check.grandfatheredGrowthMessage);
+  if (check.orphanCommitsMessage) deps.stdout(check.orphanCommitsMessage);
+  if (check.uncoveredPathsMessage) deps.stdout(check.uncoveredPathsMessage);
   if (!check.ok) throw new CliError(`prdm check commits --range ${range}: policy violations found`);
   deps.stdout(`prdm check commits --range ${range}: ${check.commits.length} commit(s) ok`);
 }

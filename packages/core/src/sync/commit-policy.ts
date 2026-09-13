@@ -87,15 +87,36 @@ function touchedByBlueprint(changedPaths: readonly string[], patterns: readonly 
   return touched;
 }
 
-/** The index's work orders win over HEAD's stale copy; a WO absent from both is unknown to the project. */
-function latestWorkOrders(docsAtHead: readonly PolicyDoc[], docsInIndex: readonly PolicyDoc[]): Map<string, PolicyWorkOrder> {
+/** Last-wins map of work orders found in a single document list (a ref normally has at most one file per WO id). */
+function workOrdersById(docs: readonly PolicyDoc[]): Map<string, PolicyWorkOrder> {
   const byId = new Map<string, PolicyWorkOrder>();
-  for (const doc of [...docsAtHead, ...docsInIndex].filter(isWorkOrder)) byId.set(doc.id, doc);
+  for (const doc of docs.filter(isWorkOrder)) byId.set(doc.id, doc);
   return byId;
 }
 
 function governsAny(wo: PolicyWorkOrder, blueprintIds: ReadonlySet<string>): boolean {
   return wo.implements.some((bp) => blueprintIds.has(bp));
+}
+
+/** Blueprint ids from `docs` that govern `path` (union of every blueprint occurrence in `docs`, per {@link isGovernedPath}). */
+function blueprintsGoverning(path: string, docs: readonly PolicyDoc[]): Set<string> {
+  return new Set(
+    governedPatterns(docs)
+      .filter((pattern) => pattern.isMatch(path))
+      .map((pattern) => pattern.blueprintId),
+  );
+}
+
+/**
+ * Whether `refs` names a work order that is open *somewhere* in `docs` and governs `path`. Used by
+ * `checkCommitRange`'s range-wide aggregate coverage check (WO-024 finding 1d), where `docs` is the union of every
+ * ref inspected across the range rather than a single HEAD/index pair, so a WO id may appear more than once with
+ * different statuses: any occurrence being open and governing is enough.
+ */
+export function isPathCoveredByRefs(path: string, refs: readonly string[], docs: readonly PolicyDoc[]): boolean {
+  const blueprintIds = blueprintsGoverning(path, docs);
+  if (blueprintIds.size === 0) return false;
+  return refs.some((id) => docs.some((doc) => isWorkOrder(doc) && doc.id === id && isOpen(doc.status) && governsAny(doc, blueprintIds)));
 }
 
 function buildMessage(paths: readonly string[], refs: readonly string[], candidates: readonly string[]): string {
@@ -121,17 +142,16 @@ export function evaluateCommit(input: EvaluateCommitInput): EvaluateCommitResult
   if (exempt) return { ok: true, requiredFor: touchedPaths, refs: [] };
 
   const refs = parseRefs(input.message);
-  const workOrders = latestWorkOrders(input.docsAtHead, input.docsInIndex);
   const governingBlueprints = new Set(touched.keys());
-  const isValidRef = (id: string): boolean => {
-    const wo = workOrders.get(id);
-    return wo !== undefined && isOpen(wo.status) && governsAny(wo, governingBlueprints);
-  };
+  // A WO open at HEAD *or* in the index satisfies the policy (WO-024 finding 6): marking a work order done in the
+  // very commit that closes it out must not retroactively invalidate that commit's own "Refs:" trailer.
+  const atHead = workOrdersById(input.docsAtHead);
+  const inIndex = workOrdersById(input.docsInIndex);
+  const isOpenAndGoverning = (wo: PolicyWorkOrder | undefined): boolean => wo !== undefined && isOpen(wo.status) && governsAny(wo, governingBlueprints);
+  const isValidRef = (id: string): boolean => isOpenAndGoverning(atHead.get(id)) || isOpenAndGoverning(inIndex.get(id));
   if (refs.some(isValidRef)) return { ok: true, requiredFor: touchedPaths, refs };
 
-  const candidates = [...workOrders.values()]
-    .filter((wo) => isOpen(wo.status) && governsAny(wo, governingBlueprints))
-    .map((wo) => wo.id)
-    .sort();
+  const candidateIds = new Set([...atHead.keys(), ...inIndex.keys()]);
+  const candidates = [...candidateIds].filter((id) => isOpenAndGoverning(atHead.get(id)) || isOpenAndGoverning(inIndex.get(id))).sort();
   return { ok: false, message: buildMessage(touchedPaths, refs, candidates), requiredFor: touchedPaths, refs };
 }

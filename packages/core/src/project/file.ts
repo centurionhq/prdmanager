@@ -163,12 +163,25 @@ function hasAnchorOrAlias(doc: Document): boolean {
   return found;
 }
 
-function mergeFolders(overrides: Partial<FolderMap>): FolderMap {
-  return { ...DEFAULT_FOLDERS, ...overrides } as FolderMap;
+const DEFAULT_DOCS_DIR = 'docs';
+
+/** Remaps {@link DEFAULT_FOLDERS} (all rooted at `docs/`) onto a custom `docsDir`; kept in sync with `scaffold/folders.ts`'s `foldersForDocsDir`. */
+function defaultFoldersForDocsDir(docsDir: string): FolderMap {
+  if (docsDir === DEFAULT_DOCS_DIR) return DEFAULT_FOLDERS;
+  const entries = DOC_KINDS.map((kind): [DocKind, string] => {
+    const suffix = DEFAULT_FOLDERS[kind].slice(`${DEFAULT_DOCS_DIR}/`.length);
+    return [kind, `${docsDir}/${suffix}`];
+  });
+  return Object.fromEntries(entries) as FolderMap;
+}
+
+/** Defaults derive from the effective `docsDir` (WO-024 finding 8), so overriding `docs_dir` alone never fails folder validation. */
+function mergeFolders(docsDir: string, overrides: Partial<FolderMap>): FolderMap {
+  return { ...defaultFoldersForDocsDir(docsDir), ...overrides } as FolderMap;
 }
 
 function toSettings(raw: RawProjectFile): ProjectFileSettings {
-  const folders = mergeFolders(raw.folders as Partial<FolderMap>);
+  const folders = mergeFolders(raw.docs_dir, raw.folders as Partial<FolderMap>);
   assertSafeRelativePath('docs_dir', raw.docs_dir);
   for (const kind of DOC_KINDS) assertFolderPath(kind, folders[kind], raw.docs_dir);
 

@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { parseProjectFile } from './project/file.js';
 import {
   DEFAULT_AUTHORING,
-  DEFAULT_FOLDERS,
   DEFAULT_GIT,
   DEFAULT_LIFECYCLE,
   type AuthoringSettings,
@@ -15,6 +14,7 @@ import {
   type LifecycleSettings,
   type ProjectRef,
 } from './project/types.js';
+import { foldersForDocsDir } from './scaffold/folders.js';
 
 const MANDATORY_IGNORE = ['node_modules/**', '.git/**', 'dist/**', 'coverage/**', '.docker/**', '.prdm/**'];
 
@@ -63,7 +63,12 @@ export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): 
   if (!password) throw new Error('NEO4J_PASSWORD is not set (define it in .env or the environment)');
 
   const uri = get('NEO4J_URI') ?? 'neo4j://127.0.0.1:7687';
-  assertLocalNeo4j(uri, get('PRDM_ALLOW_REMOTE_NEO4J') === '1');
+  // `PRDM_ALLOW_REMOTE_NEO4J` is read only from the real process environment: a repository's `.env` must never be
+  // able to self-authorize a remote host. Even with that real opt-in, a `NEO4J_URI` sourced from `.env` combined
+  // with a `NEO4J_PASSWORD` sourced from the real environment is refused, since that combination would let an
+  // attacker-controlled `.env` redirect a genuine operator-supplied secret to an arbitrary host.
+  const allowRemote = env.PRDM_ALLOW_REMOTE_NEO4J === '1';
+  assertLocalNeo4j(uri, allowRemote, { uriFromRealEnv: env.NEO4J_URI !== undefined, passwordFromRealEnv: env.NEO4J_PASSWORD !== undefined });
   const neo4j: Neo4jConfig = { uri, username: get('NEO4J_USERNAME') ?? 'neo4j', password, database: get('NEO4J_DATABASE') ?? 'neo4j' };
 
   // `.prdm.yaml` (WO-017) takes priority over the legacy `prdm.config.json`: when both exist, the JSON file is
@@ -96,7 +101,7 @@ function fromLegacyConfig(rootAbs: string, neo4j: Neo4jConfig): PrdmConfig {
   return {
     root: rootAbs,
     project: legacyProject(rootAbs),
-    folders: DEFAULT_FOLDERS,
+    folders: foldersForDocsDir(file.docsDir),
     git: { ...DEFAULT_GIT, maxCommits: file.gitMaxCommits },
     lifecycle: DEFAULT_LIFECYCLE,
     authoring: DEFAULT_AUTHORING,
@@ -117,16 +122,28 @@ function legacyProject(rootAbs: string): ProjectRef {
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
+interface Neo4jUriOrigin {
+  /** `true` when `NEO4J_URI` came from the real process environment rather than the repository's `.env`. */
+  uriFromRealEnv: boolean;
+  /** `true` when `NEO4J_PASSWORD` came from the real process environment rather than the repository's `.env`. */
+  passwordFromRealEnv: boolean;
+}
+
 /** Basic auth over plain bolt would send the password to whatever host a repository's .env names, so remote hosts need an explicit opt-in. */
-function assertLocalNeo4j(uri: string, allowRemote: boolean): void {
+function assertLocalNeo4j(uri: string, allowRemote: boolean, origin: Neo4jUriOrigin): void {
   let host: string;
   try {
     host = new URL(uri).hostname;
   } catch {
     throw new Error(`NEO4J_URI is not a valid URI: ${uri}`);
   }
-  if (!allowRemote && !LOOPBACK_HOSTS.has(host) && !host.startsWith('127.')) {
-    throw new Error(`NEO4J_URI points to non-local host "${host}"; set PRDM_ALLOW_REMOTE_NEO4J=1 to allow it`);
+  if (LOOPBACK_HOSTS.has(host) || host.startsWith('127.')) return;
+  if (!allowRemote) throw new Error(`NEO4J_URI points to non-local host "${host}"; set PRDM_ALLOW_REMOTE_NEO4J=1 to allow it`);
+  if (!origin.uriFromRealEnv && origin.passwordFromRealEnv) {
+    throw new Error(
+      `NEO4J_URI points to non-local host "${host}" and is set in .env while NEO4J_PASSWORD comes from the environment; ` +
+        'set NEO4J_URI in the environment too before allowing a remote host',
+    );
   }
 }
 

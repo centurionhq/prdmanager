@@ -1,6 +1,11 @@
 # Monitors the connected GitHub repository (PRD-001 F-03): on every push/PR it type-checks, runs unit tests,
-# enforces the "Refs: WO-xxx" commit policy over the pushed/PR range (WO-020) and runs `prdm sync --check`
-# against a disposable Neo4j service, failing when blueprints, work orders or governed code drift out of sync.
+# enforces the "Refs: WO-xxx" commit policy over the pushed/PR range (WO-020, hardened by WO-024) and runs
+# `prdm sync --check` against a disposable Neo4j service, failing when blueprints, work orders or governed code
+# drift out of sync.
+#
+# WO-024 finding 1f: the "Refs:" policy checker itself is built from the range's *base* ref, in a separate
+# checkout, and only ever run against that base build - never against a binary built from the PR/push head. A PR
+# cannot alter its own policy checker (e.g. by patching commit-policy-git.ts) to make itself pass.
 #
 # Optional repository secret NEO4J_PASSWORD; without it a throwaway password is used for the ephemeral
 # service container, which is only reachable from this job's runner and holds no data beyond the CI run.
@@ -10,6 +15,9 @@ on:
   push:
     branches: [main]
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   sync-check:
@@ -56,19 +64,40 @@ jobs:
 
       # SDD-002 "Ciclo de vida": every commit touching governed code in the pushed/PR range must carry a valid
       # "Refs: WO-xxx" trailer. A push whose `before` sha is all zeros (new branch) is checked from the default
-      # branch instead, since there is no prior sha to diff against.
-      - name: "Determine commit range for the Refs: policy check"
+      # branch instead, since there is no prior sha to diff against. `base` (a sha or branch name) is also used
+      # below to check out the base ref for the pre-PR checker build (WO-024 finding 1f).
+      - name: "Determine base ref and commit range for the Refs: policy check"
         id: range
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "range=${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
           elif [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
-            echo "range=origin/${{ github.event.repository.default_branch }}..${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            base="${{ github.event.repository.default_branch }}"
+            head="${{ github.sha }}"
           else
-            echo "range=${{ github.event.before }}..${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            base="${{ github.event.before }}"
+            head="${{ github.sha }}"
           fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "range=$base..$head" >> "$GITHUB_OUTPUT"
 
-      - run: node packages/cli/dist/index.js check commits --range "${{ steps.range.outputs.range }}"
+      # The checker that enforces the "Refs:" policy is built from the range's base, in its own checkout, so a PR
+      # can never weaken (or blind) the very check it is being evaluated against (WO-024 finding 1f).
+      - name: "Checkout the range base (for the pre-PR Refs: policy checker)"
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.range.outputs.base }}
+          path: prdm-base
+          fetch-depth: 0
+
+      - name: "Build the base Refs: policy checker"
+        working-directory: prdm-base
+        run: |
+          npm ci
+          npm run build
+
+      - run: node prdm-base/packages/cli/dist/index.js check commits --range "${{ steps.range.outputs.range }}"
 
       - run: node packages/cli/dist/index.js db migrate
 

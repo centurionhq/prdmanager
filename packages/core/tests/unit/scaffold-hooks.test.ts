@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, test } from 'vitest';
@@ -95,9 +95,97 @@ describe('installHooks', () => {
 
 describe('planHookFile idempotency table', () => {
   test('identical re-plan reports unchanged', () => {
-    const first = planHookFile('post-commit', null, PROJECT_ID, '/repo', 'npx --no-install prdm');
-    const second = planHookFile('post-commit', first.content, PROJECT_ID, '/repo', 'npx --no-install prdm');
+    const first = planHookFile('post-commit', null, PROJECT_ID, '.', 'npx --no-install prdm');
+    const second = planHookFile('post-commit', first.content, PROJECT_ID, '.', 'npx --no-install prdm');
     expect(second.changed).toBe(false);
+  });
+
+  test('the hook computes the project root at run time via git rev-parse --show-toplevel, never a baked-in absolute path (WO-024 finding 4)', () => {
+    const plan = planHookFile('post-commit', null, PROJECT_ID, '.', 'npx --no-install prdm');
+    expect(plan.content).toContain('git rev-parse --show-toplevel');
+    expect(plan.content).not.toContain('/repo');
+  });
+
+  test('a relative project path (project in a repo subdirectory) is quoted and appended after the toplevel', () => {
+    const plan = planHookFile('post-commit', null, PROJECT_ID, 'packages/app', 'npx --no-install prdm');
+    expect(plan.content).toMatch(/"\$prdm_toplevel"\/'packages\/app'/);
+  });
+
+  test("re-planning over an existing block with a relative path containing $' and $& does not corrupt the output (WO-024 finding 4)", () => {
+    const dangerous = "weird$'project$&name";
+    const first = planHookFile('post-commit', null, PROJECT_ID, dangerous, 'npx --no-install prdm');
+    // Re-plan against the just-generated content: this exercises the regex-replace upsert path, where a naive
+    // `String.replace(re, newBlock)` would treat `$&`/`$'` in `newBlock` as replacement-pattern syntax.
+    const second = planHookFile('post-commit', first.content, PROJECT_ID, dangerous, 'npx --no-install prdm');
+    expect(second.content).toBe(first.content);
+    expect(second.changed).toBe(false);
+  });
+});
+
+describe('WO-024 finding 4: refusing to write through a symlinked hook file', () => {
+  let root = '';
+  afterEach(() => root && removeDir(root));
+
+  test('installHooks refuses when the target hook path is a symlink', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    const elsewhere = join(root, 'elsewhere.sh');
+    writeFileSync(elsewhere, '#!/bin/sh\necho pwned\n');
+    symlinkSync(elsewhere, join(root, '.git', 'hooks', 'post-commit'));
+    await expect(installHooks(root, PROJECT_ID)).rejects.toThrow(/symlink/);
+  });
+});
+
+describe('WO-024 finding 4: hooks in a linked git worktree', () => {
+  let root = '';
+  let worktree = '';
+  afterEach(() => {
+    if (root) removeDir(root);
+    if (worktree) removeDir(worktree);
+  });
+
+  test('a commit in a linked worktree evaluates the worktree, not the original checkout it was installed from', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    const projectFile = (enforceRefs: boolean): string =>
+      [
+        'version: 1',
+        'project:',
+        '  id: prj_0123456789abcdef',
+        '  name: fixture',
+        'git:',
+        `  enforce_refs: ${enforceRefs}`,
+        '',
+      ].join('\n');
+    writeFiles(root, { '.prdm.yaml': projectFile(true), 'README.md': 'a\n' });
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '-m', 'chore: init');
+
+    await installHooks(root, PROJECT_ID);
+
+    worktree = `${root}-wt`;
+    git(root, 'worktree', 'add', '-q', '-b', 'wt-branch', worktree);
+    // The worktree's own .prdm.yaml disables enforcement: only reading *this* worktree's file, at commit time,
+    // proves the hook did not `cd` back into the original checkout it was installed from.
+    writeFiles(worktree, { '.prdm.yaml': projectFile(false), 'src/a.ts': 'export const a = 1;\n' });
+    git(worktree, 'add', '-A');
+
+    const prdmStub = join(worktree, 'prdm-stub.sh');
+    const logPath = join(worktree, 'prdm-stub.log');
+    writeFileSync(prdmStub, `#!/bin/sh\necho "$(pwd)|$*" >> ${JSON.stringify(logPath)}\n`);
+    const run = promisify(execFile);
+    await run('chmod', ['+x', prdmStub]);
+
+    await run('git', ['-c', 'user.name=t', '-c', 'user.email=t@t.com', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'feat: add a, no refs'], {
+      cwd: worktree,
+      env: { ...process.env, PRDM_BIN: prdmStub },
+    });
+
+    const lines = readFileSync(logPath, 'utf8').trim().split('\n');
+    const syncLine = lines.find((line) => line.endsWith('|sync'));
+    expect(syncLine).toBeDefined();
+    const [pwd] = (syncLine ?? '').split('|');
+    expect(pwd).toBe(worktree);
   });
 });
 
@@ -110,11 +198,13 @@ describe('quoting a project root with spaces and quotes', () => {
 
     await installHooks(projectRoot, PROJECT_ID);
     const postCommit = join(projectRoot, '.git', 'hooks', 'post-commit');
-    const { stdout } = await run('sh', [postCommit], { cwd: root, env: { ...process.env, PRDM_BIN: 'true' } });
+    // Hooks are always invoked by git with cwd inside the work tree (never the parent directory): a real hook's
+    // `git rev-parse --show-toplevel` call requires this.
+    const { stdout } = await run('sh', [postCommit], { cwd: projectRoot, env: { ...process.env, PRDM_BIN: 'true' } });
     expect(stdout).toBe('');
 
-    writeFiles(root, { 'msg dir/COMMIT_EDITMSG': 'feat: x\n' });
+    writeFiles(projectRoot, { 'msg dir/COMMIT_EDITMSG': 'feat: x\n' });
     const commitMsg = join(projectRoot, '.git', 'hooks', 'commit-msg');
-    await run('sh', [commitMsg, 'msg dir/COMMIT_EDITMSG'], { cwd: root, env: { ...process.env, PRDM_BIN: 'true' } });
+    await run('sh', [commitMsg, 'msg dir/COMMIT_EDITMSG'], { cwd: projectRoot, env: { ...process.env, PRDM_BIN: 'true' } });
   });
 });
