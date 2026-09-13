@@ -1,0 +1,10 @@
+{
+  "docsDir": "docs",
+  "ignore": ["node_modules/**", "dist/**", "coverage/**", ".git/**", ".docker/**", ".claude/**", ".prdm/**", "tests/fixtures/**"],
+  "gitMaxCommits": 500,
+  "triage": {
+    "autoLinkMinScore": 1.5,
+    "autoLinkMargin": 1.2,
+    "maxCandidates": 5
+  }
+}
