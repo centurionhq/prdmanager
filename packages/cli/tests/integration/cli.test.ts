@@ -1,8 +1,19 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { Engine, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
-import { createFixtureRepo, makeTmpDir, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
+import {
+  DEFAULT_AUTHORING,
+  DEFAULT_FOLDERS,
+  DEFAULT_GIT,
+  DEFAULT_LIFECYCLE,
+  Engine,
+  renderProjectFile,
+  type GraphDatabase,
+  type GraphStore,
+  type PrdmConfig,
+  type ProjectFileSettings,
+} from '@prdm/core';
+import { createFixtureRepo, gitInit, makeTmpDir, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 import type { CliContext, CliDeps } from '../../src/program.js';
 import { runCli } from '../../src/program.js';
 
@@ -10,6 +21,18 @@ interface CliRunResult {
   code: number;
   stdout: string[];
   stderr: string[];
+}
+
+function projectFileDefaults(): Omit<ProjectFileSettings, 'project'> {
+  return {
+    docsDir: 'docs',
+    folders: DEFAULT_FOLDERS,
+    ignore: [],
+    git: DEFAULT_GIT,
+    triage: { autoLinkMinScore: 0.5, autoLinkMargin: 1.05, maxCandidates: 5, minMatchedTerms: 2 },
+    lifecycle: DEFAULT_LIFECYCLE,
+    authoring: DEFAULT_AUTHORING,
+  };
 }
 
 let root: string;
@@ -209,15 +232,38 @@ describe('prdm CLI', () => {
     expect(code).toBe(0);
   });
 
-  test('hooks install writes an executable post-commit hook and refuses to overwrite it', async () => {
+  test('hooks install refuses without a .prdm.yaml', async () => {
+    const noProjectRoot = makeTmpDir('prdm-no-project-');
+    gitInit(noProjectRoot);
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const deps: CliDeps = { root: noProjectRoot, stdout: (l) => stdout.push(l), stderr: (l) => stderr.push(l) };
+    const code = await runCli(['node', 'prdm', 'hooks', 'install'], deps);
+    expect(code).toBe(1);
+    expect(stderr.join('\n')).toContain('.prdm.yaml');
+    removeDir(noProjectRoot);
+  });
+
+  test('hooks install writes executable post-commit and commit-msg hooks, idempotently, and refuses an unrecognized shebang without --force', async () => {
+    writeFiles(root, { '.prdm.yaml': renderProjectFile({ ...projectFileDefaults(), project: config.project }) });
+
     const first = await run(['hooks', 'install']);
     expect(first.code).toBe(0);
-    const hookPath = join(root, '.git', 'hooks', 'post-commit');
-    expect(existsSync(hookPath)).toBe(true);
-    expect(statSync(hookPath).mode & 0o777).toBe(0o755);
+    const postCommitPath = join(root, '.git', 'hooks', 'post-commit');
+    const commitMsgPath = join(root, '.git', 'hooks', 'commit-msg');
+    expect(existsSync(postCommitPath)).toBe(true);
+    expect(existsSync(commitMsgPath)).toBe(true);
+    expect(statSync(postCommitPath).mode & 0o777).toBe(0o755);
+    expect(readFileSync(postCommitPath, 'utf8')).toContain(`# >>> prdm ${config.project.id} >>>`);
 
     const second = await run(['hooks', 'install']);
-    expect(second.code).toBe(1);
+    expect(second.code).toBe(0);
+    expect(second.stdout.join('\n')).toContain('unchanged');
+
+    writeFiles(root, { '.git/hooks/commit-msg': '#!/usr/bin/env python3\nprint("custom")\n' });
+    const refused = await run(['hooks', 'install']);
+    expect(refused.code).toBe(1);
+    expect(refused.stderr.join('\n')).toContain('unrecognized shebang');
 
     const forced = await run(['hooks', 'install', '--force']);
     expect(forced.code).toBe(0);
