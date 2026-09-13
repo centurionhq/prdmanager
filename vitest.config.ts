@@ -7,6 +7,7 @@ export default defineConfig({
       '@prdm/core': resolve(import.meta.dirname, 'packages/core/src/index.ts'),
       '@prdm/contracts': resolve(import.meta.dirname, 'packages/contracts/src/index.ts'),
       '@prdm/db': resolve(import.meta.dirname, 'packages/db/src/index.ts'),
+      '@prdm/server': resolve(import.meta.dirname, 'packages/server/src/build-server.ts'),
       '@prdm/testkit': resolve(import.meta.dirname, 'packages/testkit/src/index.ts'),
     },
   },

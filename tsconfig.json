@@ -6,6 +6,7 @@
     { "path": "packages/mcp" },
     { "path": "packages/web" },
     { "path": "packages/contracts" },
-    { "path": "packages/db" }
+    { "path": "packages/db" },
+    { "path": "packages/server" }
   ]
 }

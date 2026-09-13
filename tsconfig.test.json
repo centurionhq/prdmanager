@@ -17,6 +17,8 @@
     "packages/contracts/tests/**/*.ts",
     "packages/db/src/**/*.ts",
     "packages/db/tests/**/*.ts",
+    "packages/server/src/**/*.ts",
+    "packages/server/tests/**/*.ts",
     "packages/testkit/src/**/*.ts",
     "packages/web/src/**/*.ts",
     "packages/web/tests/unit/**/*.ts",
