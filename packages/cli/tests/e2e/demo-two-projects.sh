@@ -5,7 +5,7 @@
 #      `prdm project list` / `prdm search` never leak one project's content into the other.
 #
 # Usage:
-#   NEO4J_URI=neo4j://127.0.0.1:7689 NEO4J_PASSWORD=*** ./demo-two-projects.sh
+#   NEO4J_URI=neo4j://127.0.0.1:7688 NEO4J_PASSWORD=*** ./demo-two-projects.sh
 #
 # Reads every Neo4j setting from the environment; never hardcodes a secret. Requires a prior `npm run build`.
 set -euo pipefail
@@ -19,7 +19,7 @@ if [ ! -f "$CLI_DIST" ]; then
   exit 1
 fi
 
-: "${NEO4J_URI:=neo4j://127.0.0.1:7689}"
+: "${NEO4J_URI:=neo4j://127.0.0.1:7688}"
 : "${NEO4J_USERNAME:=neo4j}"
 : "${NEO4J_DATABASE:=neo4j}"
 if [ -z "${NEO4J_PASSWORD:-}" ]; then

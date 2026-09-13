@@ -11,7 +11,7 @@ export const CLI_DIST = resolve(REPO_ROOT, 'packages/cli/dist/index.js');
 export const MCP_DIST = resolve(REPO_ROOT, 'packages/mcp/dist/server.js');
 
 /** The throwaway, tmpfs-backed Neo4j instance this worktree's e2e/integration tests share (never the dev instance). */
-export const NEO4J_TEST_URI = process.env.NEO4J_TEST_URI ?? 'neo4j://127.0.0.1:7689';
+export const NEO4J_TEST_URI = process.env.NEO4J_TEST_URI ?? 'neo4j://127.0.0.1:7688';
 
 /** Fails fast with a clear instruction instead of a confusing MODULE_NOT_FOUND deep in a child process. */
 export function assertBuilt(): void {
