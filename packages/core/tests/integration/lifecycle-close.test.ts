@@ -1,6 +1,11 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { closeFeature, closureReadiness, Engine, type GraphStore, type Neo4jGraphDatabase, type PrdmConfig } from '@prdm/core';
+import { closeFeature, closureReadiness, Engine, type GraphStore, type Neo4jGraphDatabase, type PrdmConfig, type RefreshReport } from '@prdm/core';
 import { commitAll, gitInit, makeTmpDir, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
+
+// Isolate the journal HMAC key (WO-023 finding 1) from the developer's real ~/.config/prdm/journal.key: closeFeature now runs atomically.
+process.env.PRDM_JOURNAL_KEY_FILE ??= `${makeTmpDir('prdm-journal-key-')}/journal.key`;
 
 let root: string;
 let config: PrdmConfig;
@@ -75,5 +80,72 @@ describe('closureReadiness / closeFeature (WO-019, PRD-002 §3 "Cierre")', () =>
 
   test('closeFeature validates the "by" actor', async () => {
     await expect(closeFeature(engine, 'PRD-001', { by: 'not-an-actor' })).rejects.toThrow(/invalid "by" actor/);
+  });
+});
+
+describe('WO-023 finding 9: closureReadiness is read-only; closeFeature re-checks under the lock', () => {
+  test('closureReadiness never writes the baseline or a graph snapshot', async () => {
+    const baselineBefore = readFileSync(join(root, '.prdm/baseline.json'));
+    const nodeBefore = await store.getNode('PRD-001');
+
+    await closureReadiness(engine, 'PRD-001');
+
+    expect(readFileSync(join(root, '.prdm/baseline.json'))).toEqual(baselineBefore);
+    expect(await store.getNode('PRD-001')).toEqual(nodeBefore);
+  });
+
+  test('closeFeature refuses to close when a concurrent change makes the feature no longer ready between the initial check and the in-lock recheck', async () => {
+    const raceRoot = makeTmpDir('prdm-close-race-');
+    const files: Record<string, string> = {
+      'prdm.config.json': JSON.stringify({ ignore: [] }),
+      'docs/prd/PRD-777.md': '---\nid: PRD-777\ntype: PRD\ntitle: "Racy"\nstatus: approved\njustified_by: ["FB-777"]\n---\nproduct\n',
+      'docs/feedback/FB-777.md': '---\nid: FB-777\ntype: FB\ntitle: "Feedback"\nsource: email\nstatus: triaged\ninforms: ["PRD-777"]\n---\nfeedback\n',
+      'docs/blueprints/SDD-777.md': '---\nid: SDD-777\ntype: SDD\ntitle: "Design"\narchitects: ["PRD-777"]\nimpacts_paths: ["src/bar.ts"]\n---\ndesign\n\n## Tareas\n- [x] hecho\n',
+      'docs/work-orders/WO-777.md': '---\nid: WO-777\ntype: WO\ntitle: "Task"\nstatus: done\nimplements: ["SDD-777"]\nsource_task: "t777"\n---\nobjetivo\n',
+      'src/bar.ts': 'export const bar = 1;\n',
+    };
+    writeFiles(raceRoot, files);
+    gitInit(raceRoot);
+    commitAll(raceRoot, 'chore: initial docs');
+    const raceConfig = testConfig(raceRoot);
+    const { db: raceDb, store: raceStore } = await openTestDb(raceConfig);
+    const raceEngine = new Engine(raceConfig, raceStore);
+    await raceEngine.refresh();
+
+    // Duck-types just enough of Engine's public surface for closureReadiness/closeFeature; its `inspect()`
+    // simulates a concurrent actor: the FIRST call (the outer, pre-lock readiness check) returns the genuinely
+    // clean report, then — as if another process had just landed a change — reverts WO-777 to "in_progress" on
+    // disk. `transaction()` delegates to the real engine, so the SECOND check (inside the transaction, under
+    // the lock, via the real `ops.inspect()`) sees that mutation and must catch what the first check could not.
+    let calls = 0;
+    const flakyEngine = {
+      config: raceEngine.config,
+      store: raceEngine.store,
+      inspect: async (): Promise<RefreshReport> => {
+        calls += 1;
+        const report = await raceEngine.inspect();
+        if (calls === 1) writeFileSync(join(raceRoot, 'docs/work-orders/WO-777.md'), files['docs/work-orders/WO-777.md']!.replace('status: done', 'status: in_progress'));
+        return report;
+      },
+      transaction: raceEngine.transaction.bind(raceEngine),
+      acknowledge: raceEngine.acknowledge.bind(raceEngine),
+      recover: raceEngine.recover.bind(raceEngine),
+    } as unknown as Engine;
+
+    try {
+      // closeFeature's OWN internal outer check (calls === 1) captures the docs snapshot before `inspect()` runs,
+      // so it still reports ready=true; the mutation lands as a side effect of that very call, to be picked up
+      // only by the second, in-lock recheck.
+      await expect(closeFeature(flakyEngine, 'PRD-777', { by: 'dev:tester' })).rejects.toThrow(/no longer ready to close/);
+      // The outer check (through flakyEngine.inspect) ran exactly once; the second, catching check ran through
+      // the REAL engine's own ops.inspect() inside the transaction (untouched by this wrapper) — proof that the
+      // in-lock recheck, not the outer one, is what caught the concurrent change.
+      expect(calls).toBe(1);
+      // and, crucially, nothing was written: the feature was never marked closed.
+      expect((await raceStore.getNode('PRD-777'))?.node.status).not.toBe('closed');
+    } finally {
+      await raceDb.close();
+      removeDir(raceRoot);
+    }
   });
 });

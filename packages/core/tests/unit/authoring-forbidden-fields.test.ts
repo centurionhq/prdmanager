@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { assertDraftableKind, forbiddenFieldIssues } from '../../src/authoring/forbidden-fields.js';
+import { assertDraftableKind, assertValidFieldKeys, forbiddenFieldInjectionIssues, forbiddenFieldIssues } from '../../src/authoring/forbidden-fields.js';
 
 describe('assertDraftableKind', () => {
   test('rejects WO', () => {
@@ -33,5 +33,49 @@ describe('forbiddenFieldIssues', () => {
 
   test('does not flag ordinary content fields', () => {
     expect(forbiddenFieldIssues({ tags: ['a', 'b'], implements: ['PRD-001'] })).toEqual([]);
+  });
+});
+
+describe('assertValidFieldKeys (WO-023 finding 6)', () => {
+  test('accepts plain snake_case keys, and undefined', () => {
+    expect(() => assertValidFieldKeys(undefined)).not.toThrow();
+    expect(() => assertValidFieldKeys({ tags: ['a'], impacts_paths: ['x'], source_task: 'y' })).not.toThrow();
+  });
+
+  test('rejects a key that could inject an extra frontmatter line (newline, colon, leading digit, uppercase)', () => {
+    expect(() => assertValidFieldKeys({ 'tags: []\nstatus': 'closed' })).toThrow(/invalid field key/);
+    expect(() => assertValidFieldKeys({ 'a:b': 'x' })).toThrow(/invalid field key/);
+    expect(() => assertValidFieldKeys({ '1abc': 'x' })).toThrow(/invalid field key/);
+    expect(() => assertValidFieldKeys({ Status: 'x' })).toThrow(/invalid field key/);
+  });
+});
+
+describe('forbiddenFieldInjectionIssues (WO-023 finding 6: post-render, post-parse diff)', () => {
+  test('flags a create draft that carries a forbidden field into the rendered frontmatter', () => {
+    const issues = forbiddenFieldInjectionIssues({ assigned_to: 'agent:x' }, undefined);
+    expect(issues).toEqual([expect.objectContaining({ code: 'forbidden_field', field: 'assigned_to' })]);
+  });
+
+  test('does not flag a value carried over unchanged from the base document (update mode)', () => {
+    const base = { assigned_to: 'agent:x', status: 'in_progress' };
+    expect(forbiddenFieldInjectionIssues({ ...base }, base)).toEqual([]);
+  });
+
+  test('flags a forbidden field whose value changed relative to the base document', () => {
+    const base = { assigned_to: 'agent:x' };
+    const issues = forbiddenFieldInjectionIssues({ assigned_to: 'agent:y' }, base);
+    expect(issues).toEqual([expect.objectContaining({ code: 'forbidden_field', field: 'assigned_to' })]);
+  });
+
+  test('never flags id/type: they are always freshly assigned, not "changed" by the draft', () => {
+    expect(forbiddenFieldInjectionIssues({ id: 'FB-000000000', type: 'FB' }, undefined)).toEqual([]);
+  });
+
+  test('flags status moving to a terminal value even without an explicit base', () => {
+    expect(forbiddenFieldInjectionIssues({ status: 'closed' }, undefined)).toEqual([expect.objectContaining({ code: 'forbidden_field', field: 'status' })]);
+  });
+
+  test('does not flag a terminal status that was already the base value (unchanged)', () => {
+    expect(forbiddenFieldInjectionIssues({ status: 'done' }, { status: 'done' })).toEqual([]);
   });
 });

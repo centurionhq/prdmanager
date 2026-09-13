@@ -1,5 +1,6 @@
 import type { Engine, RefreshReport } from '../engine.js';
 import type { ParsedDoc, WorkOrderStatus } from '../domain/schema.js';
+import { checkLifecycle } from '../lifecycle/check.js';
 import type { FieldValue } from '../parser/frontmatter-edit.js';
 import { normalizeText, sha256 } from '../util/hash.js';
 import { nextId, renderDocument, slugify, todayIso } from '../util/ids.js';
@@ -132,6 +133,14 @@ export async function generateWorkOrders(engine: Engine, blueprintId: string): P
       const blueprint = scan.docs.find((d) => d.node.id === blueprintId);
       if (!blueprint) throw new Error(`blueprint ${blueprintId} not found`);
       if (!isBlueprint(blueprint)) throw new Error(`${blueprintId} is not a blueprint`);
+
+      // WO-023 finding 7: a blueprint that fails its own lifecycle design rule (non-empty impacts_paths and a
+      // "## Tareas"/"## Tasks" checklist) must never generate work orders from it.
+      const lifecycleIssues = checkLifecycle(scan.docs, { grandfathered: ops.config.lifecycle.grandfathered });
+      const blueprintErrors = lifecycleIssues.filter((issue) => issue.nodeId === blueprintId && issue.severity === 'error');
+      if (blueprintErrors.length > 0) {
+        throw new Error(`${blueprintId} fails its lifecycle design rule and cannot generate work orders: ${blueprintErrors.map((i) => i.message).join('; ')}`);
+      }
 
       const totalTasks = extractTasks(blueprint.node.body).length;
       const planned = planWorkOrders(blueprint, scan.docs, {

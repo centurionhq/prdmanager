@@ -14,25 +14,19 @@ export interface ClosureReadiness {
   checks: ClosureCheck[];
 }
 
-function architectingBlueprints(docs: ParsedDoc[], featureId: string): ParsedDoc[] {
+function architectingBlueprints(docs: readonly ParsedDoc[], featureId: string): ParsedDoc[] {
   return docs.filter((d) => d.node.label === 'Blueprint' && d.edges.some((e) => e.type === 'ARCHITECTS' && e.to === featureId));
 }
 
-function workOrdersImplementing(docs: ParsedDoc[], blueprintId: string): ParsedDoc[] {
+function workOrdersImplementing(docs: readonly ParsedDoc[], blueprintId: string): ParsedDoc[] {
   return docs.filter((d) => d.node.label === 'WorkOrder' && d.edges.some((e) => e.type === 'IMPLEMENTS' && e.to === blueprintId));
 }
 
-/**
- * Read-only closure gate for `prdm close` (PRD-002 §3 "Cierre"): a Feature is only closeable once it is
- * `approved`, every Blueprint architecting it has at least one Work Order implementing it, all of those Work
- * Orders are `done`, and a full refresh reports zero error-level issues project-wide. Doc-level checks read
- * straight from disk (no lock needed for a read); the project-wide check runs a real `engine.refresh()`.
- */
-export async function closureReadiness(engine: Engine, featureId: string): Promise<ClosureReadiness> {
-  const { docs } = await scanDocuments(engine.config.root, engine.config.ignore);
-  const feature = docs.find((d) => d.node.id === featureId);
+/** Pure: the same five checks, given the documents and a (real or dry-run) refresh report. Never does I/O itself. */
+function evaluateReadiness(docs: readonly ParsedDoc[], featureId: string, report: RefreshReport): ClosureReadiness {
   const checks: ClosureCheck[] = [];
 
+  const feature = docs.find((d) => d.node.id === featureId);
   const exists = feature !== undefined && feature.node.label === 'Feature';
   checks.push({ name: 'feature_exists', ok: exists, detail: exists ? `${featureId} is a Feature` : `${featureId} was not found or is not a Feature` });
 
@@ -60,7 +54,6 @@ export async function closureReadiness(engine: Engine, featureId: string): Promi
     detail: pending.length === 0 ? 'all work orders implementing its blueprints are done' : `pending work order(s): ${pending.map((wo) => wo.node.id).join(', ')}`,
   });
 
-  const report = await engine.refresh();
   const errorCount = report.issues.filter((i) => i.severity === 'error').length + report.errors.length;
   checks.push({
     name: 'project_clean',
@@ -69,6 +62,19 @@ export async function closureReadiness(engine: Engine, featureId: string): Promi
   });
 
   return { featureId, ready: checks.every((c) => c.ok), checks };
+}
+
+/**
+ * Read-only closure gate for `prdm close` (PRD-002 §3 "Cierre"): a Feature is only closeable once it is
+ * `approved`, every Blueprint architecting it has at least one Work Order implementing it, all of those Work
+ * Orders are `done`, and a project-wide dry-run reports zero error-level issues. Never writes anything — not a
+ * status field, not the baseline, not a graph snapshot (WO-023 finding 9): it reads straight from disk and uses
+ * `engine.inspect()`, so it is safe to call without holding the repo lock.
+ */
+export async function closureReadiness(engine: Engine, featureId: string): Promise<ClosureReadiness> {
+  const { docs } = await scanDocuments(engine.config.root, engine.config.ignore);
+  const report = await engine.inspect();
+  return evaluateReadiness(docs, featureId, report);
 }
 
 export interface CloseOptions {
@@ -84,29 +90,39 @@ export interface CloseResult {
 }
 
 /**
- * Human closure gate (PRD-002 §3, ADR-002 D14: `prdm close` is CLI-only). Sequence matters: `closureReadiness`
- * runs before any transaction (it calls the public `engine.refresh()`); the write happens inside a single
- * transaction using only `EngineOps`; `engine.acknowledge` is a separate call afterwards, never from within the
- * transaction (Engine's own contract: never call its public methods from inside `transaction()`).
+ * Human closure gate (PRD-002 §3, ADR-002 D15: `prdm close` is CLI-only). Sequence matters: `closureReadiness`
+ * runs first, outside any transaction, so a hopeless request fails fast with a clear report; readiness is then
+ * re-checked a second time INSIDE the atomic transaction, under the repo lock, immediately before writing — a
+ * document could otherwise have changed in the window between the first check and acquiring the lock, closing
+ * a Feature that is no longer actually ready (WO-023 finding 9). `engine.acknowledge` is a separate call
+ * afterwards, never from within the transaction (Engine's own contract: never call its public methods from
+ * inside `transaction()`).
  */
 export async function closeFeature(engine: Engine, featureId: string, options: CloseOptions): Promise<CloseResult> {
   if (!ACTOR_PATTERN.test(options.by)) throw new Error(`invalid "by" actor: ${options.by} (expected agent:name or dev:name)`);
 
   const readiness = await closureReadiness(engine, featureId);
-  if (!readiness.ready) {
-    const failing = readiness.checks
-      .filter((c) => !c.ok)
-      .map((c) => `${c.name}: ${c.detail}`)
-      .join('; ');
-    throw new Error(`${featureId} is not ready to close: ${failing}`);
-  }
+  if (!readiness.ready) throw new Error(`${featureId} is not ready to close: ${describeFailures(readiness)}`);
 
   const closedAt = (options.now ?? new Date()).toISOString();
-  await engine.transaction(async (ops) => {
-    await ops.updateDocument(featureId, { status: 'closed', closed_at: closedAt, closed_by: options.by });
-    return ops.refresh();
-  });
+  await engine.transaction(
+    async (ops) => {
+      const docs = (await ops.scan()).docs;
+      const recheck = evaluateReadiness(docs, featureId, await ops.inspect());
+      if (!recheck.ready) throw new Error(`${featureId} is no longer ready to close (something changed since the readiness check): ${describeFailures(recheck)}`);
+      await ops.updateDocument(featureId, { status: 'closed', closed_at: closedAt, closed_by: options.by });
+      return ops.refresh();
+    },
+    { atomic: true },
+  );
 
   const report = await engine.acknowledge(featureId);
   return { featureId, closedAt, closedBy: options.by, report };
+}
+
+function describeFailures(readiness: ClosureReadiness): string {
+  return readiness.checks
+    .filter((c) => !c.ok)
+    .map((c) => `${c.name}: ${c.detail}`)
+    .join('; ');
 }

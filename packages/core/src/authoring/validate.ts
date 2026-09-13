@@ -1,12 +1,13 @@
 import type { ParsedDoc } from '../domain/schema.js';
 import { checkLifecycle } from '../lifecycle/check.js';
+import type { DriftIssue } from '../sync/monitor.js';
 import { EXPECTED_TARGET } from '../sync/monitor.js';
 import type { FieldValue } from '../parser/frontmatter-edit.js';
 import { renderDocument } from '../util/ids.js';
 import { parseDocument } from '../parser/frontmatter.js';
 import type { ScanResult } from '../parser/scan.js';
 import type { GrandfatheredDoc } from '../project/types.js';
-import { forbiddenFieldIssues } from './forbidden-fields.js';
+import { forbiddenFieldInjectionIssues, forbiddenFieldIssues } from './forbidden-fields.js';
 import type { DraftRecord } from './draft-store.js';
 import type { DraftKind, ValidationIssue } from './types.js';
 
@@ -60,6 +61,14 @@ export interface ValidationOutcome {
 export interface ValidationContext {
   scan: ScanResult;
   grandfathered: readonly GrandfatheredDoc[];
+  /**
+   * For an update draft: sha256 of the target document's raw file bytes as they are on disk right now
+   * (undefined when they could not be read, e.g. the file is gone). Compared against `record.baseHash`, which
+   * is captured the same way when the draft was opened — a byte-for-byte check that catches a concurrent edit
+   * even when it only touches fields the document's `contentHash` deliberately ignores, like `status` or a
+   * blueprint's task checklist (WO-023 finding 5).
+   */
+  currentRawHash?: string;
 }
 
 /**
@@ -95,10 +104,12 @@ export function validateDraft(record: DraftRecord, ctx: ValidationContext): Vali
     const current = ctx.scan.docs.find((d) => d.node.id === record.targetId);
     if (!current) {
       issues.push({ severity: 'error', code: 'stale_base', message: `${record.targetId} no longer exists on disk` });
-    } else if (current.node.contentHash !== record.baseHash) {
+    } else if (ctx.currentRawHash === undefined || ctx.currentRawHash !== record.baseHash) {
       issues.push({ severity: 'error', code: 'stale_base', message: `${record.targetId} changed on disk since this draft was opened; discard and re-open it` });
     }
   }
+
+  issues.push(...forbiddenFieldInjectionIssues(parsed.doc.frontmatter as unknown as Record<string, FieldValue>, record.mode === 'update' ? (record.baseFrontmatter as unknown as Record<string, FieldValue> | undefined) : undefined));
 
   const others = ctx.scan.docs.filter((d) => d.node.id !== internalId && d.node.id !== record.targetId);
   const overlaid: ParsedDoc[] = [...others, parsed.doc];
@@ -114,11 +125,36 @@ export function validateDraft(record: DraftRecord, ctx: ValidationContext): Vali
     }
   }
 
-  const lifecycleIssues = checkLifecycle(overlaid, { grandfathered: ctx.grandfathered });
-  for (const issue of lifecycleIssues) {
-    if (issue.nodeId !== internalId && issue.nodeId !== record.targetId) continue;
+  for (const issue of newLifecycleIssues(ctx.scan.docs, overlaid, ctx.grandfathered)) {
     issues.push({ severity: issue.severity, code: 'lifecycle', message: issue.message.replaceAll(internalId, record.targetId) });
   }
 
-  return { issues, rendered, targetPath, cleanFields: fields, internalId };
+  return { issues: dedupeForbiddenFieldIssues(issues), rendered, targetPath, cleanFields: fields, internalId };
+}
+
+/** Stable key for a lifecycle issue, used to diff a "before" and "after" run of `checkLifecycle`. */
+function lifecycleIssueKey(issue: DriftIssue): string {
+  return JSON.stringify([issue.nodeId, issue.severity, issue.message]);
+}
+
+/**
+ * Any lifecycle violation that appears only after overlaying the draft — on ANY document, not just the draft's
+ * own — is collateral damage the draft would cause and must block it (WO-023 finding 7): e.g. an update that
+ * drops a Feedback's `informs` link can retroactively unjustify a Feature that relied on it.
+ */
+function newLifecycleIssues(before: readonly ParsedDoc[], after: readonly ParsedDoc[], grandfathered: readonly GrandfatheredDoc[]): DriftIssue[] {
+  const beforeKeys = new Set(checkLifecycle(before, { grandfathered }).map(lifecycleIssueKey));
+  return checkLifecycle(after, { grandfathered }).filter((issue) => !beforeKeys.has(lifecycleIssueKey(issue)));
+}
+
+/** Collapses forbidden_field issues raised by both the pre-render and post-render (injection) checks for the same field into one. */
+function dedupeForbiddenFieldIssues(issues: ValidationIssue[]): ValidationIssue[] {
+  const seen = new Set<string>();
+  return issues.filter((issue) => {
+    if (issue.code !== 'forbidden_field') return true;
+    const key = `${issue.field ?? ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

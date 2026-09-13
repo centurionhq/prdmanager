@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
@@ -7,11 +7,15 @@ import { AuthoringService } from '../../src/authoring/service.js';
 import { DraftStore } from '../../src/authoring/draft-store.js';
 import { DraftValidationError } from '../../src/authoring/types.js';
 import { Engine } from '../../src/engine.js';
-import { graphStaleMarkerExists } from '../../src/util/journal.js';
+import { sha256 } from '../../src/util/hash.js';
+import { graphStaleMarkerExists, writeJournalForTest } from '../../src/util/journal.js';
 import type { Neo4jGraphDatabase } from '../../src/graph/database.js';
 import type { GraphSnapshot, GraphStore, MetricsRaw, NodeDetail, SearchHit, Subgraph, WorkOrderContextRaw, WorkOrderSummary } from '../../src/graph/types.js';
 import type { NodeLabel } from '../../src/domain/schema.js';
-import { createFixtureRepo, openTestDb, removeDir, testConfig } from '@prdm/testkit';
+import { createFixtureRepo, makeTmpDir, openTestDb, removeDir, testConfig } from '@prdm/testkit';
+
+// Isolate the journal HMAC key (WO-023 finding 1) from the developer's real ~/.config/prdm/journal.key.
+process.env.PRDM_JOURNAL_KEY_FILE ??= join(makeTmpDir('prdm-journal-key-'), 'journal.key');
 
 let root: string;
 let config: PrdmConfig;
@@ -243,21 +247,41 @@ describe('orphan journal recovery', () => {
     await orphanEngine.refresh();
   });
 
-  test('a journal left by a dead pid on the same host is rolled back on the next transaction, and the graph is refreshed', async () => {
+  test('an authenticated journal left behind by a previous holder is rolled back on the next transaction, and the graph is refreshed', async () => {
     const mrdPath = join(orphanRoot, 'docs/mrd/MRD-001.md');
     const original = readFileSync(mrdPath, 'utf8');
+    const mutated = 'mutated by the crashed process\n';
 
-    mkdirSync(join(orphanRoot, '.prdm'), { recursive: true });
     const token = 'dead-owner-integration';
-    writeFileSync(
-      join(orphanRoot, `.prdm/journal-${token}.json`),
-      JSON.stringify({ owner: { token, pid: 2_147_483_000, host: hostname() }, entries: [{ path: 'docs/mrd/MRD-001.md', kind: 'replaced', original: Buffer.from(original).toString('base64') }] }),
-    );
-    writeFileSync(mrdPath, 'mutated by the crashed process\n');
+    await writeJournalForTest(orphanRoot, {
+      owner: { token, pid: 2_147_483_000, host: hostname() },
+      entries: [{ path: 'docs/mrd/MRD-001.md', kind: 'replaced', sha256: sha256(mutated), original: Buffer.from(original).toString('base64') }],
+    });
+    writeFileSync(mrdPath, mutated);
 
     await orphanEngine.refresh();
 
     expect(readFileSync(mrdPath, 'utf8')).toBe(original);
     expect(existsSync(join(orphanRoot, `.prdm/journal-${token}.json`))).toBe(false);
+  });
+
+  test('a planted, unsigned journal (WO-023 finding 1) is never replayed: it is left in place and reported by engine.recover()', async () => {
+    const mrdPath = join(orphanRoot, 'docs/mrd/MRD-001.md');
+    const original = readFileSync(mrdPath, 'utf8');
+    const token = 'planted-unsigned';
+    mkdirSync(join(orphanRoot, '.prdm'), { recursive: true });
+    // Hand-written, unsigned journal: exactly what a cloned/checked-out repo could carry.
+    writeFileSync(
+      join(orphanRoot, `.prdm/journal-${token}.json`),
+      JSON.stringify({ owner: { token, pid: 2_147_483_000, host: hostname() }, entries: [{ path: 'docs/mrd/MRD-001.md', kind: 'replaced', sha256: 'x', original: Buffer.from('evil').toString('base64') }] }),
+    );
+
+    const result = await orphanEngine.recover();
+
+    expect(readFileSync(mrdPath, 'utf8')).toBe(original);
+    expect(existsSync(join(orphanRoot, `.prdm/journal-${token}.json`))).toBe(true);
+    expect(result.warnings.some((w) => w.includes(token))).toBe(true);
+
+    rmSync(join(orphanRoot, `.prdm/journal-${token}.json`), { force: true });
   });
 });
