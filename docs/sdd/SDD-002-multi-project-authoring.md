@@ -120,3 +120,4 @@ PRD-002 §5 se valida con la siguiente iteración técnica (PRD-003, reemplazo d
 - [ ] Endurecer la política de Refs tras la revisión: bypasses en CI, proyectos en subdirectorios, hooks relativos al worktree, errores de git y lista de exentos por id y hash
 - [ ] Corregir tras la revisión el reset sin huella, las lecturas sobre un grafo pendiente de recuperación, los fences de prompts, los acks de diseño por MCP y la documentación
 - [ ] Evaluar la política de Refs en rangos históricos con el estado de cada WO al momento del commit, sin enforcement cuando la base no tiene .prdm.yaml y eximiendo solo la historia hasta enforce_refs_since
+- [ ] Ajustar CI para que el checker de la base solo corra cuando la base ya adoptó prdm y su checkout no contamine sync --check
