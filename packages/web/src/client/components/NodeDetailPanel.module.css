@@ -1,0 +1,119 @@
+.panel {
+  background: var(--color-bg-elevated);
+  backdrop-filter: var(--panel-blur);
+  -webkit-backdrop-filter: var(--panel-blur);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  overflow-y: auto;
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: var(--space-md);
+}
+
+.eyebrow {
+  font: 600 var(--font-size-xs) / 1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-fg-subtle);
+  margin: 0;
+}
+
+.id {
+  font: 700 var(--font-size-lg) / 1 var(--font-mono);
+  color: var(--color-accent);
+  text-shadow: 0 0 18px var(--color-accent-glow);
+  margin: 0;
+}
+
+.docTitle {
+  margin: 0;
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 600 11px / 1 var(--font-mono);
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: var(--border-width) solid var(--color-border-strong);
+  color: var(--color-fg-muted);
+}
+
+.badgeOk {
+  color: var(--color-status-ok);
+  border-color: var(--color-status-ok);
+  box-shadow: 0 0 10px var(--color-status-ok-glow);
+}
+
+.badgeAttention {
+  color: var(--color-status-warning);
+  border-color: var(--color-status-warning);
+  box-shadow: 0 0 10px var(--color-status-warning-glow);
+}
+
+.sep {
+  height: var(--border-width);
+  background: var(--color-border);
+  border: none;
+  margin: 0;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-xs) var(--space-sm);
+  margin: 0;
+}
+
+.kv dt {
+  font: 500 11px / 1.6 var(--font-mono);
+  color: var(--color-fg-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kv dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.link {
+  font: 600 12px / 1 var(--font-mono);
+  color: var(--color-accent);
+  text-decoration: none;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  cursor: pointer;
+  border: none;
+}
+
+.link:hover {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+.body {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-muted);
+  white-space: pre-wrap;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.placeholder {
+  color: var(--color-fg-subtle);
+  font-size: var(--font-size-sm);
+}
