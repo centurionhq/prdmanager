@@ -5,7 +5,7 @@ title: "AuthoringService con DraftSession en memoria, reserva de IDs, validació
 status: "todo"
 created_at: "2026-09-13"
 implements: ["SDD-002"]
-governs: ["packages/core/src/**","packages/cli/src/**","packages/mcp/src/**"]
+governs: ["packages/core/src/**","packages/cli/src/**","packages/mcp/src/**","packages/testkit/src/**","package.json","packages/*/package.json","tsconfig*.json","packages/*/tsconfig*.json","vitest.config.ts",".github/workflows/prdm-sync.yml"]
 source_task: "86e28e3a93d5cfce"
 tags: ["architecture","multi-project","headless","authoring","mcp","neo4j"]
 ---

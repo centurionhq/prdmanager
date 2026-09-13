@@ -1,19 +1,8 @@
 {
-  "compilerOptions": {
-    "target": "es2023",
-    "lib": ["es2023"],
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "noFallthroughCasesInSwitch": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "types": ["node"],
-    "sourceMap": true,
-    "outDir": "dist",
-    "rootDir": "."
-  },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/cli" },
+    { "path": "packages/mcp" }
+  ]
 }

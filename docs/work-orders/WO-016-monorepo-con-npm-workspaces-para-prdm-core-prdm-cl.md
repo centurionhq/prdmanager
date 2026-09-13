@@ -2,12 +2,14 @@
 id: "WO-016"
 type: "WO"
 title: "Monorepo con npm workspaces para @prdm/core, @prdm/cli y @prdm/mcp, y cobertura compartida entre blueprints"
-status: "todo"
+status: "in_progress"
 created_at: "2026-09-13"
 implements: ["SDD-002"]
-governs: ["packages/core/src/**","packages/cli/src/**","packages/mcp/src/**"]
+governs: ["packages/core/src/**","packages/cli/src/**","packages/mcp/src/**","packages/testkit/src/**","package.json","packages/*/package.json","tsconfig*.json","packages/*/tsconfig*.json","vitest.config.ts",".github/workflows/prdm-sync.yml"]
 source_task: "d1792d86be69e450"
 tags: ["architecture","multi-project","headless","authoring","mcp","neo4j"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-13T06:18:51.292Z"
 ---
 
 ## Objetivo

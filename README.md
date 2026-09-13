@@ -44,7 +44,7 @@ npm run prdm -- tree MRD-001
 
 | Servidor | Qué hace |
 |---|---|
-| `prdm-graph` | **El producto.** Tools para Feature Tree, Work Orders, drift, feedback, artifacts y métricas. Se levanta con `npx tsx src/mcp/server.ts`. |
+| `prdm-graph` | **El producto.** Tools para Feature Tree, Work Orders, drift, feedback, artifacts y métricas. Se levanta con `npx tsx --conditions=@prdm/source packages/mcp/src/server.ts` (o `npm run mcp`). |
 | `neo4j` | MCP oficial `neo4j/mcp` v1.6.0 (`get-schema`, `read-cypher`). `scripts/mcp-neo4j.sh` lee `.env` sin ejecutarlo y fuerza **solo lectura**: el grafo es un índice derivado de los documentos. Para administrar a mano usar `cypher-shell` o Neo4j Browser. |
 | `neo4j-data-modeling` | `mcp-neo4j-data-modeling@0.8.2` vía `uvx`: valida y exporta el modelo de grafo. |
 
@@ -71,7 +71,7 @@ Plugin de proyecto **`neo4j-skills@neo4j-skills-marketplace`** v1.0.1 (declarado
 
 ## CLI `prdm`
 
-Ejecutar con `npm run prdm -- <comando>` (o `npx tsx src/cli/index.ts <comando>`).
+Ejecutar con `npm run prdm -- <comando>` (o `npx tsx --conditions=@prdm/source packages/cli/src/index.ts <comando>`, o `node packages/cli/dist/index.js <comando>` tras `npm run build`).
 
 | Área | Comandos |
 |---|---|
@@ -105,7 +105,7 @@ Los tests de integración nunca usan la base de desarrollo (el helper se niega s
 
 ## Seguridad
 
-- **Filesystem:** toda lectura y escritura pasa por `src/util/safe-fs.ts`, que resuelve el realpath, rechaza symlinks que salgan del repo, abre con `O_NOFOLLOW` y limita tipo y tamaño de archivo.
+- **Filesystem:** toda lectura y escritura pasa por `packages/core/src/util/safe-fs.ts`, que resuelve el realpath, rechaza symlinks que salgan del repo, abre con `O_NOFOLLOW` y limita tipo y tamaño de archivo.
 - **Neo4j:** Cypher siempre parametrizado; allowlist de procedimientos APOC (`apoc.path.*`, `apoc.coll.*`, `apoc.meta.*`, `apoc.version`). El contenedor no tiene salida a internet, así que `LOAD CSV` no puede exfiltrar datos.
 - **MCP:** inputs validados con zod; errores sin stack traces; `acknowledge_sync` marcado como destructivo; el contenido de artifacts y feedback se entrega delimitado como datos no confiables.
 - **Concurrencia:** lockfile `.prdm/engine.lock` entre CLI, hook, `watch` y servidor MCP.
