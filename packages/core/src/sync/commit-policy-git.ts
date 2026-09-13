@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import picomatch from 'picomatch';
 import { parseProjectFile, type ProjectFileSettings } from '../project/file.js';
-import { DEFAULT_GIT, DEFAULT_LIFECYCLE } from '../project/types.js';
+import { DEFAULT_LIFECYCLE } from '../project/types.js';
 import { findNestedProjectRoots } from '../project/discover.js';
 import { parseDocument } from '../parser/frontmatter.js';
 import type { Frontmatter } from '../domain/schema.js';
@@ -55,11 +55,15 @@ async function isAncestor(root: string, ancestor: string, ref: string): Promise<
   }
 }
 
-/** `true` when `enforceRefsSince` is unset, or `ref` (which must exist) descends from it. */
+/**
+ * `true` unless `ref` is part of the history up to `enforceRefsSince` (the adoption point). Only commits reachable
+ * from that sha are exempt: a branch forked from older history and merged later is still enforced.
+ */
 async function isWithinEnforcementRange(root: string, enforceRefsSince: string | null, ref: string): Promise<boolean> {
   if (!enforceRefsSince) return true;
-  if ((await git(root, ['rev-parse', '-q', '--verify', ref])) === null) return false;
-  return isAncestor(root, enforceRefsSince, ref);
+  if ((await git(root, ['rev-parse', '-q', '--verify', ref])) === null) return true;
+  if ((await git(root, ['rev-parse', '-q', '--verify', `${enforceRefsSince}^{commit}`])) === null) return true;
+  return !(await isAncestor(root, ref, enforceRefsSince));
 }
 
 async function readTextFile(path: string): Promise<string | null> {
@@ -214,7 +218,8 @@ export async function checkCommitMessage(root: string, message: string, options:
   const allDocs = [...docsAtHead, ...docsInIndex];
 
   const hasConflictsInGoverned = isMerge && (await hasGovernedConflicts(root, prefix, changedPaths, allDocs, 'MERGE_HEAD'));
-  const withinRange = await isWithinEnforcementRange(root, settings.git.enforceRefsSince, 'HEAD');
+  // The commit being created is new, so it can never belong to the history up to `enforce_refs_since`.
+  const withinRange = true;
 
   return evaluateCommit({
     changedPaths,
@@ -252,6 +257,8 @@ export interface CommitRangeCheck {
   orphanCommitsMessage?: string;
   /** Governed paths changed between the range's base and head that no single non-merge commit's "Refs:" trailer covers (WO-024 finding 1d). */
   uncoveredPathsMessage?: string;
+  /** Set when the range base has no `.prdm.yaml`: there is no policy to enforce yet (e.g. the PR that adopts prdm). */
+  notEnforcedMessage?: string;
 }
 
 function splitRange(range: string): [string, string] {
@@ -266,11 +273,11 @@ async function commitParents(root: string, sha: string): Promise<string[]> {
 }
 
 /**
- * Evaluates one historical commit in a range. `rangeDocs` (the union of every ref inspected across the whole
- * range - the base tree, every commit and every commit's parent) stands in for `docsAtHead`, and `headDocs` (the
- * range's final tip) stands in for `docsInIndex`: a blueprint or work order deleted-then-restored mid-range, or a
- * WO whose status only settles at the tip, still governs/validates every commit in between (WO-024 finding 1a),
- * while `evaluateCommit`'s own HEAD-or-index union (WO-024 finding 6) extends naturally across the whole range.
+ * Evaluates one historical commit in a range. Blueprints come from the union of every ref inspected across the
+ * range, so a blueprint deleted-then-restored mid-range still governs every commit in between (WO-024 finding 1a).
+ * Work orders come only from the commit's first parent and the commit itself: a `Refs:` trailer is valid when the
+ * WO was open when the commit was made, regardless of later completion, and a WO absent from both trees (deleted to
+ * hide it) cannot validate anything.
  */
 async function evaluateHistoricalCommit(
   root: string,
@@ -279,8 +286,8 @@ async function evaluateHistoricalCommit(
   parents: readonly string[],
   gitSettings: { enforceRefs: boolean; enforceRefsSince: string | null },
   nestedRoots: readonly string[],
-  rangeDocs: readonly PolicyDoc[],
-  headDocs: readonly PolicyDoc[],
+  rangeBlueprints: readonly PolicyDoc[],
+  docsAt: (ref: string) => Promise<PolicyDoc[]>,
 ): Promise<EvaluateCommitResult> {
   const [parent1, parent2] = parents;
   const changedPaths = excludeNested(await changedPathsForCommit(root, prefix, parent1, sha), nestedRoots);
@@ -290,19 +297,20 @@ async function evaluateHistoricalCommit(
   if (isMerge && parent1 && parent2) {
     const fromP1 = await diffNamesBetween(root, prefix, parent1, sha);
     const fromP2 = await diffNamesBetween(root, prefix, parent2, sha);
-    const allDocs = [...rangeDocs, ...headDocs];
-    hasConflictsInGoverned = fromP1.filter((p) => fromP2.includes(p)).some((p) => isGovernedPath(p, allDocs));
+    hasConflictsInGoverned = fromP1.filter((p) => fromP2.includes(p)).some((p) => isGovernedPath(p, rangeBlueprints));
   }
 
   const withinRange = await isWithinEnforcementRange(root, gitSettings.enforceRefsSince, sha);
   const message = (await git(root, ['log', '-1', '--format=%B', sha])) ?? '';
+  const workOrdersOf = (docs: readonly PolicyDoc[]): PolicyDoc[] => docs.filter((doc) => doc.type === 'WO');
+  const parentWorkOrders = parent1 ? workOrdersOf(await docsAt(parent1)) : [];
   return evaluateCommit({
     changedPaths,
     message,
     isMerge,
     hasConflictsInGoverned,
-    docsAtHead: rangeDocs,
-    docsInIndex: headDocs,
+    docsAtHead: [...rangeBlueprints, ...parentWorkOrders],
+    docsInIndex: workOrdersOf(await docsAt(sha)),
     settings: { enforceRefs: gitSettings.enforceRefs, isWithinEnforcementRange: withinRange },
   });
 }
@@ -342,10 +350,17 @@ function collectRangeRefs(baseRef: string, shas: readonly string[], parentsBySha
   return [...refs];
 }
 
-async function collectRangeDocs(root: string, prefix: string, refs: readonly string[], nestedRoots: readonly string[]): Promise<PolicyDoc[]> {
-  const docs: PolicyDoc[] = [];
-  for (const ref of refs) docs.push(...(await policyDocsAt(root, prefix, ref, await markdownPathsAt(root, ref), nestedRoots)));
-  return docs;
+/** Memoized per-ref policy documents: every ref is read from git at most once per range check. */
+function policyDocsCache(root: string, prefix: string, nestedRoots: readonly string[]): (ref: string) => Promise<PolicyDoc[]> {
+  const cache = new Map<string, Promise<PolicyDoc[]>>();
+  return (ref) => {
+    let docs = cache.get(ref);
+    if (!docs) {
+      docs = markdownPathsAt(root, ref).then((paths) => policyDocsAt(root, prefix, ref, paths, nestedRoots));
+      cache.set(ref, docs);
+    }
+    return docs;
+  };
 }
 
 /**
@@ -363,24 +378,29 @@ async function aggregateCoverageCheck(
   parentsBySha: ReadonlyMap<string, readonly string[]>,
   nestedRoots: readonly string[],
   allDocs: readonly PolicyDoc[],
-  enforceRefs: boolean,
+  gitSettings: { enforceRefs: boolean; enforceRefsSince: string | null },
 ): Promise<{ ok: boolean; message?: string }> {
-  if (!enforceRefs) return { ok: true };
+  if (!gitSettings.enforceRefs) return { ok: true };
   const finalChanged = excludeNested(await diffNamesBetween(root, prefix, baseRef, headRef), nestedRoots);
   const governedFinal = finalChanged.filter((path) => isGovernedPath(path, allDocs));
   if (governedFinal.length === 0) return { ok: true };
 
-  const nonMergeCommits: { paths: Set<string>; refs: string[] }[] = [];
+  const nonMergeCommits: { paths: Set<string>; refs: string[]; exempt?: boolean }[] = [];
   for (const sha of shas) {
     const parents = parentsBySha.get(sha) ?? [];
     if (parents.length !== 1) continue;
+    if (!(await isWithinEnforcementRange(root, gitSettings.enforceRefsSince, sha))) {
+      const exemptPaths = await changedPathsForCommit(root, prefix, parents[0], sha);
+      nonMergeCommits.push({ paths: new Set(exemptPaths), refs: [], exempt: true });
+      continue;
+    }
     const changed = excludeNested(await changedPathsForCommit(root, prefix, parents[0], sha), nestedRoots);
     const message = (await git(root, ['log', '-1', '--format=%B', sha])) ?? '';
     nonMergeCommits.push({ paths: new Set(changed), refs: parseRefs(message) });
   }
 
   const uncovered = governedFinal
-    .filter((path) => !nonMergeCommits.some((commit) => commit.paths.has(path) && isPathCoveredByRefs(path, commit.refs, allDocs)))
+    .filter((path) => !nonMergeCommits.some((commit) => commit.paths.has(path) && (commit.exempt === true || isPathCoveredByRefs(path, commit.refs, allDocs))))
     .sort();
   if (uncovered.length === 0) return { ok: true };
   return { ok: false, message: `governed path(s) not covered by any single commit's "Refs:" trailer: ${uncovered.join(', ')}` };
@@ -406,22 +426,25 @@ export async function checkCommitRange(root: string, range: string): Promise<Com
   const nonOrphanShas = shas.filter((sha) => !orphanShas.includes(sha));
 
   const baseSettings = await settingsAtRef(root, prefix, baseRef);
-  const gitSettings = baseSettings?.git ?? DEFAULT_GIT;
-  const ignore = baseSettings?.ignore ?? [];
-  const nestedRoots = await nestedProjectRootsAtRef(root, baseRef, ignore);
+  if (baseSettings === null) {
+    // Enforcement is defined by the base: a base without .prdm.yaml has no policy a PR could weaken (adoption PRs).
+    return { ok: true, commits: [], notEnforcedMessage: `${baseRef} has no .prdm.yaml; Refs enforcement starts once it is merged` };
+  }
+  const gitSettings = baseSettings.git;
+  const nestedRoots = await nestedProjectRootsAtRef(root, baseRef, baseSettings.ignore);
+  const docsAt = policyDocsCache(root, prefix, nestedRoots);
 
-  const rangeRefs = collectRangeRefs(baseRef, shas, parentsBySha);
-  const rangeDocs = await collectRangeDocs(root, prefix, rangeRefs, nestedRoots);
-  const headDocs = await policyDocsAt(root, prefix, headRef, await markdownPathsAt(root, headRef), nestedRoots);
-  const allDocs = [...rangeDocs, ...headDocs];
+  const rangeRefs = [...collectRangeRefs(baseRef, shas, parentsBySha), headRef];
+  const allDocs = (await Promise.all(rangeRefs.map(docsAt))).flat();
+  const rangeBlueprints = allDocs.filter((doc) => doc.type !== 'WO');
 
   const commits: CommitRangeEntry[] = [];
   for (const sha of nonOrphanShas) {
-    const result = await evaluateHistoricalCommit(root, prefix, sha, parentsBySha.get(sha) ?? [], gitSettings, nestedRoots, rangeDocs, headDocs);
+    const result = await evaluateHistoricalCommit(root, prefix, sha, parentsBySha.get(sha) ?? [], gitSettings, nestedRoots, rangeBlueprints, docsAt);
     commits.push({ sha, result });
   }
 
-  const aggregate = await aggregateCoverageCheck(root, prefix, baseRef, headRef, nonOrphanShas, parentsBySha, nestedRoots, allDocs, gitSettings.enforceRefs);
+  const aggregate = await aggregateCoverageCheck(root, prefix, baseRef, headRef, nonOrphanShas, parentsBySha, nestedRoots, allDocs, gitSettings);
   const grew = await grandfatheredGrew(root, prefix, baseSettings, headRef);
 
   const orphanCommitsMessage =

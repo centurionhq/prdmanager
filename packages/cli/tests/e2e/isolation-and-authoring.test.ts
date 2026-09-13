@@ -234,7 +234,7 @@ describe('2. conversational authoring on A via MCP stdio', () => {
   });
 
   test('the docs-only commit passes the commit-msg hook (no governed src/** touched yet)', () => {
-    expect(git(dirA, ['add', 'docs', '.prdm']).code).toBe(0);
+    expect(git(dirA, ['add', 'docs', '.prdm', '.prdm.yaml', '.gitignore']).code).toBe(0);
     const commit = git(dirA, ['commit', '-m', 'docs: author FB-001/PRD-001/SDD-001 via MCP; generate WO-001/WO-002']);
     expect(commit.code, commit.stderr).toBe(0);
     docsSha = headSha(dirA);

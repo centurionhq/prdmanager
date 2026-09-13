@@ -399,16 +399,15 @@ describe('WO-024 finding 1d: orphan root commits and silent aggregate drift are 
 });
 
 describe('WO-024 finding 1e: settingsAtRef never falls back to the working tree', () => {
-  test('when the base ref has no .prdm.yaml, a permissive working-tree copy is not consulted', async () => {
+  test('when the base ref has no .prdm.yaml the range is not enforced, whatever the head or working tree carries', async () => {
     root = makeTmpDir();
     gitInit(root);
     writeFiles(root, { 'README.md': 'a\n' });
     const base = commitAll(root, 'chore: init, no project file yet');
 
-    // The working tree (as CI would leave it checked out at the PR head) carries a permissive project file that
-    // must never be used to evaluate the base's settings.
+    // The PR adopts prdm: enforcement is defined by the base, which has no policy to enforce yet.
     writeFiles(root, {
-      '.prdm.yaml': projectFile({ git: { maxCommits: 500, enforceRefs: false, enforceRefsSince: null } }),
+      '.prdm.yaml': projectFile({ lifecycle: { grandfathered: [{ id: 'MRD-001', hash: 'a'.repeat(64) }] } }),
       'docs/blueprints/SDD-001.md': SDD_DOC,
       'docs/work-orders/WO-001.md': WO_DOC('WO-001', 'pending'),
       'src/a.ts': 'export const a = 1;\n',
@@ -416,9 +415,77 @@ describe('WO-024 finding 1e: settingsAtRef never falls back to the working tree'
     const head = commitAll(root, 'feat: add project file and governed code, no refs');
 
     const check = await checkCommitRange(root, `${base}..${head}`);
-    // Defaults (schema default enforce_refs: true) apply, not the permissive working-tree copy.
-    const entry = check.commits.find((c) => c.sha === head);
-    expect(entry?.result.ok).toBe(false);
+    expect(check.ok).toBe(true);
+    expect(check.commits).toEqual([]);
+    expect(check.notEnforcedMessage).toMatch(/no \.prdm\.yaml/);
+  });
+
+  test('when the base has .prdm.yaml, a head copy that disables enforcement is ignored', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, { '.prdm.yaml': projectFile(), 'docs/blueprints/SDD-001.md': SDD_DOC, 'docs/work-orders/WO-001.md': WO_DOC('WO-001', 'pending') });
+    const base = commitAll(root, 'chore: init');
+    writeFiles(root, {
+      '.prdm.yaml': projectFile({ git: { maxCommits: 500, enforceRefs: false, enforceRefsSince: null } }),
+      'src/a.ts': 'export const a = 1;\n',
+    });
+    const head = commitAll(root, 'feat: disable enforcement and change governed code');
+
+    const check = await checkCommitRange(root, `${base}..${head}`);
+    expect(check.ok).toBe(false);
+    expect(check.commits.find((c) => c.sha === head)?.result.ok).toBe(false);
+  });
+});
+
+describe('work order status is evaluated at each commit, not at the range tip', () => {
+  test('a commit that referenced a then-open WO stays valid after the WO is completed later in the range', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, { '.prdm.yaml': projectFile(), 'docs/blueprints/SDD-001.md': SDD_DOC, 'docs/work-orders/WO-001.md': WO_DOC('WO-001', 'pending') });
+    const base = commitAll(root, 'chore: init');
+    writeFiles(root, { 'src/a.ts': 'export const a = 1;\n' });
+    commitAll(root, 'feat: implement\n\nRefs: WO-001');
+    writeFiles(root, { 'docs/work-orders/WO-001.md': WO_DOC('WO-001', 'done') });
+    const head = commitAll(root, 'docs: complete WO-001');
+
+    const check = await checkCommitRange(root, `${base}..${head}`);
+    expect(check.commits.map((c) => c.result.ok)).toEqual([true, true]);
+    expect(check.ok).toBe(true);
+  });
+
+  test('a WO that is already done before the commit cannot be referenced', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, { '.prdm.yaml': projectFile(), 'docs/blueprints/SDD-001.md': SDD_DOC, 'docs/work-orders/WO-001.md': WO_DOC('WO-001', 'done') });
+    const base = commitAll(root, 'chore: init');
+    writeFiles(root, { 'src/a.ts': 'export const a = 1;\n' });
+    const head = commitAll(root, 'feat: sneak in under a finished WO\n\nRefs: WO-001');
+
+    const check = await checkCommitRange(root, `${base}..${head}`);
+    expect(check.ok).toBe(false);
+  });
+});
+
+describe('enforce_refs_since only exempts history up to that commit', () => {
+  test('a branch forked from an older commit and merged into the range is still enforced', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, { 'docs/blueprints/SDD-001.md': SDD_DOC, 'docs/work-orders/WO-001.md': WO_DOC('WO-001', 'pending'), 'README.md': 'a\n' });
+    const old = commitAll(root, 'chore: old history');
+    writeFiles(root, { 'README.md': 'b\n' });
+    const since = commitAll(root, 'chore: adoption point');
+    writeFiles(root, { '.prdm.yaml': projectFile({ git: { maxCommits: 500, enforceRefs: true, enforceRefsSince: since } }) });
+    const base = commitAll(root, 'chore: enable prdm');
+
+    git(root, 'checkout', '-q', '-b', 'stale', old);
+    writeFiles(root, { 'src/evil.ts': 'export const evil = 1;\n' });
+    commitAll(root, 'feat: governed change on a stale branch without refs');
+    git(root, 'checkout', '-q', '-');
+    git(root, 'merge', '-q', '--no-ff', '-m', 'merge stale', 'stale');
+    const head = git(root, 'rev-parse', 'HEAD').trim();
+
+    const check = await checkCommitRange(root, `${base}..${head}`);
+    expect(check.ok).toBe(false);
   });
 });
 
