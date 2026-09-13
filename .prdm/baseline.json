@@ -340,7 +340,7 @@
       ".env.example": "b6b95414a047b794de223fcacbbbb7da3048d49c30d699167057e8cfeb7052c2",
       ".github/workflows/prdm-sync.yml": "e01ccaa5b88938783a117728f8821fef9d16f33353a43ce1ff35437495c9321a",
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
-      "package-lock.json": "0bfa0ceaf76411dfc6076063d86d109dff5d3a22dceb3273b036c0c028ea094e",
+      "package-lock.json": "61541dba4a43d28419a8ea603469af4bba6fdfb438644d8b489ea40fe2124e52",
       "package.json": "ed8ec4c73e47bb97ba3c07a16fddc346140f39403fac7627785748c9e8690dfe",
       "packages/testkit/src/db.ts": "8ad2463df8b3d8225a3c369795ff79b5eeddb599e67713a4624064063e75554f",
       "packages/testkit/src/docs.ts": "541007690fa52cf7e3b3c494461b241f9c0d2944a3b5ee780bca6f5b9c355c36",
