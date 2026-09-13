@@ -1,5 +1,7 @@
+import { realpathSync } from 'node:fs';
 import { afterEach, describe, expect, test } from 'vitest';
 import { loadConfig } from '../../src/config.js';
+import { DEFAULT_FOLDERS } from '../../src/project/types.js';
 import { resolveInside } from '../../src/util/paths.js';
 import { makeTmpDir, removeDir, writeFiles } from '@prdm/testkit';
 
@@ -38,6 +40,25 @@ describe('loadConfig', () => {
     root = makeTmpDir();
     writeFiles(root, { 'prdm.config.json': JSON.stringify({ gitMaxCommits: -1 }) });
     expect(() => loadConfig(root, { NEO4J_PASSWORD: 'x' })).toThrow(/prdm.config.json/);
+  });
+
+  test('.prdm.yaml wins over prdm.config.json when both exist (WO-017)', () => {
+    root = makeTmpDir();
+    writeFiles(root, {
+      'prdm.config.json': JSON.stringify({ docsDir: 'ignored-legacy' }),
+      '.prdm.yaml': 'version: 1\nproject:\n  id: prj_0123456789abcdef\n  name: yaml-project\nfolders:\n  FR: docs/requests\n',
+    });
+    const cfg = loadConfig(root, { NEO4J_PASSWORD: 'x' });
+    expect(cfg.docsDir).toBe('docs');
+    expect(cfg.project).toEqual({ id: 'prj_0123456789abcdef', name: 'yaml-project', root: realpathSync(root) });
+    expect(cfg.folders).toEqual({ ...DEFAULT_FOLDERS, FR: 'docs/requests' });
+    expect(cfg.ignore).toContain('node_modules/**');
+  });
+
+  test('surfaces .prdm.yaml validation errors', () => {
+    root = makeTmpDir();
+    writeFiles(root, { '.prdm.yaml': 'version: 1\nproject:\n  id: not-valid\n  name: x\n' });
+    expect(() => loadConfig(root, { NEO4J_PASSWORD: 'x' })).toThrow(/\.prdm\.yaml is invalid/);
   });
 });
 

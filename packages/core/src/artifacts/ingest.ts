@@ -116,7 +116,7 @@ export async function attachArtifact(engine: Engine, input: AttachArtifactInput)
       provides_context_for: links,
     };
     const content = renderDocument(fields, `## Contenido\n\n${parsed.content}`);
-    const doc = await ops.createDocument(`${ops.config.docsDir}/artifacts/${id}-${slug}.md`, content);
+    const doc = await ops.createDocument(`${ops.config.folders.ART}/${id}-${slug}.md`, content);
     await ops.refresh();
 
     return { id, path: doc.node.sourcePath, linkedTo: links, candidates };

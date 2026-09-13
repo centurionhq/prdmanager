@@ -1,5 +1,7 @@
 /** Public barrel for @prdm/core: everything the CLI, MCP server and testkit packages need. */
 export * from './config.js';
+export * from './project/discover.js';
+export * from './project/file.js';
 export * from './project/types.js';
 export * from './engine.js';
 export * from './domain/schema.js';

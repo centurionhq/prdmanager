@@ -34,4 +34,18 @@ describe('scanDocuments', () => {
     const result = await scanDocuments(root, []);
     expect(result.ids.sort()).toEqual(['FR-002', 'PRD-001', 'PRD-001', 'WO-003']);
   });
+
+  test('excludes a nested project (its own .prdm.yaml) entirely, ids included (WO-017)', async () => {
+    root = makeTmpDir();
+    writeFiles(root, {
+      'PRD-001.md': '---\nid: PRD-001\ntype: PRD\ntitle: P\n---\nbody',
+      'packages/sub/.prdm.yaml': 'version: 1\n',
+      'packages/sub/docs/PRD-999.md': '---\nid: PRD-999\ntype: PRD\ntitle: nested\n---\n',
+      'packages/sub/docs/bad.md': '---\nid: WO-777\ntype: WO\ntitle: also nested and invalid\n---\n',
+    });
+    const result = await scanDocuments(root, []);
+    expect(result.docs.map((d) => d.node.id)).toEqual(['PRD-001']);
+    expect(result.errors).toEqual([]);
+    expect(result.ids).toEqual(['PRD-001']);
+  });
 });

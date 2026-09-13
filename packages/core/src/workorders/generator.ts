@@ -42,6 +42,8 @@ export interface PlanOptions {
   now: Date;
   /** Ids to treat as taken beyond `existing`, e.g. ids found in documents that failed validation (see ScanResult.ids). */
   reservedIds?: string[];
+  /** Destination folder for new work orders (WO-017 folder map); defaults to `${docsDir}/work-orders` for callers that don't pass `config.folders.WO`. */
+  folder?: string;
 }
 
 export interface PlannedWorkOrder {
@@ -108,7 +110,8 @@ export function planWorkOrders(blueprint: ParsedDoc, existing: ParsedDoc[], opti
     const id = nextId('WO', [...existingIds, ...planned.map((p) => p.id)]);
     const status: WorkOrderStatus = task.done ? 'done' : 'todo';
     const title = task.text.slice(0, MAX_TITLE);
-    const path = `${options.docsDir}/work-orders/${id}-${slugify(task.text)}.md`;
+    const folder = options.folder ?? `${options.docsDir}/work-orders`;
+    const path = `${folder}/${id}-${slugify(task.text)}.md`;
     const fields = buildFields(blueprint, id, title, status, sourceTask, options.now);
     const content = renderDocument(fields, buildBody(blueprint, task.text, id));
 
@@ -132,7 +135,12 @@ export async function generateWorkOrders(engine: Engine, blueprintId: string): P
     if (!isBlueprint(blueprint)) throw new Error(`${blueprintId} is not a blueprint`);
 
     const totalTasks = extractTasks(blueprint.node.body).length;
-    const planned = planWorkOrders(blueprint, scan.docs, { docsDir: ops.config.docsDir, now: new Date(), reservedIds: scan.ids });
+    const planned = planWorkOrders(blueprint, scan.docs, {
+      docsDir: ops.config.docsDir,
+      now: new Date(),
+      reservedIds: scan.ids,
+      folder: ops.config.folders.WO,
+    });
     for (const wo of planned) await ops.createDocument(wo.path, wo.content);
     const report = await ops.refresh();
 

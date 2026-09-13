@@ -3,6 +3,7 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { parse as parseDotenv } from 'dotenv';
 import { z } from 'zod';
+import { parseProjectFile } from './project/file.js';
 import {
   DEFAULT_AUTHORING,
   DEFAULT_FOLDERS,
@@ -54,7 +55,6 @@ export interface PrdmConfig {
 
 export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): PrdmConfig {
   const rootAbs = resolve(root);
-  const file = readConfigFile(join(rootAbs, 'prdm.config.json'));
   const dotenvPath = join(rootAbs, '.env');
   const dotenv = existsSync(dotenvPath) ? parseDotenv(readFileSync(dotenvPath)) : {};
   const get = (key: string): string | undefined => env[key] ?? dotenv[key];
@@ -64,7 +64,35 @@ export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): 
 
   const uri = get('NEO4J_URI') ?? 'neo4j://127.0.0.1:7687';
   assertLocalNeo4j(uri, get('PRDM_ALLOW_REMOTE_NEO4J') === '1');
+  const neo4j: Neo4jConfig = { uri, username: get('NEO4J_USERNAME') ?? 'neo4j', password, database: get('NEO4J_DATABASE') ?? 'neo4j' };
 
+  // `.prdm.yaml` (WO-017) takes priority over the legacy `prdm.config.json`: when both exist, the JSON file is
+  // ignored outright (never merged), so a stale file left over from `prdm init --adopt` cannot resurrect settings.
+  const projectFilePath = join(rootAbs, '.prdm.yaml');
+  if (existsSync(projectFilePath)) return fromProjectFile(rootAbs, readFileSync(projectFilePath, 'utf8'), neo4j);
+  return fromLegacyConfig(rootAbs, neo4j);
+}
+
+function fromProjectFile(rootAbs: string, src: string, neo4j: Neo4jConfig): PrdmConfig {
+  const file = parseProjectFile(src);
+  const root = existsSync(rootAbs) ? realpathSync(rootAbs) : rootAbs;
+  return {
+    root,
+    project: { id: file.project.id, name: file.project.name, root },
+    folders: file.folders,
+    git: file.git,
+    lifecycle: file.lifecycle,
+    authoring: file.authoring,
+    docsDir: file.docsDir,
+    ignore: [...new Set([...MANDATORY_IGNORE, ...file.ignore])],
+    gitMaxCommits: file.git.maxCommits,
+    triage: file.triage,
+    neo4j,
+  };
+}
+
+function fromLegacyConfig(rootAbs: string, neo4j: Neo4jConfig): PrdmConfig {
+  const file = readConfigFile(join(rootAbs, 'prdm.config.json'));
   return {
     root: rootAbs,
     project: legacyProject(rootAbs),
@@ -76,12 +104,7 @@ export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): 
     ignore: [...new Set([...MANDATORY_IGNORE, ...file.ignore])],
     gitMaxCommits: file.gitMaxCommits,
     triage: file.triage,
-    neo4j: {
-      uri,
-      username: get('NEO4J_USERNAME') ?? 'neo4j',
-      password,
-      database: get('NEO4J_DATABASE') ?? 'neo4j',
-    },
+    neo4j,
   };
 }
 
