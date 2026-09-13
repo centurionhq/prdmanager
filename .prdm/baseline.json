@@ -308,7 +308,7 @@
       "packages/web/tsconfig.test-client.json": "c2387a60a63ad1703cc89302754d4ee4e95f1911eaff5c8f63c4529faded6ad6",
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957",
       "tsconfig.json": "8a21dc4844e7b5eb4e0092c70cb7756fef7dd6159a32b802056a1bf6d4ed9357",
-      "tsconfig.test.json": "1be400df0bb6c9ee9a36da1e11c76da76e037e876de643945dc35d8121cff3bc",
+      "tsconfig.test.json": "af3edd226fbac6d7dc9adec2b2e0a2d554253da0160ce6593602b7d96f102a73",
       "vitest.config.ts": "5c0ac4be26d80973e09e5cdb422add70f5488d3bab5a63513226d9ef4707c8c9"
     },
     "SDD-003": {
@@ -361,6 +361,9 @@
       "packages/web/src/api/tree.ts": "73c06bb03d8d2929a8b85e19c499eb9da86dac773e508a93892b4e7f99c44484",
       "packages/web/src/api/work-orders.ts": "0d0837c404e82aed63504efa78c3c238e032d02aca506fbf9efaa5d45a2cbeb6",
       "packages/web/src/app.ts": "102106b280613541685a93ddc9d7ffa110fcaa22f215634282b148c1a5991b74",
+      "packages/web/src/client/api/api-client-error.ts": "4bd8532d39f95e154410432429a374a532b5177e0c835d909778dcdf07e5c494",
+      "packages/web/src/client/api/client.ts": "4821bdcd84aaddbafa4a3f2846003040b09d0a04dca077a86e2b0b3050fa53ac",
+      "packages/web/src/client/api/request.ts": "2b229d3486eedd3dbc40d6c5f48b074b6ce060a35ed30b9e8d4359ba6d5b1da5",
       "packages/web/src/client/App.tsx": "3fd67cb2dbc0fa6f8334c15dc23a71e89d80129770c8f0f092483ccfacf6fc74",
       "packages/web/src/client/index.html": "8d5820e1efeac623555f6c2c090ab28a189ef52e5ba0f4d73798a16edbda4d03",
       "packages/web/src/client/main.tsx": "c4e7c0c596304894f6bdb7c31bd56dac208244a33b31b7704e4146088d24e943",
@@ -370,6 +373,7 @@
       "packages/web/src/schemas.ts": "ef35c7e89adf6cbe3c92483242db794e02c0f41d89b8ba93276ddcd92ab0794c",
       "packages/web/src/server.ts": "d6b75f162d47e9139146b6e1e22f30ded8f0a3b2f71b66f434cb7edc7c14f323",
       "packages/web/src/summary.ts": "d2e66b70b8d75bb807e476f82527bb929891de3df5690984d665e8cfb99751dc",
+      "packages/web/tests/client/api-client.test.ts": "af3448b9a16357f545cc2ec90251e43802c8a1f398dea4aa8e47206c28031de6",
       "packages/web/tests/integration/app.test.ts": "c1b766527d4c324cd3117a6fd6f020b76d873f3d87b18c7d9d352422e32ce212",
       "packages/web/tests/integration/branch-full-graph.test.ts": "d59aae1a9b51b1bccc500035bf3abece825620552ccb4e9528de4ec3a2710a9f",
       "packages/web/tests/integration/drift.test.ts": "cd0ef8ca28290a44de44d23cebfe8a8a02e3ecd7014e314e51ed34a4abd31f77",
@@ -382,6 +386,7 @@
       "packages/web/tests/unit/app.test.ts": "23f0f092de8fdebcdae2e8c21f98230ce78538fe8f3e5d1d02a57583734228fb",
       "packages/web/tests/unit/env.test.ts": "7c8037c8cffc9572d9b713d9b9a1150b89c14507bedd97b6ba4312462cbd50ac",
       "packages/web/tests/unit/errors.test.ts": "97de24aeaca254ee5e33caa2114543a3ebc9bd8ab8fe1c3d18d59743d3d50841",
+      "packages/web/tests/unit/no-core-value-import.test.ts": "d0793056bab24494a5d55192d051d5b1e4a3f6712561f7b325d3e8b6b4c5e32c",
       "packages/web/tests/unit/schemas.test.ts": "38f69ae8b04c289ace76ff5851f266d2e2839d84e1db5100c7e78ca24f3c5b54",
       "packages/web/tests/unit/summary.test.ts": "013a61d88d048380b2c42effa3d6480abadd4e8371225cf210318b497b601a36",
       "packages/web/tsconfig.client.json": "76d5af925065e8a2f9c1d2a80797e87c650e45faa7efe3ad4b5a919d421f2332",
@@ -392,7 +397,7 @@
       "README.md": "ff272b8f02038f6089b346de5917d69e60bb2ebd106b04de495b464079f3ced2",
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957",
       "tsconfig.json": "8a21dc4844e7b5eb4e0092c70cb7756fef7dd6159a32b802056a1bf6d4ed9357",
-      "tsconfig.test.json": "1be400df0bb6c9ee9a36da1e11c76da76e037e876de643945dc35d8121cff3bc",
+      "tsconfig.test.json": "af3edd226fbac6d7dc9adec2b2e0a2d554253da0160ce6593602b7d96f102a73",
       "vitest.config.ts": "5c0ac4be26d80973e09e5cdb422add70f5488d3bab5a63513226d9ef4707c8c9"
     }
   }
