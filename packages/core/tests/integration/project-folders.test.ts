@@ -3,11 +3,12 @@ import { attachArtifact } from '../../src/artifacts/ingest.js';
 import type { PrdmConfig } from '../../src/config.js';
 import { Engine } from '../../src/engine.js';
 import { createFeatureRequest, submitFeedback } from '../../src/feedback/ingest.js';
-import type { Neo4jGraphStore } from '../../src/graph/store.js';
+import type { Neo4jGraphDatabase } from '../../src/graph/database.js';
+import type { GraphStore } from '../../src/graph/types.js';
 import { generateProjectId, renderProjectFile, type ProjectFileSettings } from '../../src/project/file.js';
 import { DEFAULT_AUTHORING, DEFAULT_GIT, DEFAULT_LIFECYCLE, type FolderMap } from '../../src/project/types.js';
 import { generateWorkOrders } from '../../src/workorders/generator.js';
-import { createFixtureRepo, openTestStore, removeDir, testConfig, writeFiles } from '@prdm/testkit';
+import { createFixtureRepo, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 
 const CUSTOM_FOLDERS: FolderMap = {
   MRD: 'docs/mrd',
@@ -22,7 +23,8 @@ const CUSTOM_FOLDERS: FolderMap = {
 
 let root: string;
 let config: PrdmConfig;
-let store: Neo4jGraphStore;
+let db: Neo4jGraphDatabase;
+let store: GraphStore;
 let engine: Engine;
 
 beforeAll(async () => {
@@ -40,13 +42,13 @@ beforeAll(async () => {
   writeFiles(root, { '.prdm.yaml': renderProjectFile(settings) });
   config = testConfig(root);
   expect(config.folders).toEqual(CUSTOM_FOLDERS);
-  store = await openTestStore(config);
+  ({ db, store } = await openTestDb(config));
   engine = new Engine(config, store);
   await engine.refresh();
 });
 
 afterAll(async () => {
-  await store?.close();
+  await db?.close();
   if (root) removeDir(root);
 });
 

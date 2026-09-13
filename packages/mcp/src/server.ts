@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import process from 'node:process';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { Engine, loadConfig, Neo4jGraphDatabase } from '@prdm/core';
+import { discoverProjectRoot, Engine, loadConfig, Neo4jGraphDatabase } from '@prdm/core';
 import { createPrdmServer } from './create.js';
 
 async function main(): Promise<void> {
-  const root = process.env.PRDM_ROOT ?? process.cwd();
+  const root = discoverProjectRoot(process.cwd(), process.env);
   const config = loadConfig(root);
   const db = Neo4jGraphDatabase.connect(config.neo4j);
   await db.verify();
