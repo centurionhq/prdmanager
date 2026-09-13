@@ -2,12 +2,17 @@
 id: "WO-046"
 type: "WO"
 title: "app.ts con la factory buildApp, los esquemas zod compartidos de params y query, y el harness de integración de la tarea anterior verificando que arranca y cierra limpio"
-status: "pending"
+status: "done"
 created_at: "2026-09-13"
 implements: ["SDD-005"]
 impacts_paths: ["packages/web/src/**","packages/web/tests/**","packages/web/package.json","packages/web/tsconfig*.json","packages/web/vite.config.ts","packages/web/playwright.config.ts","packages/web/index.html","package.json","package-lock.json","tsconfig.json","tsconfig.base.json","tsconfig.test.json","vitest.config.ts",".env.example","README.md",".github/workflows/prdm-sync.yml",".gitignore","packages/testkit/src/**"]
 source_task: "c149e7ed78693ceb"
 tags: ["web-ui","fastify","react","cytoscape","dogfooding"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-13T17:34:13.006Z"
+completed_at: "2026-09-13T17:36:27.519Z"
+resolved_by: ["99cce399e2876fbdd3a21002602d41d3771a7b54"]
+blueprint_hashes: {"SDD-005":"40ffb5aa0ac24b9f000c7583fae084fe23ab3990053927e75e87ed56011b93bd"}
 ---
 
 ## Objetivo
