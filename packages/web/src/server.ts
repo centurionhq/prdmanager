@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 // PRD-004 / SDD-005: bootstrap for the read-only web explorer.
+import { existsSync } from 'node:fs';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { discoverProjectRoot, Engine, loadConfig, Neo4jGraphDatabase } from '@prdm/core';
 import { buildApp } from './app.js';
 import { resolveWebBind } from './env.js';
+
+// `dist/server/server.js` and `dist/client/` are siblings under `dist/` (SDD-005 "Build"), resolved relative to
+// this compiled file's own location — never `process.cwd()` — so `npm run web` works from any directory.
+const CLIENT_DIST = new URL('../client', import.meta.url);
 
 async function main(): Promise<void> {
   const bind = resolveWebBind(process.env);
@@ -18,7 +24,12 @@ async function main(): Promise<void> {
   // — this process only ever reads whatever Neo4j snapshot (and, for /api/drift, disk state) already exists.
   const engine = new Engine(config, store);
 
-  const app = buildApp({ config, store, engine, port: bind.port });
+  const staticDir = fileURLToPath(CLIENT_DIST);
+  if (!existsSync(staticDir)) {
+    throw new Error(`client bundle not found at ${staticDir}; run "npm run build --workspace=@prdm/web" first`);
+  }
+
+  const app = buildApp({ config, store, engine, port: bind.port, staticDir });
   app.addHook('onClose', async () => {
     await db.close();
   });

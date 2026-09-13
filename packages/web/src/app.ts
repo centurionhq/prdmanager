@@ -12,6 +12,7 @@ import { registerSearchRoute } from './api/search.js';
 import { registerTreeRoute } from './api/tree.js';
 import { registerWorkOrderRoutes } from './api/work-orders.js';
 import { setErrorHandler, setNotFoundHandler } from './errors.js';
+import { registerSecurityHeaders } from './security-headers.js';
 
 /** Matches `PRDM_WEB_PORT`'s own default (SDD-005 "Seguridad"). */
 export const DEFAULT_WEB_PORT = 4600;
@@ -64,7 +65,14 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     return payload;
   });
 
+  registerSecurityHeaders(app);
+
   if (staticDir) {
+    // @fastify/static resolves and normalizes every request path against `root` itself (rejects `..` traversal
+    // outside it before ever touching the filesystem) — nothing extra needed here for that guarantee, only a test
+    // proving it (SDD-005 "Tests"). Default `index: ['index.html']` lets it serve "/" natively — calling
+    // `reply.sendFile('index.html')` from setNotFoundHandler for the exact "/" request instead trips its
+    // trailing-slash redirect logic into a spurious 403 (verified empirically).
     void app.register(fastifyStatic, { root: staticDir });
   }
 
