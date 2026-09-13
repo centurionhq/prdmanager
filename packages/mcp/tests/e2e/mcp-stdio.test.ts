@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { createFixtureRepo, removeDir, testConfig } from '@prdm/testkit';
+import { createFixtureRepo, openTestDb, removeDir, testConfig } from '@prdm/testkit';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../../../..');
 
@@ -13,6 +13,9 @@ let transport: StdioClientTransport;
 beforeAll(async () => {
   root = createFixtureRepo();
   const config = testConfig(root);
+  // The server no longer migrates on startup (ADR-002 D3); apply the schema out-of-band before spawning it.
+  const { db } = await openTestDb(config);
+  await db.close();
 
   transport = new StdioClientTransport({
     command: process.execPath,

@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { Engine, type Neo4jGraphStore, type PrdmConfig } from '@prdm/core';
-import { createFixtureRepo, makeTmpDir, openTestStore, removeDir, testConfig, writeFiles } from '@prdm/testkit';
+import { Engine, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
+import { createFixtureRepo, makeTmpDir, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 import type { CliContext, CliDeps } from '../../src/program.js';
 import { runCli } from '../../src/program.js';
 
@@ -14,18 +14,19 @@ interface CliRunResult {
 
 let root: string;
 let config: PrdmConfig;
-let store: Neo4jGraphStore;
+let db: GraphDatabase;
+let store: GraphStore;
 let engine: Engine;
 
 beforeAll(async () => {
   root = createFixtureRepo();
   config = testConfig(root);
-  store = await openTestStore(config);
+  ({ db, store } = await openTestDb(config));
   engine = new Engine(config, store);
 });
 
 afterAll(async () => {
-  await store?.close();
+  await db?.close();
   if (root) removeDir(root);
 });
 
@@ -36,7 +37,7 @@ async function run(args: string[]): Promise<CliRunResult> {
     root,
     stdout: (line) => stdout.push(line),
     stderr: (line) => stderr.push(line),
-    openContext: async (): Promise<CliContext> => ({ config, store, engine, close: async () => {} }),
+    openContext: async (): Promise<CliContext> => ({ config, db, store, engine, close: async () => {} }),
   };
   const code = await runCli(['node', 'prdm', ...args], deps);
   return { code, stdout, stderr };
@@ -61,19 +62,25 @@ describe('prdm CLI', () => {
     expect(stdout.join('\n')).toContain('migrations applied');
   });
 
-  test('index migrates the schema and refreshes the graph', async () => {
+  test('index refreshes the graph', async () => {
     const { code, stdout } = await run(['index']);
     expect(code).toBe(0);
     expect(stdout.join('\n')).toContain('documents: 5');
   });
 
-  test('db status reports connectivity and graph size', async () => {
+  test('db status reports connectivity, schema version and registered projects', async () => {
     const { code, stdout } = await run(['db', 'status']);
     expect(code).toBe(0);
     const text = stdout.join('\n');
     expect(text).toContain(`uri: ${config.neo4j.uri}`);
-    expect(text).toMatch(/nodes: \d+/);
-    expect(text).toMatch(/edges: \d+/);
+    expect(text).toMatch(/schema version: \d+ \(expected \d+\)/);
+    expect(text).toContain(config.project.id);
+  });
+
+  test('db doctor reports no orphan nodes on a freshly migrated repository', async () => {
+    const { code, stdout } = await run(['db', 'doctor']);
+    expect(code).toBe(0);
+    expect(stdout.join('\n')).toContain('doctor: ok');
   });
 
   test('lint reports a clean repository', async () => {

@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 import process from 'node:process';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { Engine, loadConfig, Neo4jGraphStore } from '@prdm/core';
+import { Engine, loadConfig, Neo4jGraphDatabase } from '@prdm/core';
 import { createPrdmServer } from './create.js';
 
 async function main(): Promise<void> {
   const root = process.env.PRDM_ROOT ?? process.cwd();
   const config = loadConfig(root);
-  const store = Neo4jGraphStore.connect(config.neo4j);
-  await store.verify();
-  await store.migrate();
+  const db = Neo4jGraphDatabase.connect(config.neo4j);
+  await db.verify();
+  // ADR-002 D3: destructive migrations only run via explicit `prdm db migrate`; the server refuses to start
+  // against an unknown or outdated schema instead of silently migrating (and possibly deleting data) at boot.
+  await db.assertSchemaCurrent();
+  const store = db.forProject(config.project);
 
   const engine = new Engine(config, store);
   const report = await engine.refresh();
@@ -25,7 +28,7 @@ async function main(): Promise<void> {
     if (closing) return;
     closing = true;
     await server.close();
-    await store.close();
+    await db.close();
   };
   process.once('SIGINT', () => void shutdown());
   process.once('SIGTERM', () => void shutdown());

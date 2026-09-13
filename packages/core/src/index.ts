@@ -6,6 +6,7 @@ export * from './domain/schema.js';
 export * from './parser/frontmatter.js';
 export * from './parser/frontmatter-edit.js';
 export * from './parser/scan.js';
+export * from './graph/database.js';
 export * from './graph/lucene.js';
 export * from './graph/migrations.js';
 export * from './graph/store.js';

@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
-import { Engine, type Neo4jGraphStore, type PrdmConfig } from '@prdm/core';
-import { commitAll, createFixtureRepo, openTestStore, removeDir, testConfig, writeFiles } from '@prdm/testkit';
+import { Engine, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
+import { commitAll, createFixtureRepo, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 import type { CliContext, CliDeps } from '../../src/program.js';
 import { runCli } from '../../src/program.js';
 
@@ -13,7 +13,8 @@ interface CliRunResult {
 
 let root: string;
 let config: PrdmConfig;
-let store: Neo4jGraphStore;
+let db: GraphDatabase;
+let store: GraphStore;
 let engine: Engine;
 let priorActorEnv: string | undefined;
 let unlinkedFeedbackId = '';
@@ -21,12 +22,12 @@ let unlinkedFeedbackId = '';
 beforeAll(async () => {
   root = createFixtureRepo();
   config = testConfig(root);
-  store = await openTestStore(config);
+  ({ db, store } = await openTestDb(config));
   engine = new Engine(config, store);
 });
 
 afterAll(async () => {
-  await store?.close();
+  await db?.close();
   if (root) removeDir(root);
 });
 
@@ -47,7 +48,7 @@ async function run(args: string[]): Promise<CliRunResult> {
     root,
     stdout: (line) => stdout.push(line),
     stderr: (line) => stderr.push(line),
-    openContext: async (): Promise<CliContext> => ({ config, store, engine, close: async () => {} }),
+    openContext: async (): Promise<CliContext> => ({ config, db, store, engine, close: async () => {} }),
   };
   const code = await runCli(['node', 'prdm', ...args], deps);
   return { code, stdout, stderr };
