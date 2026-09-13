@@ -1,5 +1,5 @@
 ---
-status: "proposed"
+status: "approved"
 evolves_from: ["PRD-002"]
 justified_by: ["ART-003"]
 tags: ["tree-sitter","parser","dogfooding"]

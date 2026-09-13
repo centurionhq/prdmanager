@@ -3,6 +3,7 @@
   "docs": {
     "ADR-001": "c0d7ee6938bb9201a7a6b909a77f2008d6968795fe4ec0bf896e0c48520b1d94",
     "ADR-002": "ba64e6c51d8decb778f03ee4337a5e2692dc53df73c2ff18ef7792d925ca3406",
+    "ADR-003": "dd2039f39faa895c135e2facaf104cf3d783ab33342850a0079292b025a3afc8",
     "ART-001": "a8a0dd4289fca521c94cd26671bfe7587a8e8b174e66c9f88a9389dff1aba5da",
     "ART-002": "3f4d2e8ae6674fd11b666b5ee47fddc9ad8760fe186fe508b24eac84935f0267",
     "ART-003": "44a7d9b71334a2643a37da45354189d86841a582008d28385681e2fca971e268",
@@ -17,6 +18,7 @@
     "SDD-001": "7499c0512bc3d4684195d17a0ec23a1ef2d4fa09e3a9d868bddff5500068e30b",
     "SDD-002": "8a28886b5f1a3558350087873d184acbdbf2dfbccf051abae33f2863f5ada48b",
     "SDD-003": "fc5140c1527b407042f0c8a48b5b74abd54beacf28dabc4c4bcc121b07bf5d14",
+    "SDD-004": "0bd01301602a94fa03d5ebb3cd988190220267efb1b8f417e0f87ef499c74041",
     "WO-001": "cef4128342ef113e529172f66ae5bde2c15657520e6e134b7748dbc6f40a26a1",
     "WO-002": "cb663fced9ebf13945642b5f2f57008568caee65bdbbe5258be6386445db0274",
     "WO-003": "bf1c61df5227375fb9cf6d548a9229554adcd2e9ea0bcf5b118a0bf1b0175343",
@@ -48,7 +50,14 @@
     "WO-029": "bb8b0047c0d0de18cac4e185f8e12d853efcca88c79d6cc97b27b2b20a59c3ea",
     "WO-030": "a18f152ebaa8deab35fda5957acdec5c018d5442329a0225b2b4fe6a88689ac8",
     "WO-031": "0a392905bcb6894a25ce293695e1d11b07985c626d5e762816dd5d040f2652a0",
-    "WO-032": "4224c9ba7a856fe337136c2ff60d4260b51e52aa394f7b7a26304f9936dad7e7"
+    "WO-032": "4224c9ba7a856fe337136c2ff60d4260b51e52aa394f7b7a26304f9936dad7e7",
+    "WO-033": "ac1bb3236d9f4982fc689bc78ad6c68445ada1de2468d9af8bf597e6b9d7650c",
+    "WO-034": "f7be09502bc45166c105cd25cc3d0921b21b3678c4421b3ac4cadb835c5a6540",
+    "WO-035": "2702146a3c93c7a7138af9d880c7f70133679d66ee0b2f733c611153ef2f4d88",
+    "WO-036": "20d49869a2bf9509972f940b157d2dc6681663eab131cabf68432e9154d7f397",
+    "WO-037": "c06640186a243763efbdba0f8026c9bf539a186855667f8c035f2e7481cce51c",
+    "WO-038": "011917a5307a3edd81f99dc5e545af36c6c288b2a13608d7544c89f765246790",
+    "WO-039": "2a19fee80d07e20bb3bb880f8f9fdf4507684b58bb6617cb026050bd4a09b213"
   },
   "governs": {
     "ADR-001": {
@@ -63,6 +72,10 @@
       "docs/model/graph-model.json": "b9ec3e9368e0e5f54e7a7db57ede1ea710f4095c99da96df04b27cf3dfcf7602",
       "packages/core/src/graph/migrations.ts": "369b04106ce40ced7d8cb372e02fb61082b87aef75d8c399bcc5313e56e6a4f7",
       "scripts/validate-graph-model.mjs": "69e3cebb068a1e67c659eec44ab07863cae026ef70727719de84029711c20614"
+    },
+    "ADR-003": {
+      ".gitignore": "5b4ffa0bbd61c560a9a3fe0db0121c3c4233e1d6b0114ff75e2fe458a6c2b687",
+      "packages/core/package.json": "96cfe78f9648aaf76759dccb1e99f60371693489fe8fbf1c942e4bc941b7e58f"
     },
     "SDD-001": {
       "packages/cli/src/commands/artifacts.ts": "9c2b3bb39b25ce062b110fde851de2395fa0c362f6dfe84da89efa8044f2f6d7",
@@ -110,7 +123,11 @@
       "packages/core/src/sync/commit-policy-git.ts": "6a87e07d55624803efaa978b21c92713ac6f962e4d5b20dc73802d1f16bd9a74",
       "packages/core/src/sync/commit-policy.ts": "c3e1650a9e67719f81b7b5bceb7055d7401dfd8d27a8ee6b26fed8649829f420",
       "packages/core/src/sync/git.ts": "ff5ec024ec24eb631c27bbdd74a93846b05b04faa841626a876f6ffb21109361",
+      "packages/core/src/sync/legacy-extractor.ts": "c39051b27574b1e4d19a0fbe23beff0483e86d1cf4b16101fe212a268c22797d",
       "packages/core/src/sync/monitor.ts": "667a6330d1b0971fb4b33389ccd1d21f57a81ece941999122c2d7313c0c36df9",
+      "packages/core/src/sync/symbol-cache.ts": "d15737b1a05654b44a4cfeef5e6c892af6581bfd3d0174519bd80c78044ef061",
+      "packages/core/src/sync/symbol-extractor.ts": "c36fdf99f37108805e13787e6f9bf4f49fbb3536a722529002ef14d2f0dea7d5",
+      "packages/core/src/sync/tree-sitter-extractor.ts": "52a1ab5c871c6a97977391a16edeca3e1deb908973c62cfebc2205a54686ca8c",
       "packages/core/src/util/hash.ts": "50f39f3049bb95869750c69ffef84d03e3ccb6ebaf03807405f6fe88202e7ace",
       "packages/core/src/util/ids.ts": "8e2f1e816adf62d29db1106fe9944a39615bd92f297fcc1a0480c6d3d9b6d373",
       "packages/core/src/util/journal.ts": "913a376325d363580952cd73dc97ebd9d8a797606ce9b8eadf7d380a494c6710",
@@ -204,7 +221,11 @@
       "packages/core/src/sync/commit-policy-git.ts": "6a87e07d55624803efaa978b21c92713ac6f962e4d5b20dc73802d1f16bd9a74",
       "packages/core/src/sync/commit-policy.ts": "c3e1650a9e67719f81b7b5bceb7055d7401dfd8d27a8ee6b26fed8649829f420",
       "packages/core/src/sync/git.ts": "ff5ec024ec24eb631c27bbdd74a93846b05b04faa841626a876f6ffb21109361",
+      "packages/core/src/sync/legacy-extractor.ts": "c39051b27574b1e4d19a0fbe23beff0483e86d1cf4b16101fe212a268c22797d",
       "packages/core/src/sync/monitor.ts": "667a6330d1b0971fb4b33389ccd1d21f57a81ece941999122c2d7313c0c36df9",
+      "packages/core/src/sync/symbol-cache.ts": "d15737b1a05654b44a4cfeef5e6c892af6581bfd3d0174519bd80c78044ef061",
+      "packages/core/src/sync/symbol-extractor.ts": "c36fdf99f37108805e13787e6f9bf4f49fbb3536a722529002ef14d2f0dea7d5",
+      "packages/core/src/sync/tree-sitter-extractor.ts": "52a1ab5c871c6a97977391a16edeca3e1deb908973c62cfebc2205a54686ca8c",
       "packages/core/src/templates/index.ts": "3fb264c479677e4038a24c9faa1bae0561052fdf728d2951541a644e7f824d45",
       "packages/core/src/util/hash.ts": "50f39f3049bb95869750c69ffef84d03e3ccb6ebaf03807405f6fe88202e7ace",
       "packages/core/src/util/ids.ts": "8e2f1e816adf62d29db1106fe9944a39615bd92f297fcc1a0480c6d3d9b6d373",
@@ -252,6 +273,19 @@
       "packages/core/src/scaffold/gitignore.ts": "898ac8e45ae76f9f85c396d53bf91a2d70f279e82198549b490ecd6002d9c483",
       "packages/mcp/src/server.ts": "57db7a0875e02951bbc8515658f385bbb8ce1906c2fa21a6336b5fd2757c6318",
       "packages/mcp/src/tools-authoring.ts": "6b41df233597c6f5a9b9d79011fefa6545d7300d752ab8ff1e1be4c7a82fc681"
+    },
+    "SDD-004": {
+      ".gitignore": "5b4ffa0bbd61c560a9a3fe0db0121c3c4233e1d6b0114ff75e2fe458a6c2b687",
+      "packages/core/package.json": "96cfe78f9648aaf76759dccb1e99f60371693489fe8fbf1c942e4bc941b7e58f",
+      "packages/core/src/engine.ts": "52b4ed5d5723fbd350bccbb2aa07d2490a79f661b9b98cdab2e5945f1cabff9c",
+      "packages/core/src/index.ts": "93ecab43744b1345656f21c7c118226430c22bf838c4b52040f0dd5050faf2bd",
+      "packages/core/src/scaffold/gitignore.ts": "b094294349bc843846f4909e1440d1a2db67b7c1887e09169acb4d63b131ef03",
+      "packages/core/src/sync/code-refs.ts": "568178bdd218905fb84a93cb357e8c7e64271bf5d5425ce0069844328df8c3cb",
+      "packages/core/src/sync/code-refs.ts#resolveGoverned": "fa9ba3ce3ec4f7716087329f9c6ecbc6ea1d40c28e49cda8c3438bcae92c54d1",
+      "packages/core/src/sync/legacy-extractor.ts": "c39051b27574b1e4d19a0fbe23beff0483e86d1cf4b16101fe212a268c22797d",
+      "packages/core/src/sync/symbol-cache.ts": "d15737b1a05654b44a4cfeef5e6c892af6581bfd3d0174519bd80c78044ef061",
+      "packages/core/src/sync/symbol-extractor.ts": "c36fdf99f37108805e13787e6f9bf4f49fbb3536a722529002ef14d2f0dea7d5",
+      "packages/core/src/sync/tree-sitter-extractor.ts": "52a1ab5c871c6a97977391a16edeca3e1deb908973c62cfebc2205a54686ca8c"
     }
   }
 }
