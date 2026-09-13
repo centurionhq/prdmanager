@@ -2,7 +2,7 @@
 id: PRD-001
 type: PRD
 title: "Product & Context Graph Engine para Asistentes de Código"
-status: draft
+status: approved
 created_at: 2026-09-12
 implements: ["MRD-001"]
 tags: ["doc-as-code", "graphrag", "mcp", "ai-assistant", "product-management", "feature-tree", "knowledge-graph"]
