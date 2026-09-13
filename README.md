@@ -1,13 +1,13 @@
 # prdmanager — Motor de Grafo de Producto y Contexto
 
-Implementación de [PRD-001](docs/prd/PRD-001-Graph-Engine-Enhanced.md) y [PRD-002](docs/prd/PRD-002.md): un grafo de producto que une **Feature Tree** (MRD/PRD/FR), **Blueprints** (SDD/ADR), **Work Orders**, **Artifacts**, **Feedback** y **código**. Asistentes de IA lo usan vía MCP, y el grafo detecta cuándo la documentación y el código se desincronizan.
+Implementación de [PRD-001](docs/prd/PRD-001-Graph-Engine-Enhanced.md), [PRD-002](docs/prd/PRD-002.md) y [PRD-003](docs/prd/PRD-003-parser-de-simbolos-con-tree-sitter-validado-de-pun.md): un grafo de producto que une **Feature Tree** (MRD/PRD/FR), **Blueprints** (SDD/ADR), **Work Orders**, **Artifacts**, **Feedback** y **código**. Asistentes de IA lo usan vía MCP, y el grafo detecta cuándo la documentación y el código se desincronizan.
 
 - **Doc-as-code:** los `.md` con frontmatter YAML son la fuente de verdad, versionada en git.
 - **Neo4j local** es el índice vivo del grafo y se puede reconstruir siempre desde los documentos.
 - **Autoría conversacional:** asistentes redactan por MCP, el motor valida y persiste de forma atómica.
 - **Multi-proyecto:** varios proyectos en una sola instancia Neo4j, aislados por partición.
 
-Arquitectura: [SDD-001](docs/sdd/SDD-001-graph-engine.md), [SDD-002](docs/sdd/SDD-002-multi-project-authoring.md) · Decisiones: [ADR-001](docs/adr/ADR-001-neo4j-local.md), [ADR-002](docs/adr/ADR-002-multi-project-isolation.md) · Mercado: [MRD-001](docs/mrd/MRD-001.md) · Modelo: [docs/model/graph-model.json](docs/model/graph-model.json)
+Arquitectura: [SDD-001](docs/sdd/SDD-001-graph-engine.md), [SDD-002](docs/sdd/SDD-002-multi-project-authoring.md), [SDD-003](docs/sdd/SDD-003-draft-persistence.md), [SDD-004](docs/sdd/SDD-004-tree-sitter-symbols.md) · Decisiones: [ADR-001](docs/adr/ADR-001-neo4j-local.md), [ADR-002](docs/adr/ADR-002-multi-project-isolation.md), [ADR-003](docs/adr/ADR-003-tree-sitter-wasm.md) · Mercado: [MRD-001](docs/mrd/MRD-001.md) · Modelo: [docs/model/graph-model.json](docs/model/graph-model.json)
 
 ## Stack
 
@@ -22,6 +22,7 @@ Arquitectura: [SDD-001](docs/sdd/SDD-001-graph-engine.md), [SDD-002](docs/sdd/SD
 | Config | yaml | 2.9.1 |
 | Validación | zod | 4.6.3 |
 | Parsing | gray-matter, fast-glob | 4.0.3, 3.3.3 |
+| Símbolos | web-tree-sitter (WASM, sin bindings nativos), tree-sitter-wasms | 0.25.10, 0.1.13 |
 | CLI | commander, chokidar, dotenv | 14.0.3, 5.0.0, 17.4.2 |
 | Herramientas | tsx | 4.23.13 |
 | Tests | vitest + @vitest/coverage-v8 | 4.1.11 |
@@ -398,13 +399,12 @@ El binario CLI busca `.env` en el directorio del proyecto descubierto.
 
 ## Limitaciones Conocidas
 
-- **Borradores:** perdidos si el servidor MCP se reinicia (están en memoria del proceso, no en disco)
+- **Borradores:** persisten en `.prdm/drafts/` (FR-001/SDD-003) y se recuperan si el servidor MCP se reinicia; editar el mismo borrador desde dos procesos a la vez no tiene lock (última escritura gana)
 - **Refresh completo:** cada commit trae un re-scan del proyecto completo (repositorios pequeños, sin impacto observable)
 - **Gate de cierre:** por proyecto (no por feature): mientras un proyecto tenga drift, ninguna feature de él puede cerrarse
 - **Full-text:** triaje sin normalizar scores Lucene; ajustar `triage.auto_link_min_score`/`auto_link_margin` en `.prdm.yaml` según el corpus crezca
 - **Analizador fulltext:** `node_text_v2` no fija `analyzer` en `CREATE FULLTEXT INDEX` (sin cláusula `OPTIONS`); usa el default de Neo4j (`standard-no-stop-words` en 2026.08.1), verificado por `graph-model.test.ts` contra `docs/model/graph-model.json`, no una configuración explícita del proyecto
-- **Extracción de símbolos:** heurística (llaves para TS/JS, indentación para Python); templates multilínea no se analizan; reporta drift de más ante bloques ambiguos
-- **Validación de criterios de éxito:** PRD-002 §5 se valida cuando PRD-003 (Tree-sitter) se implemente de punta a punta en un proyecto con `prdm init` (sin drift al cierre)
+- **Extracción de símbolos:** Tree-sitter real (SDD-004) para TypeScript/TSX/JavaScript/Python, con la heurística previa como fallback para otras extensiones; un parseo o query adversarial se acota a 500 ms y se reporta como símbolo no encontrado en vez de bloquear `prdm sync`
 
 ## Fuera del MVP
 

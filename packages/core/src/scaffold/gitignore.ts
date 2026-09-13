@@ -1,5 +1,5 @@
 /** `.prdm/` entries that must never be committed: the engine lock, per-transaction journals, the stale marker and draft sessions (FR-001 / SDD-003: working state, not source of truth). */
-export const REQUIRED_GITIGNORE_LINES: readonly string[] = ['.prdm/engine.lock', '.prdm/journal-*.json', '.prdm/graph-stale', '.prdm/drafts/'];
+export const REQUIRED_GITIGNORE_LINES: readonly string[] = ['.prdm/engine.lock', '.prdm/journal-*.json', '.prdm/graph-stale', '.prdm/drafts/', '.prdm/symbol-cache.json'];
 
 /**
  * Computes the new `.gitignore` content when one or more {@link REQUIRED_GITIGNORE_LINES} are missing.

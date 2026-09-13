@@ -11,7 +11,7 @@ Núcleo de prdmanager: parser Markdown, validación Zod, grafo Neo4j, autoría c
 | `project/` | Carga y validación `.prdm.yaml`; descubrimiento del proyecto activo |
 | `graph/` | Neo4j driver, migraciones versionadas, queries Cypher; multi-proyecto con particiones |
 | `sync/` | Refresh desde documentos; drift detection; política de commits |
-| `authoring/` | Draft sessions en memoria; validación en vivo; commit atómico con journal |
+| `authoring/` | Draft sessions persistidas en `.prdm/drafts/`; validación en vivo; commit atómico con journal |
 | `lifecycle/` | Máquina de estados (ingesta, definición, diseño, planificación, ejecución, cierre) |
 | `work-orders/` | Generación idempotente de WOs desde blueprints |
 | `metrics/` | Cobertura, complejidad, anomalías |

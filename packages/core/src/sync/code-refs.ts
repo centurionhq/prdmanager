@@ -3,6 +3,10 @@ import { findNestedProjectRoots } from '../project/discover.js';
 import { normalizeText, sha256 } from '../util/hash.js';
 import { resolveInside } from '../util/paths.js';
 import { safeReadFile } from '../util/safe-fs.js';
+import { LegacySymbolExtractor } from './legacy-extractor.js';
+import type { SymbolCache } from './symbol-cache.js';
+import type { SymbolExtractor } from './symbol-extractor.js';
+import { isTreeSitterSupported, TreeSitterSymbolExtractor } from './tree-sitter-extractor.js';
 
 export interface CodeRefState {
   key: string;
@@ -11,17 +15,47 @@ export interface CodeRefState {
   hash: string | null;
 }
 
-const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
-const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const legacyExtractor = new LegacySymbolExtractor();
 
-const CONTINUATION_SUFFIXES = ['=>', '=', ',', '(', '|', '&', '+'];
-const CONTINUATION_PREFIXES = ['.', '|', '&', '?', ':'];
-const STATEMENT_KEYWORDS = new Set(['const', 'let', 'var', 'type']);
+/** Standalone entry point kept for direct unit testing of the heuristic (SDD-004 moved its body to {@link LegacySymbolExtractor}). */
+export function extractSymbol(content: string, symbol: string, path: string): string | null {
+  return legacyExtractor.extract(content, symbol, path);
+}
+
+/** Tree-sitter for the extensions it has a grammar for, the pre-Tree-sitter heuristic for everything else. */
+class DispatchingSymbolExtractor implements SymbolExtractor {
+  constructor(
+    private readonly treeSitter: TreeSitterSymbolExtractor,
+    private readonly legacy: SymbolExtractor,
+  ) {}
+
+  extract(content: string, symbol: string, path: string): string | null {
+    return (isTreeSitterSupported(path) ? this.treeSitter : this.legacy).extract(content, symbol, path);
+  }
+}
+
+// Loaded once per process, and only the first time a `#symbol` pattern is actually resolved (SDD-004 "carga
+// perezosa"): a project whose blueprints govern only whole files never touches Tree-sitter's WASM runtime.
+let treeSitterPromise: Promise<TreeSitterSymbolExtractor> | undefined;
+
+async function defaultExtractorFor(symbol: string | null): Promise<SymbolExtractor | null> {
+  if (!symbol) return null; // never dereferenced: hashRef only calls the extractor when there's a symbol
+  treeSitterPromise ??= TreeSitterSymbolExtractor.create();
+  return new DispatchingSymbolExtractor(await treeSitterPromise, legacyExtractor);
+}
+
+export interface ResolveGovernedOptions {
+  /** Overrides the default (Tree-sitter, falling back to the legacy heuristic) extractor. */
+  extractor?: SymbolExtractor;
+  /** SDD-004 perf cache: skips re-extracting a symbol whose file hasn't changed since it was last cached. */
+  cache?: SymbolCache;
+}
 
 export async function resolveGoverned(
   root: string,
   patterns: string[],
   ignore: string[],
+  options: ResolveGovernedOptions = {},
 ): Promise<{ refs: CodeRefState[]; warnings: string[] }> {
   const refs = new Map<string, CodeRefState>();
   const warnings: string[] = [];
@@ -53,7 +87,8 @@ export async function resolveGoverned(
     for (const path of files) {
       const key = symbol ? `${path}#${symbol}` : path;
       if (refs.has(key)) continue;
-      const { hash, warning } = await hashRef(root, path, symbol);
+      const extractor = options.extractor ?? (await defaultExtractorFor(symbol));
+      const { hash, warning } = await hashRef(root, key, path, symbol, extractor, options.cache);
       if (warning) warnings.push(warning);
       refs.set(key, { key, path, symbol, hash });
     }
@@ -61,7 +96,14 @@ export async function resolveGoverned(
   return { refs: [...refs.values()], warnings };
 }
 
-async function hashRef(root: string, path: string, symbol: string | null): Promise<{ hash: string | null; warning?: string }> {
+async function hashRef(
+  root: string,
+  key: string,
+  path: string,
+  symbol: string | null,
+  extractor: SymbolExtractor | null,
+  cache: SymbolCache | undefined,
+): Promise<{ hash: string | null; warning?: string }> {
   let content: string | null;
   try {
     content = await safeReadFile(root, path);
@@ -69,199 +111,15 @@ async function hashRef(root: string, path: string, symbol: string | null): Promi
     return { hash: null, warning: `governed path "${path}" was not hashed: ${(err as Error).message}` };
   }
   if (content === null) return { hash: null };
-  const text = symbol ? extractSymbol(content, symbol, path) : normalizeText(content);
-  return { hash: text === null ? null : sha256(text) };
-}
+  if (!symbol) return { hash: sha256(normalizeText(content)) };
+  if (!extractor) return { hash: null }; // unreachable: resolveGoverned always resolves an extractor when symbol is set
 
-const tsDeclRegex = (name: string): RegExp =>
-  new RegExp(
-    `^(\\s*)(export\\s+)?(default\\s+)?(declare\\s+)?(abstract\\s+)?(async\\s+)?(function\\*?|class|interface|type|enum|const|let|var)\\s+${name}(?![\\w$])`,
-  );
-const pyDeclRegex = (name: string): RegExp => new RegExp(`^(\\s*)(async\\s+)?(def|class)\\s+${name}(?![\\w$])`);
-
-/**
- * Extracts the source block for a declared `symbol` from `content`.
- *
- * TS/JS: prefers the shallowest-indented (top-level) declaration, hashes overload
- * signatures through the implementation body, ignores braces/parens inside strings
- * and comments, and tracks multi-line statements (unions, chained builders) until
- * they truly terminate. Python stays indentation-based, including decorators.
- * When a block is ambiguous or never closes, extraction falls back to end of file
- * so drift is over-reported rather than missed.
- */
-export function extractSymbol(content: string, symbol: string, path: string): string | null {
-  if (!IDENTIFIER.test(symbol)) return null;
-  const lines = content.replace(/\r\n?/g, '\n').split('\n');
-  const name = escapeRegex(symbol);
-  const isPython = path.endsWith('.py');
-  const regex = isPython ? pyDeclRegex(name) : tsDeclRegex(name);
-  const found = findTopLevelDecl(lines, regex);
-  if (!found) return null;
-
-  const start = isPython ? pythonDeclStart(lines, found.index) : found.index;
-  const end = isPython ? pythonBlockEnd(lines, found.index) : tsBlockEnd(lines, found.index, found.match, regex);
-  return normalizeText(lines.slice(start, end + 1).join('\n'));
-}
-
-function findTopLevelDecl(lines: string[], regex: RegExp): { index: number; match: RegExpMatchArray } | null {
-  let best: { index: number; match: RegExpMatchArray } | null = null;
-  for (let i = 0; i < lines.length; i++) {
-    const match = regex.exec(lines[i] ?? '');
-    if (!match) continue;
-    const indent = (match[1] ?? '').length;
-    if (!best || indent < (best.match[1] ?? '').length) best = { index: i, match };
-  }
-  return best;
-}
-
-function indentOf(line: string): number {
-  return line.length - line.trimStart().length;
-}
-
-function pythonDeclStart(lines: string[], start: number): number {
-  const indent = indentOf(lines[start] ?? '');
-  let i = start - 1;
-  while (i >= 0) {
-    const line = lines[i] ?? '';
-    if (line.trim() === '' || indentOf(line) !== indent || !line.trim().startsWith('@')) break;
-    i--;
-  }
-  return i + 1;
-}
-
-function pythonBlockEnd(lines: string[], start: number): number {
-  const baseIndent = indentOf(lines[start] ?? '');
-  let last = start;
-  for (let i = start + 1; i < lines.length; i++) {
-    const line = lines[i] ?? '';
-    if (line.trim() === '') continue;
-    if (indentOf(line) <= baseIndent) break;
-    last = i;
-  }
-  return last;
-}
-
-function tsBlockEnd(lines: string[], start: number, match: RegExpMatchArray, declRegex: RegExp): number {
-  const keyword = match[7] ?? '';
-  return STATEMENT_KEYWORDS.has(keyword) ? declStatementEnd(lines, start) : functionLikeBlockEnd(lines, start, declRegex);
-}
-
-/** Chains through consecutive overload signatures (ending in `;`, no `{`) until the implementation body opens. */
-function functionLikeBlockEnd(lines: string[], start: number, declRegex: RegExp): number {
-  let cursor = start;
-  for (;;) {
-    const { end, opened } = singleDeclBlockEnd(lines, cursor);
-    if (opened) return end;
-    const next = nextNonBlankLineIndex(lines, end + 1);
-    if (next === -1 || !declRegex.test(lines[next] ?? '')) return end;
-    cursor = next;
-  }
-}
-
-function singleDeclBlockEnd(lines: string[], start: number): { end: number; opened: boolean } {
-  let braceDepth = 0;
-  let parenDepth = 0;
-  let opened = false;
-  let inBlockComment = false;
-  for (let i = start; i < lines.length; i++) {
-    const scanned = sanitizeLine(lines[i] ?? '', inBlockComment);
-    inBlockComment = scanned.inBlockComment;
-    for (const ch of scanned.code) {
-      if (ch === '{') {
-        braceDepth++;
-        opened = true;
-      } else if (ch === '}') braceDepth--;
-      else if (ch === '(') parenDepth++;
-      else if (ch === ')') parenDepth--;
-    }
-    if (opened && braceDepth <= 0) return { end: i, opened: true };
-    if (!opened && parenDepth <= 0 && !endsWithContinuationOperator(scanned.code.trimEnd())) {
-      return { end: i, opened: false };
-    }
-  }
-  return { end: lines.length - 1, opened };
-}
-
-/** Handles const/let/var/type statements, including multi-line unions and chained calls. */
-function declStatementEnd(lines: string[], start: number): number {
-  let braceDepth = 0;
-  let parenDepth = 0;
-  let inBlockComment = false;
-  for (let i = start; i < lines.length; i++) {
-    const scanned = sanitizeLine(lines[i] ?? '', inBlockComment);
-    inBlockComment = scanned.inBlockComment;
-    for (const ch of scanned.code) {
-      if (ch === '{') braceDepth++;
-      else if (ch === '}') braceDepth--;
-      else if (ch === '(') parenDepth++;
-      else if (ch === ')') parenDepth--;
-    }
-    if (braceDepth > 0 || parenDepth > 0) continue;
-    const trimmed = scanned.code.trimEnd();
-    if (trimmed.endsWith(';')) return i;
-    if (endsWithContinuationOperator(trimmed) || nextLineStartsContinuation(lines, i + 1)) continue;
-    return i;
-  }
-  return lines.length - 1;
-}
-
-function endsWithContinuationOperator(text: string): boolean {
-  return CONTINUATION_SUFFIXES.some((suffix) => text.endsWith(suffix));
-}
-
-function nextLineStartsContinuation(lines: string[], from: number): boolean {
-  const idx = nextNonBlankLineIndex(lines, from);
-  if (idx === -1) return false;
-  const trimmed = (lines[idx] ?? '').trim();
-  return CONTINUATION_PREFIXES.some((prefix) => trimmed.startsWith(prefix));
-}
-
-function nextNonBlankLineIndex(lines: string[], from: number): number {
-  for (let i = from; i < lines.length; i++) {
-    if ((lines[i] ?? '').trim() !== '') return i;
-  }
-  return -1;
-}
-
-/** Linear scan that strips string/template literals and `//` and single-line `/* *\/` comments from a line. */
-function sanitizeLine(line: string, inBlockComment: boolean): { code: string; inBlockComment: boolean } {
-  const codeChars: string[] = [];
-  let comment = inBlockComment;
-  let i = 0;
-  while (i < line.length) {
-    if (comment) {
-      const closeIdx = line.indexOf('*/', i);
-      if (closeIdx === -1) return { code: codeChars.join(''), inBlockComment: true };
-      comment = false;
-      i = closeIdx + 2;
-      continue;
-    }
-    const ch = line[i];
-    if (ch === '/' && line[i + 1] === '/') break;
-    if (ch === '/' && line[i + 1] === '*') {
-      comment = true;
-      i += 2;
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch === '`') {
-      i = skipStringLiteral(line, i, ch);
-      continue;
-    }
-    codeChars.push(ch ?? '');
-    i++;
-  }
-  return { code: codeChars.join(''), inBlockComment: comment };
-}
-
-function skipStringLiteral(line: string, start: number, quote: string): number {
-  let i = start + 1;
-  while (i < line.length) {
-    if (line[i] === '\\') {
-      i += 2;
-      continue;
-    }
-    if (line[i] === quote) return i + 1;
-    i++;
-  }
-  return line.length;
+  const fileHash = sha256(content);
+  const cached = cache?.get(key, fileHash);
+  if (cached !== undefined) return { hash: cached };
+  const text = extractor.extract(content, symbol, path);
+  if (text === null) return { hash: null }; // never cached: a transient miss (e.g. mid-rename) shouldn't stick
+  const hash = sha256(text);
+  cache?.set(key, fileHash, hash);
+  return { hash };
 }

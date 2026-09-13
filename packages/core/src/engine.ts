@@ -9,6 +9,7 @@ import { scanDocuments, type ScanError, type ScanResult } from './parser/scan.js
 import { loadBaseline, saveBaseline } from './sync/baseline.js';
 import { resolveGoverned, type CodeRefState } from './sync/code-refs.js';
 import { dirtyPaths, readCommits } from './sync/git.js';
+import { SymbolCache } from './sync/symbol-cache.js';
 import { acknowledge, detectDrift, type DriftInput, type DriftIssue, type GovernedState, type WorkOrderUpdate } from './sync/monitor.js';
 import { resolveInside } from './util/paths.js';
 import { withRepoLock } from './util/lock.js';
@@ -200,19 +201,22 @@ export class Engine {
     });
   }
 
-  private async collect(): Promise<{ scan: ScanResult; input: DriftInput }> {
+  private async collect(): Promise<{ scan: ScanResult; input: DriftInput; symbolCache: SymbolCache }> {
     const { root, ignore, gitMaxCommits } = this.config;
     const scan = await scanDocuments(root, ignore);
     const governed = new Map<string, CodeRefState[]>();
     const governWarnings: DriftInput['governWarnings'] = [];
+    // SDD-004: loaded here so it's shared across every blueprint's resolveGoverned call in this refresh, and
+    // written back at most once by whichever caller actually persists things (never by the read-only doInspect).
+    const symbolCache = await SymbolCache.load(root);
     for (const doc of scan.docs.filter((d) => d.node.label === 'Blueprint')) {
-      const { refs, warnings } = await resolveGoverned(root, doc.impactsPaths, ignore);
+      const { refs, warnings } = await resolveGoverned(root, doc.impactsPaths, ignore, { cache: symbolCache });
       governed.set(doc.node.id, refs);
       governWarnings.push(...warnings.map((message) => ({ blueprintId: doc.node.id, message })));
     }
     const [commits, dirty, baseline] = await Promise.all([readCommits(root, gitMaxCommits), dirtyPaths(root), loadBaseline(root)]);
     // WO-019: wires PRD-002 §3 lifecycle checking into refresh (see sync/monitor.ts detectDrift).
-    return { scan, input: { docs: scan.docs, governed, governWarnings, baseline, commits, dirty, lifecycle: this.config.lifecycle } };
+    return { scan, input: { docs: scan.docs, governed, governWarnings, baseline, commits, dirty, lifecycle: this.config.lifecycle }, symbolCache };
   }
 
   /**
@@ -236,7 +240,11 @@ export class Engine {
   }
 
   private async doRefresh(): Promise<RefreshReport> {
-    const { scan, input } = await this.collect();
+    const { scan, input, symbolCache } = await this.collect();
+    // Independent of whatever happens below: the parsing this refresh already did is real and safe to reuse,
+    // even if the snapshot write or a status update fails later (WO-023's atomic-transaction guarantees are
+    // about documents, not this purely-derived, self-healing cache).
+    await symbolCache.saveIfDirty(this.config.root);
     const drift = detectDrift(input);
 
     const { applied, failures } = await this.applyStatusUpdates(drift.workOrderUpdates);
