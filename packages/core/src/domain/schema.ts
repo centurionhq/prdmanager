@@ -17,7 +17,7 @@ export const LABEL_BY_KIND: Readonly<Record<DocKind, NodeLabel>> = {
   FB: 'Feedback',
 };
 
-export const DOC_REL_TYPES = ['EVOLVES_FROM', 'ARCHITECTS', 'IMPLEMENTS', 'PROVIDES_CONTEXT_FOR', 'INFORMS'] as const;
+export const DOC_REL_TYPES = ['EVOLVES_FROM', 'ARCHITECTS', 'IMPLEMENTS', 'PROVIDES_CONTEXT_FOR', 'INFORMS', 'JUSTIFIED_BY'] as const;
 export type DocRelType = (typeof DOC_REL_TYPES)[number];
 
 export const ARTIFACT_SOURCES = ['meeting', 'email', 'slack', 'call', 'doc', 'other'] as const;
@@ -85,10 +85,19 @@ const base = z.object({
   tags: z.array(z.string().max(60)).default([]),
 });
 
+/**
+ * PRD-002 §3 lifecycle fields, added without defaults so their absence never changes an existing document's
+ * content hash (`contentHash` omits keys whose value is `undefined`): `justified_by` stays part of the hashed
+ * frontmatter (it is authoring intent, not a runtime-derived field) while `closed_at`/`closed_by` are volatile
+ * (see `VOLATILE_FIELDS` in `parser/frontmatter.ts`) because they are written by `prdm close`, not an author.
+ */
 export const featureSchema = base.extend({
   type: z.enum(['MRD', 'PRD', 'FR']),
   implements: idList,
   evolves_from: idList,
+  justified_by: z.array(docId).optional(),
+  closed_at: optionalTimestamp,
+  closed_by: z.string().regex(ACTOR_PATTERN, 'closed_by must look like agent:name or dev:name').optional(),
 });
 
 export const blueprintSchema = base.extend({
@@ -114,6 +123,8 @@ export const artifactSchema = base.extend({
   type: z.literal('ART'),
   source: z.enum(ARTIFACT_SOURCES).default('other'),
   provides_context_for: idList,
+  /** Ingestion-time exemption from the "must link a Feature" lifecycle rule (SDD-002 "Ciclo de vida"); optional, no default. */
+  root: z.boolean().optional(),
 });
 
 export const feedbackSchema = base.extend({
@@ -121,6 +132,8 @@ export const feedbackSchema = base.extend({
   source: z.string().min(1).max(60).default('other'),
   customer: z.string().max(120).optional(),
   informs: idList,
+  /** Same root exemption as Artifact; Feature documents (MRD/PRD/FR) deliberately have no such exemption. */
+  root: z.boolean().optional(),
 });
 
 export const frontmatterSchema = z.preprocess(

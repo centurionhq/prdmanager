@@ -4,7 +4,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { Engine, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
+import { Engine, scanDocuments, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
 import { commitAll, createFixtureRepo, git, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 import { createPrdmServer } from '../../src/create.js';
 
@@ -50,6 +50,12 @@ let client: Client;
 beforeAll(async () => {
   root = createFixtureRepo();
   config = testConfig(root);
+  // WO-019: the shared fixture predates PRD-002's lifecycle rules (MRD-001 has no justified_by, WO-001 no
+  // source_task); grandfather them here so this suite's `hasBlockingIssues` assertions reflect the drift
+  // behavior under test, not this pre-existing fixture gap (fixture.ts is shared and not owned by this WO).
+  const { docs } = await scanDocuments(root, config.ignore);
+  const grandfathered = docs.filter((d) => d.node.id === 'MRD-001' || d.node.id === 'WO-001').map((d) => ({ id: d.node.id, hash: d.node.contentHash }));
+  config = { ...config, lifecycle: { grandfathered } };
   ({ db, store } = await openTestDb(config));
   engine = new Engine(config, store);
   await engine.refresh();

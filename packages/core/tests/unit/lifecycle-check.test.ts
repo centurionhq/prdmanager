@@ -1,0 +1,136 @@
+import { describe, expect, test } from 'vitest';
+import { doc } from '@prdm/testkit';
+import type { ParsedDoc } from '../../src/domain/schema.js';
+import { checkLifecycle, type LifecycleContext } from '../../src/lifecycle/check.js';
+
+const noGrandfathering: LifecycleContext = { grandfathered: [] };
+
+const mrd = (extra = ''): ParsedDoc => doc(`id: MRD-001\ntype: MRD\ntitle: Market\n${extra}`);
+const prd = (extra = ''): ParsedDoc => doc(`id: PRD-001\ntype: PRD\ntitle: Product\nimplements: [MRD-001]\n${extra}`);
+const sdd = (extra = '', body = 'design'): ParsedDoc => doc(`id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\n${extra}`, body);
+const wo = (extra = ''): ParsedDoc => doc(`id: WO-001\ntype: WO\ntitle: Task\nimplements: [SDD-001]\n${extra}`);
+const fb = (extra = '', status = 'new'): ParsedDoc => doc(`id: FB-001\ntype: FB\ntitle: Feedback\nstatus: ${status}\n${extra}`);
+const art = (extra = ''): ParsedDoc => doc(`id: ART-001\ntype: ART\ntitle: Note\n${extra}`);
+
+function kinds(issues: ReturnType<typeof checkLifecycle>): [string, string, string][] {
+  return issues.map((i) => [i.kind, i.severity, i.nodeId]);
+}
+
+describe('checkLifecycle — Feedback', () => {
+  test('untriaged (no informs, no root) is a warning while status is "new"', () => {
+    const issues = checkLifecycle([fb()], noGrandfathering);
+    expect(kinds(issues)).toEqual([['lifecycle_violation', 'warning', 'FB-001']]);
+    expect(issues[0]?.message).toMatch(/triag|informs|root/i);
+  });
+
+  test('unlinked feedback past triage (status != new) is an error', () => {
+    const issues = checkLifecycle([fb('', 'triaged')], noGrandfathering);
+    expect(kinds(issues)).toEqual([['lifecycle_violation', 'error', 'FB-001']]);
+  });
+
+  test('root: true exempts feedback from linking', () => {
+    expect(checkLifecycle([fb('root: true')], noGrandfathering)).toEqual([]);
+  });
+
+  test('informs satisfies the rule', () => {
+    expect(checkLifecycle([fb('informs: [PRD-001]'), prd()], noGrandfathering).filter((i) => i.nodeId === 'FB-001')).toEqual([]);
+  });
+});
+
+describe('checkLifecycle — Artifact', () => {
+  test('no provides_context_for and no root is an error', () => {
+    expect(kinds(checkLifecycle([art()], noGrandfathering))).toEqual([['lifecycle_violation', 'error', 'ART-001']]);
+  });
+
+  test('root: true exempts an artifact from linking', () => {
+    expect(checkLifecycle([art('root: true')], noGrandfathering)).toEqual([]);
+  });
+
+  test('provides_context_for satisfies the rule', () => {
+    expect(checkLifecycle([art('provides_context_for: [PRD-001]'), prd()], noGrandfathering).filter((i) => i.nodeId === 'ART-001')).toEqual([]);
+  });
+});
+
+describe('checkLifecycle — Feature (MRD/PRD/FR)', () => {
+  test('MRD with no justification (and no root exemption, unlike FB/ART) is an error', () => {
+    expect(kinds(checkLifecycle([mrd()], noGrandfathering))).toEqual([['lifecycle_violation', 'error', 'MRD-001']]);
+  });
+
+  test('an explicit justified_by satisfies the rule even before the id is validated to exist (linkIssues owns that)', () => {
+    expect(checkLifecycle([mrd('justified_by: [FB-999]')], noGrandfathering)).toEqual([]);
+  });
+
+  test('a reverse INFORMS from an existing Feedback derives JUSTIFIED_BY', () => {
+    const docs = [mrd(), fb('informs: [MRD-001]')];
+    expect(checkLifecycle(docs, noGrandfathering).filter((i) => i.nodeId === 'MRD-001')).toEqual([]);
+  });
+
+  test('a reverse PROVIDES_CONTEXT_FOR from an existing Artifact derives JUSTIFIED_BY', () => {
+    const docs = [prd(), art('provides_context_for: [PRD-001]')];
+    expect(checkLifecycle(docs, noGrandfathering).filter((i) => i.nodeId === 'PRD-001')).toEqual([]);
+  });
+});
+
+const approvedPrd = (): ParsedDoc => prd('justified_by: [ART-001]\nstatus: approved');
+const blueprintIssuesOf = (issues: ReturnType<typeof checkLifecycle>): [string, string, string][] => kinds(issues).filter(([, , id]) => id === 'SDD-001');
+
+describe('checkLifecycle — Blueprint (SDD/ADR)', () => {
+  test('missing impacts_paths is an error', () => {
+    const issues = checkLifecycle([approvedPrd(), sdd('', '## Tareas\n- [ ] a')], noGrandfathering);
+    expect(blueprintIssuesOf(issues)).toEqual([['lifecycle_violation', 'error', 'SDD-001']]);
+  });
+
+  test('impacts_paths without a Tareas/Tasks checklist is an error', () => {
+    const issues = checkLifecycle([approvedPrd(), sdd('impacts_paths: ["src/**"]', 'no checklist here')], noGrandfathering);
+    expect(blueprintIssuesOf(issues)).toEqual([['lifecycle_violation', 'error', 'SDD-001']]);
+  });
+
+  test('impacts_paths + a non-empty Tareas checklist satisfies the design rule', () => {
+    const issues = checkLifecycle([approvedPrd(), sdd('impacts_paths: ["src/**"]', '## Tareas\n- [ ] do it')], noGrandfathering);
+    expect(blueprintIssuesOf(issues)).toEqual([]);
+  });
+
+  test('architecting a feature that is not approved/closed is a design_before_approval warning', () => {
+    const issues = checkLifecycle([prd('justified_by: [ART-001]'), sdd('impacts_paths: ["src/**"]', '## Tareas\n- [x] done')], noGrandfathering);
+    expect(blueprintIssuesOf(issues)).toEqual([['lifecycle_violation', 'warning', 'SDD-001']]);
+  });
+
+  test('"## Tasks" (English) with a checklist also satisfies the rule', () => {
+    const issues = checkLifecycle([approvedPrd(), sdd('impacts_paths: ["src/**"]', '## Tasks\n- [ ] do it')], noGrandfathering);
+    expect(blueprintIssuesOf(issues)).toEqual([]);
+  });
+});
+
+describe('checkLifecycle — Work Order', () => {
+  test('missing source_task is an error', () => {
+    expect(kinds(checkLifecycle([wo()], noGrandfathering))).toEqual([['lifecycle_violation', 'error', 'WO-001']]);
+  });
+
+  test('source_task satisfies the rule', () => {
+    expect(checkLifecycle([wo('source_task: abc123')], noGrandfathering)).toEqual([]);
+  });
+});
+
+describe('checkLifecycle — grandfathering', () => {
+  test('a listed id with a matching hash is fully exempt', () => {
+    const doc1 = mrd();
+    const ctx: LifecycleContext = { grandfathered: [{ id: 'MRD-001', hash: doc1.node.contentHash }] };
+    expect(checkLifecycle([doc1], ctx)).toEqual([]);
+  });
+
+  test('a listed id whose hash no longer matches emits a lapse warning and then the rule applies', () => {
+    const doc1 = mrd();
+    const ctx: LifecycleContext = { grandfathered: [{ id: 'MRD-001', hash: 'stale-hash' }] };
+    const issues = checkLifecycle([doc1], ctx);
+    expect(kinds(issues)).toEqual([
+      ['lifecycle_violation', 'warning', 'MRD-001'],
+      ['lifecycle_violation', 'error', 'MRD-001'],
+    ]);
+    expect(issues[0]?.message).toMatch(/grandfathering lapsed/i);
+  });
+
+  test('an unlisted id is unaffected by an unrelated grandfathered entry', () => {
+    const ctx: LifecycleContext = { grandfathered: [{ id: 'MRD-404', hash: 'x' }] };
+    expect(kinds(checkLifecycle([mrd()], ctx))).toEqual([['lifecycle_violation', 'error', 'MRD-001']]);
+  });
+});

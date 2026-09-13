@@ -30,8 +30,11 @@ describe('Engine + Neo4jGraphStore', () => {
   test('first refresh indexes the repository into Neo4j with no drift', async () => {
     const report = await engine.refresh();
     expect(report.errors).toEqual([]);
-    // The fixture's SDD-001 still uses the deprecated `governs` alias (fixture.ts is shared and not owned by this WO).
-    expect(report.issues).toEqual([{ kind: 'deprecated_field', severity: 'warning', nodeId: 'SDD-001', message: expect.stringContaining('impacts_paths') }]);
+    // The fixture's SDD-001 still uses the deprecated `governs` alias, and MRD-001/WO-001 predate PRD-002's
+    // lifecycle rules (no `justified_by`/`source_task`); fixture.ts is shared and not owned by this WO.
+    expect(report.issues.filter((i) => i.kind !== 'lifecycle_violation')).toEqual([
+      { kind: 'deprecated_field', severity: 'warning', nodeId: 'SDD-001', message: expect.stringContaining('impacts_paths') },
+    ]);
     expect(report.documents).toBe(5);
     expect(report.baselineWritten).toBe(true);
 
@@ -59,7 +62,9 @@ describe('Engine + Neo4jGraphStore', () => {
     expect(forest.map((n) => n.ref)).toEqual(['MRD-001']);
     const text = renderText(forest);
     expect(text).toMatch(/MRD-001[\s\S]*PRD-001[\s\S]*SDD-001[\s\S]*WO-001[\s\S]*commit:/);
-    expect(text).not.toContain('ART-001');
+    // ART-001 now legitimately appears here too: it JUSTIFIED_BYs PRD-001 (WO-019), and JUSTIFIED_BY is part of
+    // branch()'s traversal filter, same as the dedicated PRD-001 branch assertion below.
+    expect(text).toContain('ART-001');
 
     const prdBranch = buildForest(await store.branch('PRD-001'));
     const prdText = renderText(prdBranch);
@@ -80,7 +85,7 @@ describe('Engine + Neo4jGraphStore', () => {
     writeFiles(root, { 'docs/blueprints/SDD-001.md': readFileSync(sddPath, 'utf8').replace('compara hashes', 'compara hashes y firmas') });
 
     const drift = await engine.refresh();
-    expect(drift.issues.filter((i) => i.kind !== 'deprecated_field').map((i) => i.kind)).toEqual([
+    expect(drift.issues.filter((i) => !['deprecated_field', 'lifecycle_violation'].includes(i.kind)).map((i) => i.kind)).toEqual([
       'blueprint_changed',
       'code_out_of_sync',
       'work_order_out_of_sync',
@@ -92,12 +97,12 @@ describe('Engine + Neo4jGraphStore', () => {
     expect(sdd?.links.find((l) => l.type === 'GOVERNED_BY')?.props).toMatchObject({ status: 'out_of_sync', reason: 'blueprint_changed' });
 
     const blueprintAcked = await engine.acknowledge('SDD-001');
-    expect(blueprintAcked.issues.filter((i) => i.kind !== 'deprecated_field').map((i) => [i.kind, i.nodeId])).toEqual([['work_order_out_of_sync', 'WO-001']]);
+    expect(blueprintAcked.issues.filter((i) => !['deprecated_field', 'lifecycle_violation'].includes(i.kind)).map((i) => [i.kind, i.nodeId])).toEqual([['work_order_out_of_sync', 'WO-001']]);
     expect((await store.getNode('WO-001'))?.node.status).toBe('out_of_sync');
 
     await expect(engine.acknowledge('WO-404')).rejects.toThrow(/unknown/);
     const acked = await engine.acknowledge('WO-001');
-    expect(acked.issues.filter((i) => i.kind !== 'deprecated_field')).toEqual([]);
+    expect(acked.issues.filter((i) => !['deprecated_field', 'lifecycle_violation'].includes(i.kind))).toEqual([]);
     expect((await store.getNode('WO-001'))?.node.status).toBe('done');
     expect(readFileSync(join(root, 'docs/work-orders/WO-001.md'), 'utf8')).toMatch(/blueprint_hashes: \{"SDD-001":"[0-9a-f]{64}"\}/);
   });
@@ -105,11 +110,11 @@ describe('Engine + Neo4jGraphStore', () => {
   test('code change is out of sync until committed with a Refs trailer of a done work order', async () => {
     writeFiles(root, { 'src/sync/monitor.ts': 'export function detect() {\n  return 2;\n}\n' });
     const dirty = await engine.refresh();
-    expect(dirty.issues.filter((i) => i.kind !== 'deprecated_field').map((i) => [i.kind, i.target])).toEqual([['code_out_of_sync', 'src/sync/monitor.ts']]);
+    expect(dirty.issues.filter((i) => !['deprecated_field', 'lifecycle_violation'].includes(i.kind)).map((i) => [i.kind, i.target])).toEqual([['code_out_of_sync', 'src/sync/monitor.ts']]);
 
     commitAll(root, 'fix: detect returns 2\n\nRefs: WO-001');
     const committed = await engine.refresh();
-    expect(committed.issues.filter((i) => i.kind !== 'deprecated_field')).toEqual([]);
+    expect(committed.issues.filter((i) => !['deprecated_field', 'lifecycle_violation'].includes(i.kind))).toEqual([]);
     expect(committed.governed.find((g) => g.key === 'src/sync/monitor.ts')?.reason).toBe('resolved_by_commit');
   });
 
@@ -118,7 +123,7 @@ describe('Engine + Neo4jGraphStore', () => {
     writeFiles(root, { 'docs/feedback/FB-001.md': '---\nid: FB-001\ntype: FB\ntitle: x\nsource: email\ninforms: [PRD-404]\n---\nx\n' });
     const report = await engine.refresh();
     expect(await store.getNode('ART-001')).toBeNull();
-    expect(report.issues.filter((i) => i.kind !== 'deprecated_field').map((i) => [i.kind, i.nodeId])).toEqual([['broken_link', 'FB-001']]);
+    expect(report.issues.filter((i) => !['deprecated_field', 'lifecycle_violation'].includes(i.kind)).map((i) => [i.kind, i.nodeId])).toEqual([['broken_link', 'FB-001']]);
     expect(report.hasBlockingIssues).toBe(true);
   });
 

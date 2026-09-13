@@ -1,4 +1,5 @@
 import type { DocRelType, NodeLabel, ParsedDoc, WorkOrderStatus } from '../domain/schema.js';
+import { checkLifecycle, type LifecycleContext } from '../lifecycle/check.js';
 import type { Baseline } from './baseline.js';
 import type { CodeRefState } from './code-refs.js';
 import type { CommitInfo } from './git.js';
@@ -10,6 +11,8 @@ export interface DriftInput {
   baseline: Baseline;
   commits: CommitInfo[];
   dirty: Set<string>;
+  /** PRD-002 §3 lifecycle invariants; defaults to no grandfathering when omitted (WO-019). */
+  lifecycle?: LifecycleContext;
 }
 
 export type IssueKind =
@@ -58,12 +61,13 @@ export interface DriftResult {
   baseline: Baseline;
 }
 
-const EXPECTED_TARGET: Readonly<Record<DocRelType, NodeLabel>> = {
-  EVOLVES_FROM: 'Feature',
-  ARCHITECTS: 'Feature',
-  IMPLEMENTS: 'Blueprint',
-  PROVIDES_CONTEXT_FOR: 'Feature',
-  INFORMS: 'Feature',
+const EXPECTED_TARGET: Readonly<Record<DocRelType, readonly NodeLabel[]>> = {
+  EVOLVES_FROM: ['Feature'],
+  ARCHITECTS: ['Feature'],
+  IMPLEMENTS: ['Blueprint'],
+  PROVIDES_CONTEXT_FOR: ['Feature'],
+  INFORMS: ['Feature'],
+  JUSTIFIED_BY: ['Feedback', 'Artifact'],
 };
 
 type WorkOrderDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'WO' }> };
@@ -183,6 +187,7 @@ function collectIssues(ctx: DriftContext, governed: GovernedState[], updates: Wo
       .map((wo): DriftIssue => ({ kind: 'work_order_out_of_sync', severity: 'error', nodeId: wo.node.id, message: `${wo.node.id} was completed against an older version of its blueprint` })),
     ...ctx.input.governWarnings.map((w): DriftIssue => ({ kind: 'impacts_warning', severity: 'warning', nodeId: w.blueprintId, message: w.message })),
     ...ctx.input.docs.flatMap((d) => deprecationIssues(d)),
+    ...checkLifecycle(ctx.input.docs, ctx.input.lifecycle ?? { grandfathered: [] }),
   ];
 }
 
@@ -234,8 +239,16 @@ function linkIssues(ctx: DriftContext): DriftIssue[] {
     d.edges.flatMap((e): DriftIssue[] => {
       const target = ctx.byId.get(e.to);
       if (!target) return [{ kind: 'broken_link', severity: 'error', nodeId: d.node.id, target: e.to, message: `${d.node.id} links to missing ${e.to} (${e.type})` }];
-      if (target.node.label !== EXPECTED_TARGET[e.type]) {
-        return [{ kind: 'invalid_link_target', severity: 'error', nodeId: d.node.id, target: e.to, message: `${e.type} from ${d.node.id} must target a ${EXPECTED_TARGET[e.type]}, got ${target.node.label}` }];
+      if (!EXPECTED_TARGET[e.type].includes(target.node.label)) {
+        return [
+          {
+            kind: 'invalid_link_target',
+            severity: 'error',
+            nodeId: d.node.id,
+            target: e.to,
+            message: `${e.type} from ${d.node.id} must target a ${EXPECTED_TARGET[e.type].join(' or ')}, got ${target.node.label}`,
+          },
+        ];
       }
       return [];
     }),

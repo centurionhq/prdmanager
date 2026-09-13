@@ -38,8 +38,9 @@ describe('Work Order Generator (F-04)', () => {
       { id: 'WO-003', path: 'docs/work-orders/WO-003-leer-commits-de-git.md', title: 'Leer commits de git', status: 'pending' },
     ]);
     expect(result.report.errors).toEqual([]);
-    // The fixture's SDD-001 still uses the deprecated `governs` alias (fixture.ts is shared and not owned by this WO).
-    expect(result.report.issues.filter((i) => i.kind !== 'deprecated_field')).toEqual([]);
+    // The fixture's SDD-001 still uses the deprecated `governs` alias, and MRD-001/WO-001 predate PRD-002's
+    // lifecycle rules (no `justified_by`/`source_task`); fixture.ts is shared and not owned by this WO.
+    expect(result.report.issues.filter((i) => !['deprecated_field', 'lifecycle_violation'].includes(i.kind))).toEqual([]);
 
     const created = readFileSync(`${root}/docs/work-orders/WO-002-implementar-hashing-de-codigo.md`, 'utf8');
     expect(created).toContain('status: "pending"');

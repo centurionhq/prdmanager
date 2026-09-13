@@ -125,8 +125,14 @@ Objetivo
     const art = parseDocument(`---\nid: ART-001\ntype: ART\ntitle: Call\nsource: meeting\nprovides_context_for: [PRD-001]\n---\ntranscript`, 'a.md');
     const fb = parseDocument(`---\nid: FB-001\ntype: FB\ntitle: Queja\nsource: email\ninforms: [PRD-001]\n---\ntexto`, 'f.md');
     if (!art?.ok || !fb?.ok) throw new Error('expected ok');
-    expect(art.doc.edges).toEqual([{ from: 'ART-001', to: 'PRD-001', type: 'PROVIDES_CONTEXT_FOR' }]);
-    expect(fb.doc.edges).toEqual([{ from: 'FB-001', to: 'PRD-001', type: 'INFORMS' }]);
+    expect(art.doc.edges).toEqual([
+      { from: 'ART-001', to: 'PRD-001', type: 'PROVIDES_CONTEXT_FOR' },
+      { from: 'PRD-001', to: 'ART-001', type: 'JUSTIFIED_BY' },
+    ]);
+    expect(fb.doc.edges).toEqual([
+      { from: 'FB-001', to: 'PRD-001', type: 'INFORMS' },
+      { from: 'PRD-001', to: 'FB-001', type: 'JUSTIFIED_BY' },
+    ]);
     expect(fb.doc.node.label).toBe('Feedback');
   });
 

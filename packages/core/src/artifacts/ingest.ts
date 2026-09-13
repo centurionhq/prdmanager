@@ -72,6 +72,8 @@ const attachArtifactSchema = z.object({
   content: z.string().min(1),
   source: z.enum(ARTIFACT_SOURCES).default('other'),
   links: z.array(docId).optional(),
+  /** Explicit exemption from the "must link a Feature" lifecycle rule (PRD-002 §3), e.g. for standalone context. */
+  root: z.boolean().optional(),
   now: z.date().optional(),
 });
 
@@ -103,6 +105,10 @@ export async function attachArtifact(engine: Engine, input: AttachArtifactInput)
       candidates = triage.candidates;
       links = triage.autoLinkTo;
     }
+    // PRD-002 §3: an artifact must justify a feature before it is written, unless explicitly marked root.
+    if (links.length === 0 && !parsed.root) {
+      throw new Error('no Feature link found for this artifact: pass "links", ensure the content mentions an existing Feature id, or set root: true');
+    }
 
     const id = nextId('ART', scan.ids);
     const slug = slugify(parsed.title);
@@ -114,6 +120,7 @@ export async function attachArtifact(engine: Engine, input: AttachArtifactInput)
       created_at: todayIso(parsed.now),
       source: parsed.source,
       provides_context_for: links,
+      root: parsed.root ? true : undefined,
     };
     const content = renderDocument(fields, `## Contenido\n\n${parsed.content}`);
     const doc = await ops.createDocument(`${ops.config.folders.ART}/${id}-${slug}.md`, content);
@@ -128,6 +135,7 @@ const ingestArtifactFileSchema = z.object({
   source: z.enum(ARTIFACT_SOURCES).default('other'),
   title: z.string().min(1).max(300).optional(),
   links: z.array(docId).optional(),
+  root: z.boolean().optional(),
 });
 
 export type IngestArtifactFileInput = z.input<typeof ingestArtifactFileSchema>;
@@ -145,5 +153,5 @@ export async function ingestArtifactFile(engine: Engine, input: IngestArtifactFi
   const raw = await readFile(parsed.filePath, 'utf8');
   const content = normalizeArtifactContent(raw, format);
   const title = parsed.title ?? basename(parsed.filePath);
-  return attachArtifact(engine, { title, content, source: parsed.source, links: parsed.links });
+  return attachArtifact(engine, { title, content, source: parsed.source, links: parsed.links, root: parsed.root });
 }

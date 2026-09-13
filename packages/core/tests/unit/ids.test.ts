@@ -28,7 +28,10 @@ describe('ids and document rendering', () => {
     const parsed = parseDocument(content, 'docs/feedback/FB-001.md');
     if (!parsed?.ok) throw new Error('expected valid document');
     expect(parsed.doc.node.title).toBe('Quote "x": y');
-    expect(parsed.doc.edges).toEqual([{ from: 'FB-001', to: 'PRD-001', type: 'INFORMS' }]);
+    expect(parsed.doc.edges).toEqual([
+      { from: 'FB-001', to: 'PRD-001', type: 'INFORMS' },
+      { from: 'PRD-001', to: 'FB-001', type: 'JUSTIFIED_BY' },
+    ]);
     expect(content.endsWith('texto\n')).toBe(true);
   });
 });

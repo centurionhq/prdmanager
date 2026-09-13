@@ -8,6 +8,17 @@ import { doc, mrd, prd, sdd, wo } from '@prdm/testkit';
 
 const ref = (key: string, hash: string | null): CodeRefState => ({ key, path: key, symbol: null, hash });
 
+/**
+ * This suite predates PRD-002's lifecycle rules (WO-019) and its fixtures (`mrd`/`prd`/`sdd`/`wo` from
+ * `@prdm/testkit`) intentionally omit `justified_by`/`source_task`/task checklists — none of that is what these
+ * tests exercise. Grandfathering every doc under test by its own current hash keeps `checkLifecycle` a no-op
+ * here (it never lapses, since the hash always matches what was just passed in) without weakening the rule
+ * itself, which has its own dedicated coverage in `lifecycle/check.test.ts`.
+ */
+function grandfatherAll(docs: readonly ParsedDoc[]): DriftInput['lifecycle'] {
+  return { grandfathered: docs.map((d) => ({ id: d.node.id, hash: d.node.contentHash })) };
+}
+
 function input(overrides: Partial<DriftInput> & { docs: ParsedDoc[] }): DriftInput {
   return {
     governed: new Map([['SDD-001', [ref('src/sync/a.ts', 'h1')]]]),
@@ -15,6 +26,7 @@ function input(overrides: Partial<DriftInput> & { docs: ParsedDoc[] }): DriftInp
     baseline: emptyBaseline(),
     commits: [],
     dirty: new Set(),
+    lifecycle: grandfatherAll(overrides.docs),
     ...overrides,
   };
 }

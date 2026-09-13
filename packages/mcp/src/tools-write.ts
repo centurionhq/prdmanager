@@ -78,12 +78,30 @@ export function registerWriteTools(server: McpServer, deps: PrdmDeps): void {
     {
       title: 'Create feature request',
       description:
-        'Promotes an idea into a proposed FR-xxx Feature evolving from an existing Feature (parent_id). Pass feedback_id to also link the originating feedback via INFORMS. Typically used after triage_feedback/submit_feedback returns no auto-link.',
-      inputSchema: { title: z.string().min(1).max(300), description: z.string().min(1).max(20_000), parent_id: docId, feedback_id: docId.optional() },
+        'Promotes an idea into a proposed FR-xxx Feature evolving from an existing Feature (parent_id). Requires justified_by (one or more existing Feedback/Artifact ids); pass feedback_id as a legacy shorthand for justified_by: [feedback_id] that also links the originating feedback back via INFORMS. Typically used after triage_feedback/submit_feedback returns no auto-link.',
+      inputSchema: {
+        title: z.string().min(1).max(300),
+        description: z.string().min(1).max(20_000),
+        parent_id: docId,
+        justified_by: z.array(docId).optional(),
+        feedback_id: docId.optional(),
+      },
       annotations: { title: 'Create feature request', ...WRITE_ONCE },
     },
-    safeTool(async ({ title, description, parent_id, feedback_id }: { title: string; description: string; parent_id: string; feedback_id?: string }) =>
-      jsonResult({ ...(await createFeatureRequest(deps.engine, { title, description, parentId: parent_id, feedbackId: feedback_id })) }),
+    safeTool(
+      async ({
+        title,
+        description,
+        parent_id,
+        justified_by,
+        feedback_id,
+      }: {
+        title: string;
+        description: string;
+        parent_id: string;
+        justified_by?: string[];
+        feedback_id?: string;
+      }) => jsonResult({ ...(await createFeatureRequest(deps.engine, { title, description, parentId: parent_id, justifiedBy: justified_by, feedbackId: feedback_id })) }),
     ),
   );
 
@@ -92,16 +110,17 @@ export function registerWriteTools(server: McpServer, deps: PrdmDeps): void {
     {
       title: 'Attach artifact',
       description:
-        'Attaches a piece of context (meeting notes, call transcript, email, etc.) as an ART-xxx document from inline content only; this tool never reads local files. Explicit `links` win over auto-linking; otherwise the content is triaged against the Feature Tree.',
+        'Attaches a piece of context (meeting notes, call transcript, email, etc.) as an ART-xxx document from inline content only; this tool never reads local files. Explicit `links` win over auto-linking; otherwise the content is triaged against the Feature Tree. Fails before writing when no link is found unless root is set (standalone context with no Feature yet).',
       inputSchema: {
         title: z.string().min(1).max(300),
         content: z.string().min(1),
         source: z.enum(ARTIFACT_SOURCES).default('other'),
         links: z.array(docId).optional(),
+        root: z.boolean().optional(),
       },
       annotations: { title: 'Attach artifact', ...WRITE_ONCE },
     },
-    safeTool(async (args: { title: string; content: string; source: ArtifactSource; links?: string[] }) =>
+    safeTool(async (args: { title: string; content: string; source: ArtifactSource; links?: string[]; root?: boolean }) =>
       jsonResult({ ...(await attachArtifact(deps.engine, args)) }),
     ),
   );

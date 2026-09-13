@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { Engine, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
+import { Engine, scanDocuments, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
 import { createFixtureRepo, makeTmpDir, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 import type { CliContext, CliDeps } from '../../src/program.js';
 import { runCli } from '../../src/program.js';
@@ -21,6 +21,12 @@ let engine: Engine;
 beforeAll(async () => {
   root = createFixtureRepo();
   config = testConfig(root);
+  // WO-019: the shared fixture predates PRD-002's lifecycle rules (MRD-001 has no justified_by, WO-001 no
+  // source_task); grandfather them here so this suite's `sync --check` exit-code assertions reflect the drift
+  // behavior under test, not this pre-existing fixture gap (fixture.ts is shared and not owned by this WO).
+  const { docs } = await scanDocuments(root, config.ignore);
+  const grandfathered = docs.filter((d) => d.node.id === 'MRD-001' || d.node.id === 'WO-001').map((d) => ({ id: d.node.id, hash: d.node.contentHash }));
+  config = { ...config, lifecycle: { grandfathered } };
   ({ db, store } = await openTestDb(config));
   engine = new Engine(config, store);
 });

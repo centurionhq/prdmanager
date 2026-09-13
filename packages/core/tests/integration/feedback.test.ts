@@ -80,7 +80,7 @@ describe('Feedback Ingestor (F-05)', () => {
       feedbackId: 'FB-003',
     });
 
-    expect(result).toMatchObject({ id: 'FR-001', parentId: 'PRD-001', feedbackId: 'FB-003' });
+    expect(result).toMatchObject({ id: 'FR-001', parentId: 'PRD-001', feedbackId: 'FB-003', justifiedBy: ['FB-003'] });
 
     const fr = await store.getNode('FR-001');
     expect(fr?.node).toMatchObject({ id: 'FR-001', label: 'Feature', status: 'proposed' });
@@ -88,6 +88,29 @@ describe('Feedback Ingestor (F-05)', () => {
 
     const feedback = await store.getNode('FB-003');
     expect(feedback?.links).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'INFORMS', direction: 'out', ref: 'FR-001' })]));
+  });
+
+  test('createFeatureRequest accepts justified_by (Feedback/Artifact ids) instead of the legacy feedback_id', async () => {
+    const result = await createFeatureRequest(engine, {
+      title: 'Exportar métricas en CSV',
+      description: 'Pedido recogido en la llamada de cliente.',
+      parentId: 'PRD-001',
+      justifiedBy: ['ART-001'],
+    });
+
+    expect(result).toMatchObject({ parentId: 'PRD-001', feedbackId: null, justifiedBy: ['ART-001'] });
+    const fr = await store.getNode(result.id);
+    expect(fr?.node).toMatchObject({ justified_by: ['ART-001'] });
+  });
+
+  test('rejects createFeatureRequest without justified_by or the legacy feedback_id', async () => {
+    await expect(createFeatureRequest(engine, { title: 'x', description: 'y', parentId: 'PRD-001' })).rejects.toThrow(/justified_by/);
+  });
+
+  test('rejects createFeatureRequest when a justified_by target is not Feedback/Artifact', async () => {
+    await expect(
+      createFeatureRequest(engine, { title: 'x', description: 'y', parentId: 'PRD-001', justifiedBy: ['MRD-001'] }),
+    ).rejects.toThrow(/must be Feedback or Artifact/);
   });
 
   test('rejects submitFeedback with empty text', async () => {
@@ -121,6 +144,18 @@ describe('Artifact ingestion (F-01)', () => {
     expect(ok.linkedTo).toEqual(['PRD-001']);
 
     await expect(attachArtifact(engine, { title: 'x', content: 'y', source: 'other', links: ['PRD-404'] })).rejects.toThrow(/not an existing Feature/);
+  });
+
+  test('attachArtifact rejects an unlinkable artifact unless root: true is set, and writes nothing on rejection', async () => {
+    await expect(attachArtifact(engine, { title: 'Nota suelta', content: 'contenido sin relación con nada conocido', source: 'other' })).rejects.toThrow(
+      /no Feature link found/,
+    );
+
+    const rootArtifact = await attachArtifact(engine, { title: 'Nota raíz', content: 'contenido sin relación con nada conocido', source: 'other', root: true });
+    expect(rootArtifact.linkedTo).toEqual([]);
+    const node = await store.getNode(rootArtifact.id);
+    expect(node?.node).toMatchObject({ root: true });
+    expect(node?.links.filter((l) => l.type === 'PROVIDES_CONTEXT_FOR')).toEqual([]);
   });
 
   test('ingestArtifactFile normalizes a .vtt transcript and links it to PRD-001 via triage', async () => {
