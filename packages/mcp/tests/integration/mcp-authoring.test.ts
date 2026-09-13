@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -89,7 +90,8 @@ describe('prdm-graph MCP authoring surface (WO-015)', () => {
     const message = result.messages[0] as { content: { type: string; text: string } };
     expect(message.content.text).toContain(`Actúa como Tech PM del proyecto ${config.project.name}`);
     expect(message.content.text).toContain('id: FB-?');
-    expect(message.content.text).toContain('<project_context>');
+    // WO-025: the fence tag carries a per-request random suffix so untrusted content can never forge/close it.
+    expect(message.content.text).toMatch(/<project_context_[0-9a-f]{8}>[\s\S]*<\/project_context_[0-9a-f]{8}>/);
     expect(message.content.text).toContain('commit_artifact');
   });
 
@@ -234,6 +236,20 @@ describe('prdm-graph MCP authoring surface (WO-015)', () => {
     expect(readiness.checks.some((c: { ok: boolean }) => !c.ok)).toBe(true);
   });
 
+  // WO-025: get_closure_readiness is annotated READ_ONLY; it must never write. `closureReadiness` (core,
+  // lifecycle/close.ts) is being made read-only in a parallel work order that stops it calling `engine.refresh()`
+  // (which currently rewrites `.prdm/baseline.json` via `saveBaseline`, see packages/core/src/sync/baseline.ts).
+  // Named clearly so the lead re-verifies this once that other change lands: it may still fail until merge.
+  test('get_closure_readiness does not mutate .prdm/baseline.json (pending core lifecycle/close.ts read-only fix)', async () => {
+    const { BASELINE_PATH } = await import('@prdm/core');
+    const before = readFileSync(`${root}/${BASELINE_PATH}`);
+
+    await client.callTool({ name: 'get_closure_readiness', arguments: { feature_id: prdId } });
+
+    const after = readFileSync(`${root}/${BASELINE_PATH}`);
+    expect(after.equals(before)).toBe(true);
+  });
+
   test('list_drafts and discard_draft manage open drafts', async () => {
     const opened = json(
       await client.callTool({ name: 'draft_artifact', arguments: { kind: 'ART', title: 'Nota temporal', body: 'contenido', fields: { root: true } } }),
@@ -276,6 +292,20 @@ describe('prdm-graph MCP authoring surface (WO-015)', () => {
       arguments: { kind: 'WO', title: 'No se draftean WOs', body: 'contenido' },
     })) as CallToolResult;
     expect(unknownKind.isError).toBe(true);
+  });
+
+  test('a malformed fields key is rejected by the input schema (draft_artifact)', async () => {
+    const injectionKey = (await client.callTool({
+      name: 'draft_artifact',
+      arguments: { kind: 'FB', title: 'Clave de campo maliciosa', body: 'contenido', fields: { 'tags: []\nstatus': 'done' } },
+    })) as CallToolResult;
+    expect(injectionKey.isError).toBe(true);
+
+    const trailingSpaceKey = (await client.callTool({
+      name: 'draft_artifact',
+      arguments: { kind: 'FB', title: 'Clave con espacio', body: 'contenido', fields: { 'status ': 'done' } },
+    })) as CallToolResult;
+    expect(trailingSpaceKey.isError).toBe(true);
   });
 
   test('resources/read returns prdm://project and prdm://templates/{kind}', async () => {

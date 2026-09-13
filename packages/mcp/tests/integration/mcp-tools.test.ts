@@ -164,7 +164,16 @@ describe('prdm-graph MCP tools', () => {
     expect(drift.issues.some((i: { kind: string; nodeId: string }) => i.kind === 'blueprint_changed' && i.nodeId === 'SDD-001')).toBe(true);
     expect(drift.hasBlockingIssues).toBe(true);
 
-    const blueprintAcked = json(await client.callTool({ name: 'acknowledge_sync', arguments: { target: 'SDD-001' } }));
+    // WO-025: acknowledging a Blueprint is CLI-only (architect gate); the MCP tool only accepts Work Order ids.
+    const rejectedBlueprint = (await client.callTool({ name: 'acknowledge_sync', arguments: { target: 'SDD-001' } })) as CallToolResult;
+    expect(rejectedBlueprint.isError).toBe(true);
+    expect(textOf(rejectedBlueprint)).toMatch(/Work Order id/);
+
+    const rejectedAll = (await client.callTool({ name: 'acknowledge_sync', arguments: { target: 'all' } })) as CallToolResult;
+    expect(rejectedAll.isError).toBe(true);
+
+    // The blueprint itself is acknowledged the same way `prdm sync ack` would (CLI-only path), not through MCP.
+    const blueprintAcked = await engine.acknowledge('SDD-001');
     // The fixture's SDD-001 still uses the deprecated `governs` alias (fixture.ts is shared and not owned by this WO).
     const relevantIssues = blueprintAcked.issues.filter((i: { kind: string }) => i.kind !== 'deprecated_field');
     const staleWorkOrders = relevantIssues.filter((i: { kind: string }) => i.kind === 'work_order_out_of_sync').map((i: { nodeId: string }) => i.nodeId);

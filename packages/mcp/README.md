@@ -40,7 +40,7 @@ Todas son **read-only** (no modifican Neo4j ni disco).
 | Tool | Entrada | Salida | Nota |
 |---|---|---|---|
 | `get_drift_report` | — | RefreshReport (scan errors, issues, governed code, WO status changes) | Llama a `engine.refresh()` |
-| `acknowledge_sync` | `target: id\|'all'` | RefreshReport (post-ack) | **Destructiva:** acepta estado actual como nuevo baseline |
+| `acknowledge_sync` | `target: WO-xxx` | RefreshReport (post-ack) | **Destructiva:** acepta un Work Order como nuevo baseline. Solo ids de WO; reconocer un Blueprint, Feature o `"all"` es exclusivo de la CLI (`prdm sync ack`) |
 | `refresh_index` | — | RefreshReport | Rescan + reindex Neo4j (equivale a `prdm sync` + `prdm index`) |
 
 ## Herramientas de Escritura (Autoría Conversacional)
@@ -127,7 +127,7 @@ El cliente MCP puede usar estas para confirmar operaciones riesgosas.
 - **No encontrado:** `Error` con mensaje claro (ej: "node SDD-001 not found")
 - **Neo4j inaccesible:** error al arrancar (no se captura, causa exit 1)
 - **Stack traces:** nunca se exponen (solo mensajes de usuario)
-- **Datos no confiables:** artifacts/feedback se entregan delimitados como "DATA taken from repository documents"
+- **Datos no confiables:** artifacts/feedback/títulos se entregan delimitados en un fence (`<project_context_xxxx>`/`<context_bundle_xxxx>`) con sufijo aleatorio por request y `<`/`>` escapados a `<`/`>`, para que el contenido no pueda forjar ni cerrar el fence
 
 ## Instalación y Tests
 

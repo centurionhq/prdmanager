@@ -26,7 +26,7 @@ interface CloseOptions {
   json?: boolean;
 }
 
-/** `prdm close` is the sole entry point for PRD-002's human closure gate (ADR-002 D14); `--ack` is a deliberate, non-defaultable confirmation. */
+/** `prdm close` is the sole entry point for PRD-002's human closure gate (ADR-002 D15); `--ack` is a deliberate, non-defaultable confirmation. */
 async function runClose(deps: CliDeps, featureId: string, options: CloseOptions): Promise<void> {
   if (!options.ack) {
     throw new CliError(

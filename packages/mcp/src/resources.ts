@@ -1,6 +1,7 @@
 import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { DRAFT_KINDS, ID_PATTERN, templateFor, type DraftKind } from '@prdm/core';
 import type { PrdmDeps } from './deps.js';
+import { ensureRecovered } from './recover.js';
 import { jsonText } from './shared.js';
 import { buildProjectSummary } from './tools-authoring.js';
 
@@ -22,6 +23,7 @@ export function registerPrdmResources(server: McpServer, deps: PrdmDeps): void {
       mimeType: 'application/json',
     },
     async (uri, variables) => {
+      await ensureRecovered(deps);
       const id = firstValue(variables.id ?? '');
       if (!ID_PATTERN.test(id)) throw new Error(`invalid node id: ${id}`);
       const node = await deps.store.getNode(id);
@@ -38,7 +40,10 @@ export function registerPrdmResources(server: McpServer, deps: PrdmDeps): void {
       description: 'JSON summary of the active project: id, name, folder map, lifecycle rules, document counts and open drafts (same data as the get_project tool).',
       mimeType: 'application/json',
     },
-    async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'application/json', text: jsonText(await buildProjectSummary(deps)) }] }),
+    async (uri) => {
+      await ensureRecovered(deps);
+      return { contents: [{ uri: uri.href, mimeType: 'application/json', text: jsonText(await buildProjectSummary(deps)) }] };
+    },
   );
 
   server.registerResource(

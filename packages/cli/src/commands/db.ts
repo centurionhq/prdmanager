@@ -21,7 +21,7 @@ async function runMigrate(deps: CliDeps): Promise<void> {
       deps.stdout(`schema version: ${status.current} (expected ${status.expected})`);
       deps.stdout('migrations applied');
     },
-    { requireSchema: false },
+    { requireSchema: false, skipRecover: true },
   );
 }
 
@@ -39,7 +39,7 @@ async function runStatus(deps: CliDeps): Promise<void> {
       deps.stdout(`projects: ${projects.length}`);
       for (const p of projects) deps.stdout(`  ${p.id} (${p.name}): ${p.nodeCount} node(s), root=${p.rootFingerprint}`);
     },
-    { requireSchema: false },
+    { requireSchema: false, skipRecover: true },
   );
 }
 
@@ -53,13 +53,17 @@ async function runReset(deps: CliDeps, options: { yes?: boolean }): Promise<void
 }
 
 async function runDoctor(deps: CliDeps): Promise<void> {
-  await withContext(deps, async (ctx) => {
-    const orphans = await ctx.db.orphanCounts();
-    const broken = orphans.filter((o) => o.count > 0);
-    for (const o of orphans) deps.stdout(`${o.label}: ${o.count} orphan(s) without project_id`);
-    if (broken.length > 0) throw new CliError(`found ${broken.reduce((s, o) => s + o.count, 0)} node(s) without project_id; run \`prdm sync\` after fixing the migration`);
-    deps.stdout('doctor: ok');
-  });
+  await withContext(
+    deps,
+    async (ctx) => {
+      const orphans = await ctx.db.orphanCounts();
+      const broken = orphans.filter((o) => o.count > 0);
+      for (const o of orphans) deps.stdout(`${o.label}: ${o.count} orphan(s) without project_id`);
+      if (broken.length > 0) throw new CliError(`found ${broken.reduce((s, o) => s + o.count, 0)} node(s) without project_id; run \`prdm sync\` after fixing the migration`);
+      deps.stdout('doctor: ok');
+    },
+    { skipRecover: true },
+  );
 }
 
 export function register(program: Command, deps: CliDeps): void {

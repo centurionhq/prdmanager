@@ -133,4 +133,26 @@ describe('project root fingerprint (SDD-002 "Proyecto activo", ADR-002 D6)', () 
       await boundStore.clear();
     }
   });
+
+  test('clear() rejects a root mismatch for an already-bound project id, and deletes nothing (prdm db reset)', async () => {
+    const sharedId = 'prj_eeeeeeeeeeeeeeee';
+    const boundStore = dbA.forProject({ id: sharedId, name: 'shared', root: '/checkouts/reset-one' });
+    const impostorStore = dbA.forProject({ id: sharedId, name: 'shared', root: '/checkouts/reset-two' });
+    try {
+      await boundStore.writeSnapshot({ docs: [prd()], governed: [], reviewNeeded: [], commits: [] });
+      expect((await boundStore.getNode('PRD-001'))?.node.id).toBe('PRD-001');
+
+      await expect(impostorStore.clear()).rejects.toThrow(/is bound to \/checkouts\/reset-one/);
+
+      // The first checkout's nodes survive the rejected reset from the second.
+      expect((await boundStore.getNode('PRD-001'))?.node.id).toBe('PRD-001');
+    } finally {
+      await boundStore.clear();
+    }
+  });
+
+  test('clear() on a project with no Project node yet (never synced) does not throw', async () => {
+    const freshStore = dbA.forProject({ id: 'prj_dddddddddddddddd', name: 'fresh', root: '/checkouts/fresh' });
+    await expect(freshStore.clear()).resolves.toBeUndefined();
+  });
 });

@@ -43,16 +43,28 @@ export function openContextFor(deps: CliDeps): (root: string) => Promise<CliCont
   return deps.openContext ?? defaultOpenContext;
 }
 
+export interface WithContextOptions {
+  requireSchema?: boolean;
+  /**
+   * Skip `engine.recover()` (SDD-002 "Transacción atómica"): reads must not silently serve a graph left stale by
+   * a crashed process, so every command recovers first by default. `db migrate`/`db status` manage the schema
+   * itself (recovering could refresh against an outdated schema) and `db doctor` is a raw diagnostic over the
+   * current graph (recovering first would mask the very drift it inspects); those three opt out.
+   */
+  skipRecover?: boolean;
+}
+
 /**
  * Opens a CLI context, runs `fn`, and always closes it — commands should not manage lifecycle themselves.
  * Every command verifies the schema version first (ADR-002 D3: clients refuse to operate on an unknown or
  * outdated schema) except the ones that manage the schema itself (`db migrate`, `db status`), which pass
- * `requireSchema: false`.
+ * `requireSchema: false`. See {@link WithContextOptions.skipRecover} for the recovery step.
  */
-export async function withContext<T>(deps: CliDeps, fn: (ctx: CliContext) => Promise<T>, options: { requireSchema?: boolean } = {}): Promise<T> {
+export async function withContext<T>(deps: CliDeps, fn: (ctx: CliContext) => Promise<T>, options: WithContextOptions = {}): Promise<T> {
   const ctx = await openContextFor(deps)(deps.root);
   try {
     if (options.requireSchema !== false) await ctx.db.assertSchemaCurrent();
+    if (options.skipRecover !== true) await ctx.engine.recover();
     return await fn(ctx);
   } finally {
     await ctx.close();
