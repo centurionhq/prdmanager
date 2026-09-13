@@ -2,12 +2,14 @@
 id: "WO-014"
 type: "WO"
 title: "Comando prdm init con estructura de carpetas, .prdm.yaml, registro del proyecto, templates y hooks idempotentes"
-status: "pending"
+status: "in_progress"
 created_at: "2026-09-13"
 implements: ["SDD-002"]
 impacts_paths: ["packages/core/src/**","packages/cli/src/**","packages/mcp/src/**","packages/testkit/src/**","package.json","packages/*/package.json","tsconfig*.json","packages/*/tsconfig*.json","vitest.config.ts",".github/workflows/prdm-sync.yml"]
 source_task: "95e8d8e2b125612b"
 tags: ["architecture","multi-project","headless","authoring","mcp","neo4j"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-13T07:29:47.796Z"
 ---
 
 ## Objetivo

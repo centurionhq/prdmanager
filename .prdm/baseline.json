@@ -144,6 +144,7 @@
       "packages/core/src/graph/tree.ts": "b34b9f7e07970e750010634d174b3ede505251f591a8f81eebc04be9a0373e4e",
       "packages/core/src/graph/types.ts": "eb346ce4b9018f9339a6fc696414c6dd18a652d054f61b2c84ffd363946c7fe9",
       "packages/core/src/index.ts": "f1e63ae4f21bba9e594a4c50ee112393085b85b56a96b88c7e8bc5705de0a7e3",
+      "packages/core/src/lifecycle/check.ts": "ee7c9a7eabebe1499b8458837631a916ecc9c2fd9089b71ea9e06394fac320f5",
       "packages/core/src/metrics/metrics.ts": "20387cadfe46002af5b04d7484d11b77d501a27be0f7fab6d5c236c2fb8c96eb",
       "packages/core/src/migrate/docs.ts": "919a2ed85adee156a2d61a01970244ee8081c46c7a016d2494479dfe207c19eb",
       "packages/core/src/parser/frontmatter-edit.ts": "1312f943d1425833fbf77611ea3b991b99e117eb658176529cc8c4f4e4b8b061",

@@ -2,12 +2,14 @@
 id: "WO-013"
 type: "WO"
 title: "AuthoringService con DraftSession en memoria, reserva de IDs, validación en vivo y commit atómico journaled"
-status: "pending"
+status: "in_progress"
 created_at: "2026-09-13"
 implements: ["SDD-002"]
 impacts_paths: ["packages/core/src/**","packages/cli/src/**","packages/mcp/src/**","packages/testkit/src/**","package.json","packages/*/package.json","tsconfig*.json","packages/*/tsconfig*.json","vitest.config.ts",".github/workflows/prdm-sync.yml"]
 source_task: "86e28e3a93d5cfce"
 tags: ["architecture","multi-project","headless","authoring","mcp","neo4j"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-13T07:29:46.435Z"
 ---
 
 ## Objetivo
