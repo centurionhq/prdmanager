@@ -27,6 +27,9 @@ export default defineConfig({
           name: 'jsdom',
           environment: 'jsdom',
           include: ['packages/web/tests/client/**/*.test.tsx'],
+          // Testing Library's cleanup() doesn't auto-run under Vitest (only under a Jest-like global test
+          // framework), so it's wired in explicitly here; see packages/web/tests/client/setup.ts.
+          setupFiles: ['packages/web/tests/client/setup.ts'],
           // Same reason as the top-level fileParallelism below: kept isolated per project.
           fileParallelism: false,
         },
