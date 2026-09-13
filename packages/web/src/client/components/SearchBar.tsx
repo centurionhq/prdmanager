@@ -63,6 +63,7 @@ export function SearchBar({ inputRef }: { inputRef: RefObject<HTMLInputElement |
   }
 
   const showResults = open && query.trim().length > 0;
+  const activeOptionId = results[activeIndex] ? `${listboxId}-opt-${activeIndex}` : undefined;
 
   return (
     <div className={styles.wrap}>
@@ -80,6 +81,10 @@ export function SearchBar({ inputRef }: { inputRef: RefObject<HTMLInputElement |
           aria-expanded={showResults}
           aria-controls={listboxId}
           aria-autocomplete="list"
+          // Arrow-key movement only ever changed a CSS highlight (aria-selected on the <li>); a screen-reader
+          // user's focus never leaves this input, so without aria-activedescendant nothing was ever announced
+          // as they arrowed through results (F6 accessibility review).
+          aria-activedescendant={activeOptionId}
           placeholder="Buscar documentos, work orders, rutas…"
           value={query}
           onChange={(event) => {
@@ -100,6 +105,7 @@ export function SearchBar({ inputRef }: { inputRef: RefObject<HTMLInputElement |
             results.map((hit, index) => (
               <li
                 key={hit.id}
+                id={`${listboxId}-opt-${index}`}
                 role="option"
                 aria-selected={index === activeIndex}
                 className={styles.result}

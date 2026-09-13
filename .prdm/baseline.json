@@ -196,7 +196,7 @@
       "packages/mcp/src/tools.ts": "6ec2ed53185561c1a64c5c1b179ec5c2914b8474944749688c9d4aa2349fc8ef"
     },
     "SDD-002": {
-      ".github/workflows/prdm-sync.yml": "e01ccaa5b88938783a117728f8821fef9d16f33353a43ce1ff35437495c9321a",
+      ".github/workflows/prdm-sync.yml": "155bb22ebc6c0962c74bc6b8be25e9886ef0d3decd51aac70001a03855c5b180",
       "package.json": "ed8ec4c73e47bb97ba3c07a16fddc346140f39403fac7627785748c9e8690dfe",
       "packages/cli/package.json": "c301862285d9e9ee57b527182c124d5dc264106590fc2b8d5d00694d838e11a4",
       "packages/cli/src/commands/artifacts.ts": "9c2b3bb39b25ce062b110fde851de2395fa0c362f6dfe84da89efa8044f2f6d7",
@@ -338,8 +338,8 @@
       "packages/core/src/sync/tree-sitter-extractor.ts": "52a1ab5c871c6a97977391a16edeca3e1deb908973c62cfebc2205a54686ca8c"
     },
     "SDD-005": {
-      ".env.example": "b6b95414a047b794de223fcacbbbb7da3048d49c30d699167057e8cfeb7052c2",
-      ".github/workflows/prdm-sync.yml": "e01ccaa5b88938783a117728f8821fef9d16f33353a43ce1ff35437495c9321a",
+      ".env.example": "f2a698075e37dbf138e9c870e458c964b0f3d7b0a3cbe824e272e3acb393cfa5",
+      ".github/workflows/prdm-sync.yml": "155bb22ebc6c0962c74bc6b8be25e9886ef0d3decd51aac70001a03855c5b180",
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
       "package-lock.json": "61541dba4a43d28419a8ea603469af4bba6fdfb438644d8b489ea40fe2124e52",
       "package.json": "ed8ec4c73e47bb97ba3c07a16fddc346140f39403fac7627785748c9e8690dfe",
@@ -422,6 +422,7 @@
       "packages/web/tests/integration/tree.test.ts": "87f30b7bb92a9a100a8272f2d0589fb51c5a3a4a7c52ebf9ddab743c3bdba342",
       "packages/web/tests/integration/work-orders.test.ts": "32a29af9ff4244c063221827c3bfa57ec7aa3f1693fa1f1636175931f11fa3bc",
       "packages/web/tests/unit/app.test.ts": "23f0f092de8fdebcdae2e8c21f98230ce78538fe8f3e5d1d02a57583734228fb",
+      "packages/web/tests/unit/contrast.test.ts": "ff11a8139d0f79cb2955d084b867ddf31845097ca9b86a0257f4bed11a89df90",
       "packages/web/tests/unit/env.test.ts": "7c8037c8cffc9572d9b713d9b9a1150b89c14507bedd97b6ba4312462cbd50ac",
       "packages/web/tests/unit/errors.test.ts": "97de24aeaca254ee5e33caa2114543a3ebc9bd8ab8fe1c3d18d59743d3d50841",
       "packages/web/tests/unit/no-core-value-import.test.ts": "9f3e2477c540fc12c559d679bbd3f295036789addc97c78dc64fe333bd7c44df",
@@ -432,7 +433,7 @@
       "packages/web/tsconfig.server.json": "a6a64bb73e91813583c363a768f64bfc6c28bfaecfd219d1bd4bff6bdbad9a38",
       "packages/web/tsconfig.test-client.json": "c2387a60a63ad1703cc89302754d4ee4e95f1911eaff5c8f63c4529faded6ad6",
       "packages/web/vite.config.ts": "bafbe6bc381c457a48b6ea79ed4e73f487b0d01de1493a587c2ae1a83245baf7",
-      "README.md": "ff272b8f02038f6089b346de5917d69e60bb2ebd106b04de495b464079f3ced2",
+      "README.md": "bb75b4cd7c1ea452a5dcb8b043c3f315ec42bc2caeb41c8b6037047096dc9fe9",
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957",
       "tsconfig.json": "8a21dc4844e7b5eb4e0092c70cb7756fef7dd6159a32b802056a1bf6d4ed9357",
       "tsconfig.test.json": "43b83c2d9456c528bb3ab68d908dc80eba0645793f465fef7a348407a1ebdd47",

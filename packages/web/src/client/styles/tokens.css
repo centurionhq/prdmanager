@@ -27,7 +27,9 @@
   /* Text */
   --color-fg: #eef2f6;
   --color-fg-muted: #93a1b0;
-  --color-fg-subtle: #5b6774;
+  /* WCAG AA fix (F6 accessibility review): the previous #5b6774 measured ~3.1:1 against --color-bg-elevated-solid,
+     failing 4.5:1 for the loading/empty/error text every StatusState panel renders it as. */
+  --color-fg-subtle: #8a97a6;
   --color-fg-inverse: #05070a;
 
   /* Accent: electric cyan-blue, the console's "active/selected" signal. */
@@ -84,7 +86,7 @@
 
     --color-fg: #10151b;
     --color-fg-muted: #4b5666;
-    --color-fg-subtle: #6b7688;
+    --color-fg-subtle: #57616f;
     --color-fg-inverse: #ffffff;
 
     --color-accent: #0577a8;

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import type { TreeNode } from '@prdm/core';
 import { useSelection } from '../state/selection';
 import styles from './TreeView.module.css';
@@ -34,6 +34,16 @@ function flatten(forest: TreeNode[], expanded: ReadonlySet<string>, depth = 0): 
 
 function collectAllRefs(forest: TreeNode[]): string[] {
   return forest.flatMap((node) => [node.ref, ...collectAllRefs(node.children)]);
+}
+
+/** The chain of ancestor refs (root-first, excluding `targetRef` itself) that must be expanded for it to be visible, or `null` if it isn't in `forest` at all. */
+function findAncestors(forest: TreeNode[], targetRef: string, path: string[] = []): string[] | null {
+  for (const node of forest) {
+    if (node.ref === targetRef) return path;
+    const found = findAncestors(node.children, targetRef, [...path, node.ref]);
+    if (found) return found;
+  }
+  return null;
 }
 
 /** Small inline glyphs (never emoji — SDD-005 / ui-ux-pro-max "Style Selection"), shape-coded to match `graph-stylesheet.ts`. */
@@ -88,6 +98,24 @@ export function TreeView({ forest, driftIds }: TreeViewProps): ReactElement {
   const rows = useMemo(() => flatten(forest, expanded), [forest, expanded]);
   const activeId = selectedId && rows.some((r) => r.node.ref === selectedId) ? selectedId : (rows[0]?.node.ref ?? null);
 
+  // A selection made from outside the tree (search, canvas tap, a relation link) must still become visible here,
+  // even under a branch the user manually collapsed with ArrowLeft — otherwise the roving tabindex silently lands
+  // on an unrelated row and the real selection is never rendered at all (F6 accessibility review).
+  useEffect(() => {
+    if (!selectedId) return;
+    const ancestors = findAncestors(forest, selectedId);
+    if (!ancestors) return;
+    const missing = ancestors.filter((id) => !expanded.has(id));
+    if (missing.length === 0) return;
+    setExpanded((prev) => new Set([...prev, ...missing]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `expanded` is read, not a trigger: including it would loop this effect with its own setExpanded call.
+  }, [selectedId, forest]);
+
+  useEffect(() => {
+    // jsdom (this repo's test environment) doesn't implement scrollIntoView at all, unlike every real browser.
+    itemRefs.current.get(selectedId ?? '')?.scrollIntoView?.({ block: 'nearest' });
+  }, [selectedId, rows]);
+
   function focusRow(id: string): void {
     select(id);
     itemRefs.current.get(id)?.focus();
@@ -135,6 +163,18 @@ export function TreeView({ forest, driftIds }: TreeViewProps): ReactElement {
         event.preventDefault();
         select(row.node.ref);
         break;
+      case 'Home': {
+        event.preventDefault();
+        const first = rows[0];
+        if (first) focusRow(first.node.ref);
+        break;
+      }
+      case 'End': {
+        event.preventDefault();
+        const last = rows[rows.length - 1];
+        if (last) focusRow(last.node.ref);
+        break;
+      }
     }
   }
 

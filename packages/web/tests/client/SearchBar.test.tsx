@@ -64,4 +64,22 @@ describe('SearchBar', () => {
 
     await waitFor(() => expect(screen.getByText('Sin resultados')).toBeTruthy());
   });
+
+  it('sets aria-activedescendant to the currently highlighted option, so arrow-key movement is announced', async () => {
+    mockSearch.mockResolvedValue([
+      { id: 'PRD-004', label: 'Feature', title: 'Explorador web', status: 'approved', score: 1 },
+      { id: 'PRD-002', label: 'Feature', title: 'Multi-Project', status: 'closed', score: 1 },
+    ]);
+    renderSearchBar();
+    const input = screen.getByRole('combobox');
+    await userEvent.type(input, 'p');
+    await waitFor(() => expect(screen.getByRole('option', { name: /PRD-004/ })).toBeTruthy());
+
+    const firstOption = screen.getByRole('option', { name: /PRD-004/ });
+    expect(input.getAttribute('aria-activedescendant')).toBe(firstOption.id);
+
+    await userEvent.keyboard('{ArrowDown}');
+    const secondOption = screen.getByRole('option', { name: /PRD-002/ });
+    expect(input.getAttribute('aria-activedescendant')).toBe(secondOption.id);
+  });
 });

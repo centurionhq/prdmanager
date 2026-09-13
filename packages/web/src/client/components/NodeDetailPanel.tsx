@@ -87,7 +87,7 @@ export function NodeDetailPanel(): ReactElement {
   );
 
   return (
-    <aside className={styles.panel} aria-label="Detalle del nodo seleccionado">
+    <aside className={styles.panel} aria-label="Detalle del nodo seleccionado" aria-live="polite">
       {!selectedId && <p className={styles.placeholder}>Seleccioná un nodo en el árbol, el grafo o la búsqueda para ver su detalle.</p>}
       {selectedId && status === 'loading' && <LoadingState label={`Cargando ${selectedId}…`} />}
       {selectedId && status === 'error' && <ErrorState error={error} onRetry={refetch} />}

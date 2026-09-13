@@ -64,4 +64,19 @@ describe('App', () => {
     });
     expect(screen.getByTestId('graph-canvas-stub')).toBeTruthy();
   });
+
+  it('surfaces a /api/project failure in the topbar instead of silently showing nothing', async () => {
+    mocked.getProject.mockRejectedValue(new Error('project endpoint down'));
+    mocked.getFullGraph.mockResolvedValue({ nodes: [], edges: [] });
+    mocked.getTree.mockResolvedValue({ forest: [] });
+    mocked.getDrift.mockResolvedValue(EMPTY_REPORT);
+    mocked.listWorkOrders.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      const alerts = screen.getAllByRole('alert').map((el) => el.textContent);
+      expect(alerts.some((text) => text?.includes('project endpoint down'))).toBe(true);
+    });
+  });
 });

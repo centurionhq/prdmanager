@@ -50,6 +50,30 @@ describe('WorkOrderList', () => {
     await waitFor(() => expect(mockListWorkOrders).toHaveBeenCalledWith({ status: 'out_of_sync' }));
   });
 
+  it('a keyboard user can select a row with Enter (rows are focusable and have an accessible name)', async () => {
+    mockListWorkOrders.mockResolvedValue([
+      { id: 'WO-070', title: 'Estados de carga', status: 'done', assignedTo: null, blueprints: ['SDD-005'], sourcePath: 'x' },
+    ]);
+
+    function SelectedProbe() {
+      const { selectedId } = useSelection();
+      return <span data-testid="selected">{selectedId ?? 'none'}</span>;
+    }
+
+    render(
+      <SelectionProvider>
+        <WorkOrderList />
+        <SelectedProbe />
+      </SelectionProvider>,
+    );
+
+    const row = await screen.findByRole('button', { name: /WO-070/ });
+    row.focus();
+    await userEvent.keyboard('{Enter}');
+
+    expect(screen.getByTestId('selected').textContent).toBe('WO-070');
+  });
+
   it('clicking a row selects that work order', async () => {
     mockListWorkOrders.mockResolvedValue([
       { id: 'WO-070', title: 'Estados de carga', status: 'done', assignedTo: null, blueprints: ['SDD-005'], sourcePath: 'x' },

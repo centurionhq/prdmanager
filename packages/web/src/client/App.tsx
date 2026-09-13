@@ -63,6 +63,7 @@ function ExplorerShell(): ReactElement {
               ))}
           </div>
         )}
+        {project.status === 'error' && <ErrorState error={project.error} onRetry={project.refetch} />}
       </header>
 
       {drift.status === 'ready' && drift.data && <DriftBanner report={drift.data} />}

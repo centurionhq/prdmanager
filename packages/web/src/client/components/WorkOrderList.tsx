@@ -64,7 +64,20 @@ export function WorkOrderList(): ReactElement {
               </thead>
               <tbody>
                 {data.map((wo) => (
-                  <tr key={wo.id} className={styles.row} onClick={() => select(wo.id)}>
+                  <tr
+                    key={wo.id}
+                    className={styles.row}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Ver detalle de ${wo.id}: ${wo.title}`}
+                    onClick={() => select(wo.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        select(wo.id);
+                      }
+                    }}
+                  >
                     <td className={styles.idCell}>{wo.id}</td>
                     <td>{wo.title}</td>
                     <td>{wo.blueprints.join(', ')}</td>

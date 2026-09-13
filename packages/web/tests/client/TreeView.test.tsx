@@ -15,6 +15,15 @@ function SelectedProbe(): ReactElement {
   return <span data-testid="selected">{selectedId ?? 'none'}</span>;
 }
 
+function ExternalSelector({ id }: { id: string }): ReactElement {
+  const { select } = useSelection();
+  return (
+    <button type="button" onClick={() => select(id)}>
+      select {id} externally
+    </button>
+  );
+}
+
 const forest: TreeNode[] = [node('PRD-004', 'Feature', [node('SDD-005', 'Blueprint', [node('WO-070', 'WorkOrder')])])];
 
 describe('TreeView', () => {
@@ -67,5 +76,39 @@ describe('TreeView', () => {
     await userEvent.keyboard('{ArrowDown}');
 
     expect(screen.getByTestId('selected').textContent).toBe('SDD-005');
+  });
+
+  it('Home/End jump to the first and last visible rows', async () => {
+    render(
+      <SelectionProvider>
+        <TreeView forest={forest} driftIds={new Set()} />
+        <SelectedProbe />
+      </SelectionProvider>,
+    );
+
+    screen.getByRole('treeitem', { name: /WO-070/ }).focus();
+    await userEvent.keyboard('{Home}');
+    expect(screen.getByTestId('selected').textContent).toBe('PRD-004');
+
+    await userEvent.keyboard('{End}');
+    expect(screen.getByTestId('selected').textContent).toBe('WO-070');
+  });
+
+  it('auto-expands the ancestors of a selection made from outside the tree, even under a manually collapsed branch', async () => {
+    render(
+      <SelectionProvider>
+        <TreeView forest={forest} driftIds={new Set()} />
+        <ExternalSelector id="WO-070" />
+      </SelectionProvider>,
+    );
+
+    const root = screen.getByRole('treeitem', { name: /PRD-004/ });
+    root.focus();
+    await userEvent.keyboard('{ArrowLeft}'); // collapses PRD-004, hiding SDD-005/WO-070
+    expect(screen.queryByRole('treeitem', { name: /WO-070/ })).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'select WO-070 externally' }));
+
+    expect(screen.getByRole('treeitem', { name: /WO-070/ })).toBeTruthy();
   });
 });
