@@ -5,14 +5,14 @@ title: "Modelo multi-proyecto en Neo4j: nodo Project, BELONGS_TO, constraints co
 status: "done"
 created_at: "2026-09-13"
 implements: ["SDD-002"]
-governs: ["packages/core/src/**","packages/cli/src/**","packages/mcp/src/**","packages/testkit/src/**","package.json","packages/*/package.json","tsconfig*.json","packages/*/tsconfig*.json","vitest.config.ts",".github/workflows/prdm-sync.yml"]
+impacts_paths: ["packages/core/src/**","packages/cli/src/**","packages/mcp/src/**","packages/testkit/src/**","package.json","packages/*/package.json","tsconfig*.json","packages/*/tsconfig*.json","vitest.config.ts",".github/workflows/prdm-sync.yml"]
 source_task: "236c4590a550788c"
 tags: ["architecture","multi-project","headless","authoring","mcp","neo4j"]
 assigned_to: "agent:claude"
 claimed_at: "2026-09-13T06:45:52.868Z"
 completed_at: "2026-09-13T07:11:26.194Z"
 resolved_by: ["34320e73de40484f7a335dc78b180cacf3742af2"]
-blueprint_hashes: {"SDD-002":"bf67ffb630271da882f5253f0587ba017c70bc01b9656c6138369f3fd8d559f2"}
+blueprint_hashes: {"SDD-002":"8a28886b5f1a3558350087873d184acbdbf2dfbccf051abae33f2863f5ada48b"}
 ---
 
 ## Objetivo

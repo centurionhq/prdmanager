@@ -4,7 +4,7 @@ type: SDD
 title: "Arquitectura del Product & Context Graph Engine"
 status: active
 architects: ["PRD-001"]
-governs: ["packages/core/src/domain/**", "packages/core/src/parser/**", "packages/core/src/graph/**", "packages/core/src/sync/**", "packages/core/src/engine.ts", "packages/core/src/config.ts", "packages/core/src/index.ts", "packages/core/src/util/**", "packages/core/src/workorders/**", "packages/core/src/feedback/**", "packages/core/src/artifacts/**", "packages/core/src/metrics/**", "packages/mcp/src/**", "packages/cli/src/**"]
+impacts_paths: ["packages/core/src/domain/**", "packages/core/src/parser/**", "packages/core/src/graph/**", "packages/core/src/sync/**", "packages/core/src/engine.ts", "packages/core/src/config.ts", "packages/core/src/index.ts", "packages/core/src/util/**", "packages/core/src/workorders/**", "packages/core/src/feedback/**", "packages/core/src/artifacts/**", "packages/core/src/metrics/**", "packages/mcp/src/**", "packages/cli/src/**"]
 created_at: 2026-09-12
 tags: ["architecture", "neo4j", "doc-as-code", "mcp", "product-management"]
 ---

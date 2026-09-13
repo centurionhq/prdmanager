@@ -4,7 +4,7 @@ type: ADR
 title: "Neo4j Community local como base de datos de grafos"
 status: active
 architects: ["PRD-001"]
-governs: ["docker-compose.yml", "scripts/**", ".mcp.json"]
+impacts_paths: ["docker-compose.yml", "scripts/**", ".mcp.json"]
 created_at: 2026-09-12
 tags: ["architecture-decision", "neo4j", "database", "docker"]
 ---

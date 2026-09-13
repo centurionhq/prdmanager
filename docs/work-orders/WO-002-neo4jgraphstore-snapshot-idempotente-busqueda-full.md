@@ -5,10 +5,10 @@ title: "Neo4jGraphStore: snapshot idempotente, búsqueda full-text, ramas con AP
 status: "done"
 created_at: "2026-09-13"
 implements: ["SDD-001"]
-governs: ["src/domain/**","src/parser/**","src/graph/**","src/sync/**","src/engine.ts","src/config.ts","src/util/**","src/workorders/**","src/feedback/**","src/artifacts/**","src/metrics/**","src/mcp/**","src/cli/**"]
+impacts_paths: ["src/domain/**","src/parser/**","src/graph/**","src/sync/**","src/engine.ts","src/config.ts","src/util/**","src/workorders/**","src/feedback/**","src/artifacts/**","src/metrics/**","src/mcp/**","src/cli/**"]
 source_task: "b8e89124dc5467ae"
 tags: ["architecture","neo4j","doc-as-code","mcp","product-management"]
-blueprint_hashes: {"SDD-001":"d6a000ed064775020375fa85f68494c8ce55428260c73562eda0fbfa6bbb0aa7"}
+blueprint_hashes: {"SDD-001":"7499c0512bc3d4684195d17a0ec23a1ef2d4fa09e3a9d868bddff5500068e30b"}
 ---
 
 ## Objetivo

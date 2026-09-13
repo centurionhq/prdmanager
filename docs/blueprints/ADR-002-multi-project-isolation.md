@@ -4,7 +4,7 @@ type: ADR
 title: "Aislamiento multi-proyecto, monorepo y commit atómico"
 status: active
 architects: ["PRD-002"]
-governs: ["packages/core/src/graph/migrations*.ts", "docs/model/graph-model.json"]
+impacts_paths: ["packages/core/src/graph/migrations*.ts", "docs/model/graph-model.json"]
 created_at: 2026-09-13
 tags: ["architecture-decision", "multi-project", "neo4j", "monorepo", "atomicity"]
 ---

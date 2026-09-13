@@ -2,10 +2,10 @@
 id: "WO-015"
 type: "WO"
 title: "Herramientas MCP de autoría draft_artifact, validate_draft y commit_artifact con el prompt conversacional author_artifact"
-status: "todo"
+status: "pending"
 created_at: "2026-09-13"
 implements: ["SDD-002"]
-governs: ["packages/core/src/**","packages/cli/src/**","packages/mcp/src/**","packages/testkit/src/**","package.json","packages/*/package.json","tsconfig*.json","packages/*/tsconfig*.json","vitest.config.ts",".github/workflows/prdm-sync.yml"]
+impacts_paths: ["packages/core/src/**","packages/cli/src/**","packages/mcp/src/**","packages/testkit/src/**","package.json","packages/*/package.json","tsconfig*.json","packages/*/tsconfig*.json","vitest.config.ts",".github/workflows/prdm-sync.yml"]
 source_task: "1fc2e691047c815e"
 tags: ["architecture","multi-project","headless","authoring","mcp","neo4j"]
 ---
