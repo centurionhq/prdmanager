@@ -30,7 +30,7 @@ export interface DriftIssue {
   message: string;
 }
 
-export type GovernedReason = 'unchanged' | 'new' | 'resolved_by_commit' | 'code_changed' | 'missing' | 'blueprint_changed';
+export type GovernedReason = 'unchanged' | 'new' | 'resolved_by_commit' | 'code_changed' | 'missing' | 'blueprint_changed' | 'feature_changed';
 
 export interface GovernedState {
   blueprintId: string;
@@ -84,6 +84,12 @@ class DriftContext {
         return [bp, [...refs, ...vanished]];
       }),
     );
+  }
+
+  /** Blueprints architecting a requirement that evolved since its acknowledged version: their code may now be legacy. */
+  blueprintsOfChangedFeatures(): Set<string> {
+    const changed = new Set(this.input.docs.filter((d) => d.node.label === 'Feature' && this.changed(d.node.id)).map((d) => d.node.id));
+    return new Set(this.input.docs.filter((d) => d.edges.some((e) => e.type === 'ARCHITECTS' && changed.has(e.to))).map((d) => d.node.id));
   }
 
   hashOf(id: string): string | undefined {
@@ -157,6 +163,7 @@ function collectIssues(ctx: DriftContext, governed: GovernedState[], updates: Wo
 }
 
 function evaluateGoverned(ctx: DriftContext): GovernedState[] {
+  const legacyBlueprints = ctx.blueprintsOfChangedFeatures();
   return [...ctx.governed].flatMap(([blueprintId, refs]) => {
     const bpChanged = ctx.changed(blueprintId);
     return refs.map((ref): GovernedState => {
@@ -166,6 +173,7 @@ function evaluateGoverned(ctx: DriftContext): GovernedState[] {
       let verdict: Pick<GovernedState, 'status' | 'reason'>;
       if (ref.hash === null) verdict = resolve('missing');
       else if (bpChanged) verdict = resolve('blueprint_changed');
+      else if (legacyBlueprints.has(blueprintId)) verdict = { status: 'out_of_sync', reason: 'feature_changed' };
       else if (base === undefined) verdict = { status: 'synced', reason: 'new' };
       else if (base !== ref.hash) verdict = resolve('code_changed');
       else verdict = { status: 'synced', reason: 'unchanged' };

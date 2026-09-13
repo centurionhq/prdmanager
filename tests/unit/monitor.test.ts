@@ -87,12 +87,24 @@ describe('detectDrift', () => {
     expect(result.workOrderUpdates).toEqual([{ id: 'WO-001', sourcePath: 'docs/WO-001.md', from: 'out_of_sync', to: 'done' }]);
   });
 
-  test('feature change marks architecting blueprints for review', () => {
+  test('feature change marks architecting blueprints for review and their governed code as legacy', () => {
     const before = [mrd(), prd('v1'), sdd()];
     const after = [mrd(), prd('v2'), sdd()];
-    const result = detectDrift(input({ docs: after, baseline: baselineOf(before) }));
+    const result = detectDrift(input({ docs: after, baseline: baselineOf(before), commits: [commit(['src/sync/a.ts'], ['WO-001'])] }));
     expect(result.reviewNeeded).toEqual([{ blueprintId: 'SDD-001', featureId: 'PRD-001' }]);
-    expect(result.issues.map((i) => [i.kind, i.nodeId, i.severity])).toEqual([['feature_changed', 'PRD-001', 'error']]);
+    expect(result.governed[0]).toMatchObject({ status: 'out_of_sync', reason: 'feature_changed' });
+    expect(result.issues.map((i) => [i.kind, i.nodeId, i.severity])).toEqual([
+      ['feature_changed', 'PRD-001', 'error'],
+      ['code_out_of_sync', 'SDD-001', 'error'],
+    ]);
+    expect(result.baseline.governs['SDD-001']).toEqual({ 'src/sync/a.ts': 'h1' });
+  });
+
+  test('acknowledging the evolved feature clears the legacy code flag', () => {
+    const before = [mrd(), prd('v1'), sdd()];
+    const after = [mrd(), prd('v2'), sdd()];
+    const acked = acknowledge(input({ docs: after, baseline: baselineOf(before) }), 'PRD-001');
+    expect(detectDrift(input({ docs: after, baseline: acked.baseline })).issues).toEqual([]);
   });
 
   test('missing governed code is out of sync and governs warnings are surfaced', () => {

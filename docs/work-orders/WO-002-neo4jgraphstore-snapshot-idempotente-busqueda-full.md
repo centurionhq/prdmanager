@@ -2,7 +2,7 @@
 id: "WO-002"
 type: "WO"
 title: "Neo4jGraphStore: snapshot idempotente, búsqueda full-text, ramas con APOC y métricas"
-status: "done"
+status: "out_of_sync"
 created_at: "2026-09-13"
 implements: ["SDD-001"]
 governs: ["src/domain/**","src/parser/**","src/graph/**","src/sync/**","src/engine.ts","src/config.ts","src/util/**","src/workorders/**","src/feedback/**","src/artifacts/**","src/metrics/**","src/mcp/**","src/cli/**"]

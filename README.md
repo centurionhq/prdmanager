@@ -89,7 +89,7 @@ Ejecutar con `npm run prdm -- <comando>` (o `npx tsx src/cli/index.ts <comando>`
 2. **Asistente (MCP):** `claim_work_order` → `get_work_order_context` (WO, blueprint, linaje de features, artifacts, código gobernado, drift) → implementa solo dentro del código gobernado → commit con trailer `Refs: WO-00X` → `complete_work_order` con el sha.
 3. **Drift:** si cambia un blueprint, sus WOs terminados pasan a `out_of_sync` y su código gobernado queda marcado. Si cambia código gobernado sin un commit `Refs:` de un WO vigente, también. `prdm sync ack SDD-001` acepta el nuevo diseño y su código, pero los WOs construidos sobre el diseño anterior siguen `out_of_sync` hasta que se re-completan (`complete_work_order` exige un commit existente con `Refs: WO-xxx`) o se aceptan uno por uno con `prdm sync ack WO-xxx`.
 4. **Feedback:** `submit_feedback` / `triage_feedback` enlazan por mención explícita o por el índice full-text. Si no hay un match claro, el asistente decide si crea un `FR` con `create_feature_request`.
-5. **CI:** [docs/ci/prdm-sync.yml](docs/ci/prdm-sync.yml) corre `prdm sync --check` contra un servicio Neo4j.
+5. **CI (repositorio conectado):** [.github/workflows/prdm-sync.yml](.github/workflows/prdm-sync.yml) corre typecheck, tests unitarios y `prdm sync --check` contra un servicio Neo4j en cada push/PR. Requiere el secret `NEO4J_PASSWORD`; se activa al publicar el repo en GitHub.
 
 El estado reconocido vive en `.prdm/baseline.json` (versionado): su diff en un PR muestra qué cambios se aceptaron.
 

@@ -2,7 +2,7 @@
 id: "WO-005"
 type: "WO"
 title: "Work Order Generator: checklist de blueprint a WO, context bundle y ciclo claim/complete"
-status: "done"
+status: "out_of_sync"
 created_at: "2026-09-13"
 implements: ["SDD-001"]
 governs: ["src/domain/**","src/parser/**","src/graph/**","src/sync/**","src/engine.ts","src/config.ts","src/util/**","src/workorders/**","src/feedback/**","src/artifacts/**","src/metrics/**","src/mcp/**","src/cli/**"]

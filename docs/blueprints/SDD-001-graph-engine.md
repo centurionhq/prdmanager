@@ -238,8 +238,8 @@ Un documento o archivo gobernado que aparece por primera vez se registra en el b
 **Regla 2: Código gobernado cambió**
 - Si el hash del archivo/símbolo difiere del baseline y no está cubierto por commit → `GOVERNED_BY.status = out_of_sync` (`code_changed`). Un archivo o símbolo inexistente → `out_of_sync` (`missing`).
 
-**Regla 3: Feature cambió**
-- Si su hash difiere del baseline → `ARCHITECTS.review_needed = true` en cada blueprint que la arquitecta.
+**Regla 3: Feature cambió (requerimiento evolucionado)**
+- Si su hash difiere del baseline → `ARCHITECTS.review_needed = true` en cada blueprint que la arquitecta, y el código gobernado por esos blueprints pasa a `out_of_sync` (`reason: feature_changed`) porque puede haber quedado legado. Se resuelve cuando el arquitecto revisa y ejecuta `prdm sync ack <FEATURE-ID>` (o actualiza y reconoce el blueprint).
 
 Además se reportan enlaces rotos, enlaces a tipos incorrectos (p. ej. `IMPLEMENTS` hacia un PRD) y patrones `governs` que no matchean archivos.
 
@@ -306,3 +306,4 @@ prdm sync --check  # Falla si drift
 - [ ] CLI prdm con comandos de índice, árbol, drift, work orders y feedback
 - [ ] Servidor MCP prdm-graph con todas las tools para asistentes
 - [ ] Integración CI con prdm sync --check
+- [ ] Código legado out_of_sync cuando evoluciona un requerimiento y workflow de GitHub activo para el repositorio conectado

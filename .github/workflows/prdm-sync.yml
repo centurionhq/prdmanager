@@ -1,7 +1,6 @@
-# Example GitHub Actions workflow (documentation only, not wired into this repo's CI).
-#
-# Runs `prdm sync --check` against a disposable Neo4j service container on every push/PR,
-# failing the build when blueprints, work orders, or governed code have drifted out of sync.
+# Monitors the connected GitHub repository (PRD-001 F-03): on every push/PR it type-checks, runs unit tests
+# and `prdm sync --check` against a disposable Neo4j service, failing when blueprints, work orders
+# or governed code drift out of sync.
 #
 # Required repository secret:
 #   NEO4J_PASSWORD - the password used for both the service container and the CLI.
@@ -22,6 +21,7 @@ jobs:
         env:
           NEO4J_AUTH: neo4j/${{ secrets.NEO4J_PASSWORD }}
           NEO4J_PLUGINS: '["apoc"]'
+          NEO4J_dbms_security_procedures_allowlist: "apoc.path.*,apoc.coll.*,apoc.meta.*,apoc.version"
         ports:
           - 7687:7687
         options: >-
@@ -47,6 +47,10 @@ jobs:
           node-version: 20
 
       - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run test:unit
 
       - run: npx tsx src/cli/index.ts db migrate
 
