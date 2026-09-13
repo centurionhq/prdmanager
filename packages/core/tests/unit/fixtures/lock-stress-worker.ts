@@ -34,7 +34,12 @@ async function main(): Promise<void> {
         await new Promise((resolve) => setTimeout(resolve, 1));
         unlinkSync(markerPath);
       },
-      { timeoutMs: 15_000, staleAfterMs: 5_000 },
+      // `staleAfterMs` needs real margin over `heartbeatMs`: a held lock is only ever "stale" once it has
+      // missed a heartbeat by that much. Leaving `heartbeatMs` at its 5s default (equal to `staleAfterMs`)
+      // meant a single scheduling delay on a contended CI runner (6 concurrent tsx processes on ~2 vCPUs)
+      // could make a still-live holder's lock look abandoned and get broken out from under it — a genuine
+      // mutual-exclusion violation, not a flaky assertion.
+      { timeoutMs: 15_000, staleAfterMs: 30_000, heartbeatMs: 500 },
     );
   }
 }

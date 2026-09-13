@@ -1,0 +1,107 @@
+import fastifyStatic from '@fastify/static';
+import Fastify, { type FastifyInstance } from 'fastify';
+import type { Engine, GraphStore, PrdmConfig } from '@prdm/core';
+import { registerBranchRoute } from './api/branch.js';
+import { registerDriftRoute } from './api/drift.js';
+import { registerFullGraphRoute } from './api/full-graph.js';
+import { registerHealthRoute } from './api/health.js';
+import { registerMetricsRoute } from './api/metrics.js';
+import { registerNodeRoute } from './api/node.js';
+import { registerProjectRoute } from './api/project.js';
+import { registerSearchRoute } from './api/search.js';
+import { registerTreeRoute } from './api/tree.js';
+import { registerWorkOrderRoutes } from './api/work-orders.js';
+import { setErrorHandler, setNotFoundHandler } from './errors.js';
+import { LOOPBACK_HOSTS } from './env.js';
+import { registerSecurityHeaders } from './security-headers.js';
+
+/** Matches `PRDM_WEB_PORT`'s own default (SDD-005 "Seguridad"). */
+export const DEFAULT_WEB_PORT = 4600;
+
+export interface BuildAppOptions {
+  config: PrdmConfig;
+  store: GraphStore;
+  engine: Engine;
+  /** `dist/client`, or a temp dir in tests; static serving is skipped entirely when omitted (WO-056 wires the real bundle). */
+  staticDir?: string;
+  /**
+   * The port this process is (or will be) bound to, purely for the Host-header guard below. Not part of SDD-005's
+   * literal `buildApp({config, store, engine, staticDir?})` signature, but the guard needs to know the port to do
+   * its job and must be registered before any route so it always runs first — `server.ts` reading `PRDM_WEB_PORT`
+   * itself and threading it in here keeps that ordering correct and keeps the guard testable via `app.inject()`
+   * without spinning up a real bootstrap. Defaults to `PRDM_WEB_PORT`'s own default.
+   */
+  port?: number;
+}
+
+/** An IPv6 literal must be bracketed in a URI authority / Host header (RFC 3986 §3.2.2); `127.0.0.1`/`localhost` are used bare. */
+function hostHeaderFor(host: string, port: number): string {
+  return host.includes(':') ? `[${host}]:${port}` : `${host}:${port}`;
+}
+
+/**
+ * DNS-rebinding guard (SDD-005 "Seguridad"): a page the user visits can resolve any hostname to `127.0.0.1` and
+ * `fetch` this port from an origin the browser treats as valid. Binding to loopback is not a security boundary by
+ * itself, so every request's `Host` header must match one of `env.ts`'s `LOOPBACK_HOSTS` — regardless of what
+ * `PRDM_WEB_HOST` is configured to (a non-loopback bind is a separate, explicit opt-in gated in `server.ts`).
+ * Derived directly from that same set (not a separately hand-maintained literal list) so it can never silently
+ * drift from what `resolveWebBind` accepts without `PRDM_WEB_ALLOW_REMOTE` — that drift was a real bug once
+ * (`PRDM_WEB_HOST=::1` booted successfully and then 403'd every request, caught in architecture review).
+ */
+export function isAllowedHost(hostHeader: string | undefined, port: number): boolean {
+  if (!hostHeader) return false;
+  for (const host of LOOPBACK_HOSTS) {
+    if (hostHeaderFor(host, port) === hostHeader) return true;
+  }
+  return false;
+}
+
+/**
+ * Fastify factory with no `process`/`env`/`listen` (SDD-005 "Arquitectura"): every dependency is passed in, so
+ * tests can `app.inject()` against it directly without a real bootstrap. Never calls `engine.refresh()` or
+ * `engine.recover()` — this process is strictly read-only (SDD-005 "Ciclo de vida del Engine").
+ */
+export function buildApp(options: BuildAppOptions): FastifyInstance {
+  const { config, store, engine, staticDir, port = DEFAULT_WEB_PORT } = options;
+  const app = Fastify({ logger: true });
+
+  // Runs before anything else, for every request (not just /api/*): SDD-005 "Seguridad".
+  app.addHook('onRequest', async (request, reply) => {
+    if (!isAllowedHost(request.headers.host, port)) {
+      await reply.code(403).send({ error: { code: 'validation_error', message: 'invalid Host header' } });
+    }
+  });
+
+  // SDD-005 "Contrato HTTP": every /api/* response, success or error, is uncacheable.
+  app.addHook('onSend', async (request, reply, payload) => {
+    if (request.url.startsWith('/api/')) reply.header('Cache-Control', 'no-store');
+    return payload;
+  });
+
+  registerSecurityHeaders(app);
+
+  if (staticDir) {
+    // @fastify/static resolves and normalizes every request path against `root` itself (rejects `..` traversal
+    // outside it before ever touching the filesystem) — nothing extra needed here for that guarantee, only a test
+    // proving it (SDD-005 "Tests"). Default `index: ['index.html']` lets it serve "/" natively — calling
+    // `reply.sendFile('index.html')` from setNotFoundHandler for the exact "/" request instead trips its
+    // trailing-slash redirect logic into a spurious 403 (verified empirically).
+    void app.register(fastifyStatic, { root: staticDir });
+  }
+
+  registerHealthRoute(app);
+  registerNodeRoute(app, { store });
+  registerSearchRoute(app, { store });
+  registerBranchRoute(app, { store });
+  registerFullGraphRoute(app, { store });
+  registerTreeRoute(app, { store });
+  registerWorkOrderRoutes(app, { store });
+  registerDriftRoute(app, { engine });
+  registerMetricsRoute(app, { store });
+  registerProjectRoute(app, { config, engine });
+
+  setErrorHandler(app);
+  setNotFoundHandler(app, { hasStatic: Boolean(staticDir) });
+
+  return app;
+}

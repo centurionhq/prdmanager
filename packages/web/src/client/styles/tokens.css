@@ -1,0 +1,149 @@
+/*
+ * PRD-004 / SDD-005 "Frontend": semantic design tokens. Visual direction (FB-004 follow-up): a dark,
+ * high-tech "command console" aesthetic — deep-space backgrounds, translucent elevated panels, monospaced
+ * identifiers, and vibrant glows reserved for system status (never decorative). Light theme kept fully
+ * functional for `prefers-color-scheme: light` (accessibility requirement of a HUD-style palette), just far
+ * less "glowy" — glow is a dark-theme affordance, not a token every theme must reproduce.
+ *
+ * Status is never color-only: `graph-stylesheet.ts` pairs every status color with a shape/stroke-style
+ * difference, and text labels/icons carry the same meaning as the glow.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces: layered from deep background to translucent "glass" panels floating above it. */
+  --color-bg: #05070a;
+  --color-bg-elevated: rgba(17, 22, 29, 0.72);
+  --color-bg-elevated-solid: #11161d; /* same surface, opaque — used where backdrop-filter isn't supported/wanted */
+  --color-bg-inset: #0b0e13;
+  --color-border: rgba(148, 163, 184, 0.16);
+  --color-border-strong: rgba(148, 163, 184, 0.32);
+  /* Solid (non-alpha) equivalent of --color-border-strong: Cytoscape.js's style parser doesn't accept the
+     8-digit hex some browsers normalize an rgba() custom property to when read via getComputedStyle. */
+  --color-border-solid: #3a4453;
+  --panel-blur: blur(16px);
+
+  /* Text */
+  --color-fg: #eef2f6;
+  --color-fg-muted: #93a1b0;
+  /* WCAG AA fix (F6 accessibility review): the previous #5b6774 measured ~3.1:1 against --color-bg-elevated-solid,
+     failing 4.5:1 for the loading/empty/error text every StatusState panel renders it as. */
+  --color-fg-subtle: #8a97a6;
+  --color-fg-inverse: #05070a;
+
+  /* Accent: electric cyan-blue, the console's "active/selected" signal. */
+  --color-accent: #3fd1ff;
+  --color-accent-fg: #04141c;
+  --color-accent-glow: rgba(63, 209, 255, 0.35);
+
+  /* Status: paired with shape/stroke in graph-stylesheet.ts, never the only signal. */
+  --color-status-ok: #2be3a6;
+  --color-status-ok-glow: rgba(43, 227, 166, 0.35);
+  --color-status-warning: #ffb020;
+  --color-status-warning-glow: rgba(255, 176, 32, 0.35);
+  --color-status-error: #ff4d5e;
+  --color-status-error-glow: rgba(255, 77, 94, 0.4);
+  --color-status-neutral: #93a1b0;
+
+  /* Typography: system stack only, no webfonts (ADR-004) — `ui-monospace` already reads as technical/precise. */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Code', Menlo, Consolas, monospace;
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+
+  /* Spacing scale */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+
+  /* Shape */
+  --radius-sm: 4px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --border-width: 1px;
+
+  --focus-ring: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --color-bg: #f3f5f8;
+    --color-bg-elevated: rgba(255, 255, 255, 0.82);
+    --color-bg-elevated-solid: #ffffff;
+    --color-bg-inset: #e7ebf0;
+    --color-border: rgba(15, 23, 42, 0.12);
+    --color-border-strong: rgba(15, 23, 42, 0.24);
+    --color-border-solid: #c3ccd6;
+
+    --color-fg: #10151b;
+    --color-fg-muted: #4b5666;
+    --color-fg-subtle: #57616f;
+    --color-fg-inverse: #ffffff;
+
+    --color-accent: #0577a8;
+    --color-accent-fg: #ffffff;
+    --color-accent-glow: rgba(5, 119, 168, 0.18);
+
+    --color-status-ok: #0f8f5f;
+    --color-status-ok-glow: rgba(15, 143, 95, 0.16);
+    --color-status-warning: #a15c00;
+    --color-status-warning-glow: rgba(161, 92, 0, 0.16);
+    --color-status-error: #c22a3a;
+    --color-status-error-glow: rgba(194, 42, 58, 0.18);
+    --color-status-neutral: #4b5666;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+button {
+  font-family: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

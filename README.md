@@ -1,13 +1,13 @@
 # prdmanager — Motor de Grafo de Producto y Contexto
 
-Implementación de [PRD-001](docs/prd/PRD-001-Graph-Engine-Enhanced.md), [PRD-002](docs/prd/PRD-002.md) y [PRD-003](docs/prd/PRD-003-parser-de-simbolos-con-tree-sitter-validado-de-pun.md) (los tres `closed`): un grafo de producto que une **Feature Tree** (MRD/PRD/FR), **Blueprints** (SDD/ADR), **Work Orders**, **Artifacts**, **Feedback** y **código**. Asistentes de IA lo usan vía MCP, y el grafo detecta cuándo la documentación y el código se desincronizan.
+Implementación de [PRD-001](docs/prd/PRD-001-Graph-Engine-Enhanced.md), [PRD-002](docs/prd/PRD-002.md), [PRD-003](docs/prd/PRD-003-parser-de-simbolos-con-tree-sitter-validado-de-pun.md) y [PRD-004](docs/prd/PRD-004-explorador-web-del-feature-tree-y-drift.md) (los cuatro `closed`): un grafo de producto que une **Feature Tree** (MRD/PRD/FR), **Blueprints** (SDD/ADR), **Work Orders**, **Artifacts**, **Feedback** y **código**. Asistentes de IA lo usan vía MCP, un explorador web de solo lectura lo visualiza, y el grafo detecta cuándo la documentación y el código se desincronizan.
 
 - **Doc-as-code:** los `.md` con frontmatter YAML son la fuente de verdad, versionada en git.
 - **Neo4j local** es el índice vivo del grafo y se puede reconstruir siempre desde los documentos.
 - **Autoría conversacional:** asistentes redactan por MCP, el motor valida y persiste de forma atómica.
 - **Multi-proyecto:** varios proyectos en una sola instancia Neo4j, aislados por partición.
 
-Arquitectura: [SDD-001](docs/sdd/SDD-001-graph-engine.md), [SDD-002](docs/sdd/SDD-002-multi-project-authoring.md), [SDD-003](docs/sdd/SDD-003-draft-persistence.md), [SDD-004](docs/sdd/SDD-004-tree-sitter-symbols.md) · Decisiones: [ADR-001](docs/adr/ADR-001-neo4j-local.md), [ADR-002](docs/adr/ADR-002-multi-project-isolation.md), [ADR-003](docs/adr/ADR-003-tree-sitter-wasm.md) · Mercado: [MRD-001](docs/mrd/MRD-001.md) · Modelo: [docs/model/graph-model.json](docs/model/graph-model.json)
+Arquitectura: [SDD-001](docs/sdd/SDD-001-graph-engine.md), [SDD-002](docs/sdd/SDD-002-multi-project-authoring.md), [SDD-003](docs/sdd/SDD-003-draft-persistence.md), [SDD-004](docs/sdd/SDD-004-tree-sitter-symbols.md), [SDD-005](docs/sdd/SDD-005-explorador-web.md) · Decisiones: [ADR-001](docs/adr/ADR-001-neo4j-local.md), [ADR-002](docs/adr/ADR-002-multi-project-isolation.md), [ADR-003](docs/adr/ADR-003-tree-sitter-wasm.md), [ADR-004](docs/adr/ADR-004-stack-del-explorador-web.md) · Mercado: [MRD-001](docs/mrd/MRD-001.md) · Modelo: [docs/model/graph-model.json](docs/model/graph-model.json)
 
 ## Stack
 
@@ -36,6 +36,7 @@ Estructura de paquetes npm workspaces:
 | `@prdm/core` | Dominio, parser, grafo, autoría, ciclo de vida, scaffold | — |
 | `@prdm/cli` | CLI principal `prdm` | `packages/cli/src/index.ts` |
 | `@prdm/mcp` | Servidor MCP `prdm-graph` | `packages/mcp/src/server.ts` |
+| `@prdm/web` | Explorador web de solo lectura (PRD-004) | `packages/web/src/server.ts` |
 | `@prdm/testkit` | Helpers de tests (privado) | — |
 
 Scripts raíz (`package.json`):
@@ -350,6 +351,32 @@ Si el contenido cambia (hash distinto), la exención se pierde. CI rechaza que l
 
 Cuando levantes Claude Code/MCP Client, pide aprobar servidores la primera vez. `claude mcp list` muestra estado.
 
+## Web UI (`@prdm/web`, PRD-004)
+
+Explorador **de solo lectura** del Feature Tree y del drift: canvas interactivo con Cytoscape.js, árbol navegable por teclado (alternativa accesible al canvas), búsqueda full-text, panel de detalle con relaciones, lista de Work Orders y banner de estado de sincronización. Backend Fastify que envuelve 1:1 `GraphStore`/`Engine.inspect()` (nunca escribe), ligado a `127.0.0.1`.
+
+| Componente | Tecnología | Versión |
+|---|---|---|
+| Backend | Fastify + @fastify/static | 5.12.4, 10.1.3 |
+| Frontend | Vite + React | 8.3.0, 19.3.0 |
+| Grafo | cytoscape.js | 3.34.3 |
+| E2E | @playwright/test | 1.63.0 |
+
+```bash
+# Producción / dogfooding: un solo proceso sirve API + bundle
+npm run build && npm run build --workspace=@prdm/web
+npm run web                                  # http://127.0.0.1:4600
+
+# Iteración visual: dos procesos, HMR en el frontend
+npm run web:api                              # Fastify vía tsx, sin build
+npm run dev --workspace=@prdm/web            # Vite en http://localhost:5173, proxy de /api
+
+# E2E contra servidor real + Neo4j de test (local, no en CI — ver Tests)
+npm run test:e2e --workspace=@prdm/web
+```
+
+`PRDM_WEB_PORT` (por defecto `4600`) y `PRDM_WEB_HOST` (por defecto `127.0.0.1`; un valor no-loopback requiere `PRDM_WEB_ALLOW_REMOTE=1`) — ver Variables de Entorno.
+
 ## Skills (Claude Code)
 
 Plugin **`neo4j-skills@neo4j-skills-marketplace`** v1.0.1 (declarado en `.claude/settings.json`):
@@ -393,6 +420,8 @@ PRDM_ROOT=<opcional; fuerza la raíz del proyecto>
 PRDM_SKIP_HOOKS=1           # Desactiva hooks de git (commit puntual)
 PRDM_ACTOR=agent:claude     # Actor por default para cierre
 PRDM_BIN=<opcional; sobrescribe detección de binario prdm en hooks>
+PRDM_WEB_PORT=4600          # Puerto del explorador web (@prdm/web)
+PRDM_WEB_HOST=127.0.0.1     # No-loopback requiere PRDM_WEB_ALLOW_REMOTE=1
 ```
 
 El binario CLI busca `.env` en el directorio del proyecto descubierto.
@@ -408,7 +437,6 @@ El binario CLI busca `.env` en el directorio del proyecto descubierto.
 
 ## Fuera del MVP
 
-- UI web (Neo4j Browser, Mermaid y MCP cubren necesidades actuales)
 - GitHub App / webhooks (cubierto por CI con `sync --check`)
 - Conectores directos a Slack/email (ingesta por archivo o MCP)
 - Embeddings / vector index

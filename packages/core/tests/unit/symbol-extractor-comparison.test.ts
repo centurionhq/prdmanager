@@ -79,7 +79,10 @@ describe('extractor comparison: adversarial input is not a Tree-sitter DoS risk'
     const content = `export function big() {\n${bigBraces}\n}\n`;
     const start = performance.now();
     const result = treeSitter.extract(content, 'big', 'a.ts');
-    expect(performance.now() - start).toBeLessThan(600);
+    // `extract()`'s own internal deadline is 500ms; the assertion needs slack beyond that for the deadline
+    // check itself to be noticed (it fires between discrete parse/query steps, not preemptively) plus
+    // measurement overhead — 100ms wasn't enough headroom on a contended CI runner (observed 840ms).
+    expect(performance.now() - start).toBeLessThan(1500);
     expect(result).toBeNull();
   });
 });

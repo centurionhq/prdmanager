@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.client.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["src/client/**/*.ts", "src/client/**/*.tsx", "tests/client/**/*.ts", "tests/client/**/*.tsx"]
+}

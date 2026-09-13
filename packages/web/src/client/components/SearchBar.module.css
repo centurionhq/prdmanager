@@ -1,0 +1,100 @@
+.wrap {
+  position: relative;
+  flex: 1 1 320px;
+  min-width: 200px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: var(--color-bg-inset);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-sm);
+  min-height: 38px;
+  transition: box-shadow 150ms ease, border-color 150ms ease;
+}
+
+.field:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent), 0 0 16px var(--color-accent-glow);
+}
+
+.icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--color-fg-subtle);
+}
+
+.input {
+  all: unset;
+  flex: 1;
+  font: var(--font-size-sm) / 1 var(--font-mono);
+  color: var(--color-fg);
+}
+
+.input::placeholder {
+  color: var(--color-fg-subtle);
+}
+
+.kbd {
+  flex: none;
+  font: 10px / 1 var(--font-mono);
+  color: var(--color-fg-subtle);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 3px;
+  padding: 3px 5px;
+}
+
+.results {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + var(--space-xs));
+  left: 0;
+  right: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-xs);
+  background: var(--color-bg-elevated-solid);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.result {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.result:hover,
+.result[aria-selected='true'] {
+  background: var(--color-bg-inset);
+}
+
+.resultId {
+  font: 600 var(--font-size-sm) / 1 var(--font-mono);
+  color: var(--color-accent);
+  flex: none;
+}
+
+.resultTitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  padding: var(--space-sm);
+  color: var(--color-fg-subtle);
+  font-size: var(--font-size-sm);
+}

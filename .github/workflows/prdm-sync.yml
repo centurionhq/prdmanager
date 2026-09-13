@@ -58,6 +58,10 @@ jobs:
 
       - run: npm run build
 
+      # `tsc -b` above only type-checks/builds packages/web's server half via project references; this also
+      # runs `vite build` so the client bundle itself (PRD-004) is verified to compile in CI.
+      - run: npm run build --workspace=@prdm/web
+
       - run: npm run typecheck
 
       - run: npm run test:unit
