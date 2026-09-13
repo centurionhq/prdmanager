@@ -352,6 +352,8 @@
       "packages/web/playwright.config.ts": null,
       "packages/web/src/client/main.tsx": "cc06c4a42990bd7eadae2d3781adb1e3860373cda57de65cc319a2b328f8e158",
       "packages/web/src/server.ts": "7be3e1b42c0d356e7f9f1ebe68acc39f3e83a3dfe9acee236d4c1cf4374d966a",
+      "packages/web/src/summary.ts": "d2e66b70b8d75bb807e476f82527bb929891de3df5690984d665e8cfb99751dc",
+      "packages/web/tests/unit/summary.test.ts": "013a61d88d048380b2c42effa3d6480abadd4e8371225cf210318b497b601a36",
       "packages/web/tsconfig.client.json": "76d5af925065e8a2f9c1d2a80797e87c650e45faa7efe3ad4b5a919d421f2332",
       "packages/web/tsconfig.json": "e345db300a00446e2ac57f0b1128576d0ec132873b05049ecefb8663346dc9b4",
       "packages/web/tsconfig.server.json": "a6a64bb73e91813583c363a768f64bfc6c28bfaecfd219d1bd4bff6bdbad9a38",
