@@ -74,20 +74,19 @@ function buildBody(blueprint: BlueprintDoc, taskText: string, id: string): strin
   ].join('\n');
 }
 
-function buildFields(blueprint: BlueprintDoc, id: string, title: string, status: WorkOrderStatus, sourceTask: string, now: Date): Record<string, FieldValue> {
-  const fields: Record<string, FieldValue> = {
+/** Every generated work order is born `pending` (ADR-002 D9/PRD-002 lifecycle): checking off a task never fabricates history. */
+function buildFields(blueprint: BlueprintDoc, id: string, title: string, sourceTask: string, now: Date): Record<string, FieldValue> {
+  return {
     id,
     type: 'WO',
     title,
-    status,
+    status: 'pending',
     created_at: todayIso(now),
     implements: [blueprint.node.id],
-    governs: blueprint.governs,
+    impacts_paths: blueprint.impactsPaths,
     source_task: sourceTask,
     tags: blueprint.node.tags,
   };
-  if (status === 'done') fields.blueprint_hashes = { [blueprint.node.id]: blueprint.node.contentHash };
-  return fields;
 }
 
 const MAX_TITLE = 300;
@@ -108,14 +107,13 @@ export function planWorkOrders(blueprint: ParsedDoc, existing: ParsedDoc[], opti
     knownSourceTasks.add(sourceTask);
 
     const id = nextId('WO', [...existingIds, ...planned.map((p) => p.id)]);
-    const status: WorkOrderStatus = task.done ? 'done' : 'todo';
     const title = task.text.slice(0, MAX_TITLE);
     const folder = options.folder ?? `${options.docsDir}/work-orders`;
     const path = `${folder}/${id}-${slugify(task.text)}.md`;
-    const fields = buildFields(blueprint, id, title, status, sourceTask, options.now);
+    const fields = buildFields(blueprint, id, title, sourceTask, options.now);
     const content = renderDocument(fields, buildBody(blueprint, task.text, id));
 
-    planned.push({ id, path, title, status, content });
+    planned.push({ id, path, title, status: 'pending', content });
   }
   return planned;
 }

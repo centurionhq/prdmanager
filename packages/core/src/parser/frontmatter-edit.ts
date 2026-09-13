@@ -22,6 +22,33 @@ export function setFrontmatterFields(content: string, fields: Record<string, Fie
   return rebuilt + normalized.slice(match[0].length);
 }
 
+/**
+ * Renames a top-level frontmatter key in place, keeping its value (and any indented/continuation lines)
+ * untouched. A no-op when `oldKey` is not present. Used by `prdm migrate docs` (e.g. `governs` -> `impacts_paths`)
+ * so the value's original formatting survives, unlike `setFrontmatterFields`, which always re-renders as JSON.
+ */
+export function renameFrontmatterKey(content: string, oldKey: string, newKey: string): string {
+  const normalized = content.replace(/\r\n?/g, '\n');
+  const match = FRONTMATTER.exec(normalized);
+  if (!match) throw new Error('document has no frontmatter block');
+
+  const lines = (match[1] ?? '').split('\n');
+  const start = lines.findIndex((line) => parseTopLevelKey(line) === oldKey);
+  if (start === -1) return content;
+
+  const renamed = replaceKeyName(lines[start] ?? '', oldKey, newKey);
+  const nextLines = [...lines.slice(0, start), renamed, ...lines.slice(start + 1)];
+  const rebuilt = `---\n${nextLines.join('\n')}\n---${match[2]}`;
+  return rebuilt + normalized.slice(match[0].length);
+}
+
+/** Replaces only the key portion of a top-level `key:` line, preserving its quoting style and value. */
+function replaceKeyName(line: string, oldKey: string, newKey: string): string {
+  if (DOUBLE_QUOTED_KEY.test(line)) return line.replace(`"${oldKey}"`, `"${newKey}"`);
+  if (SINGLE_QUOTED_KEY.test(line)) return line.replace(`'${oldKey}'`, `'${newKey}'`);
+  return line.replace(new RegExp(`^${oldKey}(\\s*:)`), `${newKey}$1`);
+}
+
 /** Returns the key name of a top-level `key:` line (unquoted or quoted), or null for indented/non-key lines. */
 function parseTopLevelKey(line: string): string | null {
   if (/^\s/.test(line)) return null;

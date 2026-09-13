@@ -5,6 +5,7 @@ import { register as registerDbCommands } from './commands/db.js';
 import { register as registerFeedbackCommands } from './commands/feedback.js';
 import { register as registerGraphCommands } from './commands/graph.js';
 import { register as registerMetricsCommands } from './commands/metrics.js';
+import { register as registerMigrateCommands } from './commands/migrate.js';
 import { register as registerParserCommands } from './commands/parser.js';
 import { register as registerProjectCommands } from './commands/project.js';
 import { register as registerSyncCommands } from './commands/sync.js';
@@ -61,6 +62,7 @@ const REGISTRARS = [
   registerGraphCommands,
   registerSyncCommands,
   registerMetricsCommands,
+  registerMigrateCommands,
   registerWorkOrderCommands,
   registerFeedbackCommands,
   registerArtifactCommands,

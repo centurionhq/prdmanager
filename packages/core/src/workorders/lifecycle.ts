@@ -20,15 +20,15 @@ export interface ClaimResult {
   claimedAt: string;
 }
 
-/** Claims a todo/out_of_sync work order for an actor, moving it to in_progress. */
+/** Claims a pending/out_of_sync work order for an actor, moving it to in_progress. */
 export async function claimWorkOrder(engine: Engine, id: string, assignee: string, now: Date = new Date()): Promise<ClaimResult> {
   if (!ACTOR_PATTERN.test(assignee)) throw new Error(`invalid assignee: ${assignee} (expected agent:name or dev:name)`);
 
   return engine.transaction(async (ops) => {
     const { docs } = await ops.scan();
     const doc = findWorkOrder(docs, id);
-    if (doc.frontmatter.status !== 'todo' && doc.frontmatter.status !== 'out_of_sync') {
-      throw new Error(`cannot claim ${id}: status is ${doc.frontmatter.status}, expected todo or out_of_sync`);
+    if (doc.frontmatter.status !== 'pending' && doc.frontmatter.status !== 'out_of_sync') {
+      throw new Error(`cannot claim ${id}: status is ${doc.frontmatter.status}, expected pending or out_of_sync`);
     }
 
     const claimedAt = now.toISOString();

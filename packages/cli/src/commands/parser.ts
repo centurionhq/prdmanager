@@ -4,7 +4,7 @@ import { formatIssues, formatRefreshReport, formatScanErrors } from '../format.j
 import { CliError } from '../errors.js';
 import { withContext, type CliDeps } from '../program.js';
 
-const LINT_ISSUE_KINDS: ReadonlySet<DriftIssue['kind']> = new Set(['broken_link', 'invalid_link_target', 'governs_warning']);
+const LINT_ISSUE_KINDS: ReadonlySet<DriftIssue['kind']> = new Set(['broken_link', 'invalid_link_target', 'impacts_warning']);
 
 async function runIndex(deps: CliDeps): Promise<void> {
   await withContext(deps, async (ctx) => {

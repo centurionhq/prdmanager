@@ -7,17 +7,17 @@ const NOW = new Date('2026-09-12T00:00:00Z');
 const OPTIONS = { docsDir: 'docs', now: NOW };
 
 function blueprint(body: string, extra = ''): ReturnType<typeof doc> {
-  return doc(`id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\ngoverns: ["src/sync/**"]\ntags: ["graph"]\n${extra}`, body);
+  return doc(`id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\nimpacts_paths: ["src/sync/**"]\ntags: ["graph"]\n${extra}`, body);
 }
 
 describe('planWorkOrders', () => {
-  test('creates a todo work order for [ ] and a done one for [x]', () => {
+  test('creates a pending work order for both [ ] and [x] tasks', () => {
     const bp = blueprint('design\n\n## Tareas\n- [ ] Implementar hashing de código\n- [x] Leer commits de git\n');
     const planned = planWorkOrders(bp, [], OPTIONS);
 
     expect(planned).toHaveLength(2);
-    expect(planned[0]).toMatchObject({ id: 'WO-001', status: 'todo', title: 'Implementar hashing de código' });
-    expect(planned[1]).toMatchObject({ id: 'WO-002', status: 'done', title: 'Leer commits de git' });
+    expect(planned[0]).toMatchObject({ id: 'WO-001', status: 'pending', title: 'Implementar hashing de código' });
+    expect(planned[1]).toMatchObject({ id: 'WO-002', status: 'pending', title: 'Leer commits de git' });
     expect(planned[0]?.path).toBe('docs/work-orders/WO-001-implementar-hashing-de-codigo.md');
   });
 
@@ -25,13 +25,13 @@ describe('planWorkOrders', () => {
     const bp = blueprint('design\n\n## Tasks\n- [ ] Do the thing\n');
     const planned = planWorkOrders(bp, [], OPTIONS);
     expect(planned).toHaveLength(1);
-    expect(planned[0]).toMatchObject({ status: 'todo', title: 'Do the thing' });
+    expect(planned[0]).toMatchObject({ status: 'pending', title: 'Do the thing' });
   });
 
-  test('is case-insensitive for the done marker', () => {
+  test('is case-insensitive for the done marker, but still plans a pending work order', () => {
     const bp = blueprint('design\n\n## Tareas\n- [X] Ya hecho\n');
     const planned = planWorkOrders(bp, [], OPTIONS);
-    expect(planned[0]?.status).toBe('done');
+    expect(planned[0]?.status).toBe('pending');
   });
 
   test('stops parsing at the next heading', () => {
@@ -59,7 +59,7 @@ describe('planWorkOrders', () => {
 
     const second = planWorkOrders(bp, [alreadyGenerated.doc], OPTIONS);
     expect(second).toHaveLength(1);
-    expect(second[0]).toMatchObject({ id: 'WO-002', title: 'Leer commits de git', status: 'done' });
+    expect(second[0]).toMatchObject({ id: 'WO-002', title: 'Leer commits de git', status: 'pending' });
   });
 
   test('a second run over the same blueprint plans nothing once every task has a work order', () => {
@@ -73,31 +73,29 @@ describe('planWorkOrders', () => {
     expect(planWorkOrders(bp, existing, OPTIONS)).toEqual([]);
   });
 
-  test('rendered content parses, inherits governs/tags/implements, and records blueprint_hashes for done tasks', () => {
-    const bp = blueprint('design\n\n## Tareas\n- [x] Leer commits de git\n');
+  test('rendered content parses, inherits impacts_paths/tags/implements, and never records blueprint_hashes', () => {
+    const bp = blueprint('design\n\n## Tareas\n- [ ] Pendiente\n- [x] Leer commits de git\n');
     const planned = planWorkOrders(bp, [], OPTIONS);
-    const parsed = parseDocument(planned[0]!.content, planned[0]!.path);
-    if (!parsed?.ok) throw new Error('expected a valid document');
-    if (parsed.doc.frontmatter.type !== 'WO') throw new Error('expected a work order');
 
-    expect(parsed.doc.frontmatter.implements).toEqual(['SDD-001']);
-    expect(parsed.doc.frontmatter.governs).toEqual(['src/sync/**']);
-    expect(parsed.doc.frontmatter.tags).toEqual(['graph']);
-    expect(parsed.doc.frontmatter.blueprint_hashes).toEqual({ 'SDD-001': bp.node.contentHash });
-    expect(parsed.doc.node.body).toContain('## Objetivo');
-    expect(parsed.doc.node.body).toContain('## Contexto');
-    expect(parsed.doc.node.body).toContain('PRD-001');
-    expect(parsed.doc.node.body).toContain('## Criterios de aceptación');
-    expect(parsed.doc.node.body).toContain(`Refs: ${planned[0]!.id}`);
-  });
+    for (const plan of planned) {
+      const parsed = parseDocument(plan.content, plan.path);
+      if (!parsed?.ok) throw new Error('expected a valid document');
+      if (parsed.doc.frontmatter.type !== 'WO') throw new Error('expected a work order');
 
-  test('does not record blueprint_hashes for todo tasks', () => {
-    const bp = blueprint('design\n\n## Tareas\n- [ ] Pendiente\n');
-    const planned = planWorkOrders(bp, [], OPTIONS);
-    const parsed = parseDocument(planned[0]!.content, planned[0]!.path);
-    if (!parsed?.ok) throw new Error('expected a valid document');
-    if (parsed.doc.frontmatter.type !== 'WO') throw new Error('expected a work order');
-    expect(parsed.doc.frontmatter.blueprint_hashes).toEqual({});
+      expect(parsed.doc.frontmatter.status).toBe('pending');
+      expect(parsed.doc.frontmatter.implements).toEqual(['SDD-001']);
+      expect(parsed.doc.frontmatter.impacts_paths).toEqual(['src/sync/**']);
+      expect(parsed.doc.frontmatter.tags).toEqual(['graph']);
+      expect(parsed.doc.frontmatter.blueprint_hashes).toEqual({});
+    }
+
+    const first = parseDocument(planned[0]!.content, planned[0]!.path);
+    if (!first?.ok) throw new Error('expected a valid document');
+    expect(first.doc.node.body).toContain('## Objetivo');
+    expect(first.doc.node.body).toContain('## Contexto');
+    expect(first.doc.node.body).toContain('PRD-001');
+    expect(first.doc.node.body).toContain('## Criterios de aceptación');
+    expect(first.doc.node.body).toContain(`Refs: ${planned[0]!.id}`);
   });
 
   test('truncates long task titles to 300 characters', () => {

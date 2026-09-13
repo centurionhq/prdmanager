@@ -24,7 +24,7 @@ export interface WorkOrderContext {
     body: string;
     acceptanceCriteria: string[];
   };
-  blueprints: { id: string; title: string; status: string; governs: string[]; body: string }[];
+  blueprints: { id: string; title: string; status: string; impactsPaths: string[]; body: string }[];
   featureLineage: { id: string; kind: string; title: string; status: string; body: string }[];
   context: { id: string; label: NodeLabel; title: string; body: string }[];
   code: WorkOrderContextRaw['code'];
@@ -55,7 +55,7 @@ export async function getWorkOrderContext(store: GraphStore, id: string): Promis
     id: bp.id,
     title: bp.title,
     status: bp.status,
-    governs: Array.isArray(bp.governs) ? (bp.governs as string[]) : [],
+    impactsPaths: Array.isArray(bp.impacts_paths) ? (bp.impacts_paths as string[]) : [],
     body: truncate(bp.body),
   }));
   const featureLineage = raw.features.map((f) => ({ id: f.id, kind: f.kind, title: f.title, status: f.status, body: truncate(f.body) }));

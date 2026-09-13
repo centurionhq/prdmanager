@@ -1,4 +1,5 @@
 import fg from 'fast-glob';
+import { findNestedProjectRoots } from '../project/discover.js';
 import { normalizeText, sha256 } from '../util/hash.js';
 import { resolveInside } from '../util/paths.js';
 import { safeReadFile } from '../util/safe-fs.js';
@@ -24,6 +25,9 @@ export async function resolveGoverned(
 ): Promise<{ refs: CodeRefState[]; warnings: string[] }> {
   const refs = new Map<string, CodeRefState>();
   const warnings: string[] = [];
+  // A subdirectory with its own .prdm.yaml is another project (SDD-002 "Proyecto activo"): never govern its files.
+  const nestedRoots = await findNestedProjectRoots(root, ignore);
+  const effectiveIgnore = [...ignore, ...nestedRoots.map((rel) => `${rel}/**`)];
 
   for (const pattern of patterns) {
     const hashIndex = pattern.indexOf('#');
@@ -33,13 +37,18 @@ export async function resolveGoverned(
     try {
       rel = resolveInside(root, filePart).rel;
     } catch {
-      warnings.push(`governs pattern "${pattern}" is outside the repository or invalid`);
+      warnings.push(`impacts_paths pattern "${pattern}" is outside the repository or invalid`);
+      continue;
+    }
+    const nested = nestedRoots.find((dir) => rel === dir || rel.startsWith(`${dir}/`));
+    if (nested !== undefined) {
+      warnings.push(`impacts_paths pattern "${pattern}" belongs to nested project "${nested}"`);
       continue;
     }
     const files = fg.isDynamicPattern(rel)
-      ? (await fg.glob(rel, { cwd: root, ignore, onlyFiles: true, dot: false, followSymbolicLinks: false })).sort()
+      ? (await fg.glob(rel, { cwd: root, ignore: effectiveIgnore, onlyFiles: true, dot: false, followSymbolicLinks: false })).sort()
       : [rel];
-    if (files.length === 0) warnings.push(`governs pattern "${pattern}" matches no files`);
+    if (files.length === 0) warnings.push(`impacts_paths pattern "${pattern}" matches no files`);
 
     for (const path of files) {
       const key = symbol ? `${path}#${symbol}` : path;

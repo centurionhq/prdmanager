@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { parseDocument } from '../../src/parser/frontmatter.js';
+import { contentHash, parseDocument } from '../../src/parser/frontmatter.js';
 
 const prd = `---
 id: PRD-001
@@ -40,13 +40,13 @@ describe('parseDocument', () => {
     expect(doc.edges).toEqual([{ from: 'PRD-001', to: 'MRD-001', type: 'EVOLVES_FROM' }]);
   });
 
-  test('parses a Blueprint with architects and governs', () => {
+  test('parses a Blueprint with architects and impacts_paths', () => {
     const content = `---
 id: SDD-001
 type: SDD
 title: Arquitectura
 architects: [PRD-001]
-governs: ["src/sync/**", "src/graph/store.ts#Neo4jGraphStore"]
+impacts_paths: ["src/sync/**", "src/graph/store.ts#Neo4jGraphStore"]
 ---
 ## Tareas
 - [ ] Hacer algo
@@ -55,8 +55,50 @@ governs: ["src/sync/**", "src/graph/store.ts#Neo4jGraphStore"]
     if (!result?.ok) throw new Error('expected ok');
     expect(result.doc.node.label).toBe('Blueprint');
     expect(result.doc.node.status).toBe('active');
-    expect(result.doc.governs).toEqual(['src/sync/**', 'src/graph/store.ts#Neo4jGraphStore']);
+    expect(result.doc.impactsPaths).toEqual(['src/sync/**', 'src/graph/store.ts#Neo4jGraphStore']);
     expect(result.doc.edges).toEqual([{ from: 'SDD-001', to: 'PRD-001', type: 'ARCHITECTS' }]);
+    expect(result.doc.deprecations).toEqual([]);
+  });
+
+  test('accepts the deprecated "governs" alias for impacts_paths and records a deprecation', () => {
+    const content = `---
+id: SDD-001
+type: SDD
+title: Arquitectura
+architects: [PRD-001]
+governs: ["src/sync/**"]
+---
+body
+`;
+    const result = parseDocument(content, 'docs/blueprints/SDD-001.md');
+    if (!result?.ok) throw new Error('expected ok');
+    expect(result.doc.impactsPaths).toEqual(['src/sync/**']);
+    expect(result.doc.frontmatter).toMatchObject({ impacts_paths: ['src/sync/**'] });
+    expect(result.doc.deprecations).toEqual([{ field: 'governs', replacement: 'impacts_paths' }]);
+  });
+
+  test('rejects frontmatter setting both "governs" and "impacts_paths"', () => {
+    const content = `---
+id: SDD-001
+type: SDD
+title: Arquitectura
+architects: [PRD-001]
+governs: ["src/sync/**"]
+impacts_paths: ["src/sync/**"]
+---
+body
+`;
+    const result = parseDocument(content, 'docs/blueprints/SDD-001.md');
+    expect(result).toMatchObject({ ok: false });
+    if (result?.ok === false) expect(result.error).toMatch(/governs.*impacts_paths/i);
+  });
+
+  test('accepts the deprecated WO "status: todo" alias for pending and records a deprecation', () => {
+    const content = `---\nid: WO-001\ntype: WO\ntitle: x\nstatus: todo\nimplements: [SDD-001]\n---\nbody\n`;
+    const result = parseDocument(content, 'x.md');
+    if (!result?.ok) throw new Error('expected ok');
+    expect(result.doc.node.status).toBe('pending');
+    expect(result.doc.deprecations).toEqual([{ field: 'status: todo', replacement: 'status: pending' }]);
   });
 
   test('parses a Work Order with assignment and implements', () => {
@@ -127,5 +169,58 @@ Objetivo
     expect(h(base)).toBe(h(statusChanged));
     expect(h(base)).not.toBe(h(bodyChanged));
     expect(h(base.replace('\n', '\r\n'))).toBe(h(base));
+  });
+
+  test('content hash is identical whether a blueprint/WO uses "governs" or "impacts_paths"', () => {
+    const hashOf = (content: string) => {
+      const r = parseDocument(content, 'x.md');
+      if (!r?.ok) throw new Error('expected ok');
+      return r.doc.node.contentHash;
+    };
+    const legacyBlueprint = `---\nid: SDD-001\ntype: SDD\ntitle: x\narchitects: [PRD-001]\ngoverns: ["src/a.ts"]\n---\nbody\n`;
+    const canonicalBlueprint = `---\nid: SDD-001\ntype: SDD\ntitle: x\narchitects: [PRD-001]\nimpacts_paths: ["src/a.ts"]\n---\nbody\n`;
+    expect(hashOf(legacyBlueprint)).toBe(hashOf(canonicalBlueprint));
+
+    const legacyWo = `---\nid: WO-001\ntype: WO\ntitle: x\nimplements: [SDD-001]\ngoverns: ["src/a.ts"]\n---\nbody\n`;
+    const canonicalWo = `---\nid: WO-001\ntype: WO\ntitle: x\nimplements: [SDD-001]\nimpacts_paths: ["src/a.ts"]\n---\nbody\n`;
+    expect(hashOf(legacyWo)).toBe(hashOf(canonicalWo));
+  });
+
+  test('a blueprint content hash excludes the ## Tareas section, but includeTasks reproduces the legacy hash', () => {
+    const withUncheckedTask = `---\nid: SDD-001\ntype: SDD\ntitle: x\narchitects: [PRD-001]\n---\ndesign\n\n## Tareas\n- [ ] uno\n`;
+    const withCheckedTask = `---\nid: SDD-001\ntype: SDD\ntitle: x\narchitects: [PRD-001]\n---\ndesign\n\n## Tareas\n- [x] uno\n`;
+    const withExtraTask = `---\nid: SDD-001\ntype: SDD\ntitle: x\narchitects: [PRD-001]\n---\ndesign\n\n## Tareas\n- [x] uno\n- [ ] dos\n`;
+
+    const parse = (content: string) => {
+      const r = parseDocument(content, 'x.md');
+      if (!r?.ok) throw new Error('expected ok');
+      return r.doc;
+    };
+    const unchecked = parse(withUncheckedTask);
+    const checked = parse(withCheckedTask);
+    const extraTask = parse(withExtraTask);
+
+    // Default hash (what's stored as node.contentHash) ignores the Tareas section entirely: checking off a task,
+    // or adding a new one, never invalidates a work order built against this blueprint.
+    expect(checked.node.contentHash).toBe(unchecked.node.contentHash);
+    expect(extraTask.node.contentHash).toBe(unchecked.node.contentHash);
+
+    // The legacy (pre-D9) hash, used by `prdm migrate docs` to match the old baseline, includes it and so
+    // does change with the checklist.
+    const legacyUnchecked = contentHash(unchecked.frontmatter, unchecked.node.body, { includeTasks: true });
+    const legacyChecked = contentHash(checked.frontmatter, checked.node.body, { includeTasks: true });
+    expect(legacyUnchecked).not.toBe(unchecked.node.contentHash);
+    expect(legacyUnchecked).not.toBe(legacyChecked);
+  });
+
+  test('a WO/feature content hash is unaffected by a ## Tareas section (D9 exclusion is blueprint-only)', () => {
+    const withoutTasks = `---\nid: WO-001\ntype: WO\ntitle: x\nimplements: [SDD-001]\n---\nbody\n`;
+    const withTasks = `---\nid: WO-001\ntype: WO\ntitle: x\nimplements: [SDD-001]\n---\nbody\n\n## Tareas\n- [ ] uno\n`;
+    const hashOf = (content: string) => {
+      const r = parseDocument(content, 'x.md');
+      if (!r?.ok) throw new Error('expected ok');
+      return r.doc.node.contentHash;
+    };
+    expect(hashOf(withTasks)).not.toBe(hashOf(withoutTasks));
   });
 });

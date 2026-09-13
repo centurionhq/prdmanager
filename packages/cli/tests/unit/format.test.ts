@@ -26,12 +26,12 @@ describe('formatIssues', () => {
   test('groups issues by kind and marks severity', () => {
     const issues: DriftIssue[] = [
       { kind: 'broken_link', severity: 'error', nodeId: 'FB-001', target: 'PRD-404', message: 'FB-001 links to missing PRD-404' },
-      { kind: 'governs_warning', severity: 'warning', nodeId: 'SDD-001', message: 'no files matched src/x/**' },
+      { kind: 'impacts_warning', severity: 'warning', nodeId: 'SDD-001', message: 'no files matched src/x/**' },
     ];
     const text = formatIssues(issues);
     expect(text).toContain('broken_link:');
     expect(text).toContain('✗ FB-001 -> PRD-404: FB-001 links to missing PRD-404');
-    expect(text).toContain('governs_warning:');
+    expect(text).toContain('impacts_warning:');
     expect(text).toContain('⚠ SDD-001: no files matched src/x/**');
   });
 });

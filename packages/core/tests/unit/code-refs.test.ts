@@ -190,7 +190,15 @@ describe('resolveGoverned', () => {
       { key: 'src/gone.ts', path: 'src/gone.ts', symbol: null, hash: null },
       { key: 'src/sync/a.ts#nope', path: 'src/sync/a.ts', symbol: 'nope', hash: null },
     ]);
-    expect(warnings).toEqual(['governs pattern "src/nothing/**" matches no files']);
+    expect(warnings).toEqual(['impacts_paths pattern "src/nothing/**" matches no files']);
+  });
+
+  test('excludes files that belong to a nested project', async () => {
+    root = makeTmpDir();
+    writeFiles(root, { 'src/a.ts': 'a', 'src/sub/.prdm.yaml': 'version: 1', 'src/sub/b.ts': 'b' });
+    const { refs, warnings } = await resolveGoverned(root, ['src/**', 'src/sub/b.ts'], []);
+    expect(refs.map((r) => r.key)).toEqual(['src/a.ts']);
+    expect(warnings).toEqual(['impacts_paths pattern "src/sub/b.ts" belongs to nested project "src/sub"']);
   });
 
   test('rejects patterns escaping the repository', async () => {

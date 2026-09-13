@@ -14,6 +14,7 @@ export * from './graph/migrations.js';
 export * from './graph/store.js';
 export * from './graph/tree.js';
 export * from './graph/types.js';
+export * from './migrate/docs.js';
 export * from './sync/baseline.js';
 export * from './sync/code-refs.js';
 export * from './sync/git.js';

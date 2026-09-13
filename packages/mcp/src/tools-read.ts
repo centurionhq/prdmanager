@@ -98,7 +98,7 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
     {
       title: 'List work orders',
       description:
-        'Lists Work Orders, optionally filtered by status (todo/in_progress/done/out_of_sync) and/or the Blueprint id they implement. Use this to find work to claim.',
+        'Lists Work Orders, optionally filtered by status (pending/in_progress/done/out_of_sync) and/or the Blueprint id they implement. Use this to find work to claim.',
       inputSchema: { status: z.enum(WORK_ORDER_STATUSES).optional(), blueprint_id: docId.optional() },
       annotations: { title: 'List work orders', ...READ_ONLY },
     },

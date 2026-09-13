@@ -2,9 +2,9 @@ import fg from 'fast-glob';
 import { ID_PATTERN, type ParsedDoc } from '../domain/schema.js';
 import { findNestedProjectRoots } from '../project/discover.js';
 import { safeReadFile } from '../util/safe-fs.js';
+import { parseDocument } from './frontmatter.js';
 
 const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
-import { parseDocument } from './frontmatter.js';
 
 export interface ScanError {
   path: string;
