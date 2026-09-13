@@ -32,7 +32,7 @@ PRD-004 pide un explorador local de solo lectura del Feature Tree y del drift, c
 
 ## Decisión
 
-Fastify 5.12.4, @fastify/static 10.1.3, zod 4.6.3 (ya en el repo), Vite 8.3.0, @vitejs/plugin-react 6.1.1, React/react-dom 19.3.0, cytoscape 3.34.3 con hook propio, @testing-library/react 16.3.3 + dom 10.4.1 + user-event 14.6.7, jsdom 27.4.0, @playwright/test 1.63.0, tipos `@types/react`/`@types/react-dom` 19.3.0 y `@types/cytoscape` 3.31.0. `engines.node` de `packages/web` es `>=20.19.0`.
+Fastify 5.12.4, @fastify/static 10.1.3, zod 4.6.3 (ya en el repo), Vite 8.3.0, @vitejs/plugin-react 6.1.1, React/react-dom 19.3.0, cytoscape 3.34.3 con hook propio, @testing-library/react 16.3.3 + dom 10.4.1 + user-event 14.6.7, jsdom 27.4.0, @playwright/test 1.63.0, tipos `@types/react`/`@types/react-dom` 19.3.0. `cytoscape` trae sus propios tipos (`index.d.ts`) — `@types/cytoscape` es un stub deprecado y no se instala. `engines.node` de `packages/web` es `>=20.19.0`.
 
 ## Consecuencias
 

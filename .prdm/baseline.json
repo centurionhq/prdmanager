@@ -4,7 +4,7 @@
     "ADR-001": "c0d7ee6938bb9201a7a6b909a77f2008d6968795fe4ec0bf896e0c48520b1d94",
     "ADR-002": "ba64e6c51d8decb778f03ee4337a5e2692dc53df73c2ff18ef7792d925ca3406",
     "ADR-003": "dd2039f39faa895c135e2facaf104cf3d783ab33342850a0079292b025a3afc8",
-    "ADR-004": "e67349de64062c569bdc4b47e2b3b479da6f923e1f8a10cc0474761f2ea2f168",
+    "ADR-004": "70627f90fe199649864a277dc7e7495497939a0cb877904eafbe496bedcd7645",
     "ART-001": "a8a0dd4289fca521c94cd26671bfe7587a8e8b174e66c9f88a9389dff1aba5da",
     "ART-002": "3f4d2e8ae6674fd11b666b5ee47fddc9ad8760fe186fe508b24eac84935f0267",
     "ART-003": "44a7d9b71334a2643a37da45354189d86841a582008d28385681e2fca971e268",
@@ -114,12 +114,12 @@
       "scripts/validate-graph-model.mjs": "69e3cebb068a1e67c659eec44ab07863cae026ef70727719de84029711c20614"
     },
     "ADR-003": {
-      ".gitignore": "5b4ffa0bbd61c560a9a3fe0db0121c3c4233e1d6b0114ff75e2fe458a6c2b687",
+      ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
       "packages/core/package.json": "96cfe78f9648aaf76759dccb1e99f60371693489fe8fbf1c942e4bc941b7e58f"
     },
     "ADR-004": {
-      "packages/web/package.json": null,
-      "packages/web/vite.config.ts": null
+      "packages/web/package.json": "404e4772f9b1679de7881ade1676b3b76f48df1e218237b6f7b0b49d687000cb",
+      "packages/web/vite.config.ts": "bafbe6bc381c457a48b6ea79ed4e73f487b0d01de1493a587c2ae1a83245baf7"
     },
     "SDD-001": {
       "packages/cli/src/commands/artifacts.ts": "9c2b3bb39b25ce062b110fde851de2395fa0c362f6dfe84da89efa8044f2f6d7",
@@ -196,7 +196,7 @@
     },
     "SDD-002": {
       ".github/workflows/prdm-sync.yml": "e01ccaa5b88938783a117728f8821fef9d16f33353a43ce1ff35437495c9321a",
-      "package.json": "f3d2ad6281b811c0eb03659f615636f40edfe07d0aed17cb91ec6683aaf6889b",
+      "package.json": "ed8ec4c73e47bb97ba3c07a16fddc346140f39403fac7627785748c9e8690dfe",
       "packages/cli/package.json": "c301862285d9e9ee57b527182c124d5dc264106590fc2b8d5d00694d838e11a4",
       "packages/cli/src/commands/artifacts.ts": "9c2b3bb39b25ce062b110fde851de2395fa0c362f6dfe84da89efa8044f2f6d7",
       "packages/cli/src/commands/check.ts": "1b386dd8f01dd83fcfd702b20494e9d7f9815d62507599eff654876b5d0222dc",
@@ -301,13 +301,18 @@
       "packages/testkit/src/fixture.ts": "5649facc1b52770e1058907b4f7443bedf41d9f465333366222a5599bcea9088",
       "packages/testkit/src/index.ts": "1a0cd1a12858e128c2569ad20dfc7f4d7ffdf8f7c0437f12aedcbf60748883aa",
       "packages/testkit/src/tmp.ts": "d7ddf9b3063acc3aa77c390525bd684b6a2db00cd1a07f2d622b95e6c969bbfa",
+      "packages/web/package.json": "404e4772f9b1679de7881ade1676b3b76f48df1e218237b6f7b0b49d687000cb",
+      "packages/web/tsconfig.client.json": "76d5af925065e8a2f9c1d2a80797e87c650e45faa7efe3ad4b5a919d421f2332",
+      "packages/web/tsconfig.json": "e345db300a00446e2ac57f0b1128576d0ec132873b05049ecefb8663346dc9b4",
+      "packages/web/tsconfig.server.json": "a6a64bb73e91813583c363a768f64bfc6c28bfaecfd219d1bd4bff6bdbad9a38",
+      "packages/web/tsconfig.test-client.json": "c2387a60a63ad1703cc89302754d4ee4e95f1911eaff5c8f63c4529faded6ad6",
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957",
-      "tsconfig.json": "70d76290a35d4efd291c5b611ef617293908669c05df05dcd706c4d42418fdb6",
-      "tsconfig.test.json": "5d985bb1b04fb4e320fdf2bd2af722ad28c1b4dcc2a7bee3627647d6aebbd5bc",
-      "vitest.config.ts": "37bd226ef96da3567783b3db13e482278a056697495793ef1e54c575321f8009"
+      "tsconfig.json": "8a21dc4844e7b5eb4e0092c70cb7756fef7dd6159a32b802056a1bf6d4ed9357",
+      "tsconfig.test.json": "1be400df0bb6c9ee9a36da1e11c76da76e037e876de643945dc35d8121cff3bc",
+      "vitest.config.ts": "5c0ac4be26d80973e09e5cdb422add70f5488d3bab5a63513226d9ef4707c8c9"
     },
     "SDD-003": {
-      ".gitignore": "5b4ffa0bbd61c560a9a3fe0db0121c3c4233e1d6b0114ff75e2fe458a6c2b687",
+      ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
       "packages/core/src/authoring/draft-store.ts": "ed36752eb5d56155281e96943446b8a00ca117d86354778e159525ba7b203922",
       "packages/core/src/authoring/forbidden-fields.ts": "a140f0fd16e21e354c54582577039defaaed1cc2754b7a529796fcaf3e62e2e0",
       "packages/core/src/authoring/index.ts": "9c5875e344b0965746ad5346eb558171e7f11c499c2f79a4031c62615d5f6d98",
@@ -319,7 +324,7 @@
       "packages/mcp/src/tools-authoring.ts": "6b41df233597c6f5a9b9d79011fefa6545d7300d752ab8ff1e1be4c7a82fc681"
     },
     "SDD-004": {
-      ".gitignore": "5b4ffa0bbd61c560a9a3fe0db0121c3c4233e1d6b0114ff75e2fe458a6c2b687",
+      ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
       "packages/core/package.json": "96cfe78f9648aaf76759dccb1e99f60371693489fe8fbf1c942e4bc941b7e58f",
       "packages/core/src/engine.ts": "52b4ed5d5723fbd350bccbb2aa07d2490a79f661b9b98cdab2e5945f1cabff9c",
       "packages/core/src/index.ts": "93ecab43744b1345656f21c7c118226430c22bf838c4b52040f0dd5050faf2bd",
@@ -334,23 +339,29 @@
     "SDD-005": {
       ".env.example": "b6b95414a047b794de223fcacbbbb7da3048d49c30d699167057e8cfeb7052c2",
       ".github/workflows/prdm-sync.yml": "e01ccaa5b88938783a117728f8821fef9d16f33353a43ce1ff35437495c9321a",
-      ".gitignore": "5b4ffa0bbd61c560a9a3fe0db0121c3c4233e1d6b0114ff75e2fe458a6c2b687",
+      ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
       "package-lock.json": "0bfa0ceaf76411dfc6076063d86d109dff5d3a22dceb3273b036c0c028ea094e",
-      "package.json": "f3d2ad6281b811c0eb03659f615636f40edfe07d0aed17cb91ec6683aaf6889b",
+      "package.json": "ed8ec4c73e47bb97ba3c07a16fddc346140f39403fac7627785748c9e8690dfe",
       "packages/testkit/src/db.ts": "8ad2463df8b3d8225a3c369795ff79b5eeddb599e67713a4624064063e75554f",
       "packages/testkit/src/docs.ts": "541007690fa52cf7e3b3c494461b241f9c0d2944a3b5ee780bca6f5b9c355c36",
       "packages/testkit/src/fixture.ts": "5649facc1b52770e1058907b4f7443bedf41d9f465333366222a5599bcea9088",
       "packages/testkit/src/index.ts": "1a0cd1a12858e128c2569ad20dfc7f4d7ffdf8f7c0437f12aedcbf60748883aa",
       "packages/testkit/src/tmp.ts": "d7ddf9b3063acc3aa77c390525bd684b6a2db00cd1a07f2d622b95e6c969bbfa",
       "packages/web/index.html": null,
-      "packages/web/package.json": null,
+      "packages/web/package.json": "404e4772f9b1679de7881ade1676b3b76f48df1e218237b6f7b0b49d687000cb",
       "packages/web/playwright.config.ts": null,
-      "packages/web/vite.config.ts": null,
+      "packages/web/src/client/main.tsx": "cc06c4a42990bd7eadae2d3781adb1e3860373cda57de65cc319a2b328f8e158",
+      "packages/web/src/server.ts": "7be3e1b42c0d356e7f9f1ebe68acc39f3e83a3dfe9acee236d4c1cf4374d966a",
+      "packages/web/tsconfig.client.json": "76d5af925065e8a2f9c1d2a80797e87c650e45faa7efe3ad4b5a919d421f2332",
+      "packages/web/tsconfig.json": "e345db300a00446e2ac57f0b1128576d0ec132873b05049ecefb8663346dc9b4",
+      "packages/web/tsconfig.server.json": "a6a64bb73e91813583c363a768f64bfc6c28bfaecfd219d1bd4bff6bdbad9a38",
+      "packages/web/tsconfig.test-client.json": "c2387a60a63ad1703cc89302754d4ee4e95f1911eaff5c8f63c4529faded6ad6",
+      "packages/web/vite.config.ts": "bafbe6bc381c457a48b6ea79ed4e73f487b0d01de1493a587c2ae1a83245baf7",
       "README.md": "ff272b8f02038f6089b346de5917d69e60bb2ebd106b04de495b464079f3ced2",
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957",
-      "tsconfig.json": "70d76290a35d4efd291c5b611ef617293908669c05df05dcd706c4d42418fdb6",
-      "tsconfig.test.json": "5d985bb1b04fb4e320fdf2bd2af722ad28c1b4dcc2a7bee3627647d6aebbd5bc",
-      "vitest.config.ts": "37bd226ef96da3567783b3db13e482278a056697495793ef1e54c575321f8009"
+      "tsconfig.json": "8a21dc4844e7b5eb4e0092c70cb7756fef7dd6159a32b802056a1bf6d4ed9357",
+      "tsconfig.test.json": "1be400df0bb6c9ee9a36da1e11c76da76e037e876de643945dc35d8121cff3bc",
+      "vitest.config.ts": "5c0ac4be26d80973e09e5cdb422add70f5488d3bab5a63513226d9ef4707c8c9"
     }
   }
 }
