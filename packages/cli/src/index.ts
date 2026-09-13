@@ -1,7 +1,8 @@
 #!/usr/bin/env node
+import { discoverProjectRoot } from '@prdm/core';
 import { runCli } from './program.js';
 
-const root = process.env.PRDM_ROOT ?? process.cwd();
+const root = discoverProjectRoot(process.cwd(), process.env);
 const deps = {
   root,
   stdout: (line: string) => process.stdout.write(`${line}\n`),

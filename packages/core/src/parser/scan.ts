@@ -1,5 +1,6 @@
 import fg from 'fast-glob';
 import { ID_PATTERN, type ParsedDoc } from '../domain/schema.js';
+import { findNestedProjectRoots } from '../project/discover.js';
 import { safeReadFile } from '../util/safe-fs.js';
 
 const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
@@ -31,8 +32,11 @@ function extractFrontmatterId(content: string): string | null {
   return null;
 }
 
+/** A subdirectory with its own `.prdm.yaml` is a separate project (SDD-002 "Proyecto activo") and is excluded here in full. */
 export async function scanDocuments(root: string, ignore: string[]): Promise<ScanResult> {
-  const files = (await fg.glob('**/*.md', { cwd: root, ignore, onlyFiles: true, dot: false, followSymbolicLinks: false })).sort();
+  const nestedRoots = await findNestedProjectRoots(root, ignore);
+  const effectiveIgnore = [...ignore, ...nestedRoots.map((rel) => `${rel}/**`)];
+  const files = (await fg.glob('**/*.md', { cwd: root, ignore: effectiveIgnore, onlyFiles: true, dot: false, followSymbolicLinks: false })).sort();
   const docs: ParsedDoc[] = [];
   const errors: ScanError[] = [];
   const ids: string[] = [];

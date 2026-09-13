@@ -45,7 +45,7 @@ export async function submitFeedback(engine: Engine, input: SubmitFeedbackInput)
       informs: triage.autoLinkTo,
     };
     const content = renderDocument(fields, `## Feedback\n\n${parsed.text}`);
-    const doc = await ops.createDocument(`${ops.config.docsDir}/feedback/${id}-${slug}.md`, content);
+    const doc = await ops.createDocument(`${ops.config.folders.FB}/${id}-${slug}.md`, content);
     await ops.refresh();
 
     return { id, path: doc.node.sourcePath, linkedTo: triage.autoLinkTo, reason: triage.reason, candidates: triage.candidates, proposal: triage.proposal };
@@ -96,7 +96,7 @@ export async function createFeatureRequest(engine: Engine, input: CreateFeatureR
       evolves_from: [parsed.parentId],
     };
     const content = renderDocument(fields, body);
-    const doc = await ops.createDocument(`${ops.config.docsDir}/features/${id}-${slug}.md`, content);
+    const doc = await ops.createDocument(`${ops.config.folders.FR}/${id}-${slug}.md`, content);
 
     if (feedback && parsed.feedbackId) {
       const existing = feedback.frontmatter.type === 'FB' ? feedback.frontmatter.informs : [];

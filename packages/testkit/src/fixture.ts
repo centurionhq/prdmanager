@@ -1,3 +1,12 @@
+import {
+  DEFAULT_AUTHORING,
+  DEFAULT_FOLDERS,
+  DEFAULT_GIT,
+  DEFAULT_LIFECYCLE,
+  generateProjectId,
+  renderProjectFile,
+  type ProjectFileSettings,
+} from '@prdm/core';
 import { commitAll, gitInit, makeTmpDir, writeFiles } from './tmp.js';
 
 export const FIXTURE_FILES: Record<string, string> = {
@@ -12,9 +21,28 @@ export const FIXTURE_FILES: Record<string, string> = {
   'src/sync/monitor.ts': 'export function detect() {\n  return 1;\n}\n',
 };
 
-export function createFixtureRepo(): string {
+export interface CreateFixtureRepoOptions {
+  /** Also writes a generated `.prdm.yaml` (WO-017) next to the legacy `prdm.config.json`, for tests exercising real project files; `loadConfig` prefers it over the JSON file. */
+  withProjectFile?: boolean;
+}
+
+function fixtureProjectFile(): ProjectFileSettings {
+  return {
+    project: { id: generateProjectId(), name: 'fixture' },
+    docsDir: 'docs',
+    folders: DEFAULT_FOLDERS,
+    ignore: [],
+    git: DEFAULT_GIT,
+    triage: { autoLinkMinScore: 0.5, autoLinkMargin: 1.05, maxCandidates: 5, minMatchedTerms: 2 },
+    lifecycle: DEFAULT_LIFECYCLE,
+    authoring: DEFAULT_AUTHORING,
+  };
+}
+
+export function createFixtureRepo(options: CreateFixtureRepoOptions = {}): string {
   const root = makeTmpDir('prdm-fixture-');
   writeFiles(root, FIXTURE_FILES);
+  if (options.withProjectFile) writeFiles(root, { '.prdm.yaml': renderProjectFile(fixtureProjectFile()) });
   gitInit(root);
   commitAll(root, 'chore: initial docs\n\nRefs: WO-001');
   return root;
