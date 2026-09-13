@@ -2,12 +2,14 @@
 id: "WO-030"
 type: "WO"
 title: "Wiring en el servidor MCP: DraftStore.open en el arranque y log de borradores recuperados"
-status: "pending"
+status: "in_progress"
 created_at: "2026-09-13"
 implements: ["SDD-003"]
 impacts_paths: ["packages/core/src/authoring/**","packages/mcp/src/server.ts","packages/core/src/scaffold/gitignore.ts",".gitignore"]
 source_task: "04ea26aaa76f9d9c"
 tags: ["core","resilience","draft-store","stateless-mcp"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-13T14:19:22.148Z"
 ---
 
 ## Objetivo

@@ -2,12 +2,14 @@
 id: "WO-031"
 type: "WO"
 title: ".gitignore de este repo y del que genera prdm init excluyen .prdm/drafts/"
-status: "pending"
+status: "in_progress"
 created_at: "2026-09-13"
 implements: ["SDD-003"]
 impacts_paths: ["packages/core/src/authoring/**","packages/mcp/src/server.ts","packages/core/src/scaffold/gitignore.ts",".gitignore"]
 source_task: "dc4efba32e3792fe"
 tags: ["core","resilience","draft-store","stateless-mcp"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-13T14:19:23.526Z"
 ---
 
 ## Objetivo
