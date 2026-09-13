@@ -13,12 +13,17 @@
     "packages/cli/tests/**/*.ts",
     "packages/mcp/src/**/*.ts",
     "packages/mcp/tests/**/*.ts",
+    "packages/contracts/src/**/*.ts",
+    "packages/contracts/tests/**/*.ts",
+    "packages/db/src/**/*.ts",
+    "packages/db/tests/**/*.ts",
     "packages/testkit/src/**/*.ts",
     "packages/web/src/**/*.ts",
     "packages/web/tests/unit/**/*.ts",
     "packages/web/tests/integration/**/*.ts",
     "packages/web/tests/e2e/**/*.ts",
     "packages/web/playwright.config.ts",
+    "packages/db/drizzle.config.ts",
     "vitest.config.ts"
   ],
   "exclude": ["packages/web/src/client/**"]

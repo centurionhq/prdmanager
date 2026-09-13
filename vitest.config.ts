@@ -5,6 +5,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@prdm/core': resolve(import.meta.dirname, 'packages/core/src/index.ts'),
+      '@prdm/contracts': resolve(import.meta.dirname, 'packages/contracts/src/index.ts'),
+      '@prdm/db': resolve(import.meta.dirname, 'packages/db/src/index.ts'),
       '@prdm/testkit': resolve(import.meta.dirname, 'packages/testkit/src/index.ts'),
     },
   },
