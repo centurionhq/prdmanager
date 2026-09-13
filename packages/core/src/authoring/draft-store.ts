@@ -24,7 +24,7 @@ const generateDraftId = (): string => `drf_${randomBytes(16).toString('base64url
 /** In-memory, per-process store of open drafts: sliding TTL, a cap on concurrent drafts and on each draft's size. */
 export class DraftStore {
   private readonly records = new Map<string, DraftRecord>();
-  private readonly tombstones = new Map<string, { result: CommitResult; expiresAt: number }>();
+  private readonly tombstones = new Map<string, { result: CommitResult; expiresAt: number; expectedRevision: number }>();
 
   constructor(
     private readonly limits: AuthoringSettings,
@@ -74,7 +74,8 @@ export class DraftStore {
     return record;
   }
 
-  openUpdate(targetId: string, doc: ParsedDoc, content: DraftContent): DraftRecord {
+  /** `baseHash` must be the sha256 of the target document's raw file bytes at this exact moment (see WO-023 finding 5), not its parsed `contentHash` (which deliberately ignores fields like `status`). */
+  openUpdate(targetId: string, doc: ParsedDoc, content: DraftContent, baseHash: string): DraftRecord {
     this.sweep();
     this.assertRoom();
     this.assertSize(content);
@@ -89,7 +90,7 @@ export class DraftStore {
       createdAt: now,
       expiresAt: now + this.ttlMs(),
       basePath: doc.node.sourcePath,
-      baseHash: doc.node.contentHash,
+      baseHash,
       baseFrontmatter: doc.frontmatter as unknown as Record<string, unknown>,
     };
     this.records.set(record.draftId, record);
@@ -133,13 +134,23 @@ export class DraftStore {
     return [...this.records.values()];
   }
 
-  /** Remembers a commit's result for the draft's remaining TTL so a retried commit is idempotent instead of erroring on "not found". */
-  tombstone(draftId: string, result: CommitResult): void {
-    this.tombstones.set(draftId, { result, expiresAt: this.now() + this.ttlMs() });
+  /** Remembers a commit's result for the draft's remaining TTL so a retried commit (same draftId + expectedRevision) is idempotent instead of erroring on "not found". */
+  tombstone(draftId: string, expectedRevision: number, result: CommitResult): void {
+    this.tombstones.set(draftId, { result, expectedRevision, expiresAt: this.now() + this.ttlMs() });
   }
 
-  getTombstone(draftId: string): CommitResult | undefined {
+  /**
+   * Returns the tombstoned result only when `expectedRevision` matches the one the commit actually succeeded
+   * with; a mismatch means the caller thinks it is replaying a commit it never made, so it must get an error,
+   * never a silently-returned result for the wrong revision (WO-023 finding 8).
+   */
+  getTombstone(draftId: string, expectedRevision: number): CommitResult | undefined {
     this.sweep();
-    return this.tombstones.get(draftId)?.result;
+    const entry = this.tombstones.get(draftId);
+    if (!entry) return undefined;
+    if (entry.expectedRevision !== expectedRevision) {
+      throw new Error(`draft ${draftId} revision mismatch: it was already committed at revision ${entry.expectedRevision}, not ${expectedRevision}`);
+    }
+    return entry.result;
   }
 }

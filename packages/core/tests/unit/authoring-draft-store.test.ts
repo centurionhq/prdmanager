@@ -50,14 +50,15 @@ describe('DraftStore', () => {
     expect(store.get(record.draftId)).toBeUndefined();
   });
 
-  test('openUpdate records the base path and content hash of the target document', () => {
+  test('openUpdate records the base path and the caller-supplied base hash of the target document', () => {
     const store = new DraftStore(LIMITS);
     const prdDoc = doc('id: PRD-001\ntype: PRD\ntitle: Product', 'body', 'docs/prd/PRD-001.md');
-    const record = store.openUpdate('PRD-001', prdDoc, { kind: 'PRD', title: 'Product v2', body: 'new body' });
+    const record = store.openUpdate('PRD-001', prdDoc, { kind: 'PRD', title: 'Product v2', body: 'new body' }, 'raw-bytes-sha256');
     expect(record.mode).toBe('update');
     expect(record.targetId).toBe('PRD-001');
     expect(record.basePath).toBe('docs/prd/PRD-001.md');
-    expect(record.baseHash).toBe(prdDoc.node.contentHash);
+    // WO-023 finding 5: baseHash is whatever the caller passed in (sha256 of raw file bytes), not the doc's parsed contentHash.
+    expect(record.baseHash).toBe('raw-bytes-sha256');
   });
 
   test('discard-equivalent remove() drops the draft', () => {
@@ -72,9 +73,17 @@ describe('DraftStore', () => {
     let now = 0;
     const store = new DraftStore({ draftTtlMinutes: 1, maxDrafts: 5, maxDraftBytes: 10_000 }, () => new Date(now));
     const result = { draftId: 'drf_x', id: 'FB-001', path: 'docs/feedback/FB-001.md', issues: [], hasBlockingIssues: false };
-    store.tombstone('drf_x', result);
-    expect(store.getTombstone('drf_x')).toEqual(result);
+    store.tombstone('drf_x', 0, result);
+    expect(store.getTombstone('drf_x', 0)).toEqual(result);
     now += 61_000;
-    expect(store.getTombstone('drf_x')).toBeUndefined();
+    expect(store.getTombstone('drf_x', 0)).toBeUndefined();
+  });
+
+  test('getTombstone throws (rather than silently replaying) when the expected revision does not match the one it actually committed at (WO-023 finding 8)', () => {
+    const store = new DraftStore(LIMITS);
+    const result = { draftId: 'drf_x', id: 'FB-001', path: 'docs/feedback/FB-001.md', issues: [], hasBlockingIssues: false };
+    store.tombstone('drf_x', 2, result);
+    expect(store.getTombstone('drf_x', 2)).toEqual(result);
+    expect(() => store.getTombstone('drf_x', 3)).toThrow(/revision mismatch/);
   });
 });

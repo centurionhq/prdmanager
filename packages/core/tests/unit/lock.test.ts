@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
@@ -80,6 +80,32 @@ describe('withRepoLock', () => {
       writeFileSync(join(root, LOCK_PATH), JSON.stringify(foreign));
     });
     expect(JSON.parse(readFileSync(join(root, LOCK_PATH), 'utf8')).token).toBe('foreign-token');
+  });
+
+  test('an unparsable/empty lock is held until its file mtime exceeds staleAfterMs, then becomes stealable (WO-023 finding 3)', async () => {
+    root = makeTmpDir();
+    mkdirSync(join(root, '.prdm'), { recursive: true });
+    writeFileSync(join(root, LOCK_PATH), ''); // empty: unparsable as JSON
+    const recentMtime = new Date();
+    utimesSync(join(root, LOCK_PATH), recentMtime, recentMtime);
+    await expect(withRepoLock(root, async () => 'never', { timeoutMs: 200, staleAfterMs: 100_000 })).rejects.toThrow(/another prdm process/);
+    expect(existsSync(join(root, LOCK_PATH))).toBe(true); // too fresh (by mtime) to break
+
+    const oldMtime = new Date(Date.now() - 10 * 60 * 1000);
+    utimesSync(join(root, LOCK_PATH), oldMtime, oldMtime);
+    expect(await withRepoLock(root, async () => 'ok', { timeoutMs: 1000, staleAfterMs: 100 })).toBe('ok');
+  });
+
+  test('a far-future heartbeat is never trusted; staleness falls back to the file mtime instead (WO-023 finding 3)', async () => {
+    root = makeTmpDir();
+    mkdirSync(join(root, '.prdm'), { recursive: true });
+    const farFuture = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    // pid must be alive (this process) so the dead-pid short-circuit doesn't mask what's under test: the far-future heartbeat itself must not be trusted.
+    writeFileSync(join(root, LOCK_PATH), JSON.stringify({ token: 'spoofed', pid: process.pid, host: hostname(), createdAt: new Date().toISOString(), heartbeatAt: farFuture }));
+    const oldMtime = new Date(Date.now() - 10 * 60 * 1000);
+    utimesSync(join(root, LOCK_PATH), oldMtime, oldMtime);
+
+    expect(await withRepoLock(root, async () => 'ok', { timeoutMs: 1000, staleAfterMs: 100 })).toBe('ok');
   });
 
   test('refreshes the heartbeat on disk while the section runs', async () => {

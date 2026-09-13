@@ -1,10 +1,12 @@
 import { z } from 'zod';
-import { DOC_KINDS, docId } from '../domain/schema.js';
+import { DOC_KINDS, docId, type ParsedDoc } from '../domain/schema.js';
 import type { Engine } from '../engine.js';
 import type { FieldValue } from '../parser/frontmatter-edit.js';
 import { scanDocuments, type ScanResult } from '../parser/scan.js';
+import { sha256 } from '../util/hash.js';
 import { nextId, renderDocument, slugify, todayIso } from '../util/ids.js';
-import { assertDraftableKind } from './forbidden-fields.js';
+import { safeReadFile } from '../util/safe-fs.js';
+import { assertDraftableKind, assertValidFieldKeys } from './forbidden-fields.js';
 import { DraftStore, type DraftRecord } from './draft-store.js';
 import { DraftValidationError, type CommitResult, type DraftContent, type DraftView } from './types.js';
 import { validateDraft, type ValidationOutcome } from './validate.js';
@@ -53,6 +55,7 @@ export class AuthoringService {
   async draft(input: DraftInput): Promise<DraftView> {
     const parsed = draftInputSchema.parse(input);
     assertDraftableKind(parsed.kind);
+    assertValidFieldKeys(parsed.fields);
     const content: DraftContent = { kind: parsed.kind, title: parsed.title, body: parsed.body, fields: parsed.fields as Record<string, FieldValue> | undefined };
 
     let record: DraftRecord;
@@ -81,24 +84,25 @@ export class AuthoringService {
 
   async commit(draftId: string, expectedRevision: number): Promise<CommitResult> {
     this.drafts.sweep();
-    const tombstoned = this.drafts.getTombstone(draftId);
+    const tombstoned = this.drafts.getTombstone(draftId, expectedRevision);
     if (tombstoned) return tombstoned;
 
     const record = this.drafts.get(draftId);
     if (!record) throw new Error(`draft ${draftId} not found`);
     if (record.revision !== expectedRevision) throw new Error(`draft ${draftId} revision mismatch: expected ${expectedRevision}, current is ${record.revision}`);
 
-    return this.engine.transaction(
+    const result = await this.engine.transaction(
       async (ops) => {
         this.drafts.sweep();
-        const replay = this.drafts.getTombstone(draftId);
+        const replay = this.drafts.getTombstone(draftId, expectedRevision);
         if (replay) return replay;
         const current = this.drafts.get(draftId);
         if (!current) throw new Error(`draft ${draftId} not found`);
         if (current.revision !== expectedRevision) throw new Error(`draft ${draftId} revision mismatch: expected ${expectedRevision}, current is ${current.revision}`);
 
         const scan = await ops.scan();
-        const outcome = validateDraft(current, { scan, grandfathered: ops.config.lifecycle.grandfathered });
+        const currentRawHash = await this.currentRawHash(ops.config.root, current, scan);
+        const outcome = validateDraft(current, { scan, grandfathered: ops.config.lifecycle.grandfathered, currentRawHash });
         if (outcome.issues.some((i) => i.severity === 'error')) throw new DraftValidationError(draftId, outcome.issues);
 
         const id = current.mode === 'create' ? nextId(current.kind, scan.ids) : current.targetId;
@@ -111,13 +115,17 @@ export class AuthoringService {
             : await ops.replaceDocument(id, renderDocument(fields, current.content.body));
 
         const report = await ops.refresh();
-        const result: CommitResult = { draftId, id, path: doc.node.sourcePath, issues: report.issues, hasBlockingIssues: report.hasBlockingIssues };
-        this.drafts.tombstone(draftId, result);
-        this.drafts.remove(draftId);
-        return result;
+        return { draftId, id, path: doc.node.sourcePath, issues: report.issues, hasBlockingIssues: report.hasBlockingIssues } satisfies CommitResult;
       },
       { atomic: true },
     );
+
+    // Only reached once the transaction has fully succeeded (its journal is already deleted): tombstoning any
+    // earlier, inside the still-running transaction, would record success before a later failure (e.g. the
+    // journal's own delete) triggers a rollback that contradicts it (WO-023 finding 8).
+    this.drafts.tombstone(draftId, expectedRevision, result);
+    this.drafts.remove(draftId);
+    return result;
   }
 
   private async openUpdateDraft(updateId: string, content: DraftContent): Promise<DraftRecord> {
@@ -126,14 +134,16 @@ export class AuthoringService {
     if (!doc) throw new Error(`document ${updateId} not found`);
     assertDraftableKind(doc.node.kind);
     if (doc.node.kind !== content.kind) throw new Error(`${updateId} is a ${doc.node.kind}, not a ${content.kind}`);
-    return this.drafts.openUpdate(updateId, doc, content);
+    const raw = await safeReadFile(this.engine.config.root, doc.node.sourcePath);
+    if (raw === null) throw new Error(`document ${updateId} no longer exists`);
+    return this.drafts.openUpdate(updateId, doc, content, sha256(raw));
   }
 
   private async buildView(draftId: string): Promise<DraftView> {
     const record = this.drafts.touch(draftId);
     if (!record) throw new Error(`draft ${draftId} not found`);
     const scan = await scanDocuments(this.engine.config.root, this.engine.config.ignore);
-    const outcome = this.runValidation(record, scan);
+    const outcome = await this.runValidation(record, scan);
     return {
       ...this.viewMetadata(record),
       rendered: outcome.rendered,
@@ -141,8 +151,18 @@ export class AuthoringService {
     };
   }
 
-  private runValidation(record: DraftRecord, scan: ScanResult): ValidationOutcome {
-    return validateDraft(record, { scan, grandfathered: this.engine.config.lifecycle.grandfathered });
+  private async runValidation(record: DraftRecord, scan: ScanResult): Promise<ValidationOutcome> {
+    const currentRawHash = await this.currentRawHash(this.engine.config.root, record, scan);
+    return validateDraft(record, { scan, grandfathered: this.engine.config.lifecycle.grandfathered, currentRawHash });
+  }
+
+  /** sha256 of the target document's raw file bytes right now; undefined for a create draft or an unreadable/missing target (WO-023 finding 5). */
+  private async currentRawHash(root: string, record: DraftRecord, scan: ScanResult): Promise<string | undefined> {
+    if (record.mode !== 'update') return undefined;
+    const current = scan.docs.find((d) => d.node.id === record.targetId) as ParsedDoc | undefined;
+    if (!current) return undefined;
+    const raw = await safeReadFile(root, current.node.sourcePath).catch(() => null);
+    return raw === null ? undefined : sha256(raw);
   }
 
   private viewMetadata(record: DraftRecord): Omit<DraftView, 'rendered' | 'validation'> {

@@ -29,10 +29,21 @@ export function todayIso(now: Date = new Date()): string {
   return now.toISOString().slice(0, 10);
 }
 
-/** Renders frontmatter with JSON-encoded values (valid YAML) followed by the markdown body. */
+/**
+ * Every frontmatter key must be a plain snake_case identifier. This is a security boundary, not just a style
+ * rule: a key containing e.g. a newline (`"tags: []\\nstatus"`) would otherwise let a single JS object entry
+ * render as two frontmatter lines, smuggling in an extra field that field-name-based checks (like
+ * `forbiddenFieldIssues`, which only inspects the keys it was given) never see (WO-023 finding 6).
+ */
+export const FIELD_KEY_PATTERN = /^[a-z][a-z0-9_]*$/;
+
+/** Renders frontmatter with JSON-encoded values (valid YAML) followed by the markdown body. Throws on any key that is not a plain snake_case identifier. */
 export function renderDocument(fields: Record<string, FieldValue | null | undefined>, body: string): string {
   const lines = Object.entries(fields)
     .filter((entry): entry is [string, FieldValue] => entry[1] !== undefined && entry[1] !== null)
-    .map(([key, value]) => `${key}: ${JSON.stringify(value)}`);
+    .map(([key, value]) => {
+      if (!FIELD_KEY_PATTERN.test(key)) throw new Error(`invalid frontmatter field key: ${JSON.stringify(key)}`);
+      return `${key}: ${JSON.stringify(value)}`;
+    });
   return `---\n${lines.join('\n')}\n---\n\n${body.trim()}\n`;
 }

@@ -1,3 +1,5 @@
+import { promises as fs } from 'node:fs';
+import { join } from 'node:path';
 import type { PrdmConfig } from './config.js';
 import type { ParsedDoc, WorkOrderStatus } from './domain/schema.js';
 import type { GraphStore } from './graph/types.js';
@@ -14,6 +16,7 @@ import {
   createJournal,
   deleteJournal,
   graphStaleMarkerExists,
+  JOURNAL_DIR,
   journalCreate,
   journalReplace,
   removeGraphStaleMarker,
@@ -51,6 +54,15 @@ export interface EngineOps {
   /** Replaces an existing document's entire content (frontmatter + body), rejecting a result whose id changed or no longer validates. */
   replaceDocument(id: string, content: string): Promise<ParsedDoc>;
   refresh(): Promise<RefreshReport>;
+  /** Read-only equivalent of `refresh()`: scans, detects drift and computes lifecycle issues without writing any status field, baseline or graph snapshot. */
+  inspect(): Promise<RefreshReport>;
+}
+
+export interface RecoverResult {
+  /** Whether anything was actually rolled back or refreshed; false when there was nothing pending. */
+  recovered: boolean;
+  /** Journals found but never touched because they failed HMAC authentication (planted or corrupted), or entries skipped during rollback. */
+  warnings: string[];
 }
 
 export interface TransactionOptions {
@@ -77,6 +89,7 @@ export class Engine {
       renameFrontmatterField: (id, oldKey, newKey) => this.renameFrontmatterField(id, oldKey, newKey),
       replaceDocument: (id, content) => this.replaceDocument(id, content),
       refresh: () => this.doRefresh(),
+      inspect: () => this.doInspect(),
     };
   }
 
@@ -89,27 +102,41 @@ export class Engine {
 
   private journaledWriter(token: string): FileWriter {
     return {
-      create: (rel, content) => journalCreate(this.config.root, token, rel, content),
+      create: (rel, content) => journalCreate(this.config.root, this.config.docsDir, token, rel, content),
       replace: async (rel, content) => {
         const original = await safeReadFile(this.config.root, rel);
         if (original === null) throw new Error(`document ${rel} no longer exists`);
-        await journalReplace(this.config.root, token, rel, original, content);
+        await journalReplace(this.config.root, this.config.docsDir, token, rel, original, content);
       },
     };
   }
 
-  /** Replays any journal left by a crashed process and, if the graph was left stale, refreshes it. Requires the repo lock. */
-  private async recoverLocked(): Promise<void> {
-    await replayOrphanJournals(this.config.root);
+  /** Replays any authenticated journal left behind and, if the graph was left stale, refreshes it. Requires the repo lock. */
+  private async recoverLocked(): Promise<RecoverResult> {
+    const { rolledBack, warnings } = await replayOrphanJournals(this.config.root, this.config.docsDir);
+    let refreshed = false;
     if (await graphStaleMarkerExists(this.config.root)) {
       await this.doRefresh();
       await removeGraphStaleMarker(this.config.root);
+      refreshed = true;
     }
+    return { recovered: rolledBack.length > 0 || refreshed, warnings };
   }
 
-  /** Public entry point for recovery outside of a transaction (e.g. a CLI `doctor` command); acquires the repo lock itself. */
-  recover(): Promise<void> {
+  /** Cheap to call on every read: only acquires the repo lock (and does any work) when a journal or stale marker is actually present. */
+  async recover(): Promise<RecoverResult> {
+    if (!(await this.hasPendingRecovery())) return { recovered: false, warnings: [] };
     return withRepoLock(this.config.root, () => this.recoverLocked());
+  }
+
+  private async hasPendingRecovery(): Promise<boolean> {
+    if (await graphStaleMarkerExists(this.config.root)) return true;
+    try {
+      const names = await fs.readdir(join(this.config.root, JOURNAL_DIR));
+      return names.some((n) => n.startsWith('journal-') && n.endsWith('.json'));
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -137,8 +164,14 @@ export class Engine {
       await deleteJournal(this.config.root, token);
       return result;
     } catch (err) {
-      await rollbackJournal(this.config.root, token);
-      await writeGraphStaleMarker(this.config.root);
+      // Written before attempting rollback: even if the rollback itself fails partway, the graph is already
+      // durably marked stale, so the next refresh never silently treats a half-written repo as in sync (WO-023 finding 4).
+      await writeGraphStaleMarker(this.config.root).catch(() => undefined);
+      try {
+        await rollbackJournal(this.config.root, this.config.docsDir, token);
+      } catch (rollbackErr) {
+        throw new AggregateError([err, rollbackErr], `transaction failed and its rollback also failed: ${(err as Error).message}`);
+      }
       throw err;
     } finally {
       this.writer = this.plainWriter();
@@ -147,6 +180,11 @@ export class Engine {
 
   refresh(): Promise<RefreshReport> {
     return this.transaction((ops) => ops.refresh());
+  }
+
+  /** Read-only equivalent of `refresh()`, safe to call without the repo lock (e.g. `closureReadiness`). */
+  inspect(): Promise<RefreshReport> {
+    return this.doInspect();
   }
 
   acknowledge(target: string): Promise<RefreshReport> {
@@ -175,6 +213,26 @@ export class Engine {
     const [commits, dirty, baseline] = await Promise.all([readCommits(root, gitMaxCommits), dirtyPaths(root), loadBaseline(root)]);
     // WO-019: wires PRD-002 §3 lifecycle checking into refresh (see sync/monitor.ts detectDrift).
     return { scan, input: { docs: scan.docs, governed, governWarnings, baseline, commits, dirty, lifecycle: this.config.lifecycle } };
+  }
+
+  /**
+   * Read-only: scans, detects drift and computes lifecycle issues but never writes a status field, a baseline
+   * or a graph snapshot (WO-023 finding 9 — `closureReadiness` must not mutate anything).
+   */
+  private async doInspect(): Promise<RefreshReport> {
+    const { scan, input } = await this.collect();
+    const drift = detectDrift(input);
+    const hashByKey = new Map([...input.governed].flatMap(([bp, refs]) => refs.map((r) => [`${bp}|${r.key}`, r.hash] as const)));
+    const governed = drift.governed.map((g) => ({ ...g, hash: hashByKey.get(`${g.blueprintId}|${g.key}`) ?? null }));
+    return {
+      documents: scan.docs.length,
+      errors: scan.errors,
+      issues: drift.issues,
+      governed,
+      workOrderUpdates: drift.workOrderUpdates,
+      baselineWritten: false,
+      hasBlockingIssues: scan.errors.length > 0 || drift.issues.some((i) => i.severity === 'error'),
+    };
   }
 
   private async doRefresh(): Promise<RefreshReport> {

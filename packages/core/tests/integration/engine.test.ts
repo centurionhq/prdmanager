@@ -1,4 +1,5 @@
-import { readFileSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { PrdmConfig } from '../../src/config.js';
@@ -6,7 +7,27 @@ import { Engine } from '../../src/engine.js';
 import type { Neo4jGraphDatabase } from '../../src/graph/database.js';
 import type { GraphStore } from '../../src/graph/types.js';
 import { buildForest, renderMermaid, renderText } from '../../src/graph/tree.js';
-import { commitAll, createFixtureRepo, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
+import { sha256 } from '../../src/util/hash.js';
+import { graphStaleMarkerExists, writeJournalForTest } from '../../src/util/journal.js';
+import { commitAll, createFixtureRepo, makeTmpDir, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
+
+// Isolate the journal HMAC key (WO-023 finding 1) from the developer's real ~/.config/prdm/journal.key.
+process.env.PRDM_JOURNAL_KEY_FILE ??= `${makeTmpDir('prdm-journal-key-')}/journal.key`;
+
+/** Spins up an isolated fixture repo + Engine + Neo4j test db for a single test, and always tears both down. */
+async function withEngine<T>(fn: (engine: Engine, root: string) => Promise<T>): Promise<T> {
+  const root = createFixtureRepo();
+  const config = testConfig(root);
+  const { db, store } = await openTestDb(config);
+  const engine = new Engine(config, store);
+  await engine.refresh();
+  try {
+    return await fn(engine, root);
+  } finally {
+    await db.close();
+    removeDir(root);
+  }
+}
 
 let root: string;
 let config: PrdmConfig;
@@ -136,5 +157,88 @@ describe('Engine + Neo4jGraphStore', () => {
     expect(metrics.commitsTotal).toBe(2);
     expect(metrics.commitsTraced).toBe(2);
     expect(metrics.workOrders).toEqual([{ id: 'WO-001', status: 'done', claimedAt: '2026-09-10T10:00:00.000Z', completedAt: '2026-09-10T14:00:00.000Z' }]);
+  });
+});
+
+describe('WO-023 hardening', () => {
+  test('finding 2: creating a document at a path that already exists (no frontmatter) fails and leaves the file untouched', async () => {
+    await withEngine(async (engine, root) => {
+      const collidePath = join(root, 'docs/collide.md');
+      writeFileSync(collidePath, 'not a prdm document, just some text\n');
+
+      await expect(
+        engine.transaction(async (ops) => {
+          await ops.createDocument('docs/collide.md', '---\nid: FB-900\ntype: FB\ntitle: x\nsource: email\nroot: true\n---\nbody\n');
+        }, { atomic: true }),
+      ).rejects.toThrow(/already exists/);
+
+      expect(readFileSync(collidePath, 'utf8')).toBe('not a prdm document, just some text\n');
+    });
+  });
+
+  test('finding 4: a rollback failure is surfaced as an AggregateError (preserving the original error) and still marks the graph stale', async () => {
+    if (process.getuid?.() === 0) return; // permission-based sabotage below has no effect when running as root
+    await withEngine(async (engine, root) => {
+      const mrdDir = join(root, 'docs/mrd');
+
+      let caught: unknown;
+      try {
+        await engine.transaction(async (ops) => {
+          await ops.updateDocument('MRD-001', { title: 'Renamed mid-flight' });
+          // Sabotage the journaled replace's rollback: the file's content still matches what we wrote (so
+          // the finding-2 hash guard lets it through), but its directory is no longer writable, so restoring
+          // the pre-image (which needs to create a temp file there first) genuinely fails.
+          chmodSync(mrdDir, 0o500);
+          throw new Error('boom: simulated failure after the write');
+        }, { atomic: true });
+      } catch (err) {
+        caught = err;
+      } finally {
+        chmodSync(mrdDir, 0o755);
+      }
+
+      expect(caught).toBeInstanceOf(AggregateError);
+      const agg = caught as AggregateError;
+      expect(agg.message).toContain('boom');
+      expect(agg.errors).toHaveLength(2);
+      expect((agg.errors[0] as Error).message).toContain('boom');
+      expect(await graphStaleMarkerExists(root)).toBe(true);
+    });
+  });
+
+  test('finding 10: engine.recover() is a cheap no-op (never touches the repo lock) when nothing is pending', async () => {
+    await withEngine(async (engine, root) => {
+      // Plant a fresh, non-stale lock: if recover() actually tried to acquire it, it would block for a long time.
+      mkdirSync(join(root, '.prdm'), { recursive: true });
+      const lockPath = join(root, '.prdm/engine.lock');
+      writeFileSync(lockPath, JSON.stringify({ pid: process.pid, host: 'unrelated-host', createdAt: new Date().toISOString() }));
+
+      const start = Date.now();
+      const result = await engine.recover();
+
+      expect(result).toEqual({ recovered: false, warnings: [] });
+      expect(Date.now() - start).toBeLessThan(2_000);
+      expect(existsSync(lockPath)).toBe(true); // untouched: recover() never attempted to acquire it
+    });
+  });
+
+  test('finding 10: engine.recover() rolls back a leftover authenticated journal and reports recovered: true', async () => {
+    await withEngine(async (engine, root) => {
+      const mrdPath = join(root, 'docs/mrd/MRD-001.md');
+      const original = readFileSync(mrdPath, 'utf8');
+      const token = 'leftover-for-recover';
+      await writeJournalForTest(root, {
+        owner: { token, pid: 2_147_483_000, host: hostname() },
+        entries: [{ path: 'docs/mrd/MRD-001.md', kind: 'replaced', sha256: sha256('mutated\n'), original: Buffer.from(original).toString('base64') }],
+      });
+      writeFileSync(mrdPath, 'mutated\n');
+
+      const result = await engine.recover();
+
+      expect(result.recovered).toBe(true);
+      expect(result.warnings).toEqual([]);
+      expect(readFileSync(mrdPath, 'utf8')).toBe(original);
+      expect(existsSync(join(root, `.prdm/journal-${token}.json`))).toBe(false);
+    });
   });
 });

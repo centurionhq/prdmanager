@@ -7,7 +7,10 @@ import type { GraphStore } from '../../src/graph/types.js';
 import { getWorkOrderContext } from '../../src/workorders/context.js';
 import { generateWorkOrders } from '../../src/workorders/generator.js';
 import { claimWorkOrder, completeWorkOrder } from '../../src/workorders/lifecycle.js';
-import { commitAll, createFixtureRepo, git, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
+import { commitAll, createFixtureRepo, git, makeTmpDir, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
+
+// Isolate the journal HMAC key (WO-023 finding 1) from the developer's real ~/.config/prdm/journal.key.
+process.env.PRDM_JOURNAL_KEY_FILE ??= `${makeTmpDir('prdm-journal-key-')}/journal.key`;
 
 let root: string;
 let config: PrdmConfig;
@@ -56,6 +59,24 @@ describe('Work Order Generator (F-04)', () => {
 
   test('rejects generating from a missing blueprint', async () => {
     await expect(generateWorkOrders(engine, 'SDD-404')).rejects.toThrow(/not found/i);
+  });
+
+  test('WO-023 finding 7: refuses to generate from a blueprint that fails its own lifecycle design rule (no impacts_paths)', async () => {
+    const bpRoot = createFixtureRepo();
+    const bpConfig = testConfig(bpRoot);
+    const { db: bpDb, store: bpStore } = await openTestDb(bpConfig);
+    const bpEngine = new Engine(bpConfig, bpStore);
+    await bpEngine.refresh();
+    try {
+      writeFiles(bpRoot, {
+        'docs/blueprints/SDD-002.md': '---\nid: SDD-002\ntype: SDD\ntitle: "Bad design"\narchitects: ["PRD-001"]\n---\ndesign\n\n## Tareas\n- [ ] Uno\n',
+      });
+      await bpEngine.refresh();
+      await expect(generateWorkOrders(bpEngine, 'SDD-002')).rejects.toThrow(/fails its lifecycle design rule/);
+    } finally {
+      await bpDb.close();
+      removeDir(bpRoot);
+    }
   });
 
   test('builds an agent-ready context bundle for a work order', async () => {
