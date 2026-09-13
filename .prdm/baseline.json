@@ -379,7 +379,7 @@
       "packages/web/src/client/components/TreeView.tsx": "2949d547f81b8989dd7d5703938f5bd6031d1cd3ade2fd6a841ed3f696789bca",
       "packages/web/src/client/components/WorkOrderList.module.css": "4ca92c0884fd4557683744cb134e14cbccf807d0e3d6b7e3858463ac8868f333",
       "packages/web/src/client/components/WorkOrderList.tsx": "05815ebe106a91833379a6c863256dbe3bfd9a7373f8af8c7237bbd8745cf066",
-      "packages/web/src/client/graph/apply-drift.ts": "b05d2b263f6017c48759b71883005ed2fe4c6f506f4d44d4931cc229b345e5b5",
+      "packages/web/src/client/graph/apply-drift.ts": "922b00c8abfd37baa1b671aba02235cc0cec36f3a7d869ef3940310dda019fda",
       "packages/web/src/client/graph/to-elements.ts": "ba4e4d42494d3bb34d1edc1bad4bc57e0b6a207161580da6fc3c44cf8e5af999",
       "packages/web/src/client/hooks/useCytoscape.ts": "1a58767d92de0d20fae6e29b16c67db813e066c446509e2554177006eea70d02",
       "packages/web/src/client/hooks/useGraphData.ts": "348d6d54613487f4374e9692dfb96698024272fae9bff0f27e283c6ab092f338",
