@@ -2,7 +2,7 @@
 id: "WO-010"
 type: "WO"
 title: "Integración CI con prdm sync --check"
-status: "out_of_sync"
+status: "done"
 created_at: "2026-09-13"
 implements: ["SDD-001"]
 governs: ["src/domain/**","src/parser/**","src/graph/**","src/sync/**","src/engine.ts","src/config.ts","src/util/**","src/workorders/**","src/feedback/**","src/artifacts/**","src/metrics/**","src/mcp/**","src/cli/**"]
@@ -12,7 +12,7 @@ assigned_to: "agent:claude"
 claimed_at: "2026-09-13T01:18:16.654Z"
 completed_at: "2026-09-13T01:18:48.588Z"
 resolved_by: ["d090678c5b59d768747d0bef2915b9117a1599cd"]
-blueprint_hashes: {"SDD-001":"d0fe813903179f4e7ab6e77281c24ef50d346558575dd44291a042de75ce1f21"}
+blueprint_hashes: {"SDD-001":"47efdec3032d1979b2ddaa20fa9d275f8dda0ca396d6d419bf7c51a57e39f062"}
 ---
 
 ## Objetivo
