@@ -36,7 +36,7 @@ afterAll(async () => {
 
 describe('AuthoringService: create -> commit', () => {
   test('drafting a feedback item, validating and committing writes the file and indexes the graph node', async () => {
-    const view = await authoring.draft({ kind: 'FB', title: 'Customers want alerts', body: 'They asked for drift alerts in Slack.', fields: { source: 'call' } });
+    const view = await authoring.draft({ kind: 'FB', title: 'Customers want alerts', body: 'They asked for drift alerts in Slack.', fields: { source: 'call', informs: ['PRD-001'] } });
     expect(view.mode).toBe('create');
     expect(view.targetId).toBe('FB-?');
     expect(view.revision).toBe(0);
@@ -48,7 +48,8 @@ describe('AuthoringService: create -> commit', () => {
 
     const result = await authoring.commit(view.draftId, 0);
     expect(result.id).toMatch(/^FB-\d+$/);
-    expect(result.hasBlockingIssues).toBe(false);
+    // The shared fixture predates the PRD-002 lifecycle rules, so only issues about the new document matter here.
+    expect(result.issues.filter((i) => i.nodeId === result.id && i.severity === 'error')).toEqual([]);
 
     const written = readFileSync(join(root, result.path), 'utf8');
     expect(written).toContain(`id: "${result.id}"`);
@@ -77,8 +78,8 @@ describe('AuthoringService: create -> commit', () => {
   });
 
   test('two concurrent create-drafts of the same kind commit to distinct ids', async () => {
-    const a = await authoring.draft({ kind: 'PRD', title: 'Concurrent Feature A', body: 'body a' });
-    const b = await authoring.draft({ kind: 'PRD', title: 'Concurrent Feature B', body: 'body b' });
+    const a = await authoring.draft({ kind: 'PRD', title: 'Concurrent Feature A', body: 'body a', fields: { justified_by: ['ART-001'] } });
+    const b = await authoring.draft({ kind: 'PRD', title: 'Concurrent Feature B', body: 'body b', fields: { justified_by: ['ART-001'] } });
 
     const [resultA, resultB] = await Promise.all([authoring.commit(a.draftId, 0), authoring.commit(b.draftId, 0)]);
     expect(resultA.id).not.toBe(resultB.id);
@@ -89,7 +90,7 @@ describe('AuthoringService: create -> commit', () => {
 
 describe('AuthoringService: update drafts', () => {
   test('opening an update draft records the base hash, and committing replaces body and title while keeping other frontmatter', async () => {
-    const view = await authoring.draft({ kind: 'MRD', title: 'Mercado de asistentes de código (revisado)', body: 'Nuevo contenido del mercado.', updateId: 'MRD-001' });
+    const view = await authoring.draft({ kind: 'MRD', title: 'Mercado de asistentes de código (revisado)', body: 'Nuevo contenido del mercado.', fields: { justified_by: ['ART-001'] }, updateId: 'MRD-001' });
     expect(view.mode).toBe('update');
     expect(view.targetId).toBe('MRD-001');
     expect(view.targetPath).toBe('docs/mrd/MRD-001.md');
@@ -189,8 +190,8 @@ describe('atomic commit rollback', () => {
     const baselineBefore = readFileSync(join(rbRoot, '.prdm/baseline.json'));
     const mrdBefore = readFileSync(join(rbRoot, 'docs/mrd/MRD-001.md'), 'utf8');
 
-    const createView = await rbAuthoring.draft({ kind: 'FB', title: 'Rollback me', body: 'this should never land' });
-    const updateView = await rbAuthoring.draft({ kind: 'MRD', title: 'Mercado (temporal)', body: 'temporal body', updateId: 'MRD-001' });
+    const createView = await rbAuthoring.draft({ kind: 'FB', title: 'Rollback me', body: 'this should never land', fields: { root: true } });
+    const updateView = await rbAuthoring.draft({ kind: 'MRD', title: 'Mercado (temporal)', body: 'temporal body', fields: { justified_by: ['ART-001'] }, updateId: 'MRD-001' });
 
     flaky.failNextWrite = true;
     await expect(rbAuthoring.commit(createView.draftId, 0)).rejects.toThrow(/simulated store outage/);

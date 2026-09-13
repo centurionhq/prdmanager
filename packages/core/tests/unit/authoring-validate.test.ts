@@ -5,6 +5,8 @@ import type { DraftContent } from '../../src/authoring/types.js';
 import type { ScanResult } from '../../src/parser/scan.js';
 import { doc, mrd, prd, sdd } from '@prdm/testkit';
 
+const art = () => doc('id: ART-001\ntype: ART\ntitle: Call notes\nprovides_context_for: [PRD-001]', 'notes');
+
 const emptyScan = (): ScanResult => ({ docs: [], errors: [], ids: [] });
 
 function makeRecord(content: DraftContent, overrides: Partial<DraftRecord> = {}): DraftRecord {
@@ -29,8 +31,8 @@ describe('validateDraft: schema', () => {
   });
 
   test('a well-formed draft has no issues', () => {
-    const record = makeRecord({ kind: 'FR', title: 'New capability', body: 'body', fields: { evolves_from: ['PRD-001'] } });
-    const outcome = validateDraft(record, { scan: { docs: [prd()], errors: [], ids: ['PRD-001'] }, grandfathered: [] });
+    const record = makeRecord({ kind: 'FR', title: 'New capability', body: 'body', fields: { evolves_from: ['PRD-001'], justified_by: ['ART-001'] } });
+    const outcome = validateDraft(record, { scan: { docs: [prd(), art()], errors: [], ids: ['PRD-001', 'ART-001'] }, grandfathered: [] });
     expect(outcome.issues).toEqual([]);
   });
 });
@@ -104,7 +106,7 @@ describe('validateDraft: forbidden fields', () => {
 
 describe('validateDraft: rendering', () => {
   test('shows a create draft id as the KIND-? placeholder, never the internal synthetic id', () => {
-    const record = makeRecord({ kind: 'FB', title: 'Customer feedback', body: 'body text' });
+    const record = makeRecord({ kind: 'FB', title: 'Customer feedback', body: 'body text', fields: { informs: ['PRD-001'] } });
     const outcome = validateDraft(record, { scan: emptyScan(), grandfathered: [] });
     expect(outcome.rendered).toContain('"FB-?"');
     expect(outcome.rendered).not.toMatch(/FB-0{9}/);

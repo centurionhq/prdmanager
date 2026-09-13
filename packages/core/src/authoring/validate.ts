@@ -1,5 +1,6 @@
-import type { DocRelType, NodeLabel, ParsedDoc } from '../domain/schema.js';
+import type { ParsedDoc } from '../domain/schema.js';
 import { checkLifecycle } from '../lifecycle/check.js';
+import { EXPECTED_TARGET } from '../sync/monitor.js';
 import type { FieldValue } from '../parser/frontmatter-edit.js';
 import { renderDocument } from '../util/ids.js';
 import { parseDocument } from '../parser/frontmatter.js';
@@ -9,16 +10,7 @@ import { forbiddenFieldIssues } from './forbidden-fields.js';
 import type { DraftRecord } from './draft-store.js';
 import type { DraftKind, ValidationIssue } from './types.js';
 
-/** Kept in sync with the private `EXPECTED_TARGET` in sync/monitor.ts (not exported there). */
-const EXPECTED_TARGET: Readonly<Record<DocRelType, NodeLabel>> = {
-  EVOLVES_FROM: 'Feature',
-  ARCHITECTS: 'Feature',
-  IMPLEMENTS: 'Blueprint',
-  PROVIDES_CONTEXT_FOR: 'Feature',
-  INFORMS: 'Feature',
-};
-
-const RELATION_FIELDS = ['implements', 'evolves_from', 'architects', 'provides_context_for', 'informs'] as const;
+const RELATION_FIELDS = ['implements', 'evolves_from', 'architects', 'provides_context_for', 'informs', 'justified_by'] as const;
 /** A reference to another still-open draft: either its opaque draft id, or the `KIND-?` placeholder shown for a create draft. */
 const DRAFT_REF_PATTERN = /^(drf_[A-Za-z0-9_-]+|[A-Z]+-\?)$/;
 
@@ -117,15 +109,15 @@ export function validateDraft(record: DraftRecord, ctx: ValidationContext): Vali
       issues.push({ severity: 'error', code: 'broken_link', field: edge.type, message: `${edge.type} links to missing ${edge.to}` });
       continue;
     }
-    if (target.node.label !== EXPECTED_TARGET[edge.type]) {
-      issues.push({ severity: 'error', code: 'invalid_link_target', field: edge.type, message: `${edge.type} must target a ${EXPECTED_TARGET[edge.type]}, got ${target.node.label} (${edge.to})` });
+    if (!EXPECTED_TARGET[edge.type].includes(target.node.label)) {
+      issues.push({ severity: 'error', code: 'invalid_link_target', field: edge.type, message: `${edge.type} must target a ${EXPECTED_TARGET[edge.type].join(' or ')}, got ${target.node.label} (${edge.to})` });
     }
   }
 
   const lifecycleIssues = checkLifecycle(overlaid, { grandfathered: ctx.grandfathered });
   for (const issue of lifecycleIssues) {
     if (issue.nodeId !== internalId && issue.nodeId !== record.targetId) continue;
-    issues.push({ severity: issue.severity, code: 'lifecycle', message: issue.message });
+    issues.push({ severity: issue.severity, code: 'lifecycle', message: issue.message.replaceAll(internalId, record.targetId) });
   }
 
   return { issues, rendered, targetPath, cleanFields: fields, internalId };

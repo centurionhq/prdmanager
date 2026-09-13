@@ -127,7 +127,7 @@ export async function attachArtifact(engine: Engine, input: AttachArtifactInput)
     await ops.refresh();
 
     return { id, path: doc.node.sourcePath, linkedTo: links, candidates };
-  });
+  }, { atomic: true });
 }
 
 const ingestArtifactFileSchema = z.object({

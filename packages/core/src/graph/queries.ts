@@ -96,7 +96,7 @@ export const BRANCH = `
 export const FULL_GRAPH = `
   CALL () { MATCH (n) WHERE (n:Node OR n:CodeRef OR n:Commit) AND n.project_id = $projectId RETURN collect(n) AS ns }
   CALL () {
-    MATCH (a)-[r:EVOLVES_FROM|ARCHITECTS|IMPLEMENTS|PROVIDES_CONTEXT_FOR|INFORMS|GOVERNED_BY|RESOLVES]->(b)
+    MATCH (a)-[r:EVOLVES_FROM|ARCHITECTS|IMPLEMENTS|PROVIDES_CONTEXT_FOR|INFORMS|JUSTIFIED_BY|GOVERNED_BY|RESOLVES]->(b)
     WHERE a.project_id = $projectId AND b.project_id = $projectId
     RETURN collect(r) AS rs
   }

@@ -49,7 +49,7 @@ export async function submitFeedback(engine: Engine, input: SubmitFeedbackInput)
     await ops.refresh();
 
     return { id, path: doc.node.sourcePath, linkedTo: triage.autoLinkTo, reason: triage.reason, candidates: triage.candidates, proposal: triage.proposal };
-  });
+  }, { atomic: true });
 }
 
 const createFeatureRequestSchema = z.object({
@@ -119,5 +119,5 @@ export async function createFeatureRequest(engine: Engine, input: CreateFeatureR
 
     await ops.refresh();
     return { id, path: doc.node.sourcePath, parentId: parsed.parentId, feedbackId: parsed.feedbackId ?? null, justifiedBy };
-  });
+  }, { atomic: true });
 }

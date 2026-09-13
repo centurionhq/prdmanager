@@ -1,6 +1,7 @@
 import { Command, CommanderError } from 'commander';
 import { Engine, loadConfig, Neo4jGraphDatabase, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
 import { register as registerArtifactCommands } from './commands/artifacts.js';
+import { register as registerCloseCommands } from './commands/close.js';
 import { register as registerDbCommands } from './commands/db.js';
 import { register as registerFeedbackCommands } from './commands/feedback.js';
 import { register as registerGraphCommands } from './commands/graph.js';
@@ -64,6 +65,7 @@ const REGISTRARS = [
   registerMetricsCommands,
   registerMigrateCommands,
   registerWorkOrderCommands,
+  registerCloseCommands,
   registerFeedbackCommands,
   registerArtifactCommands,
 ];

@@ -61,7 +61,7 @@ export interface DriftResult {
   baseline: Baseline;
 }
 
-const EXPECTED_TARGET: Readonly<Record<DocRelType, readonly NodeLabel[]>> = {
+export const EXPECTED_TARGET: Readonly<Record<DocRelType, readonly NodeLabel[]>> = {
   EVOLVES_FROM: ['Feature'],
   ARCHITECTS: ['Feature'],
   IMPLEMENTS: ['Blueprint'],
