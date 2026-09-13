@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { PrdmConfig } from '../../src/config.js';
 import { decideLinks, extractFeatureMentions, proposalTitle, triageText } from '../../src/feedback/triage.js';
 import type { GraphStore, NodeDetail, NodeView, SearchHit } from '../../src/graph/types.js';
+import { DEFAULT_AUTHORING, DEFAULT_FOLDERS, DEFAULT_GIT, DEFAULT_LIFECYCLE } from '../../src/project/types.js';
 
 const triage: PrdmConfig['triage'] = { autoLinkMinScore: 1.5, autoLinkMargin: 1.2, maxCandidates: 5, minMatchedTerms: 2 };
 
@@ -40,6 +41,11 @@ function fakeStore(overrides: Partial<FakeStore>): GraphStore {
 function fakeConfig(triageOverrides: Partial<PrdmConfig['triage']> = {}): PrdmConfig {
   return {
     root: '/repo',
+    project: { id: 'prj_0000000000000001', name: 'repo', root: '/repo' },
+    folders: DEFAULT_FOLDERS,
+    git: DEFAULT_GIT,
+    lifecycle: DEFAULT_LIFECYCLE,
+    authoring: DEFAULT_AUTHORING,
     docsDir: 'docs',
     ignore: [],
     gitMaxCommits: 500,

@@ -1,7 +1,19 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
 import { parse as parseDotenv } from 'dotenv';
 import { z } from 'zod';
+import {
+  DEFAULT_AUTHORING,
+  DEFAULT_FOLDERS,
+  DEFAULT_GIT,
+  DEFAULT_LIFECYCLE,
+  type AuthoringSettings,
+  type FolderMap,
+  type GitSettings,
+  type LifecycleSettings,
+  type ProjectRef,
+} from './project/types.js';
 
 const MANDATORY_IGNORE = ['node_modules/**', '.git/**', 'dist/**', 'coverage/**', '.docker/**', '.prdm/**'];
 
@@ -28,6 +40,11 @@ export interface Neo4jConfig {
 
 export interface PrdmConfig {
   root: string;
+  project: ProjectRef;
+  folders: FolderMap;
+  git: GitSettings;
+  lifecycle: LifecycleSettings;
+  authoring: AuthoringSettings;
   docsDir: string;
   ignore: string[];
   gitMaxCommits: number;
@@ -50,6 +67,11 @@ export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): 
 
   return {
     root: rootAbs,
+    project: legacyProject(rootAbs),
+    folders: DEFAULT_FOLDERS,
+    git: { ...DEFAULT_GIT, maxCommits: file.gitMaxCommits },
+    lifecycle: DEFAULT_LIFECYCLE,
+    authoring: DEFAULT_AUTHORING,
     docsDir: file.docsDir,
     ignore: [...new Set([...MANDATORY_IGNORE, ...file.ignore])],
     gitMaxCommits: file.gitMaxCommits,
@@ -61,6 +83,13 @@ export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): 
       database: get('NEO4J_DATABASE') ?? 'neo4j',
     },
   };
+}
+
+/** Interim identity for roots without .prdm.yaml (replaced by project discovery in WO-017): stable per checkout path. */
+function legacyProject(rootAbs: string): ProjectRef {
+  const root = existsSync(rootAbs) ? realpathSync(rootAbs) : rootAbs;
+  const id = `prj_${createHash('sha256').update(root).digest('hex').slice(0, 16)}`;
+  return { id, name: basename(root), root };
 }
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);

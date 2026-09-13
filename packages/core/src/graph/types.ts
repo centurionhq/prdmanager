@@ -1,6 +1,7 @@
 import type { NodeLabel, ParsedDoc } from '../domain/schema.js';
 import type { CommitInfo } from '../sync/git.js';
 import type { GovernedState } from '../sync/monitor.js';
+import type { ProjectRef } from '../project/types.js';
 
 export interface GraphSnapshot {
   docs: ParsedDoc[];
@@ -93,7 +94,43 @@ export interface MetricsRaw {
   workOrders: { id: string; status: string; claimedAt: string | null; completedAt: string | null }[];
 }
 
-/** Storage port: domain code depends on this, never on Cypher. */
+export interface ProjectRecord {
+  id: string;
+  name: string;
+  /** Realpath of the checkout that owns the partition (SDD-002 "Proyecto activo"). */
+  rootFingerprint: string;
+  updatedAt: string | null;
+  nodeCount: number;
+}
+
+export interface SchemaStatus {
+  /** Highest applied (:SchemaMigration) version, 0 when none. */
+  current: number;
+  /** Version this build of @prdm/core expects. */
+  expected: number;
+  pending: { version: number; name: string; destructive: boolean }[];
+}
+
+/**
+ * Database-level port (ADR-002 D1/D3): owns the driver, schema migrations and projects.
+ * Project-scoped reads/writes go through `forProject`, so no query can omit the project filter.
+ */
+export interface GraphDatabase {
+  verify(): Promise<void>;
+  schemaStatus(): Promise<SchemaStatus>;
+  /** Applies pending migrations, including destructive ones; only `prdm db migrate` may call this. */
+  migrate(): Promise<SchemaStatus>;
+  /** Throws unless schema is exactly at the expected version (clients refuse unknown or older schemas). */
+  assertSchemaCurrent(): Promise<void>;
+  forProject(project: ProjectRef): GraphStore;
+  listProjects(): Promise<ProjectRecord[]>;
+  /** Reassigns the partition fingerprint to `project.root` (e.g. after moving the checkout). */
+  claimProject(project: ProjectRef): Promise<void>;
+  dropProject(projectId: string): Promise<void>;
+  close(): Promise<void>;
+}
+
+/** Project-scoped storage port: domain code depends on this, never on Cypher. Target shape for WO-012 (verify/migrate/close move to GraphDatabase). */
 export interface GraphStore {
   verify(): Promise<void>;
   migrate(): Promise<void>;
