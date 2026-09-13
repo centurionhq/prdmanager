@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "neo4j-skills-marketplace": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/neo4j-contrib/neo4j-skills.git"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "neo4j-skills@neo4j-skills-marketplace": true
+  }
+}

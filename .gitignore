@@ -1,0 +1,7 @@
+node_modules/
+dist/
+coverage/
+.env
+.docker/
+*.log
+.claude/settings.local.json

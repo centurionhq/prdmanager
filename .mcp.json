@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "neo4j": {
+      "type": "stdio",
+      "command": "bash",
+      "args": ["scripts/mcp-neo4j.sh"]
+    },
+    "neo4j-data-modeling": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["mcp-neo4j-data-modeling@0.8.2", "--transport", "stdio"]
+    }
+  }
+}
