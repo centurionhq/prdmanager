@@ -1,7 +1,7 @@
-import { readFile } from 'node:fs/promises';
 import fg from 'fast-glob';
 import { normalizeText, sha256 } from '../util/hash.js';
 import { resolveInside } from '../util/paths.js';
+import { safeReadFile } from '../util/safe-fs.js';
 
 export interface CodeRefState {
   key: string;
@@ -39,21 +39,25 @@ export async function resolveGoverned(
 
     for (const path of files) {
       const key = symbol ? `${path}#${symbol}` : path;
-      if (!refs.has(key)) refs.set(key, { key, path, symbol, hash: await hashRef(root, path, symbol) });
+      if (refs.has(key)) continue;
+      const { hash, warning } = await hashRef(root, path, symbol);
+      if (warning) warnings.push(warning);
+      refs.set(key, { key, path, symbol, hash });
     }
   }
   return { refs: [...refs.values()], warnings };
 }
 
-async function hashRef(root: string, path: string, symbol: string | null): Promise<string | null> {
-  let content: string;
+async function hashRef(root: string, path: string, symbol: string | null): Promise<{ hash: string | null; warning?: string }> {
+  let content: string | null;
   try {
-    content = await readFile(resolveInside(root, path).abs, 'utf8');
-  } catch {
-    return null;
+    content = await safeReadFile(root, path);
+  } catch (err) {
+    return { hash: null, warning: `governed path "${path}" was not hashed: ${(err as Error).message}` };
   }
+  if (content === null) return { hash: null };
   const text = symbol ? extractSymbol(content, symbol, path) : normalizeText(content);
-  return text === null ? null : sha256(text);
+  return { hash: text === null ? null : sha256(text) };
 }
 
 /** Best-effort extraction of a declaration block (braces for TS/JS, indentation for Python); braces inside strings are not special-cased. */

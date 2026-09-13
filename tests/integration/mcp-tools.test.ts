@@ -10,7 +10,7 @@ import type { Neo4jGraphStore } from '../../src/graph/store.js';
 import { createPrdmServer } from '../../src/mcp/create.js';
 import { openTestStore, testConfig } from '../helpers/db.js';
 import { createFixtureRepo } from '../helpers/fixture.js';
-import { git, removeDir, writeFiles } from '../helpers/tmp.js';
+import { commitAll, git, removeDir, writeFiles } from '../helpers/tmp.js';
 
 const EXPECTED_TOOLS = [
   'get_node',
@@ -120,7 +120,7 @@ describe('prdm-graph MCP tools', () => {
     expect(context.blueprints.map((b: { id: string }) => b.id)).toEqual(['SDD-001']);
     expect(context.featureLineage.map((f: { id: string }) => f.id).sort()).toEqual(['MRD-001', 'PRD-001']);
 
-    const headSha = git(root, 'rev-parse', 'HEAD').trim();
+    const headSha = commitAll(root, 'feat: implement WO-002\n\nRefs: WO-002');
     const completed = json(await client.callTool({ name: 'complete_work_order', arguments: { id: 'WO-002', commit_sha: headSha } }));
     expect(completed).toMatchObject({ id: 'WO-002', status: 'done' });
 

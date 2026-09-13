@@ -1,5 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { safeReadFile, safeWriteFile } from '../util/safe-fs.js';
 import { z } from 'zod';
 
 export const BASELINE_PATH = '.prdm/baseline.json';
@@ -17,13 +16,8 @@ export function emptyBaseline(): Baseline {
 }
 
 export async function loadBaseline(root: string): Promise<Baseline> {
-  let raw: string;
-  try {
-    raw = await readFile(join(root, BASELINE_PATH), 'utf8');
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return emptyBaseline();
-    throw err;
-  }
+  const raw = await safeReadFile(root, BASELINE_PATH);
+  if (raw === null) return emptyBaseline();
   let json: unknown;
   try {
     json = JSON.parse(raw);
@@ -44,11 +38,8 @@ export function serializeBaseline(baseline: Baseline): string {
 
 /** Writes the baseline only when its serialized content changed, to avoid noisy diffs. */
 export async function saveBaseline(root: string, baseline: Baseline): Promise<boolean> {
-  const path = join(root, BASELINE_PATH);
   const next = serializeBaseline(baseline);
-  const current = await readFile(path, 'utf8').catch(() => null);
-  if (current === next) return false;
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, next);
+  if ((await safeReadFile(root, BASELINE_PATH)) === next) return false;
+  await safeWriteFile(root, BASELINE_PATH, next);
   return true;
 }

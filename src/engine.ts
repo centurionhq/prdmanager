@@ -1,5 +1,3 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import type { PrdmConfig } from './config.js';
 import type { ParsedDoc, WorkOrderStatus } from './domain/schema.js';
 import type { GraphStore } from './graph/types.js';
@@ -11,6 +9,7 @@ import { resolveGoverned, type CodeRefState } from './sync/code-refs.js';
 import { dirtyPaths, readCommits } from './sync/git.js';
 import { acknowledge, detectDrift, type DriftInput, type DriftIssue, type GovernedState, type WorkOrderUpdate } from './sync/monitor.js';
 import { resolveInside } from './util/paths.js';
+import { safeReadFile, safeWriteFile } from './util/safe-fs.js';
 
 export interface RefreshReport {
   documents: number;
@@ -113,7 +112,7 @@ export class Engine {
   }
 
   private async createDocument(relPath: string, content: string): Promise<ParsedDoc> {
-    const { abs, rel } = resolveInside(this.config.root, relPath);
+    const { rel } = resolveInside(this.config.root, relPath);
     const docsPrefix = `${resolveInside(this.config.root, this.config.docsDir).rel}/`;
     if (!rel.startsWith(docsPrefix) || !rel.endsWith('.md')) throw new Error(`documents must be created as .md files under ${docsPrefix}`);
     const parsed = parseDocument(content, rel);
@@ -121,8 +120,7 @@ export class Engine {
     if (!parsed.ok) throw new Error(`invalid document: ${parsed.error}`);
     const existing = await scanDocuments(this.config.root, this.config.ignore);
     if (existing.docs.some((d) => d.node.id === parsed.doc.node.id)) throw new Error(`document ${parsed.doc.node.id} already exists`);
-    await mkdir(dirname(abs), { recursive: true });
-    await writeFile(abs, content, { flag: 'wx' });
+    await safeWriteFile(this.config.root, rel, content, { exclusive: true });
     return parsed.doc;
   }
 
@@ -135,12 +133,13 @@ export class Engine {
 
   /** Rewrites frontmatter fields and rolls back if the result no longer validates. */
   private async writeFields(sourcePath: string, fields: Record<string, FieldValue>): Promise<ParsedDoc> {
-    const { abs, rel } = resolveInside(this.config.root, sourcePath);
-    const original = await readFile(abs, 'utf8');
+    const { rel } = resolveInside(this.config.root, sourcePath);
+    const original = await safeReadFile(this.config.root, rel);
+    if (original === null) throw new Error(`document ${rel} no longer exists`);
     const next = setFrontmatterFields(original, fields);
     const parsed = parseDocument(next, rel);
     if (!parsed?.ok) throw new Error(`update would invalidate ${rel}: ${parsed ? parsed.error : 'frontmatter lost'}`);
-    await writeFile(abs, next);
+    await safeWriteFile(this.config.root, rel, next);
     return parsed.doc;
   }
 }

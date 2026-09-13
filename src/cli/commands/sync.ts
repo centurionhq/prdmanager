@@ -7,6 +7,7 @@ import { CliError, messageOf } from '../errors.js';
 import { createDebouncedRunner } from '../scheduler.js';
 import { withContext, type CliDeps } from '../program.js';
 import { isGitRepo } from '../../sync/git.js';
+import { safeWriteFile } from '../../util/safe-fs.js';
 
 const DEFAULT_DEBOUNCE_MS = 300;
 const HOOK_SCRIPT = '#!/bin/sh\nnpm run --silent prdm -- sync || true\n';
@@ -59,7 +60,7 @@ async function runHooksInstall(deps: CliDeps, options: { force?: boolean }): Pro
   if (!(await isGitRepo(deps.root))) throw new CliError('not a git repository');
   const hookPath = join(deps.root, '.git', 'hooks', 'post-commit');
   if (existsSync(hookPath) && !options.force) throw new CliError(`hook already exists at ${hookPath} (use --force to overwrite)`);
-  await fsPromises.writeFile(hookPath, HOOK_SCRIPT);
+  await safeWriteFile(deps.root, '.git/hooks/post-commit', HOOK_SCRIPT);
   await fsPromises.chmod(hookPath, HOOK_MODE);
   deps.stdout(`installed ${hookPath}`);
 }

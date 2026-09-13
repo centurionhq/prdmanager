@@ -8,7 +8,7 @@ import { generateWorkOrders } from '../../src/workorders/generator.js';
 import { claimWorkOrder, completeWorkOrder } from '../../src/workorders/lifecycle.js';
 import { openTestStore, testConfig } from '../helpers/db.js';
 import { createFixtureRepo } from '../helpers/fixture.js';
-import { git, removeDir, writeFiles } from '../helpers/tmp.js';
+import { commitAll, git, removeDir, writeFiles } from '../helpers/tmp.js';
 
 let root: string;
 let config: PrdmConfig;
@@ -73,12 +73,16 @@ describe('Work Order Generator (F-04)', () => {
   });
 
   test('claiming and completing a work order records blueprint_hashes and clears drift', async () => {
-    const headSha = git(root, 'rev-parse', 'HEAD').trim();
-
     const claimed = await claimWorkOrder(engine, 'WO-002', 'agent:claude');
     expect(claimed).toMatchObject({ id: 'WO-002', status: 'in_progress', assignedTo: 'agent:claude' });
 
-    const completed = await completeWorkOrder(engine, 'WO-002', { commitSha: headSha });
+    const unrelatedSha = git(root, 'rev-parse', 'HEAD').trim();
+    await expect(completeWorkOrder(engine, 'WO-002', { commitSha: unrelatedSha })).rejects.toThrow(/does not reference WO-002/);
+    await expect(completeWorkOrder(engine, 'WO-002', { commitSha: 'deadbeefdeadbeef' })).rejects.toThrow(/not found/);
+
+    writeFiles(root, { 'src/sync/monitor.ts': 'export function detect() {\n  return 3;\n}\n' });
+    const headSha = commitAll(root, 'feat: hash code\n\nRefs: WO-002');
+    const completed = await completeWorkOrder(engine, 'WO-002', { commitSha: headSha.slice(0, 12) });
     expect(completed.status).toBe('done');
     expect(completed.resolvedBy).toContain(headSha);
     expect(completed.drift).toEqual([]);

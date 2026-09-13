@@ -7,7 +7,7 @@ import { Engine } from '../../src/engine.js';
 import type { Neo4jGraphStore } from '../../src/graph/store.js';
 import { openTestStore, testConfig } from '../helpers/db.js';
 import { createFixtureRepo } from '../helpers/fixture.js';
-import { removeDir, writeFiles } from '../helpers/tmp.js';
+import { commitAll, removeDir, writeFiles } from '../helpers/tmp.js';
 
 interface CliRunResult {
   code: number;
@@ -131,6 +131,7 @@ describe('prdm CLI: work orders, feedback, artifacts', () => {
   });
 
   test('wo complete --commit HEAD resolves the current commit and completes the work order', async () => {
+    commitAll(root, 'feat: implement WO-002\n\nRefs: WO-002');
     const { code, stdout } = await run(['wo', 'complete', 'WO-002', '--commit', 'HEAD']);
     expect(code).toBe(0);
     expect(stdout.join('\n')).toContain('WO-002: done');

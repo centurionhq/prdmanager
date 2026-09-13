@@ -18,7 +18,7 @@ export interface CommitInfo {
 
 async function git(root: string, args: string[]): Promise<string | null> {
   try {
-    const { stdout } = await run('git', args, { cwd: root, maxBuffer: MAX_BUFFER, encoding: 'utf8' });
+    const { stdout } = await run('git', ['-c', 'core.quotepath=false', ...args], { cwd: root, maxBuffer: MAX_BUFFER, encoding: 'utf8' });
     return stdout;
   } catch {
     return null;
@@ -27,6 +27,14 @@ async function git(root: string, args: string[]): Promise<string | null> {
 
 export async function isGitRepo(root: string): Promise<boolean> {
   return (await git(root, ['rev-parse', '--is-inside-work-tree']))?.trim() === 'true';
+}
+
+export async function readCommit(root: string, sha: string): Promise<CommitInfo | null> {
+  if (!/^[0-9a-f]{7,40}$/.test(sha)) return null;
+  const format = `${RECORD}%H${FIELD}%an${FIELD}%aI${FIELD}%s${FIELD}%B${FIELD}`;
+  const out = await git(root, ['log', '-1', '--name-only', '--no-renames', `--format=${format}`, `${sha}^{commit}`, '--']);
+  const chunk = out?.split(RECORD).find((c) => c.trim() !== '');
+  return chunk ? parseCommit(chunk) : null;
 }
 
 export async function readCommits(root: string, maxCount: number): Promise<CommitInfo[]> {
@@ -54,8 +62,10 @@ function parseCommit(chunk: string): CommitInfo {
 
 export function parseRefs(message: string): string[] {
   const refs = new Set<string>();
-  for (const match of message.matchAll(/^\s*Refs:\s*(.+)$/gim)) {
-    for (const token of (match[1] ?? '').split(/[\s,]+/)) {
+  for (const line of message.split('\n')) {
+    const trimmed = line.trimStart();
+    if (trimmed.slice(0, 5).toLowerCase() !== 'refs:') continue;
+    for (const token of trimmed.slice(5).split(/[\s,]+/)) {
       if (WO_ID.test(token)) refs.add(token);
     }
   }

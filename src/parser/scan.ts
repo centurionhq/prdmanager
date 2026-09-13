@@ -1,7 +1,8 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import fg from 'fast-glob';
 import type { ParsedDoc } from '../domain/schema.js';
+import { safeReadFile } from '../util/safe-fs.js';
+
+const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
 import { parseDocument } from './frontmatter.js';
 
 export interface ScanError {
@@ -21,7 +22,15 @@ export async function scanDocuments(root: string, ignore: string[]): Promise<Sca
   const seen = new Map<string, string>();
 
   for (const rel of files) {
-    const result = parseDocument(await readFile(join(root, rel), 'utf8'), rel);
+    let content: string | null;
+    try {
+      content = await safeReadFile(root, rel, { maxBytes: MAX_DOCUMENT_BYTES });
+    } catch (err) {
+      errors.push({ path: rel, error: (err as Error).message });
+      continue;
+    }
+    if (content === null) continue;
+    const result = parseDocument(content, rel);
     if (result === null) continue;
     if (!result.ok) {
       errors.push({ path: result.path, error: result.error });
