@@ -4,24 +4,26 @@ import { attachArtifact, ingestArtifactFile, MAX_ARTIFACT_BYTES } from '../../sr
 import type { PrdmConfig } from '../../src/config.js';
 import { Engine } from '../../src/engine.js';
 import { createFeatureRequest, submitFeedback } from '../../src/feedback/ingest.js';
-import type { Neo4jGraphStore } from '../../src/graph/store.js';
-import { createFixtureRepo, openTestStore, removeDir, testConfig, writeFiles } from '@prdm/testkit';
+import type { Neo4jGraphDatabase } from '../../src/graph/database.js';
+import type { GraphStore } from '../../src/graph/types.js';
+import { createFixtureRepo, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 
 let root: string;
 let config: PrdmConfig;
-let store: Neo4jGraphStore;
+let db: Neo4jGraphDatabase;
+let store: GraphStore;
 let engine: Engine;
 
 beforeAll(async () => {
   root = createFixtureRepo();
   config = testConfig(root);
-  store = await openTestStore(config);
+  ({ db, store } = await openTestDb(config));
   engine = new Engine(config, store);
   await engine.refresh();
 });
 
 afterAll(async () => {
-  await store?.close();
+  await db?.close();
   if (root) removeDir(root);
 });
 

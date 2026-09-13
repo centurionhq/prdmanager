@@ -1,17 +1,19 @@
 import { Command, CommanderError } from 'commander';
-import { Engine, loadConfig, Neo4jGraphStore, type GraphStore, type PrdmConfig } from '@prdm/core';
+import { Engine, loadConfig, Neo4jGraphDatabase, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
 import { register as registerArtifactCommands } from './commands/artifacts.js';
 import { register as registerDbCommands } from './commands/db.js';
 import { register as registerFeedbackCommands } from './commands/feedback.js';
 import { register as registerGraphCommands } from './commands/graph.js';
 import { register as registerMetricsCommands } from './commands/metrics.js';
 import { register as registerParserCommands } from './commands/parser.js';
+import { register as registerProjectCommands } from './commands/project.js';
 import { register as registerSyncCommands } from './commands/sync.js';
 import { register as registerWorkOrderCommands } from './commands/workorders.js';
 import { CliError, messageOf } from './errors.js';
 
 export interface CliContext {
   config: PrdmConfig;
+  db: GraphDatabase;
   store: GraphStore;
   engine: Engine;
   close(): Promise<void>;
@@ -26,19 +28,26 @@ export interface CliDeps {
 
 async function defaultOpenContext(root: string): Promise<CliContext> {
   const config = loadConfig(root);
-  const store = Neo4jGraphStore.connect(config.neo4j);
+  const db = Neo4jGraphDatabase.connect(config.neo4j);
+  const store = db.forProject(config.project);
   const engine = new Engine(config, store);
-  return { config, store, engine, close: () => store.close() };
+  return { config, db, store, engine, close: () => db.close() };
 }
 
 export function openContextFor(deps: CliDeps): (root: string) => Promise<CliContext> {
   return deps.openContext ?? defaultOpenContext;
 }
 
-/** Opens a CLI context, runs `fn`, and always closes it — commands should not manage lifecycle themselves. */
-export async function withContext<T>(deps: CliDeps, fn: (ctx: CliContext) => Promise<T>): Promise<T> {
+/**
+ * Opens a CLI context, runs `fn`, and always closes it — commands should not manage lifecycle themselves.
+ * Every command verifies the schema version first (ADR-002 D3: clients refuse to operate on an unknown or
+ * outdated schema) except the ones that manage the schema itself (`db migrate`, `db status`), which pass
+ * `requireSchema: false`.
+ */
+export async function withContext<T>(deps: CliDeps, fn: (ctx: CliContext) => Promise<T>, options: { requireSchema?: boolean } = {}): Promise<T> {
   const ctx = await openContextFor(deps)(deps.root);
   try {
+    if (options.requireSchema !== false) await ctx.db.assertSchemaCurrent();
     return await fn(ctx);
   } finally {
     await ctx.close();
@@ -47,6 +56,7 @@ export async function withContext<T>(deps: CliDeps, fn: (ctx: CliContext) => Pro
 
 const REGISTRARS = [
   registerDbCommands,
+  registerProjectCommands,
   registerParserCommands,
   registerGraphCommands,
   registerSyncCommands,

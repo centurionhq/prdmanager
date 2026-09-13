@@ -127,13 +127,18 @@ export interface GraphDatabase {
   /** Reassigns the partition fingerprint to `project.root` (e.g. after moving the checkout). */
   claimProject(project: ProjectRef): Promise<void>;
   dropProject(projectId: string): Promise<void>;
+  /** `prdm db doctor` (ADR-002 consequences): counts Node/CodeRef/Commit/Actor nodes missing `project_id` across every project. */
+  orphanCounts(): Promise<{ label: string; count: number }[]>;
   close(): Promise<void>;
 }
 
-/** Project-scoped storage port: domain code depends on this, never on Cypher. Target shape for WO-012 (verify/migrate/close move to GraphDatabase). */
+/**
+ * Project-scoped storage port: domain code depends on this, never on Cypher (ADR-002 D1).
+ * `verify`/`migrate`/`close` live on `GraphDatabase`: a scoped store shares the database's driver and has no
+ * independent connection lifecycle, so it cannot accidentally verify/migrate/close on behalf of the whole database.
+ */
 export interface GraphStore {
-  verify(): Promise<void>;
-  migrate(): Promise<void>;
+  /** Deletes only this project's partition (Node/CodeRef/Commit/Actor); the `(:Project)` node itself is kept so its root fingerprint survives a reset. */
   clear(): Promise<void>;
   writeSnapshot(snapshot: GraphSnapshot): Promise<void>;
   getNode(id: string): Promise<NodeDetail | null>;
@@ -143,5 +148,4 @@ export interface GraphStore {
   listWorkOrders(filter?: { status?: string; blueprint?: string }): Promise<WorkOrderSummary[]>;
   workOrderContext(id: string): Promise<WorkOrderContextRaw | null>;
   metricsRaw(): Promise<MetricsRaw>;
-  close(): Promise<void>;
 }

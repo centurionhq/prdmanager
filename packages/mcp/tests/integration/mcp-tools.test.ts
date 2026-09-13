@@ -4,8 +4,8 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { Engine, type Neo4jGraphStore, type PrdmConfig } from '@prdm/core';
-import { commitAll, createFixtureRepo, git, openTestStore, removeDir, testConfig, writeFiles } from '@prdm/testkit';
+import { Engine, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
+import { commitAll, createFixtureRepo, git, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 import { createPrdmServer } from '../../src/create.js';
 
 const EXPECTED_TOOLS = [
@@ -41,7 +41,8 @@ function json(result: unknown): any {
 
 let root: string;
 let config: PrdmConfig;
-let store: Neo4jGraphStore;
+let db: GraphDatabase;
+let store: GraphStore;
 let engine: Engine;
 let server: McpServer;
 let client: Client;
@@ -49,7 +50,7 @@ let client: Client;
 beforeAll(async () => {
   root = createFixtureRepo();
   config = testConfig(root);
-  store = await openTestStore(config);
+  ({ db, store } = await openTestDb(config));
   engine = new Engine(config, store);
   await engine.refresh();
 
@@ -62,7 +63,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await client?.close();
   await server?.close();
-  await store?.close();
+  await db?.close();
   if (root) removeDir(root);
 });
 

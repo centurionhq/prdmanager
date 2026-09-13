@@ -2,27 +2,29 @@ import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { PrdmConfig } from '../../src/config.js';
 import { Engine } from '../../src/engine.js';
-import type { Neo4jGraphStore } from '../../src/graph/store.js';
+import type { Neo4jGraphDatabase } from '../../src/graph/database.js';
+import type { GraphStore } from '../../src/graph/types.js';
 import { getWorkOrderContext } from '../../src/workorders/context.js';
 import { generateWorkOrders } from '../../src/workorders/generator.js';
 import { claimWorkOrder, completeWorkOrder } from '../../src/workorders/lifecycle.js';
-import { commitAll, createFixtureRepo, git, openTestStore, removeDir, testConfig, writeFiles } from '@prdm/testkit';
+import { commitAll, createFixtureRepo, git, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 
 let root: string;
 let config: PrdmConfig;
-let store: Neo4jGraphStore;
+let db: Neo4jGraphDatabase;
+let store: GraphStore;
 let engine: Engine;
 
 beforeAll(async () => {
   root = createFixtureRepo();
   config = testConfig(root);
-  store = await openTestStore(config);
+  ({ db, store } = await openTestDb(config));
   engine = new Engine(config, store);
   await engine.refresh();
 });
 
 afterAll(async () => {
-  await store?.close();
+  await db?.close();
   if (root) removeDir(root);
 });
 
@@ -122,7 +124,7 @@ describe('Work Order Generator — id allocation across invalid documents (bug r
   test('a newly generated id skips an id already used by a document that failed validation', async () => {
     const bugRoot = createFixtureRepo();
     const bugConfig = testConfig(bugRoot);
-    const bugStore = await openTestStore(bugConfig);
+    const { db: bugDb, store: bugStore } = await openTestDb(bugConfig);
     const bugEngine = new Engine(bugConfig, bugStore);
     await bugEngine.refresh();
 
@@ -137,7 +139,7 @@ describe('Work Order Generator — id allocation across invalid documents (bug r
       expect(result.created.map((c) => c.id)).toEqual(['WO-004', 'WO-005']);
       expect(result.report.errors.some((e) => e.path === 'docs/work-orders/WO-003.md')).toBe(true);
     } finally {
-      await bugStore.close();
+      await bugDb.close();
       removeDir(bugRoot);
     }
   });

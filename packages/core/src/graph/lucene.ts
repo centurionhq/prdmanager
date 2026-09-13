@@ -1,3 +1,5 @@
+import { PROJECT_ID_PATTERN } from '../project/types.js';
+
 const STOPWORDS = new Set(
   (
     'the and for with that this from are was were have has not but you your our can will into about ' +
@@ -22,4 +24,17 @@ export function extractQueryTerms(text: string): string[] {
 export function buildLuceneQuery(text: string): string | null {
   const terms = extractQueryTerms(text);
   return terms.length === 0 ? null : terms.join(' OR ');
+}
+
+/**
+ * Builds a `node_text_v2` query scoped to one project (ADR-002 D5): `project_id` is validated against the
+ * `prj_<16hex>` allowlist before it ever reaches the Lucene query string, and `prj_<16hex>` tokenizes as a single
+ * token under the standard analyzer, so no project can share a prefix with another. Returns null when the free
+ * text has no significant terms (nothing to search for, even within the project).
+ */
+export function buildScopedLuceneQuery(text: string, projectId: string): string | null {
+  if (!PROJECT_ID_PATTERN.test(projectId)) throw new Error(`invalid project id "${projectId}" (expected prj_ followed by 16 hex chars)`);
+  const terms = buildLuceneQuery(text);
+  if (!terms) return null;
+  return `+project_id:"${projectId}" +(${terms})`;
 }

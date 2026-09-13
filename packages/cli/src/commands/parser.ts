@@ -8,7 +8,6 @@ const LINT_ISSUE_KINDS: ReadonlySet<DriftIssue['kind']> = new Set(['broken_link'
 
 async function runIndex(deps: CliDeps): Promise<void> {
   await withContext(deps, async (ctx) => {
-    await ctx.store.migrate();
     const report = await ctx.engine.refresh();
     deps.stdout(formatRefreshReport(report));
   });
@@ -30,7 +29,7 @@ async function runLint(deps: CliDeps): Promise<void> {
 }
 
 export function register(program: Command, deps: CliDeps): void {
-  program.command('index').description('migrate the schema and reindex all documents into Neo4j').action(() => runIndex(deps));
+  program.command('index').description('reindex all documents into Neo4j (run `prdm db migrate` first if the schema is not current)').action(() => runIndex(deps));
 
   program.command('lint').description('scan documents and report broken or invalid links').action(() => runLint(deps));
 }
