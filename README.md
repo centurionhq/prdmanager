@@ -345,7 +345,7 @@ Si el contenido cambia (hash distinto), la exención se pierde. CI rechaza que l
 | `neo4j` | MCP oficial Neo4j v1.6.0 (`get-schema`, `read-cypher`). Script: `scripts/mcp-neo4j.sh` | Modo lectura forzada |
 | `neo4j-data-modeling` | Validación y export de modelo de grafo. Via `uvx` (mcp-neo4j-data-modeling@0.8.2) | Opcional |
 
-`prdm init --mcp` fusiona en `.mcp.json` del proyecto destino la entrada `"prdm-graph": { "type": "stdio", "command": "npx", "args": ["prdm-graph"] }` (idempotente; conserva otros servidores ya declarados).
+`prdm init --mcp` fusiona en `.mcp.json` del proyecto destino la entrada `"prdm-graph": { "type": "stdio", "command": "npx", "args": ["--no-install", "prdm-graph"] }` (idempotente; conserva otros servidores ya declarados).
 
 Cuando levantes Claude Code/MCP Client, pide aprobar servidores la primera vez. `claude mcp list` muestra estado.
 
