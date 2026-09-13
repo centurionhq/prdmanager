@@ -114,11 +114,13 @@ describe('withRepoLock', () => {
     await withRepoLock(
       root,
       async () => {
-        await sleep(20);
+        // Sleeps are wide relative to heartbeatMs so the assertion holds even under CI scheduler jitter of
+        // tens of milliseconds (a 20ms sleep left only one heartbeat write observable on a contended runner).
+        await sleep(100);
         seen.push(JSON.parse(readFileSync(join(root, LOCK_PATH), 'utf8')).heartbeatAt);
-        await sleep(20);
+        await sleep(100);
         seen.push(JSON.parse(readFileSync(join(root, LOCK_PATH), 'utf8')).heartbeatAt);
-        await sleep(20);
+        await sleep(100);
         seen.push(JSON.parse(readFileSync(join(root, LOCK_PATH), 'utf8')).heartbeatAt);
       },
       { heartbeatMs: 5 },
