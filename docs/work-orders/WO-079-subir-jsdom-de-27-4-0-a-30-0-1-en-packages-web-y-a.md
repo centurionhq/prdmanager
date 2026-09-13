@@ -2,12 +2,14 @@
 id: "WO-079"
 type: "WO"
 title: "Subir jsdom de 27.4.0 a 30.0.1 en packages/web y ajustar los tests de cliente que fallen"
-status: "pending"
+status: "in_progress"
 created_at: "2026-09-13"
 implements: ["ADR-005"]
 impacts_paths: [".nvm[r]c","package.json","package-lock.json","packages/*/package.json","tsconfig.base.json","packages/*/tsconfig*.json","packages/web/tests/**",".github/workflows/prdm-sync.yml","README.md"]
 source_task: "6a04374b2cf053c5"
 tags: ["architecture-decision","runtime","node"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-13T23:25:36.477Z"
 ---
 
 ## Objetivo
