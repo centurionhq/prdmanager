@@ -4,7 +4,7 @@
   "description": "prdm-graph MCP server exposing the Product & Context Graph Engine over stdio",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "bin": {
     "prdm-graph": "dist/server.js"

@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "workspaces": [
     "packages/*"
@@ -23,7 +23,7 @@
     "coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@types/node": "20.19.43",
+    "@types/node": "24.13.4",
     "@types/picomatch": "2.3.4",
     "@vitest/coverage-v8": "4.1.11",
     "tsx": "4.23.13",

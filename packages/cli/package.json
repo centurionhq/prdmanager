@@ -4,7 +4,7 @@
   "description": "prdm CLI: commands for the Product & Context Graph Engine",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "bin": {
     "prdm": "dist/index.js"
