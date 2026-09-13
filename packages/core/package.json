@@ -1,0 +1,28 @@
+{
+  "name": "@prdm/core",
+  "version": "0.2.0",
+  "description": "Product & Context Graph Engine core: domain, parser, graph, sync, work orders, feedback, artifacts and metrics",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "@prdm/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "dotenv": "17.4.2",
+    "fast-glob": "3.3.3",
+    "gray-matter": "4.0.3",
+    "neo4j-driver": "6.2.0",
+    "picomatch": "2.3.2",
+    "yaml": "2.9.1",
+    "zod": "4.6.3"
+  }
+}

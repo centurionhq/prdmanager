@@ -5,14 +5,14 @@ title: "Integración CI con prdm sync --check"
 status: "done"
 created_at: "2026-09-13"
 implements: ["SDD-001"]
-governs: ["src/domain/**","src/parser/**","src/graph/**","src/sync/**","src/engine.ts","src/config.ts","src/util/**","src/workorders/**","src/feedback/**","src/artifacts/**","src/metrics/**","src/mcp/**","src/cli/**"]
+impacts_paths: ["src/domain/**","src/parser/**","src/graph/**","src/sync/**","src/engine.ts","src/config.ts","src/util/**","src/workorders/**","src/feedback/**","src/artifacts/**","src/metrics/**","src/mcp/**","src/cli/**"]
 source_task: "de7ad31961aedae6"
 tags: ["architecture","neo4j","doc-as-code","mcp","product-management"]
 assigned_to: "agent:claude"
 claimed_at: "2026-09-13T01:18:16.654Z"
 completed_at: "2026-09-13T01:18:48.588Z"
 resolved_by: ["d090678c5b59d768747d0bef2915b9117a1599cd"]
-blueprint_hashes: {"SDD-001":"47efdec3032d1979b2ddaa20fa9d275f8dda0ca396d6d419bf7c51a57e39f062"}
+blueprint_hashes: {"SDD-001":"7499c0512bc3d4684195d17a0ec23a1ef2d4fa09e3a9d868bddff5500068e30b"}
 ---
 
 ## Objetivo

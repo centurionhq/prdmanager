@@ -13,7 +13,7 @@
     "prdm-graph": {
       "type": "stdio",
       "command": "npx",
-      "args": ["--no-install", "tsx", "src/mcp/server.ts"]
+      "args": ["--no-install", "tsx", "--conditions=@prdm/source", "packages/mcp/src/server.ts"]
     }
   }
 }

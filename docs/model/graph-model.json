@@ -1,180 +1,294 @@
 {
-  "name": "Product & Context Graph Engine",
-  "description": "Graph model for unified product, architecture, and code context",
+  "metadata": {
+    "name": "Product & Context Graph Engine",
+    "description": "Multi-project graph model (PRD-002/ADR-002): unified product, architecture, code and drift context, isolated per project inside a single Neo4j Community instance.",
+    "format": "mcp-neo4j-data-modeling DataModel (nodes/relationships/metadata); validated with mcp-neo4j-data-modeling@0.8.2 via scripts/validate-graph-model.mjs",
+    "sourceOfTruth": "packages/core/src/graph/migrations.ts (schema), packages/core/src/graph/queries.ts + store-write.ts + store-read.ts (shape), packages/core/src/domain/schema.ts + parser/frontmatter.ts (node/edge derivation)",
+    "schemaVersion": 2
+  },
   "nodes": [
     {
       "label": "Node",
-      "description": "Base entity for all document types",
-      "properties": {
-        "id": { "type": "String", "constraint": "UNIQUE", "required": true },
-        "title": { "type": "String", "required": true },
-        "body": { "type": "String" },
-        "status": { "type": "String" },
-        "tags": { "type": "String[]" },
-        "source_path": { "type": "String", "required": true },
-        "content_hash": { "type": "String", "required": true },
-        "baseline_hash": { "type": "String" },
-        "created_at": { "type": "String" },
-        "kind": { "type": "String", "required": true }
-      }
+      "description": "Base label carried by every document-derived node, always combined with exactly one subtype label (Feature|Blueprint|WorkOrder|Artifact|Feedback). The `node_project_id` composite constraint and the `node_text_v2` fulltext index are declared on this label, not on the subtypes.",
+      "key_property": { "name": "id", "type": "STRING", "description": "Document id, e.g. PRD-002 (matches ID_PATTERN ^(MRD|PRD|FR|SDD|ADR|WO|ART|FB)-\\d{3,9}$). Unique only in combination with project_id (see x-prdm.constraints.node_project_id) -- this tool has no composite-key concept." },
+      "properties": [
+        { "name": "ref", "type": "STRING", "description": "Always equal to id; the stable identifier returned to callers in search/branch/fullGraph/getNode/workOrderContext projections." },
+        { "name": "project_id", "type": "STRING", "description": "Required. prj_ + 16 hex chars (ADR-002 D6); isolates this project's partition. Validated against PROJECT_ID_PATTERN before it reaches the fulltext query (ADR-002 D5)." },
+        { "name": "kind", "type": "STRING", "description": "Required. One of MRD|PRD|FR|SDD|ADR|WO|ART|FB (DocKind)." },
+        { "name": "title", "type": "STRING", "description": "Required, 1-300 chars." },
+        { "name": "body", "type": "STRING", "description": "Required. Normalized markdown body with frontmatter stripped." },
+        { "name": "status", "type": "STRING", "description": "Required. Free string; default depends on label (draft/active/pending/new, see DEFAULT_STATUS). WorkOrder further constrains this to pending|in_progress|done|out_of_sync." },
+        { "name": "tags", "type": "LIST<STRING>", "description": "Required (defaults to []). Free-form tags from frontmatter." },
+        { "name": "tags_text", "type": "STRING", "description": "Required. tags.join(' '); exists only so tags participate in the node_text_v2 fulltext index (fulltext cannot index list properties directly)." },
+        { "name": "source_path", "type": "STRING", "description": "Required. Repo-relative path to the source markdown file." },
+        { "name": "created_at", "type": "STRING", "description": "Optional (null when absent). ISO date." },
+        { "name": "content_hash", "type": "STRING", "description": "Required. sha256 over a stable subset of frontmatter + body, excluding volatile fields and (for blueprints) the Tareas/Tasks section (ADR-002 D9)." }
+      ],
+      "metadata": { "abstractBase": true, "subtypeLabels": ["Feature", "Blueprint", "WorkOrder", "Artifact", "Feedback"] }
     },
     {
       "label": "Feature",
-      "description": "Product requirements: MRD, PRD, FR",
-      "inherits": ["Node"]
+      "description": "Product requirement: MRD, PRD or FR. Always also carries :Node. Default status: draft.",
+      "key_property": { "name": "id", "type": "STRING", "description": "Inherited from :Node; see Node.key_property." },
+      "properties": [
+        { "name": "justified_by", "type": "LIST<STRING>", "description": "Required (always present; defaults to [] when the frontmatter key is omitted). Explicit ids of Feedback/Artifact that justify this feature; merged with the reverse of INFORMS/PROVIDES_CONTEXT_FOR to build JUSTIFIED_BY (ADR-002 D17)." },
+        { "name": "closed_at", "type": "STRING", "description": "Optional (null when not closed). ISO datetime written by `prdm close` (ADR-002 D15)." },
+        { "name": "closed_by", "type": "STRING", "description": "Optional (null when not closed). Actor pattern agent:name | dev:name." }
+      ],
+      "metadata": { "baseLabel": "Node", "docKinds": ["MRD", "PRD", "FR"] }
     },
     {
       "label": "Blueprint",
-      "description": "Technical architecture: SDD, ADR",
-      "inherits": ["Node"],
-      "properties": {
-        "governs": { "type": "String[]" }
-      }
+      "description": "Technical architecture: SDD or ADR. Always also carries :Node. Default status: active.",
+      "key_property": { "name": "id", "type": "STRING", "description": "Inherited from :Node; see Node.key_property." },
+      "properties": [
+        { "name": "impacts_paths", "type": "LIST<STRING>", "description": "Required (defaults to []). Glob patterns this blueprint governs; drives CodeRef resolution and GOVERNED_BY. Legacy frontmatter alias `governs` is normalized to `impacts_paths` before parsing and hashed under the historical `governs` key (ADR-002 D9)." }
+      ],
+      "metadata": { "baseLabel": "Node", "docKinds": ["SDD", "ADR"] }
     },
     {
       "label": "WorkOrder",
-      "description": "Actionable task implementing blueprint",
-      "inherits": ["Node"],
-      "properties": {
-        "source_task": { "type": "String" },
-        "claimed_at": { "type": "String" },
-        "completed_at": { "type": "String" },
-        "blueprint_hashes": { "type": "Map<String,String>" }
+      "description": "Actionable task implementing one or more blueprints. Always also carries :Node. Default/initial status: pending; enum pending|in_progress|done|out_of_sync.",
+      "key_property": { "name": "id", "type": "STRING", "description": "Inherited from :Node; see Node.key_property." },
+      "properties": [
+        { "name": "assigned_to", "type": "STRING", "description": "Optional (null when unassigned). Actor pattern agent:name | dev:name; also drives the ASSIGNED_TO edge and the (:Actor) node." },
+        { "name": "claimed_at", "type": "STRING", "description": "Optional (null when not claimed). ISO datetime." },
+        { "name": "completed_at", "type": "STRING", "description": "Optional (null when not completed). ISO datetime." },
+        { "name": "resolved_by", "type": "LIST<STRING>", "description": "Required (defaults to []). Commit SHAs that closed this work order." },
+        { "name": "impacts_paths", "type": "LIST<STRING>", "description": "Required (defaults to []). Same shape as Blueprint.impacts_paths, scoped to this work order." },
+        { "name": "source_task", "type": "STRING", "description": "Optional (null when absent). Free-form provenance string, max 64 chars." }
+      ],
+      "metadata": {
+        "baseLabel": "Node",
+        "docKinds": ["WO"],
+        "note": "frontmatter.blueprint_hashes is NOT written to the graph (see x-prdm.discrepancies); it lives only in the markdown file and is read from disk by sync/monitor.ts."
       }
     },
     {
       "label": "Artifact",
-      "description": "Supporting context: meeting notes, email, call transcript",
-      "inherits": ["Node"],
-      "properties": {
-        "source": { "type": "String" }
-      }
+      "description": "Supporting context: meeting notes, email, call transcript, etc. Always also carries :Node. Default status: active.",
+      "key_property": { "name": "id", "type": "STRING", "description": "Inherited from :Node; see Node.key_property." },
+      "properties": [
+        { "name": "source", "type": "STRING", "description": "Required (defaults to 'other'). One of meeting|email|slack|call|doc|other." },
+        { "name": "root", "type": "BOOLEAN", "description": "Required (always present; defaults to false). Exempts this artifact from the 'must link a Feature' lifecycle rule (SDD-002 'Ciclo de vida')." }
+      ],
+      "metadata": { "baseLabel": "Node", "docKinds": ["ART"] }
     },
     {
       "label": "Feedback",
-      "description": "User feedback informing features",
-      "inherits": ["Node"],
-      "properties": {
-        "source": { "type": "String" },
-        "customer": { "type": "String" }
-      }
+      "description": "User feedback informing one or more features. Always also carries :Node. Default status: new.",
+      "key_property": { "name": "id", "type": "STRING", "description": "Inherited from :Node; see Node.key_property." },
+      "properties": [
+        { "name": "source", "type": "STRING", "description": "Required (defaults to 'other'). Free string, max 60 chars (looser than Artifact.source, no enum)." },
+        { "name": "customer", "type": "STRING", "description": "Optional (null when absent)." },
+        { "name": "root", "type": "BOOLEAN", "description": "Required (always present; defaults to false). Same lifecycle exemption as Artifact.root." }
+      ],
+      "metadata": { "baseLabel": "Node", "docKinds": ["FB"] }
     },
     {
       "label": "CodeRef",
-      "description": "Reference to code file or symbol",
-      "properties": {
-        "key": { "type": "String", "constraint": "UNIQUE", "required": true },
-        "path": { "type": "String", "required": true },
-        "symbol": { "type": "String" }
-      }
+      "description": "Reference to a code file or symbol resolved from a Blueprint/WorkOrder's impacts_paths globs. Derived data: fully rebuilt every writeSnapshot, never authored.",
+      "key_property": { "name": "key", "type": "STRING", "description": "Path (optionally path::symbol). Unique only in combination with project_id (see x-prdm.constraints.coderef_project_key)." },
+      "properties": [
+        { "name": "project_id", "type": "STRING", "description": "Required." },
+        { "name": "path", "type": "STRING", "description": "Required. Repo-relative file path." },
+        { "name": "symbol", "type": "STRING", "description": "Optional (null when the ref is file-level, not symbol-level)." },
+        { "name": "hash", "type": "STRING", "description": "Optional (null when the path could not be hashed, e.g. deleted file). Content hash used to detect code_changed drift." },
+        { "name": "ref", "type": "STRING", "description": "Required. Always 'code:' + key; stable identifier returned in query projections." }
+      ],
+      "metadata": {}
     },
     {
       "label": "Commit",
-      "description": "Git commit linking to work orders",
-      "properties": {
-        "sha": { "type": "String", "constraint": "UNIQUE", "required": true },
-        "message": { "type": "String" },
-        "author": { "type": "String" },
-        "committed_at": { "type": "String" }
-      }
+      "description": "Git commit that may resolve one or more work orders via a `Refs:` trailer. Derived data: fully rebuilt every writeSnapshot from `git log` (bounded by gitMaxCommits), never authored.",
+      "key_property": { "name": "sha", "type": "STRING", "description": "Full commit SHA (7-40 lowercase hex, SHA_PATTERN). Unique only in combination with project_id (see x-prdm.constraints.commit_project_sha)." },
+      "properties": [
+        { "name": "project_id", "type": "STRING", "description": "Required." },
+        { "name": "author", "type": "STRING", "description": "Required." },
+        { "name": "date", "type": "STRING", "description": "Required. ISO datetime of the commit." },
+        { "name": "subject", "type": "STRING", "description": "Required. Commit subject line (NOT 'message' -- corrected from the pre-multi-project doc)." },
+        { "name": "refs", "type": "LIST<STRING>", "description": "Required (defaults to []). Work order ids parsed from the commit's `Refs:` trailer; drives the RESOLVES edge." },
+        { "name": "files", "type": "LIST<STRING>", "description": "Required (defaults to []). Files touched by this commit." },
+        { "name": "ref", "type": "STRING", "description": "Required. Always 'commit:' + sha.slice(0,7); stable identifier returned in query projections." }
+      ],
+      "metadata": {}
     },
     {
       "label": "Actor",
-      "description": "Developer or AI agent",
-      "properties": {
-        "id": { "type": "String", "constraint": "UNIQUE", "required": true },
-        "kind": { "type": "String", "required": true }
-      }
+      "description": "Developer or AI agent a work order is assigned to. Derived data: (re)created from WorkOrder.assigned_to every writeSnapshot.",
+      "key_property": { "name": "id", "type": "STRING", "description": "ACTOR_PATTERN: agent:name | dev:name. Unique only in combination with project_id (see x-prdm.constraints.actor_project_id)." },
+      "properties": [
+        { "name": "project_id", "type": "STRING", "description": "Required." },
+        { "name": "kind", "type": "STRING", "description": "Required. ai_agent | developer, derived from the id's agent:/dev: prefix." },
+        { "name": "ref", "type": "STRING", "description": "Required. Always 'actor:' + id." },
+        { "name": "title", "type": "STRING", "description": "Required. Always equal to id." }
+      ],
+      "metadata": {}
+    },
+    {
+      "label": "Project",
+      "description": "One row per registered project/checkout partition (ADR-002 D2/D6). Not deleted by GraphStore.clear(); only prdm project drop removes it.",
+      "key_property": { "name": "id", "type": "STRING", "description": "prj_ + 16 hex chars, globally unique (bare uniqueness constraint, not composite)." },
+      "properties": [
+        { "name": "name", "type": "STRING", "description": "Required." },
+        { "name": "root_fingerprint", "type": "STRING", "description": "Required. Realpath of the checkout that currently owns this partition; a mismatch on writeSnapshot throws ProjectFingerprintMismatch unless `prdm project claim` reassigns it." },
+        { "name": "updated_at", "type": "STRING", "description": "Required. ISO datetime of the last writeSnapshot/claim." }
+      ],
+      "metadata": {}
+    },
+    {
+      "label": "SchemaMigration",
+      "description": "Bookkeeping row per applied migration (ADR-002 D3). Never deleted by any GraphStore/dropProject operation.",
+      "key_property": { "name": "version", "type": "INTEGER", "description": "Globally unique (bare uniqueness constraint, not composite; not project-scoped -- migrations apply once per database)." },
+      "properties": [
+        { "name": "name", "type": "STRING", "description": "Required. e.g. 'initial_schema', 'multi_project'." },
+        { "name": "checksum", "type": "STRING", "description": "Required. sha256 of the migration's statements; a mismatch with the running build's checksum is a hard error." },
+        { "name": "applied_at", "type": "STRING", "description": "Required. ISO datetime." }
+      ],
+      "metadata": {}
     }
   ],
   "relationships": [
     {
       "type": "EVOLVES_FROM",
-      "from": "Feature",
-      "to": "Feature",
-      "description": "Feature hierarchy and evolution",
-      "direction": "outgoing"
+      "start_node_label": "Feature",
+      "end_node_label": "Feature",
+      "properties": [],
+      "description": "Feature hierarchy/evolution. Built from the union of a Feature's own `implements` and `evolves_from` frontmatter ids (both collapse onto this single edge type)."
     },
     {
       "type": "ARCHITECTS",
-      "from": "Blueprint",
-      "to": "Feature",
-      "description": "Blueprint architects a feature",
-      "direction": "outgoing",
-      "properties": {
-        "review_needed": { "type": "Boolean" }
-      }
-    },
-    {
-      "type": "GOVERNED_BY",
-      "from": "CodeRef",
-      "to": "Blueprint",
-      "description": "Code governed by blueprint; tracks sync status",
-      "direction": "outgoing",
-      "properties": {
-        "status": { "type": "String" }
-      }
+      "start_node_label": "Blueprint",
+      "end_node_label": "Feature",
+      "properties": [
+        { "name": "review_needed", "type": "BOOLEAN", "description": "Always present (true/false, never absent). Set when the blueprint's content_hash diverges from the baseline the feature-side WorkOrders were built against." }
+      ],
+      "description": "Blueprint architects a feature."
     },
     {
       "type": "IMPLEMENTS",
-      "from": "WorkOrder",
-      "to": "Blueprint",
-      "description": "Work order implements blueprint",
-      "direction": "outgoing"
-    },
-    {
-      "type": "ASSIGNED_TO",
-      "from": "WorkOrder",
-      "to": "Actor",
-      "description": "Work order assigned to developer or AI agent",
-      "direction": "outgoing"
-    },
-    {
-      "type": "RESOLVES",
-      "from": "Commit",
-      "to": "WorkOrder",
-      "description": "Commit resolves work order",
-      "direction": "outgoing"
+      "start_node_label": "WorkOrder",
+      "end_node_label": "Blueprint",
+      "properties": [],
+      "description": "Work order implements one or more blueprints."
     },
     {
       "type": "PROVIDES_CONTEXT_FOR",
-      "from": "Artifact",
-      "to": "Feature",
-      "description": "Artifact provides context for feature",
-      "direction": "outgoing"
+      "start_node_label": "Artifact",
+      "end_node_label": "Feature",
+      "properties": [],
+      "description": "Artifact provides context for a feature; its reverse also feeds JUSTIFIED_BY."
     },
     {
       "type": "INFORMS",
-      "from": "Feedback",
-      "to": "Feature",
-      "description": "Feedback informs feature evolution",
-      "direction": "outgoing"
+      "start_node_label": "Feedback",
+      "end_node_label": "Feature",
+      "properties": [],
+      "description": "Feedback informs a feature's evolution; its reverse also feeds JUSTIFIED_BY."
+    },
+    {
+      "type": "JUSTIFIED_BY",
+      "start_node_label": "Feature",
+      "end_node_label": "Feedback",
+      "properties": [],
+      "description": "Derived from the reverse of INFORMS plus the feature's own explicit `justified_by` (ADR-002 D17). See also JUSTIFIED_BY (Feature -> Artifact)."
+    },
+    {
+      "type": "JUSTIFIED_BY",
+      "start_node_label": "Feature",
+      "end_node_label": "Artifact",
+      "properties": [],
+      "description": "Derived from the reverse of PROVIDES_CONTEXT_FOR plus the feature's own explicit `justified_by` (ADR-002 D17). See also JUSTIFIED_BY (Feature -> Feedback)."
+    },
+    {
+      "type": "GOVERNED_BY",
+      "start_node_label": "CodeRef",
+      "end_node_label": "Blueprint",
+      "properties": [
+        { "name": "status", "type": "STRING", "description": "Required. synced | out_of_sync." },
+        { "name": "reason", "type": "STRING", "description": "Required. One of unchanged|new|resolved_by_commit|code_changed|missing|blueprint_changed|feature_changed (GovernedReason)." }
+      ],
+      "description": "Code governed by a blueprint; tracks drift/sync status (ADR-002 D16 for cross-blueprint coverage rules)."
+    },
+    {
+      "type": "RESOLVES",
+      "start_node_label": "Commit",
+      "end_node_label": "WorkOrder",
+      "properties": [],
+      "description": "Commit resolves a work order via its `Refs:` trailer."
+    },
+    {
+      "type": "ASSIGNED_TO",
+      "start_node_label": "WorkOrder",
+      "end_node_label": "Actor",
+      "properties": [],
+      "description": "Work order assigned to a developer or AI agent."
+    },
+    {
+      "type": "BELONGS_TO",
+      "start_node_label": "Node",
+      "end_node_label": "Project",
+      "properties": [],
+      "description": "Every Feature|Blueprint|WorkOrder|Artifact|Feedback node belongs to exactly one Project (ADR-002 D2). Excluded from GET_NODE/workOrderContext link projections (it is infrastructure, not domain context)."
+    },
+    {
+      "type": "BELONGS_TO",
+      "start_node_label": "CodeRef",
+      "end_node_label": "Project",
+      "properties": [],
+      "description": "Same BELONGS_TO type as (Node)->(Project), for the CodeRef label."
+    },
+    {
+      "type": "BELONGS_TO",
+      "start_node_label": "Commit",
+      "end_node_label": "Project",
+      "properties": [],
+      "description": "Same BELONGS_TO type as (Node)->(Project), for the Commit label."
+    },
+    {
+      "type": "BELONGS_TO",
+      "start_node_label": "Actor",
+      "end_node_label": "Project",
+      "properties": [],
+      "description": "Same BELONGS_TO type as (Node)->(Project), for the Actor label."
     }
   ],
-  "indexes": [
-    {
-      "type": "FULLTEXT",
-      "name": "node_text",
-      "labels": ["Node"],
-      "properties": ["title", "body"]
-    },
-    {
-      "type": "RANGE",
-      "name": "node_status_idx",
-      "labels": ["Node"],
-      "properties": ["status"]
-    },
-    {
-      "type": "RANGE",
-      "name": "coderef_path_idx",
-      "labels": ["CodeRef"],
-      "properties": ["path"]
-    },
-    {
-      "type": "RANGE",
-      "name": "commit_sha_idx",
-      "labels": ["Commit"],
-      "properties": ["sha"]
-    }
-  ]
+  "x-prdm": {
+    "compositeKeyLimitation": "mcp-neo4j-data-modeling@0.8.2's Node.key_property accepts exactly one property, so it cannot express this schema's composite (project_id, <key>) uniqueness constraints. Every node above uses its natural key (id/key/sha/version) as key_property; the real constraint (bare or composite) is listed in x-prdm.constraints, sourced 1:1 from packages/core/src/graph/migrations.ts V2_STATEMENTS.",
+    "docKindToLabel": { "MRD": "Feature", "PRD": "Feature", "FR": "Feature", "SDD": "Blueprint", "ADR": "Blueprint", "WO": "WorkOrder", "ART": "Artifact", "FB": "Feedback" },
+    "migrations": [
+      { "version": 1, "name": "initial_schema", "destructive": false },
+      { "version": 2, "name": "multi_project", "destructive": true }
+    ],
+    "constraints": [
+      { "name": "schema_migration_version", "label": "SchemaMigration", "properties": ["version"], "kind": "UNIQUE" },
+      { "name": "project_id", "label": "Project", "properties": ["id"], "kind": "UNIQUE" },
+      { "name": "node_project_id", "label": "Node", "properties": ["project_id", "id"], "kind": "UNIQUE_COMPOSITE" },
+      { "name": "coderef_project_key", "label": "CodeRef", "properties": ["project_id", "key"], "kind": "UNIQUE_COMPOSITE" },
+      { "name": "commit_project_sha", "label": "Commit", "properties": ["project_id", "sha"], "kind": "UNIQUE_COMPOSITE" },
+      { "name": "actor_project_id", "label": "Actor", "properties": ["project_id", "id"], "kind": "UNIQUE_COMPOSITE" }
+    ],
+    "indexes": [
+      { "name": "node_project_id_idx", "type": "RANGE", "label": "Node", "properties": ["project_id"] },
+      { "name": "coderef_project_id_idx", "type": "RANGE", "label": "CodeRef", "properties": ["project_id"] },
+      { "name": "commit_project_id_idx", "type": "RANGE", "label": "Commit", "properties": ["project_id"] },
+      { "name": "actor_project_id_idx", "type": "RANGE", "label": "Actor", "properties": ["project_id"] },
+      { "name": "node_project_status", "type": "RANGE", "label": "Node", "properties": ["project_id", "status"] },
+      {
+        "name": "node_text_v2",
+        "type": "FULLTEXT",
+        "label": "Node",
+        "properties": ["title", "body", "tags_text", "project_id"],
+        "analyzer": "standard-no-stop-words",
+        "analyzerNote": "Not set explicitly by CREATE FULLTEXT INDEX in migrations.ts (no OPTIONS clause) -- this is Neo4j 2026.08.1's default fulltext analyzer, empirically confirmed via SHOW INDEXES in graph-model.test.ts. ADR-002 D5 documents 'standard-no-stop-words' as if configured; it is actually inherited from the server default. See x-prdm.discrepancies."
+      }
+    ],
+    "belongsToStartLabels": ["Node (Feature|Blueprint|WorkOrder|Artifact|Feedback)", "CodeRef", "Commit", "Actor"],
+    "justifiedByEndLabels": ["Feedback", "Artifact"],
+    "discrepancies": [
+      "ADR-002 D5 states the node_text_v2 fulltext index 'incluye project_id con standard-no-stop-words', implying the analyzer is configured. The actual migration statement (V2_STATEMENTS in migrations.ts) has no OPTIONS clause, so 'standard-no-stop-words' is Neo4j's server default, not an explicit setting; confirmed via SHOW INDEXES against Neo4j 2026.08.1 community. Not a functional bug (the default matches D5), but D5 would silently stop being true if Neo4j ever changes its default analyzer. Reported, not fixed (migrations.ts is read-only for this WO).",
+      "The pre-existing docs/model/graph-model.json (PRD-001-era) listed several graph properties that do not exist anywhere in code: Node.baseline_hash (baseline lives in a separate baseline.json file per project, per packages/core/src/sync/baseline.ts, never written to the graph) and WorkOrder.blueprint_hashes (a WO frontmatter field read by sync/monitor.ts and migrate/docs.ts, but explicitly excluded from the graph node's extraProps in parser/frontmatter.ts -- it is volatile status bookkeeping, not graph context). Both are omitted from this rewrite. Reported for visibility only; no source change made.",
+      "The pre-existing doc also had Commit.message/committed_at, node_text (v1, dropped by migration 2), and bare per-label uniqueness constraints (node_id/coderef_key/commit_sha/actor_id, also dropped by migration 2) -- all stale relative to the current schema version (2). Corrected in this rewrite; no source change needed since the code was already correct."
+    ]
+  }
 }
