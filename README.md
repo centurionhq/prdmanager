@@ -1,6 +1,6 @@
 # prdmanager — Motor de Grafo de Producto y Contexto
 
-Implementación de [PRD-001](docs/prd/PRD-001-Graph-Engine-Enhanced.md), [PRD-002](docs/prd/PRD-002.md) y [PRD-003](docs/prd/PRD-003-parser-de-simbolos-con-tree-sitter-validado-de-pun.md): un grafo de producto que une **Feature Tree** (MRD/PRD/FR), **Blueprints** (SDD/ADR), **Work Orders**, **Artifacts**, **Feedback** y **código**. Asistentes de IA lo usan vía MCP, y el grafo detecta cuándo la documentación y el código se desincronizan.
+Implementación de [PRD-001](docs/prd/PRD-001-Graph-Engine-Enhanced.md), [PRD-002](docs/prd/PRD-002.md) y [PRD-003](docs/prd/PRD-003-parser-de-simbolos-con-tree-sitter-validado-de-pun.md) (los tres `closed`): un grafo de producto que une **Feature Tree** (MRD/PRD/FR), **Blueprints** (SDD/ADR), **Work Orders**, **Artifacts**, **Feedback** y **código**. Asistentes de IA lo usan vía MCP, y el grafo detecta cuándo la documentación y el código se desincronizan.
 
 - **Doc-as-code:** los `.md` con frontmatter YAML son la fuente de verdad, versionada en git.
 - **Neo4j local** es el índice vivo del grafo y se puede reconstruir siempre desde los documentos.
