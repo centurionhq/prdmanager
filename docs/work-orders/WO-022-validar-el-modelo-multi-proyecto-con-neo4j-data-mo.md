@@ -2,12 +2,14 @@
 id: "WO-022"
 type: "WO"
 title: "Validar el modelo multi-proyecto con neo4j-data-modeling y actualizar docs/model/graph-model.json"
-status: "pending"
+status: "in_progress"
 created_at: "2026-09-13"
 implements: ["ADR-002"]
 impacts_paths: ["packages/core/src/graph/migrations*.ts","docs/model/graph-model.json"]
 source_task: "f95d2143e35aeafe"
 tags: ["architecture-decision","multi-project","neo4j","monorepo","atomicity"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-13T08:17:24.132Z"
 ---
 
 ## Objetivo
