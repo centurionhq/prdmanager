@@ -1,6 +1,8 @@
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Engine, GraphStore, PrdmConfig } from '@prdm/core';
+import { registerBranchRoute } from './api/branch.js';
+import { registerFullGraphRoute } from './api/full-graph.js';
 import { registerHealthRoute } from './api/health.js';
 import { registerNodeRoute } from './api/node.js';
 import { registerSearchRoute } from './api/search.js';
@@ -64,8 +66,10 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   registerHealthRoute(app);
   registerNodeRoute(app, { store });
   registerSearchRoute(app, { store });
+  registerBranchRoute(app, { store });
+  registerFullGraphRoute(app, { store });
 
-  // Remaining `/api` route plugins are added here, one per work order, by WO-050 through WO-054.
+  // Remaining `/api` route plugins are added here, one per work order, by WO-051 through WO-054.
 
   setErrorHandler(app);
   setNotFoundHandler(app, { hasStatic: Boolean(staticDir) });
