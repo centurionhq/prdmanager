@@ -3,11 +3,14 @@ import { loadConfig, type PrdmConfig } from '../config.js';
 import { Engine } from '../engine.js';
 import { Neo4jGraphStore } from '../graph/store.js';
 import type { GraphStore } from '../graph/types.js';
+import { register as registerArtifactCommands } from './commands/artifacts.js';
 import { register as registerDbCommands } from './commands/db.js';
+import { register as registerFeedbackCommands } from './commands/feedback.js';
 import { register as registerGraphCommands } from './commands/graph.js';
 import { register as registerMetricsCommands } from './commands/metrics.js';
 import { register as registerParserCommands } from './commands/parser.js';
 import { register as registerSyncCommands } from './commands/sync.js';
+import { register as registerWorkOrderCommands } from './commands/workorders.js';
 import { CliError, messageOf } from './errors.js';
 
 export interface CliContext {
@@ -45,7 +48,16 @@ export async function withContext<T>(deps: CliDeps, fn: (ctx: CliContext) => Pro
   }
 }
 
-const REGISTRARS = [registerDbCommands, registerParserCommands, registerGraphCommands, registerSyncCommands, registerMetricsCommands];
+const REGISTRARS = [
+  registerDbCommands,
+  registerParserCommands,
+  registerGraphCommands,
+  registerSyncCommands,
+  registerMetricsCommands,
+  registerWorkOrderCommands,
+  registerFeedbackCommands,
+  registerArtifactCommands,
+];
 
 export function createProgram(deps: CliDeps): Command {
   const program = new Command();

@@ -20,6 +20,9 @@ export const LABEL_BY_KIND: Readonly<Record<DocKind, NodeLabel>> = {
 export const DOC_REL_TYPES = ['EVOLVES_FROM', 'ARCHITECTS', 'IMPLEMENTS', 'PROVIDES_CONTEXT_FOR', 'INFORMS'] as const;
 export type DocRelType = (typeof DOC_REL_TYPES)[number];
 
+export const ARTIFACT_SOURCES = ['meeting', 'email', 'slack', 'call', 'doc', 'other'] as const;
+export type ArtifactSource = (typeof ARTIFACT_SOURCES)[number];
+
 export const WORK_ORDER_STATUSES = ['todo', 'in_progress', 'done', 'out_of_sync'] as const;
 export type WorkOrderStatus = (typeof WORK_ORDER_STATUSES)[number];
 
@@ -67,7 +70,7 @@ export const workOrderSchema = base.extend({
 
 export const artifactSchema = base.extend({
   type: z.literal('ART'),
-  source: z.enum(['meeting', 'email', 'slack', 'call', 'doc', 'other']).default('other'),
+  source: z.enum(ARTIFACT_SOURCES).default('other'),
   provides_context_for: idList,
 });
 

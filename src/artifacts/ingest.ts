@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
 import { z } from 'zod';
-import { docId } from '../domain/schema.js';
+import { ARTIFACT_SOURCES, docId } from '../domain/schema.js';
 import type { Engine } from '../engine.js';
 import { extractFeatureMentions, triageText } from '../feedback/triage.js';
 import type { SearchHit } from '../graph/types.js';
@@ -9,7 +9,6 @@ import { nextId, renderDocument, slugify, todayIso } from '../util/ids.js';
 
 export type ArtifactFormat = 'txt' | 'md' | 'eml' | 'vtt' | 'srt' | 'json';
 
-const ARTIFACT_SOURCES = ['meeting', 'email', 'slack', 'call', 'doc', 'other'] as const;
 export const MAX_ARTIFACT_BYTES = 1024 * 1024;
 
 const EXTENSION_FORMATS: Readonly<Record<string, ArtifactFormat>> = {

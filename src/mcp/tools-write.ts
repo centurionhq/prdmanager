@@ -1,15 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { attachArtifact } from '../artifacts/ingest.js';
-import { ACTOR_PATTERN, docId, SHA_PATTERN } from '../domain/schema.js';
+import { ACTOR_PATTERN, ARTIFACT_SOURCES, docId, SHA_PATTERN, type ArtifactSource } from '../domain/schema.js';
 import { createFeatureRequest, submitFeedback } from '../feedback/ingest.js';
 import { generateWorkOrders } from '../workorders/generator.js';
 import { claimWorkOrder, completeWorkOrder } from '../workorders/lifecycle.js';
 import type { PrdmDeps } from './deps.js';
 import { jsonResult, safeTool, WRITE_IDEMPOTENT, WRITE_ONCE } from './shared.js';
 
-/** Mirrors artifactSchema's `source` enum in src/domain/schema.ts (not exported there). */
-const ARTIFACT_SOURCES = ['meeting', 'email', 'slack', 'call', 'doc', 'other'] as const;
 
 export function registerWriteTools(server: McpServer, deps: PrdmDeps): void {
   server.registerTool(
@@ -95,7 +93,7 @@ export function registerWriteTools(server: McpServer, deps: PrdmDeps): void {
       },
       annotations: { title: 'Attach artifact', ...WRITE_ONCE },
     },
-    safeTool(async (args: { title: string; content: string; source: (typeof ARTIFACT_SOURCES)[number]; links?: string[] }) =>
+    safeTool(async (args: { title: string; content: string; source: ArtifactSource; links?: string[] }) =>
       jsonResult({ ...(await attachArtifact(deps.engine, args)) }),
     ),
   );
