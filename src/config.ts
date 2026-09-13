@@ -11,8 +11,8 @@ const fileSchema = z.object({
   gitMaxCommits: z.number().int().positive().max(100_000).default(500),
   triage: z
     .object({
-      autoLinkMinScore: z.number().positive().default(1.5),
-      autoLinkMargin: z.number().min(1).default(1.2),
+      autoLinkMinScore: z.number().positive().default(0.5),
+      autoLinkMargin: z.number().min(1).default(1.05),
       maxCandidates: z.number().int().min(1).max(50).default(5),
     })
     .prefault({}),
