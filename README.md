@@ -350,6 +350,32 @@ Si el contenido cambia (hash distinto), la exención se pierde. CI rechaza que l
 
 Cuando levantes Claude Code/MCP Client, pide aprobar servidores la primera vez. `claude mcp list` muestra estado.
 
+## Web UI (`@prdm/web`, PRD-004)
+
+Explorador **de solo lectura** del Feature Tree y del drift: canvas interactivo con Cytoscape.js, árbol navegable por teclado (alternativa accesible al canvas), búsqueda full-text, panel de detalle con relaciones, lista de Work Orders y banner de estado de sincronización. Backend Fastify que envuelve 1:1 `GraphStore`/`Engine.inspect()` (nunca escribe), ligado a `127.0.0.1`.
+
+| Componente | Tecnología | Versión |
+|---|---|---|
+| Backend | Fastify + @fastify/static | 5.12.4, 10.1.3 |
+| Frontend | Vite + React | 8.3.0, 19.3.0 |
+| Grafo | cytoscape.js | 3.34.3 |
+| E2E | @playwright/test | 1.63.0 |
+
+```bash
+# Producción / dogfooding: un solo proceso sirve API + bundle
+npm run build && npm run build --workspace=@prdm/web
+npm run web                                  # http://127.0.0.1:4600
+
+# Iteración visual: dos procesos, HMR en el frontend
+npm run web:api                              # Fastify vía tsx, sin build
+npm run dev --workspace=@prdm/web            # Vite en http://localhost:5173, proxy de /api
+
+# E2E contra servidor real + Neo4j de test (local, no en CI — ver Tests)
+npm run test:e2e --workspace=@prdm/web
+```
+
+`PRDM_WEB_PORT` (por defecto `4600`) y `PRDM_WEB_HOST` (por defecto `127.0.0.1`; un valor no-loopback requiere `PRDM_WEB_ALLOW_REMOTE=1`) — ver Variables de Entorno.
+
 ## Skills (Claude Code)
 
 Plugin **`neo4j-skills@neo4j-skills-marketplace`** v1.0.1 (declarado en `.claude/settings.json`):
@@ -393,6 +419,8 @@ PRDM_ROOT=<opcional; fuerza la raíz del proyecto>
 PRDM_SKIP_HOOKS=1           # Desactiva hooks de git (commit puntual)
 PRDM_ACTOR=agent:claude     # Actor por default para cierre
 PRDM_BIN=<opcional; sobrescribe detección de binario prdm en hooks>
+PRDM_WEB_PORT=4600          # Puerto del explorador web (@prdm/web)
+PRDM_WEB_HOST=127.0.0.1     # No-loopback requiere PRDM_WEB_ALLOW_REMOTE=1
 ```
 
 El binario CLI busca `.env` en el directorio del proyecto descubierto.
@@ -408,7 +436,6 @@ El binario CLI busca `.env` en el directorio del proyecto descubierto.
 
 ## Fuera del MVP
 
-- UI web (Neo4j Browser, Mermaid y MCP cubren necesidades actuales)
 - GitHub App / webhooks (cubierto por CI con `sync --check`)
 - Conectores directos a Slack/email (ingesta por archivo o MCP)
 - Embeddings / vector index
