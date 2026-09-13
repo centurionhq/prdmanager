@@ -56,6 +56,9 @@ const createFeatureRequestSchema = z.object({
   title: z.string().min(1).max(300),
   description: z.string().min(1).max(20_000),
   parentId: docId,
+  /** Feedback/Artifact ids justifying this FR (PRD-002 §3: MRD/PRD/FR require at least one). */
+  justifiedBy: z.array(docId).optional(),
+  /** Legacy alias: equivalent to `justifiedBy: [feedbackId]` and, additionally, links the feedback back via `informs`. */
   feedbackId: docId.optional(),
   now: z.date().optional(),
 });
@@ -67,6 +70,7 @@ export interface CreateFeatureRequestResult {
   path: string;
   parentId: string;
   feedbackId: string | null;
+  justifiedBy: string[];
 }
 
 export async function createFeatureRequest(engine: Engine, input: CreateFeatureRequestInput): Promise<CreateFeatureRequestResult> {
@@ -84,6 +88,15 @@ export async function createFeatureRequest(engine: Engine, input: CreateFeatureR
       if (feedback.node.label !== 'Feedback') throw new Error(`${parsed.feedbackId} is not Feedback`);
     }
 
+    const justifiedBy = [...new Set(parsed.justifiedBy ?? (parsed.feedbackId ? [parsed.feedbackId] : []))];
+    if (justifiedBy.length === 0) throw new Error('create_feature_request requires "justified_by" (or the legacy "feedback_id")');
+    for (const id of justifiedBy) {
+      if (id === parsed.feedbackId) continue; // already validated above
+      const target = scan.docs.find((d) => d.node.id === id);
+      if (!target) throw new Error(`justified_by target ${id} not found`);
+      if (target.node.label !== 'Feedback' && target.node.label !== 'Artifact') throw new Error(`justified_by target ${id} must be Feedback or Artifact`);
+    }
+
     const id = nextId('FR', scan.ids);
     const slug = slugify(parsed.title);
     const body = feedback ? `## Descripción\n\n${parsed.description}\n\n## Origen\n\n- ${parsed.feedbackId}` : `## Descripción\n\n${parsed.description}`;
@@ -94,6 +107,7 @@ export async function createFeatureRequest(engine: Engine, input: CreateFeatureR
       status: 'proposed',
       created_at: todayIso(parsed.now),
       evolves_from: [parsed.parentId],
+      justified_by: justifiedBy,
     };
     const content = renderDocument(fields, body);
     const doc = await ops.createDocument(`${ops.config.folders.FR}/${id}-${slug}.md`, content);
@@ -104,6 +118,6 @@ export async function createFeatureRequest(engine: Engine, input: CreateFeatureR
     }
 
     await ops.refresh();
-    return { id, path: doc.node.sourcePath, parentId: parsed.parentId, feedbackId: parsed.feedbackId ?? null };
+    return { id, path: doc.node.sourcePath, parentId: parsed.parentId, feedbackId: parsed.feedbackId ?? null, justifiedBy };
   });
 }

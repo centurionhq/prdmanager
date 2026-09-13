@@ -102,9 +102,12 @@ describe('migrateDocs (integration)', () => {
   test('rewrites legacy aliases and re-baselines only synced blueprints; a genuinely drifted one stays drifted', async () => {
     await setUpPreMigrationRepo();
 
+    // This fixture predates PRD-002's lifecycle rules (no `justified_by`, no `source_task`, PRD-001 left
+    // undecided rather than `approved`) — irrelevant to what this migration test exercises, so lifecycle
+    // issues are filtered out here rather than reshaping an unrelated fixture (WO-019 is not this test's owner).
     const issuesFor = (nodeId: string, issues: { kind: string; nodeId: string }[]) =>
       issues
-        .filter((i) => i.nodeId === nodeId)
+        .filter((i) => i.nodeId === nodeId && i.kind !== 'lifecycle_violation')
         .map((i) => i.kind)
         .sort();
 

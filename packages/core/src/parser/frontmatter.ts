@@ -131,22 +131,34 @@ export function contentHash(fm: Frontmatter, body: string, options: ContentHashO
   return sha256(`${JSON.stringify(stable)}\n${hashedBody}`);
 }
 
+/**
+ * `JUSTIFIED_BY` (Feature -> Feedback|Artifact, SDD-002 "Grafo multi-proyecto") is derived from the *reverse* of
+ * `INFORMS`/`PROVIDES_CONTEXT_FOR` in addition to a Feature's own explicit `justified_by`. A single-document
+ * `edgesOf` call can still emit the reverse edge for an FB/ART document: the edge's `from` is the feature id
+ * (not `fm.id`), which is safe because every consumer of `ParsedDoc.edges` (link validation, graph writes) reads
+ * `edge.from`/`edge.to` directly and never assumes `edge.from === fm.id`. Explicit + derived edges are deduped
+ * by whoever aggregates edges across documents (e.g. Neo4j's `MERGE_EDGES` is idempotent per (from, to, type)).
+ */
+function reverseJustifiedBy(sourceIds: string[], targetId: string): GraphEdge[] {
+  return [...new Set(sourceIds)].map((from) => ({ from, to: targetId, type: 'JUSTIFIED_BY' as const }));
+}
+
 function edgesOf(fm: Frontmatter): GraphEdge[] {
   const to = (ids: string[], type: GraphEdge['type']): GraphEdge[] => [...new Set(ids)].map((id) => ({ from: fm.id, to: id, type }));
   switch (fm.type) {
     case 'MRD':
     case 'PRD':
     case 'FR':
-      return to([...fm.implements, ...fm.evolves_from], 'EVOLVES_FROM');
+      return [...to([...fm.implements, ...fm.evolves_from], 'EVOLVES_FROM'), ...to(fm.justified_by ?? [], 'JUSTIFIED_BY')];
     case 'SDD':
     case 'ADR':
       return to(fm.architects, 'ARCHITECTS');
     case 'WO':
       return to(fm.implements, 'IMPLEMENTS');
     case 'ART':
-      return to(fm.provides_context_for, 'PROVIDES_CONTEXT_FOR');
+      return [...to(fm.provides_context_for, 'PROVIDES_CONTEXT_FOR'), ...reverseJustifiedBy(fm.provides_context_for, fm.id)];
     case 'FB':
-      return to(fm.informs, 'INFORMS');
+      return [...to(fm.informs, 'INFORMS'), ...reverseJustifiedBy(fm.informs, fm.id)];
   }
 }
 
@@ -157,6 +169,10 @@ function actorOf(fm: Frontmatter): Actor | null {
 
 function extraProps(fm: Frontmatter): Record<string, PropValue> {
   switch (fm.type) {
+    case 'MRD':
+    case 'PRD':
+    case 'FR':
+      return { justified_by: fm.justified_by ?? [], closed_at: fm.closed_at ?? null, closed_by: fm.closed_by ?? null };
     case 'SDD':
     case 'ADR':
       return { impacts_paths: fm.impacts_paths };
@@ -170,9 +186,9 @@ function extraProps(fm: Frontmatter): Record<string, PropValue> {
         source_task: fm.source_task ?? null,
       };
     case 'ART':
-      return { source: fm.source };
+      return { source: fm.source, root: fm.root ?? false };
     case 'FB':
-      return { source: fm.source, customer: fm.customer ?? null };
+      return { source: fm.source, customer: fm.customer ?? null, root: fm.root ?? false };
     default:
       return {};
   }

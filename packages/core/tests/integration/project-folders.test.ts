@@ -59,7 +59,8 @@ describe('writers honor a custom folder map from .prdm.yaml (WO-017)', () => {
   });
 
   test('createFeatureRequest writes under folders.FR', async () => {
-    const result = await createFeatureRequest(engine, { title: 'Nueva petición', description: 'Detalle de la petición', parentId: 'PRD-001' });
+    // PRD-002 §3 (WO-019): justified_by (or the legacy feedback_id, used here) is now required.
+    const result = await createFeatureRequest(engine, { title: 'Nueva petición', description: 'Detalle de la petición', parentId: 'PRD-001', feedbackId: 'FB-001' });
     expect(result.path.startsWith('docs/requests/FR-001')).toBe(true);
   });
 

@@ -88,7 +88,8 @@ export class Engine {
       governWarnings.push(...warnings.map((message) => ({ blueprintId: doc.node.id, message })));
     }
     const [commits, dirty, baseline] = await Promise.all([readCommits(root, gitMaxCommits), dirtyPaths(root), loadBaseline(root)]);
-    return { scan, input: { docs: scan.docs, governed, governWarnings, baseline, commits, dirty } };
+    // WO-019: wires PRD-002 §3 lifecycle checking into refresh (see sync/monitor.ts detectDrift).
+    return { scan, input: { docs: scan.docs, governed, governWarnings, baseline, commits, dirty, lifecycle: this.config.lifecycle } };
   }
 
   private async doRefresh(): Promise<RefreshReport> {
