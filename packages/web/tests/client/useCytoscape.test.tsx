@@ -59,6 +59,29 @@ describe('useCytoscape', () => {
     expect(cy.getElementById('FR-001').position()).toEqual({ x: 123, y: 456 });
   });
 
+  it('lays out a genuinely new node introduced on refresh instead of leaving it at (0,0) forever', () => {
+    const factory = vi.fn(headlessFactory);
+    const initial: cytoscape.ElementDefinition[] = [{ group: 'nodes', data: { id: 'FR-001' } }];
+    const { result, rerender } = renderHook(
+      ({ elements }: { elements: cytoscape.ElementDefinition[] }) =>
+        useCytoscape({ container: null, elements, createCytoscape: factory, layout: { name: 'grid', fit: false } }),
+      { initialProps: { elements: initial } },
+    );
+
+    const cy = result.current.current as cytoscape.Core;
+    cy.getElementById('FR-001').position({ x: 100, y: 100 });
+
+    const refreshed: cytoscape.ElementDefinition[] = [
+      { group: 'nodes', data: { id: 'FR-001' } },
+      { group: 'nodes', data: { id: 'FR-002' } },
+    ];
+    rerender({ elements: refreshed });
+
+    expect(cy.getElementById('FR-001').position()).toEqual({ x: 100, y: 100 });
+    // A 'grid' layout never places a real node at the exact origin; landing there is exactly the un-laid-out bug.
+    expect(cy.getElementById('FR-002').position()).not.toEqual({ x: 0, y: 0 });
+  });
+
   it('does not call cy.json() on a re-render with the same elements array', () => {
     const factory = vi.fn(headlessFactory);
     const elements: cytoscape.ElementDefinition[] = [];

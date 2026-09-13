@@ -12,6 +12,10 @@ const CLIENT_SRC = join(import.meta.dirname, '..', '..', 'src', 'client');
  * `[\s\S]*?` swallow that whole statement too once a later line imported from `@prdm/core`.
  */
 const CORE_IMPORT_PATTERN = /\b(import|export)\s+([^;]*?)\bfrom\s+(['"])@prdm\/core\3/g;
+/** `verbatimModuleSyntax` and the static-import regex above only constrain `import`/`export ... from` declarations
+ * — a `await import('@prdm/core')` dynamic-import *expression* is neither, and would sail past both undetected
+ * (F6 architecture review). */
+const DYNAMIC_CORE_IMPORT_PATTERN = /\bimport\s*\(\s*(['"])@prdm\/core\1\s*\)/g;
 
 function collectSourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -21,13 +25,14 @@ function collectSourceFiles(dir: string): string[] {
   });
 }
 
-/** Every `from '@prdm/core'` import/export statement in `content` that isn't `import type`/`export type`. */
+/** Every `from '@prdm/core'` import/export statement, or `import('@prdm/core')` expression, in `content` that isn't type-only. */
 function findCoreValueImports(content: string): string[] {
   const offenders: string[] = [];
   for (const match of content.matchAll(CORE_IMPORT_PATTERN)) {
     const specifier = match[2] ?? '';
     if (!/^\s*type\s/.test(specifier)) offenders.push(match[0].replace(/\s+/g, ' ').trim());
   }
+  for (const match of content.matchAll(DYNAMIC_CORE_IMPORT_PATTERN)) offenders.push(match[0]);
   return offenders;
 }
 
@@ -56,5 +61,10 @@ describe('web client never imports a value from @prdm/core', () => {
   it('still flags a genuine value import from @prdm/core', () => {
     const content = "import { useState } from 'react';\nimport { scanDocuments } from '@prdm/core';\n";
     expect(findCoreValueImports(content)).toEqual(["import { scanDocuments } from '@prdm/core'"]);
+  });
+
+  it('flags a dynamic import() expression too, not just static import/export declarations', () => {
+    const content = "async function load() {\n  const core = await import('@prdm/core');\n  return core;\n}\n";
+    expect(findCoreValueImports(content)).toEqual(["import('@prdm/core')"]);
   });
 });

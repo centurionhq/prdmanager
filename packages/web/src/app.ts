@@ -12,6 +12,7 @@ import { registerSearchRoute } from './api/search.js';
 import { registerTreeRoute } from './api/tree.js';
 import { registerWorkOrderRoutes } from './api/work-orders.js';
 import { setErrorHandler, setNotFoundHandler } from './errors.js';
+import { LOOPBACK_HOSTS } from './env.js';
 import { registerSecurityHeaders } from './security-headers.js';
 
 /** Matches `PRDM_WEB_PORT`'s own default (SDD-005 "Seguridad"). */
@@ -33,14 +34,26 @@ export interface BuildAppOptions {
   port?: number;
 }
 
+/** An IPv6 literal must be bracketed in a URI authority / Host header (RFC 3986 §3.2.2); `127.0.0.1`/`localhost` are used bare. */
+function hostHeaderFor(host: string, port: number): string {
+  return host.includes(':') ? `[${host}]:${port}` : `${host}:${port}`;
+}
+
 /**
  * DNS-rebinding guard (SDD-005 "Seguridad"): a page the user visits can resolve any hostname to `127.0.0.1` and
  * `fetch` this port from an origin the browser treats as valid. Binding to loopback is not a security boundary by
- * itself, so every request's `Host` header must be exactly one of these two literal forms — regardless of what
+ * itself, so every request's `Host` header must match one of `env.ts`'s `LOOPBACK_HOSTS` — regardless of what
  * `PRDM_WEB_HOST` is configured to (a non-loopback bind is a separate, explicit opt-in gated in `server.ts`).
+ * Derived directly from that same set (not a separately hand-maintained literal list) so it can never silently
+ * drift from what `resolveWebBind` accepts without `PRDM_WEB_ALLOW_REMOTE` — that drift was a real bug once
+ * (`PRDM_WEB_HOST=::1` booted successfully and then 403'd every request, caught in architecture review).
  */
 export function isAllowedHost(hostHeader: string | undefined, port: number): boolean {
-  return hostHeader === `127.0.0.1:${port}` || hostHeader === `localhost:${port}`;
+  if (!hostHeader) return false;
+  for (const host of LOOPBACK_HOSTS) {
+    if (hostHeaderFor(host, port) === hostHeader) return true;
+  }
+  return false;
 }
 
 /**

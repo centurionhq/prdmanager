@@ -52,11 +52,17 @@ describe('static bundle serving and SPA fallback', () => {
     expect(JSON.parse(res.body)).toEqual({ error: { code: 'not_found', message: 'route not found' } });
   });
 
-  it('never leaks a file outside staticDir for a path-traversal attempt (falls through to the SPA shell instead)', async () => {
-    const res = await injectApi(ctx.app, '/assets/..%2f..%2f..%2fetc%2fpasswd');
+  it.each([
+    ['%2f-encoded traversal', '/assets/..%2f..%2f..%2fetc%2fpasswd'],
+    ['%2e-encoded traversal', '/assets/%2e%2e/%2e%2e/%2e%2e/etc/passwd'],
+  ])('never leaks a file outside staticDir for a path-traversal attempt: %s (falls through to the SPA shell instead)', async (_label, path) => {
+    const res = await injectApi(ctx.app, path);
     // @fastify/static rejects the escaping path before touching the filesystem; the request then falls through
-    // to the same SPA fallback any other unknown non-/api path gets. The property under test is that /etc/passwd's
-    // content is never in the response, not the exact status code of the (harmless) fallback.
+    // to the same SPA fallback any other unknown non-/api path gets. Asserted by shape (status + content-type),
+    // not just body content (F6 security review): a future regression that returned a 500 with a stack trace, or
+    // any other unintended response, would still contain no /etc/passwd content but must still fail this test.
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
     expect(res.body).not.toContain('root:');
   });
 

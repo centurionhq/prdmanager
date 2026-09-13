@@ -80,12 +80,30 @@ export function useCytoscape({ container, elements, stylesheet, createCytoscape,
     // after `graph`), not just on an explicit "Actualizar" (verified empirically against this repo's own full
     // graph). Carrying forward each existing node's live position is what actually makes the refresh preserve
     // layout, not merely pan/zoom.
+    const existingNodeIds = new Set(cy.nodes().map((n) => n.id()));
     const withPositions = elements.map((el) => {
       if (el.group !== 'nodes' || el.data.id === undefined) return el;
       const existing = cy.getElementById(el.data.id);
       return existing.nonempty() ? { ...el, position: existing.position() } : el;
     });
     cy.json({ elements: withPositions });
+    // A node with no prior position (checked above, before this same cy.json() call) has none after it either —
+    // it lands at Cytoscape's (0,0) and stays there forever, since nothing else ever re-runs a layout. Only a
+    // *scoped* layout over the new nodes (not the whole graph, which would re-shuffle everyone's existing
+    // position) fixes this without undermining the position-preservation above (F6 perf review).
+    const newNodeIds = new Set(
+      elements.filter((el) => el.group === 'nodes' && el.data.id !== undefined && !existingNodeIds.has(el.data.id)).map((el) => el.data.id as string),
+    );
+    if (newNodeIds.size > 0) {
+      cy.nodes()
+        .filter((n) => newNodeIds.has(n.id()))
+        .layout({ ...(layout ?? DEFAULT_LAYOUT), fit: false } as LayoutOptions)
+        .run();
+    }
+    // `layout` is read but intentionally excluded: same "expected stable for the component's lifetime" contract
+    // as the creation effect above — this effect's own trigger is a real `elements` change, not a `layout`
+    // reference change (callers that pass an inline literal, e.g. tests, would otherwise refire it every render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elements]);
 
   return cyRef;

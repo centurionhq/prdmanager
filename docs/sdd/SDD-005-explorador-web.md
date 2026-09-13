@@ -166,4 +166,5 @@ Nota general: cualquier tarea que agregue una dependencia nueva debe incluir `pa
 - [ ] E2E con Playwright del recorrido principal (cargar, buscar, seleccionar, ver detalle, ver drift) contra servidor real y Neo4j, corrido localmente (no en CI, ver Tests)
 - [ ] README con sección Web UI (incluyendo cómo correr en modo iteración con dos procesos), .env.example con PRDM_WEB_PORT, retiro de "UI web" de Fuera del MVP
 - [ ] Paso de build de @prdm/web en el workflow de CI (después de que el frontend compile)
+- [ ] Correcciones del review paralelo de arquitectura/seguridad/rendimiento (F6): isAllowedHost no reconocía [::1] aunque resolveWebBind sí lo aceptaba como loopback (arrancaba y luego rechazaba todo con 403); un nodo nuevo introducido entre refrescos quedaba en (0,0) para siempre al no re-correr layout; el stylesheet del canvas no se reaplicaba ante un cambio en vivo de tema del SO; el guard de imports de @prdm/core no detectaba un import() dinámico; el test de path traversal no afirmaba el status code; y sus tests
 - [ ] Dogfooding: comparar la respuesta de /api/tree?root=PRD-004 contra buildForest usado por la CLI, sync --check en 0, cierre de PRD-004

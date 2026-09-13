@@ -64,6 +64,22 @@ function GraphCanvasBody({ container, graph, drift, onRefresh, refreshing, creat
     if (selectedId) cy.getElementById(selectedId).select();
   }, [cyRef, selectedId, elements]);
 
+  // `buildGraphStylesheet()` reads resolved CSS custom-property values via getComputedStyle at call time — every
+  // *other* element in the app re-themes for free through tokens.css's own `@media (prefers-color-scheme)` block,
+  // but the canvas's colors were baked into Cytoscape's stylesheet once at mount and never touched again, so an
+  // OS-level light/dark switch left it silently stuck on whichever theme was active on first paint (F6
+  // architecture review). Re-applying the stylesheet on the same media query tokens.css itself keys off keeps
+  // the two in sync.
+  useEffect(() => {
+    const cy = cyRef.current;
+    // jsdom (this repo's test environment) doesn't implement matchMedia at all, unlike every real browser.
+    if (!cy || typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia('(prefers-color-scheme: light)');
+    const applyCurrentTheme = (): void => void cy.style(buildGraphStylesheet());
+    media.addEventListener('change', applyCurrentTheme);
+    return () => media.removeEventListener('change', applyCurrentTheme);
+  }, [cyRef]);
+
   return (
     <>
       <button type="button" className={styles.refreshButton} onClick={onRefresh} disabled={refreshing}>

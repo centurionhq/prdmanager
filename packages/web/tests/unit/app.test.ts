@@ -10,6 +10,14 @@ describe('isAllowedHost', () => {
     expect(isAllowedHost('localhost:4600', 4600)).toBe(true);
   });
 
+  test('accepts the bracketed IPv6 loopback alias at the configured port (matches env.ts LOOPBACK_HOSTS)', () => {
+    expect(isAllowedHost('[::1]:4600', 4600)).toBe(true);
+  });
+
+  test('rejects the IPv6 loopback alias without brackets (not a valid Host header form)', () => {
+    expect(isAllowedHost('::1:4600', 4600)).toBe(false);
+  });
+
   test('rejects a mismatched port', () => {
     expect(isAllowedHost('127.0.0.1:4600', 4601)).toBe(false);
   });

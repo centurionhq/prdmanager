@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ReactElement } from 'react';
 import type { RefreshReport, Subgraph } from '@prdm/core';
 import { getDrift, getFullGraph, getProject, getTree, type TreeResponse, type WebProjectSummary } from './api/client';
 import { DriftBanner } from './components/DriftBanner';
@@ -14,6 +14,7 @@ import { SelectionProvider } from './state/selection';
 import styles from './App.module.css';
 
 const EMPTY_GRAPH: Subgraph = { nodes: [], edges: [] };
+const EMPTY_DRIFT_IDS: ReadonlySet<string> = new Set();
 
 function ExplorerShell(): ReactElement {
   const project = useGraphData<WebProjectSummary>(getProject);
@@ -42,7 +43,9 @@ function ExplorerShell(): ReactElement {
   }, []);
 
   const isRefreshing = graph.status === 'loading' || tree.status === 'loading' || drift.status === 'loading';
-  const driftIds = drift.data ? collectDriftIds(drift.data) : new Set<string>();
+  // Recomputed only when drift data actually changes, not on every ExplorerShell render (F6 perf review) — was
+  // previously a fresh Set every render, which would have blocked ever memoizing TreeView.
+  const driftIds = useMemo(() => (drift.data ? collectDriftIds(drift.data) : EMPTY_DRIFT_IDS), [drift.data]);
 
   return (
     <div className={styles.shell}>

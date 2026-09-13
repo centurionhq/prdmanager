@@ -1,6 +1,9 @@
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 4600;
-const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
+/** Exported so `app.ts`'s `isAllowedHost` Host-header guard derives from the exact same set `resolveWebBind`
+ * accepts without `PRDM_WEB_ALLOW_REMOTE` — a `PRDM_WEB_HOST` this module lets through but that guard doesn't
+ * recognize as a valid Host header would boot successfully and then 403 every single request. */
+export const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 
 export interface WebBindOptions {
   host: string;
