@@ -274,6 +274,267 @@ describe('merges', () => {
   });
 });
 
+describe('WO-024 finding 1a: docs deleted-then-restored inside the range cannot hide a governed change', () => {
+  test('a governed change in the middle commit is still enforced even though the blueprint is absent from its own tree', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, {
+      '.prdm.yaml': projectFile(),
+      'docs/blueprints/SDD-001.md': SDD_DOC,
+      'docs/work-orders/WO-001.md': WO_DOC('WO-001', 'pending'),
+      'src/a.ts': 'export const a = 1;\n',
+    });
+    const base = commitAll(root, 'chore: init\n\nRefs: WO-001');
+
+    // A: delete the blueprint.
+    git(root, 'rm', '-q', 'docs/blueprints/SDD-001.md');
+    const commitA = commitAll(root, 'chore: remove blueprint temporarily');
+
+    // B: change governed code, no Refs, and (at this point in history) no blueprint governs it.
+    writeFiles(root, { 'src/a.ts': 'export const a = 2;\n' });
+    const commitB = commitAll(root, 'feat: sneaky change while blueprint is gone');
+
+    // C: restore the blueprint.
+    writeFiles(root, { 'docs/blueprints/SDD-001.md': SDD_DOC });
+    const head = commitAll(root, 'chore: restore blueprint');
+
+    const check = await checkCommitRange(root, `${base}..${head}`);
+    const entryB = check.commits.find((c) => c.sha === commitB);
+    expect(entryB?.result.ok).toBe(false);
+    expect(check.ok).toBe(false);
+    expect(commitA).toBeTruthy();
+  });
+});
+
+describe('WO-024 finding 1b: nested project roots are fixed at the base tree', () => {
+  test('adding a nested .prdm.yaml inside the PR does not exempt code that was governed at the base', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, {
+      '.prdm.yaml': projectFile(),
+      'docs/blueprints/SDD-001.md': SDD_DOC,
+      'docs/work-orders/WO-001.md': WO_DOC('WO-001', 'pending'),
+      'src/a.ts': 'export const a = 1;\n',
+    });
+    const base = commitAll(root, 'chore: init\n\nRefs: WO-001');
+
+    // The PR both introduces a nested project at src/ AND changes governed code under it, without Refs.
+    writeFiles(root, {
+      'src/.prdm.yaml': projectFile({ project: { id: generateProjectId(), name: 'nested' } }),
+      'src/a.ts': 'export const a = 2;\n',
+    });
+    const head = commitAll(root, 'feat: sneak in a nested project to dodge the policy');
+
+    const check = await checkCommitRange(root, `${base}..${head}`);
+    expect(check.ok).toBe(false);
+  });
+});
+
+describe('WO-024 finding 1c: non-ASCII blueprint filenames are visible', () => {
+  test('a blueprint whose path contains non-ASCII characters is still read and enforced', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, {
+      '.prdm.yaml': projectFile(),
+      'docs/blueprints/SDD-diseño.md': SDD_DOC,
+      'docs/work-orders/WO-001.md': WO_DOC('WO-001', 'pending'),
+      'src/a.ts': 'export const a = 1;\n',
+    });
+    git(root, 'add', '-A');
+    const result = await checkCommitMessage(root, 'chore: init, no refs');
+    expect(result.ok).toBe(false);
+    expect(result.requiredFor).toContain('src/a.ts');
+  });
+});
+
+describe('WO-024 finding 1d: orphan root commits and silent aggregate drift are rejected', () => {
+  test('an orphan root commit inside the range (not the range base) fails the check', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, { '.prdm.yaml': projectFile(), 'README.md': 'a\n' });
+    const base = commitAll(root, 'chore: init');
+
+    // An unrelated history graft: a second root commit reachable from HEAD but disconnected from `base`.
+    git(root, 'checkout', '-q', '--orphan', 'grafted');
+    git(root, 'rm', '-q', '-rf', '--cached', '.');
+    writeFiles(root, { 'grafted.txt': 'x\n' });
+    const orphanSha = commitAll(root, 'chore: orphan commit');
+    git(root, 'checkout', '-q', 'main');
+    git(root, 'merge', '-q', '--allow-unrelated-histories', '-m', 'Merge orphan branch', 'grafted');
+    const head = git(root, 'rev-parse', 'HEAD').trim();
+
+    const check = await checkCommitRange(root, `${base}..${head}`);
+    expect(check.ok).toBe(false);
+    expect(check.orphanCommitsMessage).toContain(orphanSha);
+  });
+
+  test('a merge that resurrects stale pre-base content is exempt per-commit but caught by the aggregate check', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    // `stale` predates `base` in the very same branch: its governed content was already superseded before
+    // enforcement even started reading history, so no commit in `base..head` will ever carry it in its own diff.
+    writeFiles(root, {
+      '.prdm.yaml': projectFile(),
+      'docs/blueprints/SDD-001.md': SDD_DOC,
+      'docs/work-orders/WO-001.md': WO_DOC('WO-001', 'pending'),
+      'src/a.ts': 'line one\nSTALE\n',
+    });
+    const stale = commitAll(root, 'chore: stale, pre-base content');
+    writeFiles(root, { 'src/a.ts': 'line one\n' });
+    const base = commitAll(root, 'chore: supersede the stale content\n\nRefs: WO-001');
+
+    // A handcrafted merge whose tree exactly matches `stale`: relative to its first parent (`base`) the governed
+    // path changed, but relative to its second parent (`stale`) it did not, so the pairwise conflict heuristic
+    // (which only ever inspects parents 1 and 2) sees no overlap and treats the merge as a clean, exempt one -
+    // while the file has, in truth, been silently reverted to un-reviewed content with no covering "Refs:" at all.
+    const staleTree = git(root, 'rev-parse', `${stale}^{tree}`).trim();
+    const evilMerge = git(root, 'commit-tree', staleTree, '-p', base, '-p', stale, '-m', 'Merge branch stale (evil)').trim();
+
+    const check = await checkCommitRange(root, `${base}..${evilMerge}`);
+    const mergeEntry = check.commits.find((c) => c.sha === evilMerge);
+    expect(mergeEntry?.result.ok).toBe(true); // per-commit alone is fooled
+    expect(check.ok).toBe(false); // the aggregate check is not
+    expect(check.uncoveredPathsMessage).toContain('src/a.ts');
+  });
+});
+
+describe('WO-024 finding 1e: settingsAtRef never falls back to the working tree', () => {
+  test('when the base ref has no .prdm.yaml, a permissive working-tree copy is not consulted', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, { 'README.md': 'a\n' });
+    const base = commitAll(root, 'chore: init, no project file yet');
+
+    // The working tree (as CI would leave it checked out at the PR head) carries a permissive project file that
+    // must never be used to evaluate the base's settings.
+    writeFiles(root, {
+      '.prdm.yaml': projectFile({ git: { maxCommits: 500, enforceRefs: false, enforceRefsSince: null } }),
+      'docs/blueprints/SDD-001.md': SDD_DOC,
+      'docs/work-orders/WO-001.md': WO_DOC('WO-001', 'pending'),
+      'src/a.ts': 'export const a = 1;\n',
+    });
+    const head = commitAll(root, 'feat: add project file and governed code, no refs');
+
+    const check = await checkCommitRange(root, `${base}..${head}`);
+    // Defaults (schema default enforce_refs: true) apply, not the permissive working-tree copy.
+    const entry = check.commits.find((c) => c.sha === head);
+    expect(entry?.result.ok).toBe(false);
+  });
+});
+
+describe('WO-024 finding 2: the prdm project root can be a subdirectory of the git repository', () => {
+  test('governed-path enforcement works when .prdm.yaml lives at <repo>/proj', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, { 'outside.txt': 'not part of the project\n' });
+    const projectRoot = join(root, 'proj');
+    writeFiles(projectRoot, {
+      '.prdm.yaml': projectFile(),
+      'docs/blueprints/SDD-001.md': SDD_DOC,
+      'docs/work-orders/WO-001.md': WO_DOC('WO-001', 'pending'),
+      'src/a.ts': 'export const a = 1;\n',
+    });
+    git(root, 'add', '-A');
+    const rejected = await checkCommitMessage(projectRoot, 'chore: init');
+    expect(rejected.ok).toBe(false);
+    expect(rejected.requiredFor).toEqual(['src/a.ts']);
+
+    const accepted = await checkCommitMessage(projectRoot, 'chore: init\n\nRefs: WO-001');
+    expect(accepted.ok).toBe(true);
+
+    git(root, 'commit', '-q', '-m', 'chore: init\n\nRefs: WO-001');
+    const base = git(root, 'rev-parse', 'HEAD').trim();
+
+    writeFiles(projectRoot, { 'src/a.ts': 'export const a = 2;\n' });
+    const bad = commitAll(root, 'feat: change a without refs');
+    const check = await checkCommitRange(projectRoot, `${base}..${bad}`);
+    expect(check.ok).toBe(false);
+    expect(check.commits[0]).toMatchObject({ sha: bad, result: { ok: false, requiredFor: ['src/a.ts'] } });
+  });
+});
+
+describe('WO-024 finding 3: check commits --range fails loudly on git errors', () => {
+  test('an unreachable/unknown sha in the range throws instead of silently passing', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, { '.prdm.yaml': projectFile(), 'README.md': 'a\n' });
+    const base = commitAll(root, 'chore: init');
+    const bogus = '0'.repeat(40);
+    await expect(checkCommitRange(root, `${base}..${bogus}`)).rejects.toThrow();
+  });
+
+  test('an empty range (no commits) still succeeds', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, { '.prdm.yaml': projectFile(), 'README.md': 'a\n' });
+    const base = commitAll(root, 'chore: init');
+    const check = await checkCommitRange(root, `${base}..${base}`);
+    expect(check.ok).toBe(true);
+    expect(check.commits).toEqual([]);
+  });
+});
+
+describe('WO-024 finding 5: grandfathered growth check compares (id, hash) pairs, not just count', () => {
+  test('swapping the hash of an already-grandfathered id fails, even though the count is unchanged', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, {
+      '.prdm.yaml': projectFile({ lifecycle: { grandfathered: [{ id: 'MRD-001', hash: 'a'.repeat(64) }] } }),
+      'README.md': 'a\n',
+    });
+    const base = commitAll(root, 'chore: init');
+
+    writeFiles(root, {
+      '.prdm.yaml': projectFile({ lifecycle: { grandfathered: [{ id: 'MRD-001', hash: 'b'.repeat(64) }] } }),
+    });
+    const head = commitAll(root, 'chore: swap grandfathered hash');
+
+    const check = await checkCommitRange(root, `${base}..${head}`);
+    expect(check.ok).toBe(false);
+    expect(check.grandfatheredGrowthMessage).toMatch(/grandfathered grew/);
+  });
+
+  test('removing a grandfathered entry is fine', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, {
+      '.prdm.yaml': projectFile({ lifecycle: { grandfathered: [{ id: 'MRD-001', hash: 'a'.repeat(64) }] } }),
+      'README.md': 'a\n',
+    });
+    const base = commitAll(root, 'chore: init');
+
+    writeFiles(root, { '.prdm.yaml': projectFile({ lifecycle: { grandfathered: [] } }) });
+    const head = commitAll(root, 'chore: un-grandfather MRD-001');
+
+    const check = await checkCommitRange(root, `${base}..${head}`);
+    expect(check.ok).toBe(true);
+  });
+});
+
+describe('WO-024 finding 6 (amend): amending a root commit is evaluated against the empty tree', () => {
+  test('an amend of the very first commit diffs against nothing rather than a nonexistent HEAD^', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, {
+      '.prdm.yaml': projectFile(),
+      'docs/blueprints/SDD-001.md': SDD_DOC,
+      'docs/work-orders/WO-001.md': WO_DOC('WO-001', 'pending'),
+      'src/a.ts': 'export const a = 1;\n',
+    });
+    commitAll(root, 'chore: init\n\nRefs: WO-001');
+
+    // Amend the root commit: stage an additional governed file on top of the existing tree.
+    writeFiles(root, { 'src/b.ts': 'export const b = 1;\n' });
+    git(root, 'add', '-A');
+    const rejected = await checkCommitMessage(root, 'chore: init, amended', { amend: true });
+    expect(rejected.ok).toBe(false);
+    expect(rejected.requiredFor).toContain('src/b.ts');
+
+    const accepted = await checkCommitMessage(root, 'chore: init, amended\n\nRefs: WO-001', { amend: true });
+    expect(accepted.ok).toBe(true);
+  });
+});
+
 describe('resolveDefaultBranchRange', () => {
   test('falls back to origin/main when there is no origin/HEAD symbolic ref', async () => {
     root = makeTmpDir();

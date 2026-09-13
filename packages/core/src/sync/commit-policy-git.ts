@@ -2,27 +2,53 @@ import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { parseProjectFile } from '../project/file.js';
+import picomatch from 'picomatch';
+import { parseProjectFile, type ProjectFileSettings } from '../project/file.js';
+import { DEFAULT_GIT, DEFAULT_LIFECYCLE } from '../project/types.js';
 import { findNestedProjectRoots } from '../project/discover.js';
 import { parseDocument } from '../parser/frontmatter.js';
 import type { Frontmatter } from '../domain/schema.js';
-import { evaluateCommit, isGovernedPath, type EvaluateCommitResult, type PolicyDoc } from './commit-policy.js';
+import { parseRefs } from './git.js';
+import { evaluateCommit, isGovernedPath, isPathCoveredByRefs, type EvaluateCommitResult, type PolicyDoc } from './commit-policy.js';
 
 const run = promisify(execFile);
 const MAX_BUFFER = 64 * 1024 * 1024;
+/** Forced on every invocation (WO-024 finding 1c): with `-z`-terminated output this is belt-and-suspenders, since
+ * `-z` already disables C-style quoting of non-ASCII paths regardless of `core.quotepath`. */
+const GLOBAL_GIT_ARGS = ['-c', 'core.quotepath=false'];
 
+async function runGit(root: string, args: string[]): Promise<string> {
+  const { stdout } = await run('git', [...GLOBAL_GIT_ARGS, ...args], { cwd: root, maxBuffer: MAX_BUFFER, encoding: 'utf8' });
+  return stdout;
+}
+
+/** Lenient: a non-zero exit (missing ref, no match, ...) is a meaningful "nothing here", returned as `null`. */
 async function git(root: string, args: string[]): Promise<string | null> {
   try {
-    const { stdout } = await run('git', args, { cwd: root, maxBuffer: MAX_BUFFER, encoding: 'utf8' });
-    return stdout;
+    return await runGit(root, args);
   } catch {
     return null;
   }
 }
 
+/**
+ * Strict (WO-024 finding 3): a non-zero exit is a hard failure and throws. Only ever call this for commands whose
+ * failure genuinely means something is wrong (an invalid range, an unreachable sha, ...) rather than "no results" -
+ * git already reports "no results" as a successful, empty stdout for the commands used this way here.
+ */
+async function gitStrict(root: string, args: string[]): Promise<string> {
+  try {
+    return await runGit(root, args);
+  } catch (err) {
+    const stderr = (err as { stderr?: unknown }).stderr;
+    const detail = typeof stderr === 'string' && stderr.trim().length > 0 ? stderr.trim() : (err as Error).message;
+    throw new Error(`git ${args.join(' ')} failed: ${detail}`);
+  }
+}
+
 async function isAncestor(root: string, ancestor: string, ref: string): Promise<boolean> {
   try {
-    await run('git', ['merge-base', '--is-ancestor', ancestor, ref], { cwd: root });
+    await run('git', [...GLOBAL_GIT_ARGS, 'merge-base', '--is-ancestor', ancestor, ref], { cwd: root });
     return true;
   } catch {
     return false;
@@ -53,34 +79,65 @@ function splitLines(out: string | null): string[] {
   return out ? out.split('\n').map((s) => s.trim()).filter((s) => s.length > 0) : [];
 }
 
-/** `fromRef` omitted diffs the index against nothing (no `HEAD` yet): the canonical empty-tree sha is not guaranteed to exist in a fresh repository's object database, so it is never used as a literal ref. */
-async function diffCachedNames(root: string, fromRef?: string): Promise<string[]> {
-  const args = ['diff', '--cached', '--name-only', '--no-renames', '-z', ...(fromRef ? [fromRef] : [])];
-  return splitZ(await git(root, args));
+/**
+ * `git rev-parse --show-prefix`, trimmed: empty when `root` (the prdm project root) is itself the git top-level,
+ * otherwise the trailing-slash-terminated path from the top-level down to `root` (WO-024 finding 2). Every path
+ * git reports from a diff/show-style command is relative to the top-level regardless of `cwd`, so this prefix is
+ * what turns those repo-relative paths into the project-relative ones the rest of this module expects.
+ */
+async function projectPrefix(root: string): Promise<string> {
+  const out = await git(root, ['rev-parse', '--show-prefix']);
+  return out ? out.trim() : '';
 }
 
-async function diffNamesBetween(root: string, fromRef: string, toRef: string): Promise<string[]> {
-  return splitZ(await git(root, ['diff', '--name-only', '--no-renames', '-z', fromRef, toRef]));
-}
-
-/** The paths a commit introduces relative to its first parent, or to nothing when it is a root commit. */
-async function changedPathsForCommit(root: string, parent1: string | undefined, sha: string): Promise<string[]> {
-  if (!parent1) return splitZ(await git(root, ['show', '--no-renames', '--name-only', '--format=', '-z', sha]));
-  return diffNamesBetween(root, parent1, sha);
+/** Repo-relative -> project-relative: drops anything outside `prefix` and strips it from the rest. */
+function stripPrefix(prefix: string, paths: readonly string[]): string[] {
+  if (!prefix) return [...paths];
+  return paths.filter((path) => path.startsWith(prefix)).map((path) => path.slice(prefix.length));
 }
 
 /**
- * `ref === 'INDEX'` lists the staged tree; any other ref is a commit-ish (`HEAD`, a sha, `HEAD^`, ...).
- * `ls-tree`'s trailing arguments are literal paths, not pathspecs (unlike `ls-files`/`diff`), so the `.md` filter
- * is applied here in JS rather than passed to git.
+ * `fromRef` omitted diffs the index against nothing (no `HEAD` yet, or a root commit being amended): the canonical
+ * empty-tree sha is not guaranteed to exist in a fresh repository's object database, so it is never used as a
+ * literal ref. No pathspec is passed to restrict this to the project subtree: a bare pathspec after `--` is
+ * resolved relative to `cwd` (which is already the project root when it is a repo subdirectory), not the repo
+ * top-level, so it cannot be combined with `prefix` (a top-level-relative path) here - filtering happens entirely
+ * in {@link stripPrefix} instead, on the repo-root-relative paths git itself reports.
  */
-async function markdownPathsAt(root: string, ref: string): Promise<string[]> {
-  if (ref === 'INDEX') return splitLines(await git(root, ['ls-files', '--cached', '--', '*.md']));
-  return splitLines(await git(root, ['ls-tree', '-r', '--name-only', ref])).filter((path) => path.endsWith('.md'));
+async function diffCachedNames(root: string, prefix: string, fromRef?: string): Promise<string[]> {
+  const args = ['diff', '--cached', '--name-only', '--no-renames', '-z', ...(fromRef ? [fromRef] : [])];
+  return stripPrefix(prefix, splitZ(await gitStrict(root, args)));
 }
 
-function blobSpec(ref: string, path: string): string {
-  return ref === 'INDEX' ? `:${path}` : `${ref}:${path}`;
+async function diffNamesBetween(root: string, prefix: string, fromRef: string, toRef: string): Promise<string[]> {
+  const args = ['diff', '--name-only', '--no-renames', '-z', fromRef, toRef];
+  return stripPrefix(prefix, splitZ(await gitStrict(root, args)));
+}
+
+/** The paths a commit introduces relative to its first parent, or to nothing when it is a root commit. */
+async function changedPathsForCommit(root: string, prefix: string, parent1: string | undefined, sha: string): Promise<string[]> {
+  if (!parent1) {
+    const args = ['show', '--no-renames', '--name-only', '--format=', '-z', sha];
+    return stripPrefix(prefix, splitZ(await gitStrict(root, args)));
+  }
+  return diffNamesBetween(root, prefix, parent1, sha);
+}
+
+/**
+ * `ref === 'INDEX'` lists the staged tree; any other ref is a commit-ish (`HEAD`, a sha, `HEAD^`, ...). Both
+ * `ls-tree` and `ls-files` implicitly restrict themselves to (and report paths relative to) `cwd`, so when `root`
+ * is a subdirectory of the git repository (WO-024 finding 2) these are already project-relative with no further
+ * work. `-z` (WO-024 finding 1c) keeps non-ASCII paths intact regardless of `core.quotepath`.
+ */
+async function markdownPathsAt(root: string, ref: string): Promise<string[]> {
+  if (ref === 'INDEX') return splitZ(await git(root, ['ls-files', '--cached', '-z', '--', '*.md']));
+  return splitZ(await git(root, ['ls-tree', '-r', '-z', '--name-only', ref])).filter((path) => path.endsWith('.md'));
+}
+
+/** `<rev>:<path>` blob specs are always resolved relative to the repo top-level, so `prefix` (project-relative ->
+ * repo-relative) must be re-applied here even though it was already stripped from `path` itself. */
+function blobSpec(ref: string, prefix: string, path: string): string {
+  return ref === 'INDEX' ? `:${prefix}${path}` : `${ref}:${prefix}${path}`;
 }
 
 function toPolicyDoc(fm: Frontmatter): PolicyDoc | null {
@@ -98,12 +155,27 @@ function excludeNested(paths: readonly string[], nestedRoots: readonly string[])
   return paths.filter((path) => !isInsideNested(path, nestedRoots));
 }
 
+/**
+ * Root-relative-to-`root` project subdirectories with their own `.prdm.yaml` at `ref` (WO-024 finding 1b): computed
+ * from `git ls-tree`, never from the live working tree, so a nested project declared inside the very range being
+ * checked cannot retroactively exempt paths that were governed at `ref`.
+ */
+async function nestedProjectRootsAtRef(root: string, ref: string, ignore: readonly string[]): Promise<string[]> {
+  const paths = splitZ(await git(root, ['ls-tree', '-r', '-z', '--name-only', ref]));
+  const suffix = '/.prdm.yaml';
+  const isIgnored = ignore.length > 0 ? picomatch([...ignore]) : (): boolean => false;
+  return paths
+    .filter((path) => path.endsWith(suffix) && !isIgnored(path))
+    .map((path) => path.slice(0, -suffix.length))
+    .sort();
+}
+
 /** Reads and parses every SDD/ADR/WO document reachable at `ref`, excluding nested projects. */
-async function policyDocsAt(root: string, ref: string, paths: readonly string[], nestedRoots: readonly string[]): Promise<PolicyDoc[]> {
+async function policyDocsAt(root: string, prefix: string, ref: string, paths: readonly string[], nestedRoots: readonly string[]): Promise<PolicyDoc[]> {
   const docs: PolicyDoc[] = [];
   for (const path of paths) {
     if (isInsideNested(path, nestedRoots)) continue;
-    const content = await git(root, ['show', blobSpec(ref, path)]);
+    const content = await git(root, ['show', blobSpec(ref, prefix, path)]);
     if (content === null) continue;
     const parsed = parseDocument(content, path);
     if (!parsed || !parsed.ok) continue;
@@ -126,18 +198,22 @@ export async function checkCommitMessage(root: string, message: string, options:
   const settingsRaw = await readTextFile(join(root, '.prdm.yaml'));
   if (settingsRaw === null) return { ok: true, requiredFor: [], refs: [] };
   const settings = parseProjectFile(settingsRaw);
+  const prefix = await projectPrefix(root);
 
   const hasHead = (await git(root, ['rev-parse', '-q', '--verify', 'HEAD'])) !== null;
-  const diffBase = options.amend && hasHead ? 'HEAD^' : hasHead ? 'HEAD' : undefined;
+  // Amending the repository's very first commit has no `HEAD^`: diff against nothing (WO-024 finding 6), exactly
+  // like the "no HEAD yet" case below, rather than assuming a parent that does not exist.
+  const headHasParent = hasHead && (await git(root, ['rev-parse', '-q', '--verify', 'HEAD^'])) !== null;
+  const diffBase = !hasHead ? undefined : options.amend ? (headHasParent ? 'HEAD^' : undefined) : 'HEAD';
   const nestedRoots = await findNestedProjectRoots(root, settings.ignore);
-  const changedPaths = excludeNested(await diffCachedNames(root, diffBase), nestedRoots);
+  const changedPaths = excludeNested(await diffCachedNames(root, prefix, diffBase), nestedRoots);
 
   const isMerge = (await git(root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) !== null;
-  const docsAtHead = hasHead ? await policyDocsAt(root, 'HEAD', await markdownPathsAt(root, 'HEAD'), nestedRoots) : [];
-  const docsInIndex = await policyDocsAt(root, 'INDEX', await markdownPathsAt(root, 'INDEX'), nestedRoots);
+  const docsAtHead = hasHead ? await policyDocsAt(root, prefix, 'HEAD', await markdownPathsAt(root, 'HEAD'), nestedRoots) : [];
+  const docsInIndex = await policyDocsAt(root, prefix, 'INDEX', await markdownPathsAt(root, 'INDEX'), nestedRoots);
   const allDocs = [...docsAtHead, ...docsInIndex];
 
-  const hasConflictsInGoverned = isMerge && (await hasGovernedConflicts(root, changedPaths, allDocs, 'MERGE_HEAD'));
+  const hasConflictsInGoverned = isMerge && (await hasGovernedConflicts(root, prefix, changedPaths, allDocs, 'MERGE_HEAD'));
   const withinRange = await isWithinEnforcementRange(root, settings.git.enforceRefsSince, 'HEAD');
 
   return evaluateCommit({
@@ -151,8 +227,14 @@ export async function checkCommitMessage(root: string, message: string, options:
   });
 }
 
-async function hasGovernedConflicts(root: string, changedPaths: readonly string[], docs: readonly PolicyDoc[], otherParent: string): Promise<boolean> {
-  const fromOtherParent = await diffCachedNames(root, otherParent);
+async function hasGovernedConflicts(
+  root: string,
+  prefix: string,
+  changedPaths: readonly string[],
+  docs: readonly PolicyDoc[],
+  otherParent: string,
+): Promise<boolean> {
+  const fromOtherParent = await diffCachedNames(root, prefix, otherParent);
   const conflicted = changedPaths.filter((p) => fromOtherParent.includes(p));
   return conflicted.some((p) => isGovernedPath(p, docs));
 }
@@ -166,6 +248,10 @@ export interface CommitRangeCheck {
   ok: boolean;
   commits: CommitRangeEntry[];
   grandfatheredGrowthMessage?: string;
+  /** Root commits found inside the range (i.e. not the range base itself) - an unrelated-history graft or "evil merge" (WO-024 finding 1d). */
+  orphanCommitsMessage?: string;
+  /** Governed paths changed between the range's base and head that no single non-merge commit's "Refs:" trailer covers (WO-024 finding 1d). */
+  uncoveredPathsMessage?: string;
 }
 
 function splitRange(range: string): [string, string] {
@@ -174,75 +260,181 @@ function splitRange(range: string): [string, string] {
   return [range.slice(0, idx), range.slice(idx + 2)];
 }
 
+async function commitParents(root: string, sha: string): Promise<string[]> {
+  const line = splitLines(await gitStrict(root, ['rev-list', '--parents', '-n', '1', sha]))[0] ?? sha;
+  return line.split(/\s+/).slice(1);
+}
+
+/**
+ * Evaluates one historical commit in a range. `rangeDocs` (the union of every ref inspected across the whole
+ * range - the base tree, every commit and every commit's parent) stands in for `docsAtHead`, and `headDocs` (the
+ * range's final tip) stands in for `docsInIndex`: a blueprint or work order deleted-then-restored mid-range, or a
+ * WO whose status only settles at the tip, still governs/validates every commit in between (WO-024 finding 1a),
+ * while `evaluateCommit`'s own HEAD-or-index union (WO-024 finding 6) extends naturally across the whole range.
+ */
 async function evaluateHistoricalCommit(
   root: string,
+  prefix: string,
   sha: string,
-  settings: { enforceRefs: boolean; enforceRefsSince: string | null },
+  parents: readonly string[],
+  gitSettings: { enforceRefs: boolean; enforceRefsSince: string | null },
   nestedRoots: readonly string[],
+  rangeDocs: readonly PolicyDoc[],
+  headDocs: readonly PolicyDoc[],
 ): Promise<EvaluateCommitResult> {
-  const parents = splitLines(await git(root, ['rev-list', '--parents', '-n', '1', sha]))[0]?.split(/\s+/) ?? [sha];
-  const [, parent1, parent2] = parents;
-  const changedPaths = excludeNested(await changedPathsForCommit(root, parent1, sha), nestedRoots);
+  const [parent1, parent2] = parents;
+  const changedPaths = excludeNested(await changedPathsForCommit(root, prefix, parent1, sha), nestedRoots);
   const isMerge = parent2 !== undefined;
-
-  const docsAtHead = parent1 ? await policyDocsAt(root, parent1, await markdownPathsAt(root, parent1), nestedRoots) : [];
-  const docsInIndex = await policyDocsAt(root, sha, await markdownPathsAt(root, sha), nestedRoots);
-  const allDocs = [...docsAtHead, ...docsInIndex];
 
   let hasConflictsInGoverned = false;
   if (isMerge && parent1 && parent2) {
-    const fromP1 = await diffNamesBetween(root, parent1, sha);
-    const fromP2 = await diffNamesBetween(root, parent2, sha);
+    const fromP1 = await diffNamesBetween(root, prefix, parent1, sha);
+    const fromP2 = await diffNamesBetween(root, prefix, parent2, sha);
+    const allDocs = [...rangeDocs, ...headDocs];
     hasConflictsInGoverned = fromP1.filter((p) => fromP2.includes(p)).some((p) => isGovernedPath(p, allDocs));
   }
 
-  const withinRange = await isWithinEnforcementRange(root, settings.enforceRefsSince, sha);
+  const withinRange = await isWithinEnforcementRange(root, gitSettings.enforceRefsSince, sha);
   const message = (await git(root, ['log', '-1', '--format=%B', sha])) ?? '';
   return evaluateCommit({
     changedPaths,
     message,
     isMerge,
     hasConflictsInGoverned,
-    docsAtHead,
-    docsInIndex,
-    settings: { enforceRefs: settings.enforceRefs, isWithinEnforcementRange: withinRange },
+    docsAtHead: rangeDocs,
+    docsInIndex: headDocs,
+    settings: { enforceRefs: gitSettings.enforceRefs, isWithinEnforcementRange: withinRange },
   });
 }
 
-async function settingsAtRef(root: string, ref: string): Promise<string | null> {
-  return (await git(root, ['show', `${ref}:.prdm.yaml`])) ?? (await readTextFile(join(root, '.prdm.yaml')));
-}
-
-async function grandfatheredGrew(root: string, baseRaw: string, headRef: string): Promise<boolean> {
-  const baseCount = parseProjectFile(baseRaw).lifecycle.grandfathered.length;
-  const headRaw = await settingsAtRef(root, headRef);
-  if (headRaw === null) return false;
-  try {
-    return parseProjectFile(headRaw).lifecycle.grandfathered.length > baseCount;
-  } catch {
-    return false;
-  }
+/**
+ * Reads `.prdm.yaml` at `ref` via `git show`, parsed. Returns `null` only when `ref` genuinely has no `.prdm.yaml`
+ * (a normal, successful "not found") - never falls back to the live working tree (WO-024 finding 1e): a base
+ * commit predating `.prdm.yaml` must fall back to schema defaults, not to whatever a PR's own checkout carries.
+ */
+async function settingsAtRef(root: string, prefix: string, ref: string): Promise<ProjectFileSettings | null> {
+  const raw = await git(root, ['show', `${ref}:${prefix}.prdm.yaml`]);
+  return raw === null ? null : parseProjectFile(raw);
 }
 
 /**
- * CI mode (`prdm check commits --range <base>..<head>`): evaluates every commit in the range independently, each
- * against its own first parent and its own document state, using policy settings read from `.prdm.yaml` at `base`
- * (falling back to the working tree). Also fails when `lifecycle.grandfathered` grew relative to `base`.
+ * `true` when `lifecycle.grandfathered` at `headRef` contains an `{ id, hash }` pair absent from `base` (WO-024
+ * finding 5): comparing the *set* rather than just the count also catches swapping the hash of an id that was
+ * already grandfathered. Removing entries is always fine.
+ */
+async function grandfatheredGrew(root: string, prefix: string, baseSettings: ProjectFileSettings | null, headRef: string): Promise<boolean> {
+  const baseEntries = baseSettings?.lifecycle.grandfathered ?? DEFAULT_LIFECYCLE.grandfathered;
+  const baseSet = new Set(baseEntries.map((entry) => `${entry.id}:${entry.hash}`));
+  let headSettings: ProjectFileSettings | null;
+  try {
+    headSettings = await settingsAtRef(root, prefix, headRef);
+  } catch {
+    return false;
+  }
+  if (headSettings === null) return false;
+  return headSettings.lifecycle.grandfathered.some((entry) => !baseSet.has(`${entry.id}:${entry.hash}`));
+}
+
+/** Every ref whose document state matters for the range: the base tree, every commit in the range, and each commit's parent(s) (WO-024 finding 1a). */
+function collectRangeRefs(baseRef: string, shas: readonly string[], parentsBySha: ReadonlyMap<string, readonly string[]>): string[] {
+  const refs = new Set<string>([baseRef, ...shas]);
+  for (const parents of parentsBySha.values()) for (const parent of parents) refs.add(parent);
+  return [...refs];
+}
+
+async function collectRangeDocs(root: string, prefix: string, refs: readonly string[], nestedRoots: readonly string[]): Promise<PolicyDoc[]> {
+  const docs: PolicyDoc[] = [];
+  for (const ref of refs) docs.push(...(await policyDocsAt(root, prefix, ref, await markdownPathsAt(root, ref), nestedRoots)));
+  return docs;
+}
+
+/**
+ * Aggregate coverage check (WO-024 finding 1d, minimum requirement): every governed path changed between the
+ * range's base and head must be touched by at least one *non-merge* commit in the range whose message carries a
+ * valid `Refs:` trailer for a WO governing that path. This catches drift a merge commit introduces beyond what any
+ * individual commit's own diff carries (an "evil merge"), which per-commit evaluation alone cannot see.
+ */
+async function aggregateCoverageCheck(
+  root: string,
+  prefix: string,
+  baseRef: string,
+  headRef: string,
+  shas: readonly string[],
+  parentsBySha: ReadonlyMap<string, readonly string[]>,
+  nestedRoots: readonly string[],
+  allDocs: readonly PolicyDoc[],
+  enforceRefs: boolean,
+): Promise<{ ok: boolean; message?: string }> {
+  if (!enforceRefs) return { ok: true };
+  const finalChanged = excludeNested(await diffNamesBetween(root, prefix, baseRef, headRef), nestedRoots);
+  const governedFinal = finalChanged.filter((path) => isGovernedPath(path, allDocs));
+  if (governedFinal.length === 0) return { ok: true };
+
+  const nonMergeCommits: { paths: Set<string>; refs: string[] }[] = [];
+  for (const sha of shas) {
+    const parents = parentsBySha.get(sha) ?? [];
+    if (parents.length !== 1) continue;
+    const changed = excludeNested(await changedPathsForCommit(root, prefix, parents[0], sha), nestedRoots);
+    const message = (await git(root, ['log', '-1', '--format=%B', sha])) ?? '';
+    nonMergeCommits.push({ paths: new Set(changed), refs: parseRefs(message) });
+  }
+
+  const uncovered = governedFinal
+    .filter((path) => !nonMergeCommits.some((commit) => commit.paths.has(path) && isPathCoveredByRefs(path, commit.refs, allDocs)))
+    .sort();
+  if (uncovered.length === 0) return { ok: true };
+  return { ok: false, message: `governed path(s) not covered by any single commit's "Refs:" trailer: ${uncovered.join(', ')}` };
+}
+
+/**
+ * CI mode (`prdm check commits --range <base>..<head>`): evaluates every commit in the range against the union of
+ * document state across the whole range (WO-024 finding 1a), using nested project roots and policy settings fixed
+ * at the base tree (finding 1b/1e), supports a project root inside a subdirectory of the repository (finding 2),
+ * fails loudly on git errors instead of silently passing (finding 3), rejects orphan root commits and runs an
+ * aggregate coverage check across the whole range (finding 1d), and fails when `lifecycle.grandfathered` gained any
+ * `{ id, hash }` pair relative to `base` (finding 5).
  */
 export async function checkCommitRange(root: string, range: string): Promise<CommitRangeCheck> {
   const [baseRef, headRef] = splitRange(range);
-  const baseRaw = await settingsAtRef(root, baseRef);
-  if (baseRaw === null) return { ok: true, commits: [] };
-  const settings = parseProjectFile(baseRaw);
-  const nestedRoots = await findNestedProjectRoots(root, settings.ignore);
+  const prefix = await projectPrefix(root);
 
-  const shas = splitLines(await git(root, ['rev-list', '--reverse', range]));
+  const shas = splitLines(await gitStrict(root, ['rev-list', '--reverse', range]));
+  const parentsBySha = new Map<string, string[]>();
+  for (const sha of shas) parentsBySha.set(sha, await commitParents(root, sha));
+
+  const orphanShas = shas.filter((sha) => (parentsBySha.get(sha) ?? []).length === 0);
+  const nonOrphanShas = shas.filter((sha) => !orphanShas.includes(sha));
+
+  const baseSettings = await settingsAtRef(root, prefix, baseRef);
+  const gitSettings = baseSettings?.git ?? DEFAULT_GIT;
+  const ignore = baseSettings?.ignore ?? [];
+  const nestedRoots = await nestedProjectRootsAtRef(root, baseRef, ignore);
+
+  const rangeRefs = collectRangeRefs(baseRef, shas, parentsBySha);
+  const rangeDocs = await collectRangeDocs(root, prefix, rangeRefs, nestedRoots);
+  const headDocs = await policyDocsAt(root, prefix, headRef, await markdownPathsAt(root, headRef), nestedRoots);
+  const allDocs = [...rangeDocs, ...headDocs];
+
   const commits: CommitRangeEntry[] = [];
-  for (const sha of shas) commits.push({ sha, result: await evaluateHistoricalCommit(root, sha, settings.git, nestedRoots) });
+  for (const sha of nonOrphanShas) {
+    const result = await evaluateHistoricalCommit(root, prefix, sha, parentsBySha.get(sha) ?? [], gitSettings, nestedRoots, rangeDocs, headDocs);
+    commits.push({ sha, result });
+  }
 
-  const grew = await grandfatheredGrew(root, baseRaw, headRef);
-  const ok = commits.every((c) => c.result.ok) && !grew;
-  return { ok, commits, grandfatheredGrowthMessage: grew ? `lifecycle.grandfathered grew relative to ${baseRef}` : undefined };
+  const aggregate = await aggregateCoverageCheck(root, prefix, baseRef, headRef, nonOrphanShas, parentsBySha, nestedRoots, allDocs, gitSettings.enforceRefs);
+  const grew = await grandfatheredGrew(root, prefix, baseSettings, headRef);
+
+  const orphanCommitsMessage =
+    orphanShas.length > 0 ? `orphan root commit(s) found inside the range (only the range base may be a root commit): ${orphanShas.join(', ')}` : undefined;
+
+  const ok = orphanShas.length === 0 && commits.every((c) => c.result.ok) && !grew && aggregate.ok;
+  return {
+    ok,
+    commits,
+    grandfatheredGrowthMessage: grew ? `lifecycle.grandfathered grew relative to ${baseRef}` : undefined,
+    orphanCommitsMessage,
+    uncoveredPathsMessage: aggregate.ok ? undefined : aggregate.message,
+  };
 }
 
 /** `origin/<default-branch>..<headSha>`, used by CI when `before` is all-zeros (first push of a new branch). */

@@ -97,6 +97,22 @@ describe('evaluateCommit', () => {
     expect(result.ok).toBe(true);
   });
 
+  test('a WO open at HEAD but marked done in the same commit index is still a valid ref (WO-024 finding 6)', () => {
+    const woDoneInIndex: PolicyDoc = { type: 'WO', id: 'WO-001', status: 'done', implements: ['SDD-001'] };
+    const result = evaluateCommit(baseInput({ docsAtHead: [SDD_001, WO_OPEN], docsInIndex: [SDD_001, woDoneInIndex], message: 'feat: x\n\nRefs: WO-001' }));
+    expect(result.ok).toBe(true);
+  });
+
+  test('a WO not yet created at HEAD but open in the index is a valid ref', () => {
+    const result = evaluateCommit(baseInput({ docsAtHead: [SDD_001], docsInIndex: [SDD_001, WO_OPEN], message: 'feat: x\n\nRefs: WO-001' }));
+    expect(result.ok).toBe(true);
+  });
+
+  test('a WO done at both HEAD and in the index is still rejected', () => {
+    const result = evaluateCommit(baseInput({ docsAtHead: [SDD_001, WO_DONE], docsInIndex: [SDD_001, WO_DONE], message: 'feat: x\n\nRefs: WO-002' }));
+    expect(result.ok).toBe(false);
+  });
+
   test('#symbol suffixes in impacts_paths are stripped before matching', () => {
     const symbolBlueprint: PolicyDoc = { type: 'SDD', id: 'SDD-005', impactsPaths: ['src/sync/git.ts#parseRefs'] };
     const wo: PolicyDoc = { type: 'WO', id: 'WO-010', status: 'pending', implements: ['SDD-005'] };

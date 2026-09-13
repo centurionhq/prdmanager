@@ -1,8 +1,12 @@
-/** The `prdm-graph` MCP server entry `prdm init --mcp` merges into the target project's `.mcp.json`. */
+/**
+ * The `prdm-graph` MCP server entry `prdm init --mcp` merges into the target project's `.mcp.json`.
+ * `--no-install` refuses to silently fetch and execute an arbitrary package from the registry the first time an
+ * MCP client launches this entry (SDD-002 "Seguridad"): `prdm-graph` must already be installed locally.
+ */
 const PRDM_GRAPH_SERVER = {
   type: 'stdio',
   command: 'npx',
-  args: ['prdm-graph'],
+  args: ['--no-install', 'prdm-graph'],
 } as const;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

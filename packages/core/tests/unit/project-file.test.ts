@@ -84,6 +84,34 @@ describe('parseProjectFile', () => {
     expect(settings.folders).toEqual({ ...DEFAULT_FOLDERS, FR: 'docs/requests' });
   });
 
+  test('overriding docs_dir without folders derives every default folder from the new docs_dir (WO-024 finding 8)', () => {
+    const settings = parseProjectFile(`version: 1\nproject:\n  id: ${VALID_ID}\n  name: p\ndocs_dir: spec\n`);
+    expect(settings.folders).toEqual({
+      MRD: 'spec/mrd',
+      PRD: 'spec/prd',
+      FR: 'spec/fr',
+      SDD: 'spec/sdd',
+      ADR: 'spec/adr',
+      WO: 'spec/work-orders',
+      FB: 'spec/feedback',
+      ART: 'spec/artifacts',
+    });
+  });
+
+  test('overriding docs_dir with a partial folder map derives the rest from the new docs_dir (WO-024 finding 8)', () => {
+    const settings = parseProjectFile(`version: 1\nproject:\n  id: ${VALID_ID}\n  name: p\ndocs_dir: spec\nfolders:\n  FR: spec/requests\n`);
+    expect(settings.folders).toEqual({
+      MRD: 'spec/mrd',
+      PRD: 'spec/prd',
+      FR: 'spec/requests',
+      SDD: 'spec/sdd',
+      ADR: 'spec/adr',
+      WO: 'spec/work-orders',
+      FB: 'spec/feedback',
+      ART: 'spec/artifacts',
+    });
+  });
+
   test('rejects files larger than 64 KiB', () => {
     const big = `version: 1\nproject:\n  id: ${VALID_ID}\n  name: p\nignore:\n${'  - x\n'.repeat(20_000)}`;
     expect(Buffer.byteLength(big, 'utf8')).toBeGreaterThan(MAX_PROJECT_FILE_BYTES);

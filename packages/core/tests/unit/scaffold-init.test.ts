@@ -66,7 +66,7 @@ describe('planInit / applyInit', () => {
     await applyInit(root, plan);
     const mcp = JSON.parse(readFileSync(join(root, '.mcp.json'), 'utf8'));
     expect(mcp.mcpServers.other).toEqual({ type: 'stdio', command: 'x' });
-    expect(mcp.mcpServers['prdm-graph']).toMatchObject({ command: 'npx' });
+    expect(mcp.mcpServers['prdm-graph']).toEqual({ type: 'stdio', command: 'npx', args: ['--no-install', 'prdm-graph'] });
 
     const second = await planInit(root, { name: 'demo', random: RANDOM, mcp: true });
     expect(second.writes.map((w) => w.path)).not.toContain('.mcp.json');

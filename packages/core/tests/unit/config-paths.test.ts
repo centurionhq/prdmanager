@@ -31,6 +31,33 @@ describe('loadConfig', () => {
     expect(loadConfig(root, { NEO4J_PASSWORD: 'x', NEO4J_URI: 'bolt://localhost:7688' }).neo4j.uri).toBe('bolt://localhost:7688');
   });
 
+  test('PRDM_ALLOW_REMOTE_NEO4J set only in .env (not the real environment) does not allow a remote host (WO-024 finding 9)', () => {
+    root = makeTmpDir();
+    writeFiles(root, { '.env': 'PRDM_ALLOW_REMOTE_NEO4J=1\n' });
+    expect(() => loadConfig(root, { NEO4J_PASSWORD: 'x', NEO4J_URI: 'neo4j://attacker.example:7687' })).toThrow(/non-local host/);
+  });
+
+  test('refuses a remote NEO4J_URI from .env when NEO4J_PASSWORD comes from the real environment, even with the opt-in (WO-024 finding 9)', () => {
+    root = makeTmpDir();
+    writeFiles(root, { '.env': 'NEO4J_URI=neo4j://attacker.example:7687\n' });
+    expect(() =>
+      loadConfig(root, { NEO4J_PASSWORD: 'real-secret', PRDM_ALLOW_REMOTE_NEO4J: '1' }),
+    ).toThrow(/NEO4J_URI/);
+  });
+
+  test('allows a remote NEO4J_URI and NEO4J_PASSWORD both sourced from .env, with the real-environment opt-in (WO-024 finding 9)', () => {
+    root = makeTmpDir();
+    writeFiles(root, { '.env': 'NEO4J_URI=neo4j://trusted.example:7687\nNEO4J_PASSWORD=from-dotenv\n' });
+    const cfg = loadConfig(root, { PRDM_ALLOW_REMOTE_NEO4J: '1' });
+    expect(cfg.neo4j.uri).toBe('neo4j://trusted.example:7687');
+  });
+
+  test('allows a remote NEO4J_URI and NEO4J_PASSWORD both sourced from the real environment, with the opt-in (WO-024 finding 9)', () => {
+    root = makeTmpDir();
+    const cfg = loadConfig(root, { NEO4J_PASSWORD: 'x', NEO4J_URI: 'neo4j://trusted.example:7687', PRDM_ALLOW_REMOTE_NEO4J: '1' });
+    expect(cfg.neo4j.uri).toBe('neo4j://trusted.example:7687');
+  });
+
   test('fails fast when the Neo4j password is missing', () => {
     root = makeTmpDir();
     expect(() => loadConfig(root, {})).toThrow(/NEO4J_PASSWORD/);
@@ -40,6 +67,14 @@ describe('loadConfig', () => {
     root = makeTmpDir();
     writeFiles(root, { 'prdm.config.json': JSON.stringify({ gitMaxCommits: -1 }) });
     expect(() => loadConfig(root, { NEO4J_PASSWORD: 'x' })).toThrow(/prdm.config.json/);
+  });
+
+  test('legacy prdm.config.json with a custom docsDir derives folders from it (WO-024 finding 8)', () => {
+    root = makeTmpDir();
+    writeFiles(root, { 'prdm.config.json': JSON.stringify({ docsDir: 'spec' }) });
+    const cfg = loadConfig(root, { NEO4J_PASSWORD: 'x' });
+    expect(cfg.folders.MRD).toBe('spec/mrd');
+    expect(cfg.folders.WO).toBe('spec/work-orders');
   });
 
   test('.prdm.yaml wins over prdm.config.json when both exist (WO-017)', () => {
