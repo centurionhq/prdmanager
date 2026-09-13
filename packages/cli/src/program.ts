@@ -1,10 +1,13 @@
 import { Command, CommanderError } from 'commander';
 import { Engine, loadConfig, Neo4jGraphDatabase, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
 import { register as registerArtifactCommands } from './commands/artifacts.js';
+import { register as registerCheckCommands } from './commands/check.js';
 import { register as registerCloseCommands } from './commands/close.js';
 import { register as registerDbCommands } from './commands/db.js';
 import { register as registerFeedbackCommands } from './commands/feedback.js';
 import { register as registerGraphCommands } from './commands/graph.js';
+import { register as registerHooksCommands } from './commands/hooks.js';
+import { register as registerInitCommands } from './commands/init.js';
 import { register as registerMetricsCommands } from './commands/metrics.js';
 import { register as registerMigrateCommands } from './commands/migrate.js';
 import { register as registerParserCommands } from './commands/parser.js';
@@ -56,6 +59,7 @@ export async function withContext<T>(deps: CliDeps, fn: (ctx: CliContext) => Pro
   }
 }
 
+/** `init` and `check commit-msg`/`check commits` never call {@link withContext}: they run without Neo4j or `NEO4J_PASSWORD` (SDD-002 "Proyecto activo" / "Ciclo de vida"). */
 const REGISTRARS = [
   registerDbCommands,
   registerProjectCommands,
@@ -68,6 +72,9 @@ const REGISTRARS = [
   registerCloseCommands,
   registerFeedbackCommands,
   registerArtifactCommands,
+  registerInitCommands,
+  registerHooksCommands,
+  registerCheckCommands,
 ];
 
 export function createProgram(deps: CliDeps): Command {

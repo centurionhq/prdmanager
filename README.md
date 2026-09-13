@@ -75,13 +75,17 @@ Ejecutar con `npm run prdm -- <comando>` (o `npx tsx --conditions=@prdm/source p
 
 | Área | Comandos |
 |---|---|
+| Proyecto (PRD-002 F-07) | `init [dir] --name <n> [--adopt] [--no-hooks] [--mcp] [--force]`, `hooks install [--force]` |
 | Base de datos | `db up`, `db migrate`, `db status`, `db reset --yes` |
 | Índice (F-01) | `index`, `lint`, `ingest artifact <file> --source call [--link PRD-001]` |
 | Feature Tree (F-02) | `tree [ID] --format text\|json\|mermaid`, `node <ID>`, `search <texto> [--label Feature]` |
-| Drift (F-03) | `sync`, `sync --check` (exit ≠ 0 para CI), `sync ack <ID\|all>` (blueprint, feature o WO), `watch`, `hooks install` |
+| Drift (F-03) | `sync`, `sync --check` (exit ≠ 0 para CI), `sync ack <ID\|all>` (blueprint, feature o WO), `watch` |
 | Work Orders (F-04) | `wo generate <SDD-ID>`, `wo list [--status todo]`, `wo context <WO-ID>`, `wo claim <WO-ID> --as agent:claude`, `wo complete <WO-ID> --commit HEAD` |
 | Feedback (F-05) | `feedback add --text "..." --source email`, `feedback triage --text "..."`, `fr create --title ... --parent PRD-001 --from-feedback FB-001` |
 | Métricas (§6) | `metrics [--json]` |
+| Política de commits (PRD-002 F-07) | `check commit-msg <file>` (usado por el hook `commit-msg`), `check commits --range <a..b>` (CI) — ninguno de los dos necesita Neo4j |
+
+`prdm init` nunca abre una conexión a Neo4j: solo escribe `.prdm.yaml`, las carpetas `docs/<tipo>/` y los hooks de git, así que funciona sin `NEO4J_PASSWORD`. `--adopt` convierte un `prdm.config.json` existente (sin borrarlo). `hooks install` (también invocado por `init` salvo `--no-hooks`) escribe bloques marcados `# >>> prdm <id> >>>` en `post-commit` (`prdm sync`) y `commit-msg` (`prdm check commit-msg`) en el directorio que reporte `git rev-parse --git-path hooks` (respeta `core.hooksPath`/husky y hooks existentes; reintentar es un no-op). El hook `commit-msg` exige un trailer `Refs: WO-xxx` de un work order `pending`/`in_progress`/`out_of_sync` de este proyecto cuando el commit toca código gobernado por un `SDD`/`ADR`; `PRDM_SKIP_HOOKS=1` desactiva ambos hooks para un commit puntual.
 
 ## Flujo de trabajo
 
