@@ -4,8 +4,14 @@ import { describe, expect, it } from 'vitest';
 
 const CLIENT_SRC = join(import.meta.dirname, '..', '..', 'src', 'client');
 
-/** Matches a whole `import .. from '@prdm/core'` / `export .. from '@prdm/core'` statement, single- or multi-line. */
-const CORE_IMPORT_PATTERN = /\b(import|export)\s+([\s\S]*?)\bfrom\s+(['"])@prdm\/core\3/g;
+/**
+ * Matches a whole `import .. from '@prdm/core'` / `export .. from '@prdm/core'` statement, single- or multi-line.
+ * The specifier group excludes `;` so the lazy match can't run past this statement's own terminator into a
+ * *later* unrelated `from '@prdm/core'` several statements down the file (every statement here ends in `;`) —
+ * verified against a real false positive: an earlier `import { x } from 'react'` on its own line made the naive
+ * `[\s\S]*?` swallow that whole statement too once a later line imported from `@prdm/core`.
+ */
+const CORE_IMPORT_PATTERN = /\b(import|export)\s+([^;]*?)\bfrom\s+(['"])@prdm\/core\3/g;
 
 function collectSourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -13,6 +19,16 @@ function collectSourceFiles(dir: string): string[] {
     if (statSync(fullPath).isDirectory()) return collectSourceFiles(fullPath);
     return /\.(ts|tsx)$/.test(entry) ? [fullPath] : [];
   });
+}
+
+/** Every `from '@prdm/core'` import/export statement in `content` that isn't `import type`/`export type`. */
+function findCoreValueImports(content: string): string[] {
+  const offenders: string[] = [];
+  for (const match of content.matchAll(CORE_IMPORT_PATTERN)) {
+    const specifier = match[2] ?? '';
+    if (!/^\s*type\s/.test(specifier)) offenders.push(match[0].replace(/\s+/g, ' ').trim());
+  }
+  return offenders;
 }
 
 /**
@@ -27,16 +43,18 @@ describe('web client never imports a value from @prdm/core', () => {
     const files = collectSourceFiles(CLIENT_SRC);
     expect(files.length).toBeGreaterThan(0);
 
-    const offenders: string[] = [];
-    for (const file of files) {
-      const content = readFileSync(file, 'utf8');
-      for (const match of content.matchAll(CORE_IMPORT_PATTERN)) {
-        const specifier = match[2] ?? '';
-        const isTypeOnly = /^\s*type\s/.test(specifier);
-        if (!isTypeOnly) offenders.push(`${file}: ${match[0].replace(/\s+/g, ' ').trim()}`);
-      }
-    }
+    const offenders = files.flatMap((file) => findCoreValueImports(readFileSync(file, 'utf8')).map((offense) => `${file}: ${offense}`));
 
     expect(offenders).toEqual([]);
+  });
+
+  it('does not flag a type-only core import preceded by an unrelated import on its own line (regression: a naive lazy match once spanned both statements)', () => {
+    const content = "import { useState } from 'react';\nimport type { NodeDetail } from '@prdm/core';\n";
+    expect(findCoreValueImports(content)).toEqual([]);
+  });
+
+  it('still flags a genuine value import from @prdm/core', () => {
+    const content = "import { useState } from 'react';\nimport { scanDocuments } from '@prdm/core';\n";
+    expect(findCoreValueImports(content)).toEqual(["import { scanDocuments } from '@prdm/core'"]);
   });
 });
