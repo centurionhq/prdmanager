@@ -1,5 +1,6 @@
+import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { dirtyPaths, readCommits } from '../../src/sync/git.js';
+import { dirtyPaths, parseRefs, readCommit, readCommits } from '../../src/sync/git.js';
 import { commitAll, gitInit, makeTmpDir, removeDir, writeFiles } from '../helpers/tmp.js';
 
 let root = '';
@@ -37,5 +38,44 @@ describe('git integration', () => {
     commitAll(root, 'init');
     writeFiles(root, { 'src/a.ts': 'changed', 'src/new file.ts': 'n' });
     expect(await dirtyPaths(root)).toEqual(new Set(['src/a.ts', 'src/new file.ts']));
+  });
+
+  test('strips paths outside a monorepo package root and keeps commits with no matching files', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    const pkgRoot = join(root, 'packages', 'app');
+    writeFiles(root, { 'packages/app/src/a.ts': 'a', 'other/b.ts': 'b' });
+    const first = commitAll(root, 'feat: init');
+    writeFiles(root, { 'other/b.ts': 'b2' });
+    commitAll(root, 'chore: unrelated');
+    writeFiles(root, { 'packages/app/src/a.ts': 'dirty', 'other/c.ts': 'dirty2' });
+
+    const commits = await readCommits(pkgRoot, 10);
+    expect(commits).toHaveLength(2);
+    expect(commits[0]).toMatchObject({ subject: 'chore: unrelated', files: [] });
+    expect(commits[1]).toMatchObject({ subject: 'feat: init', files: ['src/a.ts'] });
+
+    const commit = await readCommit(pkgRoot, first);
+    expect(commit?.files).toEqual(['src/a.ts']);
+
+    expect(await dirtyPaths(pkgRoot)).toEqual(new Set(['src/a.ts']));
+  });
+
+  test('handles non-ASCII paths in commits and dirty status', async () => {
+    root = makeTmpDir();
+    gitInit(root);
+    writeFiles(root, { 'src/café.ts': 'a' });
+    commitAll(root, 'feat: café');
+    writeFiles(root, { 'src/café.ts': 'changed', 'src/résumé.ts': 'n' });
+
+    const commits = await readCommits(root, 10);
+    expect(commits[0]?.files).toEqual(['src/café.ts']);
+
+    expect(await dirtyPaths(root)).toEqual(new Set(['src/café.ts', 'src/résumé.ts']));
+  });
+
+  test('parses Refs trailers with comma, semicolon and trailing punctuation', () => {
+    expect(parseRefs('Refs: WO-001; WO-002.')).toEqual(['WO-001', 'WO-002']);
+    expect(parseRefs('feat: x\n\nRefs: WO-003:, WO-004);\nRefs: (see WO-005)')).toEqual(['WO-003', 'WO-004', 'WO-005']);
   });
 });

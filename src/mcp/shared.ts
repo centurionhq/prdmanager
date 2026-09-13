@@ -34,4 +34,5 @@ export function safeTool<Args, Extra>(
 
 export const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true } as const;
 export const WRITE_IDEMPOTENT = { readOnlyHint: false, destructiveHint: false, idempotentHint: true } as const;
+export const DESTRUCTIVE_IDEMPOTENT = { readOnlyHint: false, destructiveHint: true, idempotentHint: true } as const;
 export const WRITE_ONCE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false } as const;

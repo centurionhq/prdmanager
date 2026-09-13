@@ -26,7 +26,7 @@ export type ArtifactSource = (typeof ARTIFACT_SOURCES)[number];
 export const WORK_ORDER_STATUSES = ['todo', 'in_progress', 'done', 'out_of_sync'] as const;
 export type WorkOrderStatus = (typeof WORK_ORDER_STATUSES)[number];
 
-export const ID_PATTERN = /^(MRD|PRD|FR|SDD|ADR|WO|ART|FB)-\d{3,}$/;
+export const ID_PATTERN = /^(MRD|PRD|FR|SDD|ADR|WO|ART|FB)-\d{3,9}$/;
 export const ACTOR_PATTERN = /^(agent|dev):[A-Za-z0-9._-]{1,64}$/;
 export const SHA_PATTERN = /^[0-9a-f]{7,40}$/;
 

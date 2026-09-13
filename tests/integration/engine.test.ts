@@ -86,7 +86,12 @@ describe('Engine + Neo4jGraphStore', () => {
     const sdd = await store.getNode('SDD-001');
     expect(sdd?.links.find((l) => l.type === 'GOVERNED_BY')?.props).toMatchObject({ status: 'out_of_sync', reason: 'blueprint_changed' });
 
-    const acked = await engine.acknowledge('SDD-001');
+    const blueprintAcked = await engine.acknowledge('SDD-001');
+    expect(blueprintAcked.issues.map((i) => [i.kind, i.nodeId])).toEqual([['work_order_out_of_sync', 'WO-001']]);
+    expect((await store.getNode('WO-001'))?.node.status).toBe('out_of_sync');
+
+    await expect(engine.acknowledge('WO-404')).rejects.toThrow(/unknown/);
+    const acked = await engine.acknowledge('WO-001');
     expect(acked.issues).toEqual([]);
     expect((await store.getNode('WO-001'))?.node.status).toBe('done');
     expect(readFileSync(join(root, 'docs/work-orders/WO-001.md'), 'utf8')).toMatch(/blueprint_hashes: \{"SDD-001":"[0-9a-f]{64}"\}/);

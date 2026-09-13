@@ -9,6 +9,7 @@ import { resolveGoverned, type CodeRefState } from './sync/code-refs.js';
 import { dirtyPaths, readCommits } from './sync/git.js';
 import { acknowledge, detectDrift, type DriftInput, type DriftIssue, type GovernedState, type WorkOrderUpdate } from './sync/monitor.js';
 import { resolveInside } from './util/paths.js';
+import { withRepoLock } from './util/lock.js';
 import { safeReadFile, safeWriteFile } from './util/safe-fs.js';
 
 export interface RefreshReport {
@@ -49,9 +50,9 @@ export class Engine {
     };
   }
 
-  /** Serializes mutating operations so concurrent MCP calls cannot interleave file writes and graph snapshots. */
+  /** Serializes mutations in-process (queue) and across processes (lockfile) so file writes and graph snapshots never interleave. */
   transaction<T>(fn: (ops: EngineOps) => Promise<T>): Promise<T> {
-    const run = this.queue.then(() => fn(this.ops));
+    const run = this.queue.then(() => withRepoLock(this.config.root, () => fn(this.ops)));
     this.queue = run.catch(() => undefined);
     return run;
   }
@@ -62,7 +63,8 @@ export class Engine {
 
   acknowledge(target: string): Promise<RefreshReport> {
     return this.transaction(async () => {
-      const { input } = await this.collect();
+      const { scan, input } = await this.collect();
+      if (scan.errors.length > 0) throw new Error(`fix ${scan.errors.length} invalid document(s) before acknowledging (run prdm lint)`);
       const result = acknowledge(input, target);
       for (const update of result.workOrderHashUpdates) {
         await this.writeFields(update.sourcePath, { blueprint_hashes: update.blueprintHashes });
@@ -90,24 +92,44 @@ export class Engine {
     const { scan, input } = await this.collect();
     const drift = detectDrift(input);
 
-    for (const update of drift.workOrderUpdates) await this.writeFields(update.sourcePath, { status: update.to });
-    const statusById = new Map(drift.workOrderUpdates.map((u) => [u.id, u.to]));
+    const { applied, failures } = await this.applyStatusUpdates(drift.workOrderUpdates);
+    const statusById = new Map(applied.map((u) => [u.id, u.to]));
     const docs = scan.docs.map((d) => withStatus(d, statusById.get(d.node.id)));
+    const issues = [...drift.issues, ...failures];
 
     const hashByKey = new Map([...input.governed].flatMap(([bp, refs]) => refs.map((r) => [`${bp}|${r.key}`, r.hash] as const)));
     const governed = drift.governed.map((g) => ({ ...g, hash: hashByKey.get(`${g.blueprintId}|${g.key}`) ?? null }));
 
-    const baselineWritten = await saveBaseline(this.config.root, drift.baseline);
+    // A document that temporarily fails to parse would otherwise be pruned from the baseline and come back as "new" (drift silently accepted).
+    const baselineWritten = scan.errors.length === 0 ? await saveBaseline(this.config.root, drift.baseline) : false;
     await this.store.writeSnapshot({ docs, governed, reviewNeeded: drift.reviewNeeded, commits: input.commits });
 
     return {
       documents: docs.length,
       errors: scan.errors,
-      issues: drift.issues,
+      issues,
       governed,
-      workOrderUpdates: drift.workOrderUpdates,
+      workOrderUpdates: applied,
       baselineWritten,
-      hasBlockingIssues: scan.errors.length > 0 || drift.issues.some((i) => i.severity === 'error'),
+      hasBlockingIssues: scan.errors.length > 0 || issues.some((i) => i.severity === 'error'),
+    };
+  }
+
+  private async applyStatusUpdates(updates: WorkOrderUpdate[]): Promise<{ applied: WorkOrderUpdate[]; failures: DriftIssue[] }> {
+    const results = await Promise.all(
+      updates.map(async (update) => {
+        try {
+          await this.writeFields(update.sourcePath, { status: update.to });
+          return { update, failure: null };
+        } catch (err) {
+          const failure: DriftIssue = { kind: 'status_write_failed', severity: 'error', nodeId: update.id, message: `could not set ${update.id} to ${update.to}: ${(err as Error).message}` };
+          return { update: null, failure };
+        }
+      }),
+    );
+    return {
+      applied: results.flatMap((r) => (r.update ? [r.update] : [])),
+      failures: results.flatMap((r) => (r.failure ? [r.failure] : [])),
     };
   }
 
@@ -119,7 +141,7 @@ export class Engine {
     if (!parsed) throw new Error('document content has no graph frontmatter (id/type)');
     if (!parsed.ok) throw new Error(`invalid document: ${parsed.error}`);
     const existing = await scanDocuments(this.config.root, this.config.ignore);
-    if (existing.docs.some((d) => d.node.id === parsed.doc.node.id)) throw new Error(`document ${parsed.doc.node.id} already exists`);
+    if (existing.ids.includes(parsed.doc.node.id)) throw new Error(`document ${parsed.doc.node.id} already exists`);
     await safeWriteFile(this.config.root, rel, content, { exclusive: true });
     return parsed.doc;
   }

@@ -170,7 +170,7 @@ export class Neo4jGraphStore implements GraphStore {
        WITH n, score WHERE size($labels) = 0 OR any(l IN labels(n) WHERE l IN $labels)
        RETURN n.id AS id, ${LABEL_OF} AS label, n.title AS title, n.status AS status, score
        ORDER BY score DESC LIMIT $limit`,
-      { query, labels: options.labels ?? [], fetch: neo4j.int(limit * 5), limit: neo4j.int(limit) },
+      { query, labels: options.labels ?? [], fetch: neo4j.int(Math.min(limit * 20, 500)), limit: neo4j.int(limit) },
     );
   }
 

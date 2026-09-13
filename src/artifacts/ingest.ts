@@ -89,8 +89,8 @@ export async function attachArtifact(engine: Engine, input: AttachArtifactInput)
   if (Buffer.byteLength(parsed.content, 'utf8') > MAX_ARTIFACT_BYTES) throw new Error(`content exceeds ${MAX_ARTIFACT_BYTES} bytes`);
 
   return engine.transaction(async (ops) => {
-    const { docs } = await ops.scan();
-    const featureIds = new Set(docs.filter((d) => d.node.label === 'Feature').map((d) => d.node.id));
+    const scan = await ops.scan();
+    const featureIds = new Set(scan.docs.filter((d) => d.node.label === 'Feature').map((d) => d.node.id));
     for (const link of parsed.links ?? []) {
       if (!featureIds.has(link)) throw new Error(`link ${link} is not an existing Feature`);
     }
@@ -104,7 +104,7 @@ export async function attachArtifact(engine: Engine, input: AttachArtifactInput)
       links = triage.autoLinkTo;
     }
 
-    const id = nextId('ART', docs.map((d) => d.node.id));
+    const id = nextId('ART', scan.ids);
     const slug = slugify(parsed.title);
     const fields = {
       id,

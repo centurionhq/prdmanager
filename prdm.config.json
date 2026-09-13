@@ -5,6 +5,7 @@
   "triage": {
     "autoLinkMinScore": 0.5,
     "autoLinkMargin": 1.05,
-    "maxCandidates": 5
+    "maxCandidates": 5,
+    "minMatchedTerms": 2
   }
 }

@@ -5,3 +5,4 @@ coverage/
 .docker/
 *.log
 .claude/settings.local.json
+.prdm/*.lock

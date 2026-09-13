@@ -40,6 +40,8 @@ function extractTasks(body: string): ChecklistItem[] {
 export interface PlanOptions {
   docsDir: string;
   now: Date;
+  /** Ids to treat as taken beyond `existing`, e.g. ids found in documents that failed validation (see ScanResult.ids). */
+  reservedIds?: string[];
 }
 
 export interface PlannedWorkOrder {
@@ -95,7 +97,7 @@ export function planWorkOrders(blueprint: ParsedDoc, existing: ParsedDoc[], opti
   if (tasks.length === 0) return [];
 
   const knownSourceTasks = new Set(existing.filter(isWorkOrder).map((d) => d.frontmatter.source_task).filter((v): v is string => v !== undefined));
-  const existingIds = existing.map((d) => d.node.id);
+  const existingIds = [...existing.map((d) => d.node.id), ...(options.reservedIds ?? [])];
   const planned: PlannedWorkOrder[] = [];
 
   for (const task of tasks) {
@@ -124,13 +126,13 @@ export interface GenerateResult {
 /** Generates work orders from a blueprint's task checklist; idempotent across runs. */
 export async function generateWorkOrders(engine: Engine, blueprintId: string): Promise<GenerateResult> {
   return engine.transaction(async (ops) => {
-    const { docs } = await ops.scan();
-    const blueprint = docs.find((d) => d.node.id === blueprintId);
+    const scan = await ops.scan();
+    const blueprint = scan.docs.find((d) => d.node.id === blueprintId);
     if (!blueprint) throw new Error(`blueprint ${blueprintId} not found`);
     if (!isBlueprint(blueprint)) throw new Error(`${blueprintId} is not a blueprint`);
 
     const totalTasks = extractTasks(blueprint.node.body).length;
-    const planned = planWorkOrders(blueprint, docs, { docsDir: ops.config.docsDir, now: new Date() });
+    const planned = planWorkOrders(blueprint, scan.docs, { docsDir: ops.config.docsDir, now: new Date(), reservedIds: scan.ids });
     for (const wo of planned) await ops.createDocument(wo.path, wo.content);
     const report = await ops.refresh();
 

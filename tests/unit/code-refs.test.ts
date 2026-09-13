@@ -54,6 +54,121 @@ describe('extractSymbol', () => {
     expect(extractSymbol(ts, 'detect', 'a.ts')).toBeNull();
     expect(extractSymbol(py, 'missing', 'a.py')).toBeNull();
   });
+
+  test('hashes overloaded function signatures through the implementation body', () => {
+    const overloads = `export function f(a: string): void;
+export function f(a: number): void;
+export function f(a: string | number): void {
+  console.log(a);
+}
+`;
+    expect(extractSymbol(overloads, 'f', 'a.ts')).toBe(
+      'export function f(a: string): void;\nexport function f(a: number): void;\nexport function f(a: string | number): void {\n  console.log(a);\n}',
+    );
+  });
+
+  test('falls back to the last signature when overloads have no implementation', () => {
+    const ambient = `export function f(a: string): void;
+export function f(a: number): void;
+export const other = 1;
+`;
+    expect(extractSymbol(ambient, 'f', 'a.ts')).toBe(
+      'export function f(a: string): void;\nexport function f(a: number): void;',
+    );
+  });
+
+  test('ignores braces and parens inside strings, template literals and comments', () => {
+    const tricky = `export function g(): string {
+  const s = "not a } real close";
+  const t = \`also { not real\`;
+  // this is a { fake comment
+  /* block comment with } inside */
+  return s + t;
+}
+`;
+    expect(extractSymbol(tricky, 'g', 'a.ts')).toBe(
+      [
+        'export function g(): string {',
+        '  const s = "not a } real close";',
+        '  const t = `also { not real`;',
+        '  // this is a { fake comment',
+        '  /* block comment with } inside */',
+        '  return s + t;',
+        '}',
+      ].join('\n'),
+    );
+  });
+
+  test('hashes multi-line type unions and chained builder calls to their true end', () => {
+    const multiline = `export type Status =
+  | 'draft'
+  | 'active'
+  | 'archived';
+
+export const schema = z.object({
+  a: z.string(),
+}).extend({
+  b: z.number(),
+});
+`;
+    expect(extractSymbol(multiline, 'Status', 'a.ts')).toBe(
+      "export type Status =\n  | 'draft'\n  | 'active'\n  | 'archived';",
+    );
+    expect(extractSymbol(multiline, 'schema', 'a.ts')).toBe(
+      'export const schema = z.object({\n  a: z.string(),\n}).extend({\n  b: z.number(),\n});',
+    );
+  });
+
+  test('prefers the top-level declaration over a nested one with the same name', () => {
+    const shadowed = `function outer() {
+  const run = () => 1;
+  return run();
+}
+
+export function run() {
+  return 2;
+}
+`;
+    expect(extractSymbol(shadowed, 'run', 'a.ts')).toBe('export function run() {\n  return 2;\n}');
+  });
+
+  test('falls back to end of file when a block never closes', () => {
+    const broken = `export function broken() {
+  return 1;
+`;
+    expect(extractSymbol(broken, 'broken', 'a.ts')).toBe('export function broken() {\n  return 1;');
+  });
+
+  test('includes decorators directly above a python def in the extracted block', () => {
+    const decorated = `import os
+
+class Foo:
+    @staticmethod
+    @cached
+    def bar():
+        return 1
+`;
+    // normalizeText's overall .trim() strips only the first line's leading indent; later lines keep theirs.
+    expect(extractSymbol(decorated, 'bar', 'a.py')).toBe(
+      '@staticmethod\n    @cached\n    def bar():\n        return 1',
+    );
+  });
+
+  test('extracts pathological inputs in well under 500ms (linear scan, no backtracking)', () => {
+    const bigBraces = '{'.repeat(1_000_000);
+    const bracesContent = `export function big() {\n${bigBraces}\n}\n`;
+    const startBraces = performance.now();
+    const bracesResult = extractSymbol(bracesContent, 'big', 'a.ts');
+    expect(performance.now() - startBraces).toBeLessThan(500);
+    expect(bracesResult).not.toBeNull();
+
+    const wideLine = ' '.repeat(200_000);
+    const wideContent = `export function wide() {\n${wideLine}\n  return 1;\n}\n`;
+    const startWide = performance.now();
+    const wideResult = extractSymbol(wideContent, 'wide', 'a.ts');
+    expect(performance.now() - startWide).toBeLessThan(500);
+    expect(wideResult).toContain('export function wide() {');
+  });
 });
 
 describe('resolveGoverned', () => {

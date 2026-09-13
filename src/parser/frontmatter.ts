@@ -14,6 +14,15 @@ import { normalizeText, sha256 } from '../util/hash.js';
 
 export type ParseResult = { ok: true; doc: ParsedDoc } | { ok: false; path: string; error: string };
 
+const refuseExecutableFrontmatter = (): never => {
+  throw new Error('executable front matter engines are not allowed');
+};
+// Any options object also disables gray-matter's content-keyed cache, which returns shared mutable results.
+const SAFE_MATTER_OPTIONS = {
+  language: 'yaml',
+  engines: { js: refuseExecutableFrontmatter, javascript: refuseExecutableFrontmatter, coffee: refuseExecutableFrontmatter },
+};
+
 const VOLATILE_FIELDS = new Set(['status', 'assigned_to', 'claimed_at', 'completed_at', 'resolved_by', 'blueprint_hashes']);
 
 export function parseDocument(content: string, sourcePath: string): ParseResult | null {
@@ -22,8 +31,7 @@ export function parseDocument(content: string, sourcePath: string): ParseResult 
 
   let parsed: matter.GrayMatterFile<string>;
   try {
-    // Passing an options object disables gray-matter's content-keyed cache, which returns shared mutable results.
-    parsed = matter(normalized, {});
+    parsed = matter(normalized, SAFE_MATTER_OPTIONS);
   } catch (err) {
     return { ok: false, path: sourcePath, error: `invalid YAML frontmatter: ${(err as Error).message}` };
   }

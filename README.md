@@ -12,7 +12,7 @@ Arquitectura: [SDD-001](docs/blueprints/SDD-001-graph-engine.md) · Decisión de
 
 | Capa | Tecnología |
 |---|---|
-| Base de grafos | Neo4j Community `2026.08.1` + APOC `2026.08.1` (Docker Compose, solo 127.0.0.1) |
+| Base de grafos | Neo4j Community `2026.08.1` + APOC `2026.08.1` en una red Docker interna sin salida a internet, expuesto solo en 127.0.0.1 vía proxy `alpine/socat:1.8.0.3` |
 | Runtime | Node.js 20.20.2, npm 10.8.2, TypeScript 7.0.2 (ESM), tsx 4.23.13 |
 | Driver / MCP | neo4j-driver 6.2.0, @modelcontextprotocol/sdk 1.30.0 |
 | Parsing / validación | gray-matter 4.0.3, zod 4.6.3, fast-glob 3.3.3 |
@@ -27,8 +27,8 @@ Arquitectura: [SDD-001](docs/blueprints/SDD-001-graph-engine.md) · Decisión de
 # 1. Secretos locales
 cp .env.example .env && sed -i "s/^NEO4J_PASSWORD=.*/NEO4J_PASSWORD=$(openssl rand -hex 16)/" .env
 
-# 2. Base de grafos (Browser en http://localhost:7474)
-docker compose up -d neo4j
+# 2. Base de grafos + proxy localhost (Browser en http://localhost:7474)
+docker compose up -d
 
 # 3. Tooling de gestión: neo4j-mcp 1.6.0 (checksum verificado) + uv
 ./scripts/install-tooling.sh
@@ -45,7 +45,7 @@ npm run prdm -- tree MRD-001
 | Servidor | Qué hace |
 |---|---|
 | `prdm-graph` | **El producto.** Tools para Feature Tree, Work Orders, drift, feedback, artifacts y métricas. Se levanta con `npx tsx src/mcp/server.ts`. |
-| `neo4j` | MCP oficial `neo4j/mcp` v1.6.0 (`get-schema`, `read-cypher`). Arranca en **modo solo lectura** vía `scripts/mcp-neo4j.sh`, que carga `.env`. Para administrar a mano: `NEO4J_MCP_READ_ONLY=false`. |
+| `neo4j` | MCP oficial `neo4j/mcp` v1.6.0 (`get-schema`, `read-cypher`). `scripts/mcp-neo4j.sh` lee `.env` sin ejecutarlo y fuerza **solo lectura**: el grafo es un índice derivado de los documentos. Para administrar a mano usar `cypher-shell` o Neo4j Browser. |
 | `neo4j-data-modeling` | `mcp-neo4j-data-modeling@0.8.2` vía `uvx`: valida y exporta el modelo de grafo. |
 
 Claude Code pide aprobar los servidores del proyecto la primera vez; `claude mcp list` muestra su estado.
@@ -78,7 +78,7 @@ Ejecutar con `npm run prdm -- <comando>` (o `npx tsx src/cli/index.ts <comando>`
 | Base de datos | `db up`, `db migrate`, `db status`, `db reset --yes` |
 | Índice (F-01) | `index`, `lint`, `ingest artifact <file> --source call [--link PRD-001]` |
 | Feature Tree (F-02) | `tree [ID] --format text\|json\|mermaid`, `node <ID>`, `search <texto> [--label Feature]` |
-| Drift (F-03) | `sync`, `sync --check` (exit ≠ 0 para CI), `sync ack <ID\|all>`, `watch`, `hooks install` |
+| Drift (F-03) | `sync`, `sync --check` (exit ≠ 0 para CI), `sync ack <ID\|all>` (blueprint, feature o WO), `watch`, `hooks install` |
 | Work Orders (F-04) | `wo generate <SDD-ID>`, `wo list [--status todo]`, `wo context <WO-ID>`, `wo claim <WO-ID> --as agent:claude`, `wo complete <WO-ID> --commit HEAD` |
 | Feedback (F-05) | `feedback add --text "..." --source email`, `feedback triage --text "..."`, `fr create --title ... --parent PRD-001 --from-feedback FB-001` |
 | Métricas (§6) | `metrics [--json]` |
@@ -87,7 +87,7 @@ Ejecutar con `npm run prdm -- <comando>` (o `npx tsx src/cli/index.ts <comando>`
 
 1. **Arquitecto:** escribe un blueprint con `governs` y una sección `## Tareas`, y ejecuta `prdm wo generate SDD-001`.
 2. **Asistente (MCP):** `claim_work_order` → `get_work_order_context` (WO, blueprint, linaje de features, artifacts, código gobernado, drift) → implementa solo dentro del código gobernado → commit con trailer `Refs: WO-00X` → `complete_work_order` con el sha.
-3. **Drift:** si cambia un blueprint, sus WOs terminados pasan a `out_of_sync` y su código gobernado queda marcado. Si cambia código gobernado sin un commit `Refs:` de un WO vigente, también. Se resuelve con un nuevo WO completado o con `prdm sync ack <ID>`.
+3. **Drift:** si cambia un blueprint, sus WOs terminados pasan a `out_of_sync` y su código gobernado queda marcado. Si cambia código gobernado sin un commit `Refs:` de un WO vigente, también. `prdm sync ack SDD-001` acepta el nuevo diseño y su código, pero los WOs construidos sobre el diseño anterior siguen `out_of_sync` hasta que se re-completan (`complete_work_order` exige un commit existente con `Refs: WO-xxx`) o se aceptan uno por uno con `prdm sync ack WO-xxx`.
 4. **Feedback:** `submit_feedback` / `triage_feedback` enlazan por mención explícita o por el índice full-text. Si no hay un match claro, el asistente decide si crea un `FR` con `create_feature_request`.
 5. **CI:** [docs/ci/prdm-sync.yml](docs/ci/prdm-sync.yml) corre `prdm sync --check` contra un servicio Neo4j.
 
@@ -103,6 +103,13 @@ npm run coverage                                 # umbral 80 %
 
 Los tests de integración nunca usan la base de desarrollo (el helper se niega si la URI coincide).
 
+## Seguridad
+
+- **Filesystem:** toda lectura y escritura pasa por `src/util/safe-fs.ts`, que resuelve el realpath, rechaza symlinks que salgan del repo, abre con `O_NOFOLLOW` y limita tipo y tamaño de archivo.
+- **Neo4j:** Cypher siempre parametrizado; allowlist de procedimientos APOC (`apoc.path.*`, `apoc.coll.*`, `apoc.meta.*`, `apoc.version`). El contenedor no tiene salida a internet, así que `LOAD CSV` no puede exfiltrar datos.
+- **MCP:** inputs validados con zod; errores sin stack traces; `acknowledge_sync` marcado como destructivo; el contenido de artifacts y feedback se entrega delimitado como datos no confiables.
+- **Concurrencia:** lockfile `.prdm/engine.lock` entre CLI, hook, `watch` y servidor MCP.
+
 ## Fuera del MVP
 
 UI web propia (se cubre con Neo4j Browser, Mermaid y MCP), GitHub App/webhooks (se cubre con `sync --check` en CI), conectores directos a Slack/email (la ingesta es por archivo o por contenido vía MCP), embeddings/vector index, multiusuario/auth y Neo4j Enterprise/Aura.
@@ -110,4 +117,5 @@ UI web propia (se cubre con Neo4j Browser, Mermaid y MCP), GitHub App/webhooks (
 ## Limitaciones conocidas
 
 - El triaje por full-text usa scores Lucene sin normalizar. Con pocos documentos las diferencias entre candidatos son chicas, así que conviene ajustar `triage.autoLinkMinScore`/`autoLinkMargin` en `prdm.config.json` a medida que crece el corpus.
-- La extracción de símbolos (`archivo#símbolo`) es heurística: llaves para TS/JS e indentación para Python, sin contemplar llaves dentro de strings.
+- La extracción de símbolos (`archivo#símbolo`) es heurística: llaves para TS/JS (ignorando strings y comentarios de una línea) e indentación para Python. Los template literals multilínea no se analizan; ante bloques ambiguos hashea hasta el final del archivo, así que reporta drift de más en lugar de de menos.
+- `LOAD CSV` sigue permitido dentro de la red interna de Docker (Community no tiene blocklist de URLs); no hay salida a internet.

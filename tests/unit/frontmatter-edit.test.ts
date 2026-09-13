@@ -1,3 +1,4 @@
+import matter from 'gray-matter';
 import { describe, expect, test } from 'vitest';
 import { setFrontmatterFields } from '../../src/parser/frontmatter-edit.js';
 
@@ -43,5 +44,100 @@ describe('setFrontmatterFields', () => {
 
   test('throws when the document has no frontmatter', () => {
     expect(() => setFrontmatterFields('# nope', { status: 'done' })).toThrow(/frontmatter/i);
+  });
+
+  test('replaces a key written with spaces before the colon', () => {
+    const src = `---\nid: WO-001\nstatus : todo\n---\nbody`;
+    const out = setFrontmatterFields(src, { status: 'done' });
+    expect(matter(out, {}).data.status).toBe('done');
+    expect(out.match(/^status/gm)).toHaveLength(1);
+  });
+
+  test('replaces a double-quoted key', () => {
+    const src = `---\nid: WO-001\n"status": todo\n---\nbody`;
+    const out = setFrontmatterFields(src, { status: 'done' });
+    expect(matter(out, {}).data.status).toBe('done');
+    expect(out).not.toContain('"status": todo');
+  });
+
+  test('replaces a single-quoted key', () => {
+    const src = `---\nid: WO-001\n'status': todo\n---\nbody`;
+    const out = setFrontmatterFields(src, { status: 'done' });
+    expect(matter(out, {}).data.status).toBe('done');
+    expect(out).not.toContain("'status': todo");
+  });
+
+  test('replaces a block list containing a blank line between items', () => {
+    const src = `---\nid: FB-001\ninforms:\n  - PRD-001\n\n  - PRD-002\nsource: email\n---\nbody`;
+    const out = setFrontmatterFields(src, { informs: ['FR-001'] });
+    const parsed = matter(out, {});
+    expect(parsed.data.informs).toEqual(['FR-001']);
+    expect(parsed.data.source).toBe('email');
+    expect(out).toContain('informs: ["FR-001"]');
+  });
+
+  test('replaces a block list containing a comment line', () => {
+    const src = `---\nid: FB-001\ninforms:\n  - PRD-001\n  # note\n  - PRD-002\nsource: email\n---\nbody`;
+    const out = setFrontmatterFields(src, { informs: ['FR-001'] });
+    const parsed = matter(out, {});
+    expect(parsed.data.informs).toEqual(['FR-001']);
+    expect(parsed.data.source).toBe('email');
+    expect(out).not.toContain('# note');
+  });
+
+  test('does not treat a key sharing a prefix as the target key', () => {
+    const src = `---\nid: WO-001\nstatus_note: keep me\nstatus: todo\n---\nbody`;
+    const out = setFrontmatterFields(src, { status: 'done' });
+    const parsed = matter(out, {});
+    expect(parsed.data.status).toBe('done');
+    expect(parsed.data.status_note).toBe('keep me');
+    expect(out).toContain('status_note: keep me');
+  });
+
+  test('replaces a folded multi-line scalar value', () => {
+    const src = `---\nid: WO-001\ndescription: >\n  line one\n  line two\nstatus: todo\n---\nbody`;
+    const out = setFrontmatterFields(src, { description: 'short' });
+    const parsed = matter(out, {});
+    expect(parsed.data.description).toBe('short');
+    expect(parsed.data.status).toBe('todo');
+    expect(out).not.toContain('line one');
+  });
+
+  test('replaces a literal multi-line scalar value', () => {
+    const src = `---\nid: WO-001\ndescription: |\n  line one\n  line two\nstatus: todo\n---\nbody`;
+    const out = setFrontmatterFields(src, { description: 'short' });
+    const parsed = matter(out, {});
+    expect(parsed.data.description).toBe('short');
+    expect(parsed.data.status).toBe('todo');
+  });
+
+  test('handles CRLF input', () => {
+    const src = '---\r\nid: WO-001\r\nstatus: todo\r\n---\r\nbody';
+    const out = setFrontmatterFields(src, { status: 'done' });
+    expect(matter(out, {}).data.status).toBe('done');
+  });
+
+  test('handles frontmatter ending at EOF without a trailing newline', () => {
+    const src = `---\nid: WO-001\nstatus: todo\n---`;
+    const out = setFrontmatterFields(src, { status: 'done' });
+    expect(matter(out, {}).data.status).toBe('done');
+  });
+
+  test('preserves trailing blank lines before the next top-level key', () => {
+    const src = `---\nid: WO-001\nstatus: todo\n\ntitle: "Tarea"\n---\nbody`;
+    const out = setFrontmatterFields(src, { status: 'done' });
+    const parsed = matter(out, {});
+    expect(parsed.data.status).toBe('done');
+    expect(parsed.data.title).toBe('Tarea');
+    expect(out).toContain('status: "done"\n\ntitle: "Tarea"');
+  });
+
+  test('does not confuse a quoted value containing "---" with the closing delimiter', () => {
+    const src = `---\nid: WO-001\ntitle: "before --- after"\nstatus: todo\n---\nbody`;
+    const out = setFrontmatterFields(src, { status: 'done' });
+    const parsed = matter(out, {});
+    expect(parsed.data.status).toBe('done');
+    expect(parsed.data.title).toBe('before --- after');
+    expect(parsed.content.trim()).toBe('body');
   });
 });

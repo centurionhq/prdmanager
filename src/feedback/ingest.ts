@@ -28,10 +28,10 @@ export async function submitFeedback(engine: Engine, input: SubmitFeedbackInput)
   const parsed = submitFeedbackSchema.parse(input);
 
   return engine.transaction(async (ops) => {
-    const { docs } = await ops.scan();
+    const scan = await ops.scan();
     const triage = await triageText(ops.store, ops.config, parsed.text);
 
-    const id = nextId('FB', docs.map((d) => d.node.id));
+    const id = nextId('FB', scan.ids);
     const title = parsed.title ?? (proposalTitle(parsed.text) || id);
     const slug = slugify(title);
     const fields = {
@@ -73,18 +73,18 @@ export async function createFeatureRequest(engine: Engine, input: CreateFeatureR
   const parsed = createFeatureRequestSchema.parse(input);
 
   return engine.transaction(async (ops) => {
-    const { docs } = await ops.scan();
-    const parent = docs.find((d) => d.node.id === parsed.parentId);
+    const scan = await ops.scan();
+    const parent = scan.docs.find((d) => d.node.id === parsed.parentId);
     if (!parent) throw new Error(`parent ${parsed.parentId} not found`);
     if (parent.node.label !== 'Feature') throw new Error(`parent ${parsed.parentId} is not a Feature`);
 
-    const feedback = parsed.feedbackId ? docs.find((d) => d.node.id === parsed.feedbackId) : undefined;
+    const feedback = parsed.feedbackId ? scan.docs.find((d) => d.node.id === parsed.feedbackId) : undefined;
     if (parsed.feedbackId) {
       if (!feedback) throw new Error(`feedback ${parsed.feedbackId} not found`);
       if (feedback.node.label !== 'Feedback') throw new Error(`${parsed.feedbackId} is not Feedback`);
     }
 
-    const id = nextId('FR', docs.map((d) => d.node.id));
+    const id = nextId('FR', scan.ids);
     const slug = slugify(parsed.title);
     const body = feedback ? `## Descripción\n\n${parsed.description}\n\n## Origen\n\n- ${parsed.feedbackId}` : `## Descripción\n\n${parsed.description}`;
     const fields = {

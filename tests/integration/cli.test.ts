@@ -163,7 +163,11 @@ describe('prdm CLI', () => {
 
     const ack = await run(['sync', 'ack', 'SDD-001']);
     expect(ack.code).toBe(0);
+    const stillStale = await run(['sync', '--check']);
+    expect(stillStale.code).toBe(1);
+    expect(stillStale.stdout.join('\n')).toContain('WO-001');
 
+    expect((await run(['sync', 'ack', 'WO-001'])).code).toBe(0);
     const clean = await run(['sync', '--check']);
     expect(clean.code).toBe(0);
   });

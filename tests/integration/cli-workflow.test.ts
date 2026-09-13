@@ -142,7 +142,7 @@ describe('prdm CLI: work orders, feedback, artifacts', () => {
       'feedback',
       'add',
       '--text',
-      'Quiero alertas cuando haya desincronización entre el blueprint y el código',
+      'Necesito alertas cuando haya desincronización en el motor de grafos con soporte MCP',
       '--source',
       'email',
     ]);

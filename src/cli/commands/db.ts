@@ -8,7 +8,7 @@ import { withContext, type CliDeps } from '../program.js';
 const execFileAsync = promisify(execFile);
 
 async function runUp(deps: CliDeps): Promise<void> {
-  const { stdout, stderr } = await execFileAsync('docker', ['compose', 'up', '-d', 'neo4j'], { cwd: deps.root });
+  const { stdout, stderr } = await execFileAsync('docker', ['compose', 'up', '-d', 'neo4j', 'neo4j-proxy'], { cwd: deps.root });
   if (stdout.trim()) deps.stdout(stdout.trimEnd());
   if (stderr.trim()) deps.stderr(stderr.trimEnd());
 }
@@ -37,7 +37,7 @@ async function runReset(deps: CliDeps, options: { yes?: boolean }): Promise<void
 export function register(program: Command, deps: CliDeps): void {
   const db = program.command('db').description('manage the local Neo4j graph store');
 
-  db.command('up').description('start the Neo4j docker compose service').action(() => runUp(deps));
+  db.command('up').description('start Neo4j and its localhost proxy (docker compose)').action(() => runUp(deps));
 
   db.command('migrate')
     .description('apply graph schema migrations')

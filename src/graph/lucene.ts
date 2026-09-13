@@ -7,13 +7,19 @@ const STOPWORDS = new Set(
 );
 const MAX_TERMS = 32;
 
-/** Builds a Lucene OR-query from free text; terms are letters/digits only, so no Lucene syntax can be injected. */
-export function buildLuceneQuery(text: string): string | null {
+/** Extracts significant lowercase terms (letters/digits, length >= 3, stopwords removed, capped at 32). */
+export function extractQueryTerms(text: string): string[] {
   const terms = new Set<string>();
   for (const match of text.toLowerCase().matchAll(/[\p{L}\p{N}]{3,}/gu)) {
     const term = match[0];
     if (!STOPWORDS.has(term)) terms.add(term);
     if (terms.size >= MAX_TERMS) break;
   }
-  return terms.size === 0 ? null : [...terms].join(' OR ');
+  return [...terms];
+}
+
+/** Builds a Lucene OR-query from free text; terms are letters/digits only, so no Lucene syntax can be injected. */
+export function buildLuceneQuery(text: string): string | null {
+  const terms = extractQueryTerms(text);
+  return terms.length === 0 ? null : terms.join(' OR ');
 }

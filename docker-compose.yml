@@ -5,6 +5,9 @@ x-neo4j-common: &neo4j-common
   environment:
     NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set in .env}
     NEO4J_PLUGINS: '["apoc"]'
+    # Only the APOC procedures the engine and neo4j-mcp use; drops apoc.load.*/apoc.import.* (URL/file access).
+    NEO4J_dbms_security_procedures_allowlist: "apoc.path.*,apoc.coll.*,apoc.meta.*,apoc.version"
+    NEO4J_dbms_security_allow__csv__import__from__file__urls: "false"
     NEO4J_server_memory_heap_initial__size: 512m
     NEO4J_server_memory_heap_max__size: 1G
     NEO4J_server_memory_pagecache_size: 512m
@@ -20,13 +23,26 @@ services:
   neo4j:
     <<: *neo4j-common
     container_name: prdmanager-neo4j
-    ports:
-      - "127.0.0.1:7474:7474"
-      - "127.0.0.1:7687:7687"
+    # No outbound network: Community edition has no Cypher URL blocklist, so LOAD CSV over http is blocked at the network level.
+    networks: [neo4j-internal]
     volumes:
       - neo4j-data:/data
       - neo4j-logs:/logs
       - neo4j-plugins:/plugins
+
+  neo4j-proxy:
+    image: alpine/socat:1.8.0.3
+    container_name: prdmanager-neo4j-proxy
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["socat TCP-LISTEN:7687,fork,reuseaddr TCP:neo4j:7687 & exec socat TCP-LISTEN:7474,fork,reuseaddr TCP:neo4j:7474"]
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    networks: [neo4j-internal, edge]
+    restart: unless-stopped
 
   neo4j-test:
     <<: *neo4j-common
@@ -37,6 +53,11 @@ services:
       - "127.0.0.1:7688:7687"
     tmpfs:
       - /data
+
+networks:
+  neo4j-internal:
+    internal: true
+  edge: {}
 
 volumes:
   neo4j-data:

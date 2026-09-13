@@ -22,4 +22,16 @@ describe('scanDocuments', () => {
     expect(result.errors.map((e) => e.path).sort()).toEqual(['docs/bad.md', 'docs/dup.md']);
     expect(result.errors.find((e) => e.path === 'docs/dup.md')?.error).toMatch(/duplicate id PRD-001/);
   });
+
+  test('collects ids from every frontmatter file, including ones that failed validation or are duplicates, for id-reservation purposes', async () => {
+    root = makeTmpDir();
+    writeFiles(root, {
+      'PRD-001.md': '---\nid: PRD-001\ntype: PRD\ntitle: P\n---\nbody',
+      'docs/bad.md': '---\nid: WO-003\ntype: WO\ntitle: missing implements\n---\n',
+      'docs/dup.md': '---\nid: PRD-001\ntype: PRD\ntitle: Dup\n---\n',
+      'docs/quoted.md': "---\nid: 'FR-002'\ntype: FR\ntitle: quoted id\nevolves_from: [PRD-001]\n---\n",
+    });
+    const result = await scanDocuments(root, []);
+    expect(result.ids.sort()).toEqual(['FR-002', 'PRD-001', 'PRD-001', 'WO-003']);
+  });
 });

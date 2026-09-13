@@ -139,7 +139,11 @@ describe('prdm-graph MCP tools', () => {
     expect(drift.issues.some((i: { kind: string; nodeId: string }) => i.kind === 'blueprint_changed' && i.nodeId === 'SDD-001')).toBe(true);
     expect(drift.hasBlockingIssues).toBe(true);
 
-    const acked = json(await client.callTool({ name: 'acknowledge_sync', arguments: { target: 'SDD-001' } }));
+    const blueprintAcked = json(await client.callTool({ name: 'acknowledge_sync', arguments: { target: 'SDD-001' } }));
+    const staleWorkOrders = blueprintAcked.issues.filter((i: { kind: string }) => i.kind === 'work_order_out_of_sync').map((i: { nodeId: string }) => i.nodeId);
+    expect(blueprintAcked.issues.every((i: { kind: string }) => i.kind === 'work_order_out_of_sync')).toBe(true);
+    let acked = blueprintAcked;
+    for (const id of staleWorkOrders) acked = json(await client.callTool({ name: 'acknowledge_sync', arguments: { target: id } }));
     expect(acked.issues).toEqual([]);
     expect(acked.hasBlockingIssues).toBe(false);
   });
@@ -148,7 +152,7 @@ describe('prdm-graph MCP tools', () => {
     const linked = json(
       await client.callTool({
         name: 'submit_feedback',
-        arguments: { text: 'Quiero alertas cuando haya desincronización entre el blueprint y el código', source: 'chat' },
+        arguments: { text: 'Necesito alertas cuando haya desincronización en el motor de grafos con soporte MCP', source: 'chat' },
       }),
     );
     expect(linked.reason).toBe('score');

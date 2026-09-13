@@ -106,4 +106,11 @@ describe('planWorkOrders', () => {
     const planned = planWorkOrders(bp, [], OPTIONS);
     expect(planned[0]?.title).toHaveLength(300);
   });
+
+  test('skips reserved ids (e.g. from a document that failed validation) when allocating new work order ids', () => {
+    const bp = blueprint('design\n\n## Tareas\n- [ ] Uno\n- [ ] Dos\n');
+    const planned = planWorkOrders(bp, [], { ...OPTIONS, reservedIds: ['WO-001'] });
+
+    expect(planned.map((p) => p.id)).toEqual(['WO-002', 'WO-003']);
+  });
 });

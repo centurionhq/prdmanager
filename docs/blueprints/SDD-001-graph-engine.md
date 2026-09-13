@@ -229,7 +229,7 @@ graph TD
 
 ### Reglas
 
-Un documento o archivo gobernado que aparece por primera vez se registra en el baseline como reconocido. Un WO `done` es **vigente** para un blueprint si su `blueprint_hashes[bp]` coincide con el hash actual del blueprint (o, si no lo registró, si el blueprint no cambió respecto al baseline). Un archivo gobernado está **cubierto por commit** si no tiene cambios sin commitear y el último commit que lo toca tiene un trailer `Refs: WO-xxx` de un WO `done` y vigente que implementa ese blueprint.
+Un documento o archivo gobernado que aparece por primera vez se registra en el baseline como reconocido; uno que desaparece se reporta como `missing` en vez de podarse. Un WO terminado es **vigente** para un blueprint si su `blueprint_hashes[bp]` coincide con el hash actual del blueprint (o, si no lo registró, si el blueprint no cambió respecto al baseline). Un archivo gobernado está **cubierto por commit** si no tiene cambios sin commitear y el último commit que lo toca referencia (trailer `Refs: WO-xxx` o `resolved_by`) a un WO terminado y vigente que implementa ese blueprint; en ese caso el baseline del archivo avanza a su hash actual. Un WO `out_of_sync` solo vuelve a `done` con evidencia explícita: re-completarlo o `prdm sync ack WO-xxx`. Si hay documentos inválidos, el baseline no se guarda (evita aceptar drift en silencio), y todas las mutaciones se serializan con el lock `.prdm/engine.lock`.
 
 **Regla 1: Blueprint cambió vs. baseline**
 - Los `:WorkOrder` `done` que no son vigentes pasan a `out_of_sync` (y vuelven a `done` cuando lo son de nuevo); el estado se escribe en su frontmatter.
@@ -248,7 +248,8 @@ Además se reportan enlaces rotos, enlaces a tipos incorrectos (p. ej. `IMPLEMEN
 ```
 prdm sync              # Re-indexa y reporta drift
 prdm sync --check      # Igual, con exit ≠ 0 si hay errores (CI)
-prdm sync ack SDD-001  # Re-baselina el blueprint y su código; marca vigentes sus WOs terminados
+prdm sync ack SDD-001  # Re-baselina el blueprint y su código; sus WOs terminados siguen out_of_sync
+prdm sync ack WO-012   # Acepta un WO como vigente sin retrabajo (registra blueprint_hashes)
 prdm sync ack all      # Re-baselina todo
 ```
 
@@ -261,9 +262,9 @@ prdm sync --check  # Falla si drift
 ## Seguridad
 
 - **Cypher:** Parametrizado siempre (nunca interpolar IDs/valores en queries)
-- **Path traversal:** Globs resueltos dentro de repo root; archivos verificados antes de leer
+- **Path traversal y symlinks:** `safe-fs` resuelve realpath, rechaza symlinks fuera del repo, `O_NOFOLLOW`, límites de tamaño y tipo
 - **Secretos:** Password Neo4j en `.env` (gitignored), `.env.example` versionado sin valores
-- **Red:** Neo4j ligado a 127.0.0.1 (Docker Compose)
+- **Red:** Neo4j en red Docker interna sin salida a internet; publicado solo en 127.0.0.1 vía proxy socat; allowlist de procedimientos APOC
 - **MCP oficial:** Descargado con verificación de checksum SHA256
 - **neo4j-mcp:** Por defecto read-only (`NEO4J_MCP_READ_ONLY=true`)
 - **Inputs:** Todas las tool inputs validadas con zod; errores sin stack traces

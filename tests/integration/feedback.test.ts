@@ -29,8 +29,10 @@ afterAll(async () => {
 
 describe('Feedback Ingestor (F-05)', () => {
   test('feedback related to an existing Feature auto-links it by score', async () => {
+    // Shares several real terms with PRD-001 (desincronización, motor, grafos, mcp), not just one incidental word,
+    // so it clears the matched-terms gate in triage.ts on top of the score/margin thresholds.
     const result = await submitFeedback(engine, {
-      text: 'Quiero alertas cuando haya desincronización entre el blueprint y el código',
+      text: 'Necesito alertas cuando haya desincronización en el motor de grafos con soporte MCP',
       source: 'chat',
     });
 
@@ -102,6 +104,14 @@ describe('Feedback Ingestor (F-05)', () => {
     await expect(
       createFeatureRequest(engine, { title: 'x', description: 'y', parentId: 'SDD-001' }),
     ).rejects.toThrow(/not a Feature/);
+  });
+
+  test('a single-term-only match (Spanish stemming mismatch) is not auto-linked', async () => {
+    const result = await submitFeedback(engine, { text: 'agregar modo oscuro al grafo', source: 'chat' });
+
+    expect(result.reason).toBe('none');
+    expect(result.linkedTo).toEqual([]);
+    expect(result.candidates).toEqual([]);
   });
 });
 

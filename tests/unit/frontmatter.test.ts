@@ -88,6 +88,17 @@ Objetivo
     expect(fb.doc.node.label).toBe('Feedback');
   });
 
+  test('never evaluates executable front matter engines', () => {
+    const marker = '__prdm_js_frontmatter_executed__';
+    const payloads = [`---js\n{ id: (globalThis.${marker} = true, 'PRD-001'), type: 'PRD', title: 'x' }\n---\n`, `---\n# ---javascript\nid: PRD-001\ntype: PRD\ntitle: x\n---\n`];
+    for (const payload of payloads) parseDocument(payload, 'x.md');
+    expect((globalThis as Record<string, unknown>)[marker]).toBeUndefined();
+  });
+
+  test('rejects ids with more than nine digits', () => {
+    expect(parseDocument('---\nid: PRD-1234567890\ntype: PRD\ntitle: x\n---\n', 'x.md')).toMatchObject({ ok: false });
+  });
+
   test('rejects id prefix that does not match type', () => {
     const result = parseDocument(`---\nid: PRD-001\ntype: SDD\ntitle: x\narchitects: [PRD-002]\n---\n`, 'x.md');
     expect(result).toMatchObject({ ok: false });

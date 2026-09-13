@@ -119,3 +119,28 @@ describe('Work Order Generator (F-04)', () => {
     await expect(completeWorkOrder(engine, 'WO-002', { commitSha: 'not-a-sha' })).rejects.toThrow(/invalid commit sha/);
   });
 });
+
+describe('Work Order Generator — id allocation across invalid documents (bug regression)', () => {
+  test('a newly generated id skips an id already used by a document that failed validation', async () => {
+    const bugRoot = createFixtureRepo();
+    const bugConfig = testConfig(bugRoot);
+    const bugStore = await openTestStore(bugConfig);
+    const bugEngine = new Engine(bugConfig, bugStore);
+    await bugEngine.refresh();
+
+    // WO-003 here is invalid (missing `implements`), but its id must still be reserved: SDD-001 has two
+    // pending/done tasks, so a naive allocator (ignoring invalid docs) would assign WO-002 then WO-003,
+    // colliding with this file once both are parsed later. Reserving WO-003 pushes allocation to WO-004/WO-005.
+    writeFiles(bugRoot, { 'docs/work-orders/WO-003.md': '---\nid: WO-003\ntype: WO\ntitle: "Broken work order"\n---\n' });
+
+    try {
+      const result = await generateWorkOrders(bugEngine, 'SDD-001');
+
+      expect(result.created.map((c) => c.id)).toEqual(['WO-004', 'WO-005']);
+      expect(result.report.errors.some((e) => e.path === 'docs/work-orders/WO-003.md')).toBe(true);
+    } finally {
+      await bugStore.close();
+      removeDir(bugRoot);
+    }
+  });
+});

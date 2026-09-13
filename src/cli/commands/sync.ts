@@ -8,6 +8,7 @@ import { createDebouncedRunner } from '../scheduler.js';
 import { withContext, type CliDeps } from '../program.js';
 import { isGitRepo } from '../../sync/git.js';
 import { safeWriteFile } from '../../util/safe-fs.js';
+import { createIgnoreMatcher } from '../watch-ignore.js';
 
 const DEFAULT_DEBOUNCE_MS = 300;
 const HOOK_SCRIPT = '#!/bin/sh\nnpm run --silent prdm -- sync || true\n';
@@ -44,7 +45,7 @@ async function runWatch(deps: CliDeps, options: { debounce: string }): Promise<v
         deps.stderr(messageOf(err));
       }
     }, debounceMs);
-    const watcher = watch(deps.root, { ignored: [...ctx.config.ignore, '**/.git/**', '**/.prdm/**'], ignoreInitial: true });
+    const watcher = watch(deps.root, { ignored: createIgnoreMatcher(deps.root, ctx.config.ignore), ignoreInitial: true });
     watcher.on('all', () => runner.schedule());
 
     await new Promise<void>((resolveWatch) => {

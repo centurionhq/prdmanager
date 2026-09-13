@@ -3,11 +3,12 @@
 set -euo pipefail
 
 NEO4J_MCP_VERSION="1.6.0"
+UV_VERSION="0.12.13"
 BIN_DIR="${HOME}/.local/bin"
 mkdir -p "${BIN_DIR}"
 
 install_neo4j_mcp() {
-  if command -v neo4j-mcp >/dev/null 2>&1 && neo4j-mcp --version 2>/dev/null | grep -q "${NEO4J_MCP_VERSION}"; then
+  if [[ -x "${BIN_DIR}/neo4j-mcp" ]] && "${BIN_DIR}/neo4j-mcp" --version 2>/dev/null | grep -qx "neo4j-mcp version: v${NEO4J_MCP_VERSION}"; then
     echo "neo4j-mcp ${NEO4J_MCP_VERSION} already installed"
     return
   fi
@@ -27,11 +28,11 @@ install_neo4j_mcp() {
 }
 
 install_uv() {
-  if command -v uv >/dev/null 2>&1; then
-    echo "uv already installed: $(uv --version)"
+  if [[ -x "${BIN_DIR}/uv" ]] && "${BIN_DIR}/uv" --version | grep -q "^uv ${UV_VERSION} "; then
+    echo "uv ${UV_VERSION} already installed"
     return
   fi
-  python3 -m pip install --user --upgrade uv
+  python3 -m pip install --user "uv==${UV_VERSION}"
   echo "installed uv: $("${BIN_DIR}/uv" --version)"
 }
 

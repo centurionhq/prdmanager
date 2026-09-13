@@ -3,6 +3,10 @@ export type FieldValue = string | number | boolean | string[] | Record<string, s
 const FRONTMATTER = /^---\n([\s\S]*?)\n---(\n|$)/;
 const KEY = /^[a-z_][a-z0-9_]*$/;
 
+const UNQUOTED_KEY = /^([A-Za-z_][\w-]*)\s*:/;
+const DOUBLE_QUOTED_KEY = /^"([^"]*)"\s*:/;
+const SINGLE_QUOTED_KEY = /^'([^']*)'\s*:/;
+
 /** Rewrites only the given top-level frontmatter keys, preserving every other line (unlike a full YAML re-dump). */
 export function setFrontmatterFields(content: string, fields: Record<string, FieldValue>): string {
   const normalized = content.replace(/\r\n?/g, '\n');
@@ -18,10 +22,42 @@ export function setFrontmatterFields(content: string, fields: Record<string, Fie
   return rebuilt + normalized.slice(match[0].length);
 }
 
-function replaceKey(lines: string[], key: string, rendered: string): string[] {
-  const start = lines.findIndex((line) => line.startsWith(`${key}:`));
-  if (start === -1) return [...lines, rendered];
+/** Returns the key name of a top-level `key:` line (unquoted or quoted), or null for indented/non-key lines. */
+function parseTopLevelKey(line: string): string | null {
+  if (/^\s/.test(line)) return null;
+  const doubleQuoted = DOUBLE_QUOTED_KEY.exec(line);
+  if (doubleQuoted) return doubleQuoted[1] ?? null;
+  const singleQuoted = SINGLE_QUOTED_KEY.exec(line);
+  if (singleQuoted) return singleQuoted[1] ?? null;
+  const unquoted = UNQUOTED_KEY.exec(line);
+  return unquoted ? (unquoted[1] ?? null) : null;
+}
+
+/**
+ * Finds the exclusive end of a key's block, starting right after the key line.
+ * Blank lines are only absorbed when followed by more block content (indented, list,
+ * or comment lines) before the next top-level key, so trailing blank lines before the
+ * next key (or EOF) are preserved.
+ */
+function findBlockEnd(lines: string[], start: number): number {
   let end = start + 1;
-  while (end < lines.length && /^(\s+|\s*-\s)/.test(lines[end] ?? '') && !/^[a-z_]/i.test(lines[end] ?? '')) end++;
+  let cursor = start + 1;
+  while (cursor < lines.length) {
+    const line = lines[cursor] ?? '';
+    if (line.trim() === '') {
+      cursor++;
+      continue;
+    }
+    if (parseTopLevelKey(line) !== null) break;
+    end = cursor + 1;
+    cursor++;
+  }
+  return end;
+}
+
+function replaceKey(lines: string[], key: string, rendered: string): string[] {
+  const start = lines.findIndex((line) => parseTopLevelKey(line) === key);
+  if (start === -1) return [...lines, rendered];
+  const end = findBlockEnd(lines, start);
   return [...lines.slice(0, start), rendered, ...lines.slice(end)];
 }

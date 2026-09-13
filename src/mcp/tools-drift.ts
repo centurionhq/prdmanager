@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { docId } from '../domain/schema.js';
 import type { RefreshReport } from '../engine.js';
 import type { PrdmDeps } from './deps.js';
-import { jsonResult, safeTool, WRITE_IDEMPOTENT } from './shared.js';
+import { DESTRUCTIVE_IDEMPOTENT, jsonResult, safeTool, WRITE_IDEMPOTENT } from './shared.js';
 
 function reportResult(report: RefreshReport) {
   return jsonResult({ ...report });
@@ -27,9 +27,9 @@ export function registerDriftTools(server: McpServer, deps: PrdmDeps): void {
     {
       title: 'Acknowledge sync',
       description:
-        'Accepts the current state of a Blueprint (or "all" governed Blueprints) as the new baseline, clearing `blueprint_changed`/`code_out_of_sync`/`work_order_out_of_sync` issues for it. Use this after a human/agent has reviewed a drifted Blueprint and confirmed the code is intentionally different, or after re-completing the affected Work Orders.',
+        'Accepts the current state of one document as the new baseline (or "all"). A Blueprint ack re-baselines the Blueprint and its governed code but its finished Work Orders stay out_of_sync; acknowledge a Work Order id to accept it as current without rework. This removes a drift guardrail: only use it after a human confirmed the change needs no code work.',
       inputSchema: { target: z.union([docId, z.literal('all')]) },
-      annotations: { title: 'Acknowledge sync', ...WRITE_IDEMPOTENT },
+      annotations: { title: 'Acknowledge sync', ...DESTRUCTIVE_IDEMPOTENT },
     },
     safeTool(async ({ target }: { target: string }) => reportResult(await deps.engine.acknowledge(target))),
   );

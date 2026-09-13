@@ -32,7 +32,7 @@ Necesitamos una base de datos de grafos para indexar la estructura de producto (
 
 ## Decisión
 
-**Adoptar Neo4j Community `neo4j:2026.08.1-community` en Docker Compose con el plugin APOC, expuesto solo en 127.0.0.1 (Bolt 7687, Browser 7474), más una instancia `neo4j-test` (perfil `test`, tmpfs, Bolt 7688) para tests de integración.**
+**Adoptar Neo4j Community `neo4j:2026.08.1-community` en Docker Compose con el plugin APOC, en una red interna sin salida a internet y expuesto solo en 127.0.0.1 (Bolt 7687, Browser 7474) mediante un proxy `alpine/socat:1.8.0.3`, más una instancia `neo4j-test` (perfil `test`, tmpfs, Bolt 7688) para tests de integración.**
 
 ### Justificación
 
@@ -56,13 +56,14 @@ Necesitamos una base de datos de grafos para indexar la estructura de producto (
 - **Memoria:** heap máximo 1G y pagecache 512M en compose; grafos mucho mayores requieren ajustar esos valores.
 - **Datos locales:** `docker compose down -v` borra los volúmenes (`prdmanager_neo4j-data`); no hay pérdida de verdad porque el grafo es derivado.
 - **Observabilidad básica:** logs vía `docker logs prdmanager-neo4j`.
+- **Sin blocklist de URLs en Community:** `dbms.cypher.ip_blocklist` es exclusivo de Enterprise, por eso el aislamiento de red (red `internal` + proxy) y el allowlist de procedimientos APOC impiden que una consulta de solo lectura (`LOAD CSV`, `apoc.load.*`) envíe datos a internet.
 
 ## Tooling de Gestión
 
 | Herramienta | Versión | Instalación | Uso |
 |---|---|---|---|
-| **neo4j-mcp** (MCP oficial, Go) | 1.6.0 | `scripts/install-tooling.sh` (descarga del release + verificación sha256) | Tools `get-schema`, `read-cypher`; `write-cypher` deshabilitado por `NEO4J_MCP_READ_ONLY=true` en `scripts/mcp-neo4j.sh` |
-| **mcp-neo4j-data-modeling** | 0.8.2 | `uvx mcp-neo4j-data-modeling@0.8.2` (uv 0.12.13 instalado con pip) | Validar/exportar el modelo (`docs/model/graph-model.json`) |
+| **neo4j-mcp** (MCP oficial, Go) | 1.6.0 | `scripts/install-tooling.sh` (descarga del release + verificación sha256) | Tools `get-schema`, `read-cypher`; `write-cypher` deshabilitado: `scripts/mcp-neo4j.sh` fuerza `NEO4J_MCP_READ_ONLY=true` y lee `.env` sin ejecutarlo |
+| **mcp-neo4j-data-modeling** | 0.8.2 | `uvx mcp-neo4j-data-modeling@0.8.2` (uv 0.12.13 fijado, instalado con pip) | Validar/exportar el modelo (`docs/model/graph-model.json`) |
 | **neo4j-skills** (plugin Claude Code) | 1.0.1 | `claude plugin install neo4j-skills@neo4j-skills-marketplace --scope project` | Skills de Cypher, modelado, driver JavaScript, MCP y CLI |
 | **cypher-shell** | incluido en la imagen | `docker exec prdmanager-neo4j cypher-shell` | Consultas administrativas |
 | **Neo4j Browser** | incluido en la imagen | http://localhost:7474 | Visualización del grafo |
@@ -71,7 +72,7 @@ Necesitamos una base de datos de grafos para indexar la estructura de producto (
 
 | Comando | Propósito |
 |---|---|
-| `docker compose up -d neo4j` / `prdm db up` | Inicia la base principal (healthcheck con `cypher-shell`) |
+| `docker compose up -d` / `prdm db up` | Inicia la base principal y el proxy localhost (healthcheck con `cypher-shell`) |
 | `docker compose --profile test up -d neo4j-test` | Inicia la base efímera de tests |
 | `prdm db migrate` | Aplica constraints e índices de `src/graph/migrations.ts` (`IF NOT EXISTS`) |
 | `prdm db reset --yes` | Borra el grafo, migra y re-indexa |
@@ -80,7 +81,8 @@ Necesitamos una base de datos de grafos para indexar la estructura de producto (
 
 - Configuración real en `docker-compose.yml`: `NEO4J_AUTH=neo4j/${NEO4J_PASSWORD}` desde `.env` (gitignored, generado con `openssl rand -hex 16`); `.env.example` versionado sin secretos.
 - Las variables `NEO4J_*` dentro del contenedor se interpretan como settings de Neo4j, por eso el healthcheck obtiene la contraseña de `NEO4J_AUTH` y no se define `NEO4J_PASSWORD` en el contenedor.
-- Puertos publicados solo en 127.0.0.1.
+- Puertos publicados solo en 127.0.0.1 por el proxy; el contenedor de Neo4j no tiene puertos propios ni ruta a internet.
+- Allowlist de procedimientos: `apoc.path.*,apoc.coll.*,apoc.meta.*,apoc.version`; `allow_csv_import_from_file_urls=false`.
 
 ## Referencias
 

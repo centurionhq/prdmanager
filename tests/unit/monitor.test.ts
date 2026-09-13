@@ -77,9 +77,13 @@ describe('detectDrift', () => {
     expect(result.issues.map((i) => i.kind)).toEqual(['blueprint_changed']);
   });
 
-  test('out_of_sync work orders return to done once the blueprint is back in sync', () => {
-    const docs = [mrd(), prd(), sdd(), wo('WO-001', 'out_of_sync')];
-    const result = detectDrift(input({ docs, baseline: baselineOf(docs) }));
+  test('out_of_sync work orders stay flagged until they record current blueprint hashes', () => {
+    const blueprint = sdd();
+    const stale = [mrd(), prd(), blueprint, wo('WO-001', 'out_of_sync')];
+    expect(detectDrift(input({ docs: stale, baseline: baselineOf(stale) })).workOrderUpdates).toEqual([]);
+
+    const recovered = [mrd(), prd(), blueprint, wo('WO-001', 'out_of_sync', `blueprint_hashes: {"SDD-001": "${blueprint.node.contentHash}"}`)];
+    const result = detectDrift(input({ docs: recovered, baseline: baselineOf(recovered) }));
     expect(result.workOrderUpdates).toEqual([{ id: 'WO-001', sourcePath: 'docs/WO-001.md', from: 'out_of_sync', to: 'done' }]);
   });
 
@@ -117,11 +121,46 @@ describe('detectDrift', () => {
     ]);
   });
 
-  test('prunes baseline entries for deleted docs and code refs', () => {
+  test('prunes deleted docs and blueprints but keeps vanished code refs as missing until resolved', () => {
     const docs = [mrd(), prd(), sdd()];
-    const stale: Baseline = { version: 1, docs: { ...baselineOf(docs).docs, 'WO-999': 'x' }, governs: { 'SDD-001': { 'src/sync/a.ts': 'h1', 'src/sync/old.ts': 'o' }, 'SDD-404': {} } };
+    const stale: Baseline = {
+      version: 1,
+      docs: { ...baselineOf(docs).docs, 'WO-999': 'x' },
+      governs: { 'SDD-001': { 'src/sync/a.ts': 'h1', 'src/sync/old.ts': 'o' }, 'SDD-404': {} },
+    };
     const result = detectDrift(input({ docs, baseline: stale }));
-    expect(result.baseline).toEqual(baselineOf(docs));
+    expect(result.baseline).toEqual(baselineOf(docs, { 'SDD-001': { 'src/sync/a.ts': 'h1', 'src/sync/old.ts': 'o' } }));
+    expect(result.governed.find((g) => g.key === 'src/sync/old.ts')).toMatchObject({ status: 'out_of_sync', reason: 'missing' });
+
+    const deletedByWorkOrder = detectDrift(
+      input({ docs: [...docs, wo('WO-001', 'done')], baseline: stale, commits: [commit(['src/sync/old.ts'], ['WO-001'])] }),
+    );
+    expect(deletedByWorkOrder.governed.find((g) => g.key === 'src/sync/old.ts')).toMatchObject({ status: 'synced', reason: 'resolved_by_commit' });
+    expect(deletedByWorkOrder.baseline.governs['SDD-001']).toEqual({ 'src/sync/a.ts': 'h1' });
+  });
+
+  test('code resolved by a commit advances the baseline so later unrelated commits do not re-flag it', () => {
+    const docs = [mrd(), prd(), sdd(), wo('WO-001', 'done')];
+    const baseline = baselineOf(docs, { 'SDD-001': { 'src/sync/a.ts': 'old' } });
+    const resolved = detectDrift(input({ docs, baseline, commits: [commit(['src/sync/a.ts'], ['WO-001'])] }));
+    expect(resolved.baseline.governs['SDD-001']).toEqual({ 'src/sync/a.ts': 'h1' });
+
+    const later = detectDrift(input({ docs, baseline: resolved.baseline, commits: [commit(['src/sync/a.ts'], []), commit(['src/sync/a.ts'], ['WO-001'])] }));
+    expect(later.governed[0]).toMatchObject({ status: 'synced', reason: 'unchanged' });
+  });
+
+  test('a commit recorded in resolved_by covers code even without a Refs trailer', () => {
+    const docs = [mrd(), prd(), sdd(), wo('WO-001', 'done', 'resolved_by: ["abc1234"]')];
+    const baseline = baselineOf(docs, { 'SDD-001': { 'src/sync/a.ts': 'old' } });
+    const result = detectDrift(input({ docs, baseline, commits: [commit(['src/sync/a.ts'], [])] }));
+    expect(result.governed[0]).toMatchObject({ status: 'synced', reason: 'resolved_by_commit' });
+  });
+
+  test('a changed feature without blueprints is still reported', () => {
+    const before = [mrd(), prd('v1')];
+    const result = detectDrift(input({ docs: [mrd(), prd('v2')], governed: new Map(), baseline: baselineOf(before, {}) }));
+    expect(result.reviewNeeded).toEqual([]);
+    expect(result.issues.map((i) => [i.kind, i.nodeId])).toEqual([['feature_changed', 'PRD-001']]);
   });
 });
 
@@ -130,13 +169,20 @@ describe('acknowledge', () => {
   const after = [mrd(), prd('v2'), sdd('v2'), wo('WO-001', 'out_of_sync'), wo('WO-002', 'todo')];
   const stale = { ...baselineOf(before), governs: { 'SDD-001': { 'src/sync/a.ts': 'old' } } };
 
-  test('acknowledging a blueprint re-baselines it, its code and its finished work orders', () => {
+  test('acknowledging a blueprint re-baselines it and its code but leaves its work orders flagged', () => {
     const result = acknowledge(input({ docs: after, baseline: stale }), 'SDD-001');
     expect(result.baseline.docs['SDD-001']).toBe(after[2]?.node.contentHash);
     expect(result.baseline.docs['PRD-001']).toBe(before[1]?.node.contentHash);
     expect(result.baseline.governs['SDD-001']).toEqual({ 'src/sync/a.ts': 'h1' });
-    expect(result.workOrderHashUpdates).toEqual([{ id: 'WO-001', sourcePath: 'docs/WO-001.md', blueprintHashes: { 'SDD-001': after[2]?.node.contentHash } }]);
+    expect(result.workOrderHashUpdates).toEqual([]);
     expect(stale.governs['SDD-001']).toEqual({ 'src/sync/a.ts': 'old' });
+  });
+
+  test('acknowledging a work order marks it current for its blueprints', () => {
+    const result = acknowledge(input({ docs: after, baseline: stale }), 'WO-001');
+    expect(result.workOrderHashUpdates).toEqual([{ id: 'WO-001', sourcePath: 'docs/WO-001.md', blueprintHashes: { 'SDD-001': after[2]?.node.contentHash } }]);
+    expect(result.baseline.docs['SDD-001']).toBe(before[2]?.node.contentHash);
+    expect(() => acknowledge(input({ docs: after, baseline: stale }), 'WO-002')).toThrow(/only done or out_of_sync/);
   });
 
   test('acknowledging a feature only re-baselines that document', () => {
@@ -148,6 +194,7 @@ describe('acknowledge', () => {
 
   test('acknowledging all re-baselines everything and then detectDrift is clean', () => {
     const result = acknowledge(input({ docs: after, baseline: stale }), 'all');
+    expect(result.workOrderHashUpdates.map((u) => u.id)).toEqual(['WO-001']);
     const afterAck = after.map((d) => (d.node.id === 'WO-001' ? wo('WO-001', 'done', `blueprint_hashes: {"SDD-001": "${after[2]?.node.contentHash}"}`) : d));
     expect(detectDrift(input({ docs: afterAck, baseline: result.baseline })).issues).toEqual([]);
   });
