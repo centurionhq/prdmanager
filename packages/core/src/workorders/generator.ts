@@ -126,26 +126,29 @@ export interface GenerateResult {
 
 /** Generates work orders from a blueprint's task checklist; idempotent across runs. */
 export async function generateWorkOrders(engine: Engine, blueprintId: string): Promise<GenerateResult> {
-  return engine.transaction(async (ops) => {
-    const scan = await ops.scan();
-    const blueprint = scan.docs.find((d) => d.node.id === blueprintId);
-    if (!blueprint) throw new Error(`blueprint ${blueprintId} not found`);
-    if (!isBlueprint(blueprint)) throw new Error(`${blueprintId} is not a blueprint`);
+  return engine.transaction(
+    async (ops) => {
+      const scan = await ops.scan();
+      const blueprint = scan.docs.find((d) => d.node.id === blueprintId);
+      if (!blueprint) throw new Error(`blueprint ${blueprintId} not found`);
+      if (!isBlueprint(blueprint)) throw new Error(`${blueprintId} is not a blueprint`);
 
-    const totalTasks = extractTasks(blueprint.node.body).length;
-    const planned = planWorkOrders(blueprint, scan.docs, {
-      docsDir: ops.config.docsDir,
-      now: new Date(),
-      reservedIds: scan.ids,
-      folder: ops.config.folders.WO,
-    });
-    for (const wo of planned) await ops.createDocument(wo.path, wo.content);
-    const report = await ops.refresh();
+      const totalTasks = extractTasks(blueprint.node.body).length;
+      const planned = planWorkOrders(blueprint, scan.docs, {
+        docsDir: ops.config.docsDir,
+        now: new Date(),
+        reservedIds: scan.ids,
+        folder: ops.config.folders.WO,
+      });
+      for (const wo of planned) await ops.createDocument(wo.path, wo.content);
+      const report = await ops.refresh();
 
-    return {
-      created: planned.map(({ id, path, title, status }) => ({ id, path, title, status })),
-      skipped: totalTasks - planned.length,
-      report,
-    };
-  });
+      return {
+        created: planned.map(({ id, path, title, status }) => ({ id, path, title, status })),
+        skipped: totalTasks - planned.length,
+        report,
+      };
+    },
+    { atomic: true },
+  );
 }

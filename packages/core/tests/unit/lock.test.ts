@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { LOCK_PATH, withRepoLock } from '../../src/util/lock.js';
@@ -45,5 +46,57 @@ describe('withRepoLock', () => {
     mkdirSync(join(root, '.prdm'), { recursive: true });
     writeFileSync(join(root, LOCK_PATH), JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }));
     await expect(withRepoLock(root, async () => 'never', { timeoutMs: 300 })).rejects.toThrow(/another prdm process/);
+  });
+
+  test('does not steal a live owner even with an old createdAt, as long as its heartbeat is recent', async () => {
+    root = makeTmpDir();
+    mkdirSync(join(root, '.prdm'), { recursive: true });
+    const old = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+    writeFileSync(
+      join(root, LOCK_PATH),
+      JSON.stringify({ token: 'other', pid: process.pid, host: hostname(), createdAt: old, heartbeatAt: new Date().toISOString() }),
+    );
+    await expect(withRepoLock(root, async () => 'never', { timeoutMs: 300 })).rejects.toThrow(/another prdm process/);
+    // the foreign lock must still be there: it was never broken
+    expect(existsSync(join(root, LOCK_PATH))).toBe(true);
+  });
+
+  test('steals a lock whose owner pid is dead, regardless of its heartbeat freshness', async () => {
+    root = makeTmpDir();
+    mkdirSync(join(root, '.prdm'), { recursive: true });
+    writeFileSync(
+      join(root, LOCK_PATH),
+      JSON.stringify({ token: 'other', pid: 2_147_483_000, host: hostname(), createdAt: new Date().toISOString(), heartbeatAt: new Date().toISOString() }),
+    );
+    expect(await withRepoLock(root, async () => 'ok', { timeoutMs: 1000 })).toBe('ok');
+  });
+
+  test('does not remove a lock whose token no longer matches ours on release', async () => {
+    root = makeTmpDir();
+    await withRepoLock(root, async () => {
+      // Simulate another process breaking our (apparently stale) lock and acquiring its own while we still think we hold it.
+      const foreign = { token: 'foreign-token', pid: process.pid, host: 'some-other-host', createdAt: new Date().toISOString(), heartbeatAt: new Date().toISOString() };
+      mkdirSync(join(root, '.prdm'), { recursive: true });
+      writeFileSync(join(root, LOCK_PATH), JSON.stringify(foreign));
+    });
+    expect(JSON.parse(readFileSync(join(root, LOCK_PATH), 'utf8')).token).toBe('foreign-token');
+  });
+
+  test('refreshes the heartbeat on disk while the section runs', async () => {
+    root = makeTmpDir();
+    const seen: string[] = [];
+    await withRepoLock(
+      root,
+      async () => {
+        await sleep(20);
+        seen.push(JSON.parse(readFileSync(join(root, LOCK_PATH), 'utf8')).heartbeatAt);
+        await sleep(20);
+        seen.push(JSON.parse(readFileSync(join(root, LOCK_PATH), 'utf8')).heartbeatAt);
+        await sleep(20);
+        seen.push(JSON.parse(readFileSync(join(root, LOCK_PATH), 'utf8')).heartbeatAt);
+      },
+      { heartbeatMs: 5 },
+    );
+    expect(new Set(seen).size).toBeGreaterThan(1);
   });
 });

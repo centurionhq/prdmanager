@@ -10,7 +10,24 @@ import { dirtyPaths, readCommits } from './sync/git.js';
 import { acknowledge, detectDrift, type DriftInput, type DriftIssue, type GovernedState, type WorkOrderUpdate } from './sync/monitor.js';
 import { resolveInside } from './util/paths.js';
 import { withRepoLock } from './util/lock.js';
+import {
+  createJournal,
+  deleteJournal,
+  graphStaleMarkerExists,
+  journalCreate,
+  journalReplace,
+  removeGraphStaleMarker,
+  replayOrphanJournals,
+  rollback as rollbackJournal,
+  writeGraphStaleMarker,
+} from './util/journal.js';
 import { safeReadFile, safeWriteFile } from './util/safe-fs.js';
+
+/** Where a transaction's file writes go: direct (default) or journaled (atomic, so a mid-write crash can be rolled back). */
+interface FileWriter {
+  create(rel: string, content: string): Promise<void>;
+  replace(rel: string, content: string): Promise<void>;
+}
 
 export interface RefreshReport {
   documents: number;
@@ -31,17 +48,26 @@ export interface EngineOps {
   updateDocument(id: string, fields: Record<string, FieldValue>): Promise<ParsedDoc>;
   /** Renames a top-level frontmatter key in place (e.g. legacy `governs` -> `impacts_paths`), keeping its value's formatting. */
   renameFrontmatterField(id: string, oldKey: string, newKey: string): Promise<ParsedDoc>;
+  /** Replaces an existing document's entire content (frontmatter + body), rejecting a result whose id changed or no longer validates. */
+  replaceDocument(id: string, content: string): Promise<ParsedDoc>;
   refresh(): Promise<RefreshReport>;
+}
+
+export interface TransactionOptions {
+  /** Routes this transaction's file writes through a journal so any failure (incl. the final graph snapshot) rolls every write back. */
+  atomic?: boolean;
 }
 
 export class Engine {
   private queue: Promise<unknown> = Promise.resolve();
   private readonly ops: EngineOps;
+  private writer: FileWriter;
 
   constructor(
     readonly config: PrdmConfig,
     readonly store: GraphStore,
   ) {
+    this.writer = this.plainWriter();
     this.ops = {
       config,
       store,
@@ -49,15 +75,74 @@ export class Engine {
       createDocument: (relPath, content) => this.createDocument(relPath, content),
       updateDocument: (id, fields) => this.updateDocument(id, fields),
       renameFrontmatterField: (id, oldKey, newKey) => this.renameFrontmatterField(id, oldKey, newKey),
+      replaceDocument: (id, content) => this.replaceDocument(id, content),
       refresh: () => this.doRefresh(),
     };
   }
 
-  /** Serializes mutations in-process (queue) and across processes (lockfile) so file writes and graph snapshots never interleave. */
-  transaction<T>(fn: (ops: EngineOps) => Promise<T>): Promise<T> {
-    const run = this.queue.then(() => withRepoLock(this.config.root, () => fn(this.ops)));
+  private plainWriter(): FileWriter {
+    return {
+      create: (rel, content) => safeWriteFile(this.config.root, rel, content, { exclusive: true }),
+      replace: (rel, content) => safeWriteFile(this.config.root, rel, content),
+    };
+  }
+
+  private journaledWriter(token: string): FileWriter {
+    return {
+      create: (rel, content) => journalCreate(this.config.root, token, rel, content),
+      replace: async (rel, content) => {
+        const original = await safeReadFile(this.config.root, rel);
+        if (original === null) throw new Error(`document ${rel} no longer exists`);
+        await journalReplace(this.config.root, token, rel, original, content);
+      },
+    };
+  }
+
+  /** Replays any journal left by a crashed process and, if the graph was left stale, refreshes it. Requires the repo lock. */
+  private async recoverLocked(): Promise<void> {
+    await replayOrphanJournals(this.config.root);
+    if (await graphStaleMarkerExists(this.config.root)) {
+      await this.doRefresh();
+      await removeGraphStaleMarker(this.config.root);
+    }
+  }
+
+  /** Public entry point for recovery outside of a transaction (e.g. a CLI `doctor` command); acquires the repo lock itself. */
+  recover(): Promise<void> {
+    return withRepoLock(this.config.root, () => this.recoverLocked());
+  }
+
+  /**
+   * Serializes mutations in-process (queue) and across processes (lockfile) so file writes and graph snapshots
+   * never interleave. Every transaction first recovers any orphaned journal and stale-graph marker. With
+   * `{ atomic: true }`, every file write `fn` performs through `ops` is journaled; a throw (including from the
+   * final `ops.refresh()`) rolls every write of this transaction back and marks the graph stale before rethrowing.
+   */
+  transaction<T>(fn: (ops: EngineOps) => Promise<T>, options: TransactionOptions = {}): Promise<T> {
+    const run = this.queue.then(() => withRepoLock(this.config.root, () => this.runLocked(fn, options)));
     this.queue = run.catch(() => undefined);
     return run;
+  }
+
+  private async runLocked<T>(fn: (ops: EngineOps) => Promise<T>, options: TransactionOptions): Promise<T> {
+    await this.recoverLocked();
+    if (!options.atomic) {
+      this.writer = this.plainWriter();
+      return fn(this.ops);
+    }
+    const token = await createJournal(this.config.root);
+    this.writer = this.journaledWriter(token);
+    try {
+      const result = await fn(this.ops);
+      await deleteJournal(this.config.root, token);
+      return result;
+    } catch (err) {
+      await rollbackJournal(this.config.root, token);
+      await writeGraphStaleMarker(this.config.root);
+      throw err;
+    } finally {
+      this.writer = this.plainWriter();
+    }
   }
 
   refresh(): Promise<RefreshReport> {
@@ -103,9 +188,11 @@ export class Engine {
     const hashByKey = new Map([...input.governed].flatMap(([bp, refs]) => refs.map((r) => [`${bp}|${r.key}`, r.hash] as const)));
     const governed = drift.governed.map((g) => ({ ...g, hash: hashByKey.get(`${g.blueprintId}|${g.key}`) ?? null }));
 
+    // Snapshot before baseline: if writeSnapshot throws (e.g. the store is unreachable), the baseline must stay
+    // untouched so a retry recomputes the exact same drift instead of silently accepting it as newly acknowledged.
+    await this.store.writeSnapshot({ docs, governed, reviewNeeded: drift.reviewNeeded, commits: input.commits });
     // A document that temporarily fails to parse would otherwise be pruned from the baseline and come back as "new" (drift silently accepted).
     const baselineWritten = scan.errors.length === 0 ? await saveBaseline(this.config.root, drift.baseline) : false;
-    await this.store.writeSnapshot({ docs, governed, reviewNeeded: drift.reviewNeeded, commits: input.commits });
 
     return {
       documents: docs.length,
@@ -145,7 +232,7 @@ export class Engine {
     if (!parsed.ok) throw new Error(`invalid document: ${parsed.error}`);
     const existing = await scanDocuments(this.config.root, this.config.ignore);
     if (existing.ids.includes(parsed.doc.node.id)) throw new Error(`document ${parsed.doc.node.id} already exists`);
-    await safeWriteFile(this.config.root, rel, content, { exclusive: true });
+    await this.writer.create(rel, content);
     return parsed.doc;
   }
 
@@ -157,6 +244,17 @@ export class Engine {
   private async renameFrontmatterField(id: string, oldKey: string, newKey: string): Promise<ParsedDoc> {
     const sourcePath = await this.sourcePathOf(id);
     return this.applyEdit(sourcePath, (content) => renameFrontmatterKey(content, oldKey, newKey));
+  }
+
+  /** Replaces a document's full content in one shot (frontmatter + body), used where a per-field rewrite can't express the change (e.g. a body edit). */
+  private async replaceDocument(id: string, content: string): Promise<ParsedDoc> {
+    const sourcePath = await this.sourcePathOf(id);
+    const { rel } = resolveInside(this.config.root, sourcePath);
+    const parsed = parseDocument(content, rel);
+    if (!parsed?.ok) throw new Error(`replacement content for ${rel} is invalid: ${parsed ? parsed.error : 'frontmatter lost'}`);
+    if (parsed.doc.node.id !== id) throw new Error(`replacement content must keep id ${id}, got ${parsed.doc.node.id}`);
+    await this.writer.replace(rel, content);
+    return parsed.doc;
   }
 
   private async sourcePathOf(id: string): Promise<string> {
@@ -179,7 +277,7 @@ export class Engine {
     const next = edit(original);
     const parsed = parseDocument(next, rel);
     if (!parsed?.ok) throw new Error(`update would invalidate ${rel}: ${parsed ? parsed.error : 'frontmatter lost'}`);
-    await safeWriteFile(this.config.root, rel, next);
+    await this.writer.replace(rel, next);
     return parsed.doc;
   }
 }
