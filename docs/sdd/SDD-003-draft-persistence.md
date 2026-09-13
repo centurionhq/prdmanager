@@ -4,7 +4,7 @@ type: SDD
 title: "Persistencia stateful de borradores en @prdm/core"
 status: active
 architects: ["FR-001"]
-impacts_paths: ["packages/core/src/authoring/**", "packages/mcp/src/server.ts", "packages/core/src/scaffold/gitignore.ts", ".gitignore"]
+impacts_paths: ["packages/core/src/authoring/**", "packages/mcp/src/server.ts", "packages/mcp/src/tools-authoring.ts", "packages/core/src/scaffold/gitignore.ts", ".gitignore"]
 created_at: 2026-09-13
 tags: ["core", "resilience", "draft-store", "stateless-mcp"]
 ---
