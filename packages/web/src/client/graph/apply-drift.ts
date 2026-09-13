@@ -3,8 +3,8 @@ import type { EdgeDefinition, NodeDefinition } from 'cytoscape';
 
 type GraphElement = NodeDefinition | EdgeDefinition;
 
-/** Every id `applyDrift` should badge: a live `DriftIssue.nodeId`, or a governed code ref's own file path. */
-function collectDriftIds(report: RefreshReport): Set<string> {
+/** Every id `applyDrift` should badge: a live `DriftIssue.nodeId`, or a governed code ref's own file path. Exported so `TreeView` can badge the same ids without recomputing the logic. */
+export function collectDriftIds(report: RefreshReport): Set<string> {
   const ids = new Set<string>();
   for (const issue of report.issues) ids.add(issue.nodeId);
   for (const governed of report.governed) ids.add(governed.path);
