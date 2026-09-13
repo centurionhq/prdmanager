@@ -116,3 +116,6 @@ PRD-002 §5 se valida con la siguiente iteración técnica (PRD-003, reemplazo d
 - [ ] Máquina de estados del ciclo de vida con JUSTIFIED_BY y cierre con prdm close
 - [ ] Enforcement de trailers Refs en commits de código gobernado con hook commit-msg, prdm check commits y CI
 - [ ] Dogfooding end-to-end con aislamiento de dos proyectos y autoría conversacional hasta 0 drift
+- [ ] Endurecer la transacción atómica tras la revisión: journal autenticado y acotado a documentos, lock con exclusión mutua real, rollback que no borra archivos ajenos y borradores sin pisar ediciones concurrentes
+- [ ] Endurecer la política de Refs tras la revisión: bypasses en CI, proyectos en subdirectorios, hooks relativos al worktree, errores de git y lista de exentos por id y hash
+- [ ] Corregir tras la revisión el reset sin huella, las lecturas sobre un grafo pendiente de recuperación, los fences de prompts, los acks de diseño por MCP y la documentación

@@ -34,8 +34,6 @@ lifecycle:
   grandfathered:
     - id: MRD-001
       hash: 800d537825a349946beb692ade513646d737e911542cbdaceb439f0d0232283c
-    - id: ADR-001
-      hash: 35c521d0450ef64d28a260490b8066612239a8486c27acd3281bbf3f2c2fc675
 authoring:
   draft_ttl_minutes: 60
   max_drafts: 20

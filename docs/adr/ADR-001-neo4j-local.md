@@ -89,3 +89,7 @@ Necesitamos una base de datos de grafos para indexar la estructura de producto (
 - MCP oficial de Neo4j: https://github.com/neo4j/mcp
 - MCP servers de neo4j-contrib (data modeling): https://github.com/neo4j-contrib/mcp-neo4j
 - Skills de Neo4j: https://github.com/neo4j-contrib/neo4j-skills
+
+## Tareas
+
+- [ ] Mantener la infraestructura local de Neo4j, el proxy y el tooling MCP gobernados por este ADR
