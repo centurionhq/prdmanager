@@ -47,3 +47,4 @@ Node **24.21.0** en `.nvmrc`; `engines.node` `>=24` en el `package.json` raíz y
 - [ ] Subir jsdom de 27.4.0 a 30.0.1 en packages/web y ajustar los tests de cliente que fallen
 - [ ] CI en .github/workflows/prdm-sync.yml con actions/setup-node leyendo .nvmrc y verificación verde de build, typecheck, test:unit y sync --check en Node 24
 - [ ] README con el requisito de Node 24 instalado a nivel usuario con nvm
+- [ ] Corregir el E2E de packages/web que busca las filas de work orders por role row (desde WO-071 son role button) y la versión de npm del README (11.19.0 con Node 24), con Playwright verde en Node 24
