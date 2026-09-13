@@ -40,12 +40,14 @@
       ".mcp.json": "691d720317adc75931825d29250f4aa9c6636e63b78fadb5eebb7d070c6029ef",
       "docker-compose.yml": "9d1f8b98fb060a9620c1af09648f556ad28bb03521f485a2beec5081128f05f9",
       "scripts/install-tooling.sh": "f7353d94b1424472a3810163d4add2a1e965adbbdd3a6c0ddfbb2c4e512f51e5",
-      "scripts/mcp-neo4j.sh": "37c776f5abf1e28da03da971816e529870fdd7a1e095efd8e616fcf83546b9b0"
+      "scripts/mcp-neo4j.sh": "37c776f5abf1e28da03da971816e529870fdd7a1e095efd8e616fcf83546b9b0",
+      "scripts/validate-graph-model.mjs": "69e3cebb068a1e67c659eec44ab07863cae026ef70727719de84029711c20614"
     },
     "ADR-002": {
-      "docs/model/graph-model.json": "1e65f136554888b128ee6f349427d5800fba5107c6ec902ac09eaeae6cbdfd63",
+      "docs/model/graph-model.cypher": "99e4c49ad68ff543ebf442a96bbe07a5dbe885ebc5dbe5fa3c7b26ef070ab409",
+      "docs/model/graph-model.json": "b9ec3e9368e0e5f54e7a7db57ede1ea710f4095c99da96df04b27cf3dfcf7602",
       "packages/core/src/graph/migrations.ts": "369b04106ce40ced7d8cb372e02fb61082b87aef75d8c399bcc5313e56e6a4f7",
-      "scripts/validate-graph-model.mjs": null
+      "scripts/validate-graph-model.mjs": "69e3cebb068a1e67c659eec44ab07863cae026ef70727719de84029711c20614"
     },
     "SDD-001": {
       "packages/cli/src/commands/artifacts.ts": "9c2b3bb39b25ce062b110fde851de2395fa0c362f6dfe84da89efa8044f2f6d7",
@@ -104,15 +106,16 @@
       "packages/core/src/workorders/generator.ts": "a724249c0523680ccb0475bd7347d5b4ced31e1e867ab3dd41cbf470cc89329a",
       "packages/core/src/workorders/lifecycle.ts": "89e27513b2116e4d5b84a8db56871f62f807593e479c7caf423fbf414f9c9b78",
       "packages/mcp/src/create.ts": "21552339bf6be1f0fb6118941e7afdbe23a0e81dee7fea0c66796206a2c4dd39",
-      "packages/mcp/src/deps.ts": "6a151e135ea7abdd6ebe397d544ba0b2f0ad48d713dc973ade67c158e18affe7",
-      "packages/mcp/src/prompts.ts": "286f3c09ffbf9aaf19565aef6ba60da7774abfdce933e8b5d25aee1fdf998a16",
-      "packages/mcp/src/resources.ts": "282ce26130f1fd14241849c4f4d1ea4657a9246cbb8c107bfd806124cfad9bb5",
-      "packages/mcp/src/server.ts": "0198c8e4f00d6fbf71c8007076e201386c729087efda2c9d5e1697860c59d92a",
+      "packages/mcp/src/deps.ts": "ab7eb6fdfd37e903deadc1b033a5940d8385b1be619ce67a8bcad054ce73484d",
+      "packages/mcp/src/prompts.ts": "bd47efeb6c634e5e236f30896dde2134ed7cca41e6489ac52dc9a2847334e907",
+      "packages/mcp/src/resources.ts": "a4c555171c78c2039a3af0079048192acbbdc9516ed5f6d2c476b857f16a827b",
+      "packages/mcp/src/server.ts": "a77b813083c6c0d93787f06c4c315fc44048ea3b864412a8415cd1ef69a4a5b4",
       "packages/mcp/src/shared.ts": "a7fea29903a909514a686e4f33f261ab6023d402b6ee7fb6dfbb0c6aab795433",
+      "packages/mcp/src/tools-authoring.ts": "6a02b43856623aed81438d3c4a3259bfe58f3ad38c5eeaf36803324b8875bad8",
       "packages/mcp/src/tools-drift.ts": "28fcd41185875b6a4ccdd5f07111e155e52d77f751aa692178a8e229314ee4f5",
       "packages/mcp/src/tools-read.ts": "9ff8deef4e7c6dd357ef49163a416289699e7ec8f8b04fedf6502c2e3926b501",
       "packages/mcp/src/tools-write.ts": "342263c9ce93d2fd281220e973a7db7c040c923a32dc6eb94aec57e941210168",
-      "packages/mcp/src/tools.ts": "7dff4d7e41e7e6b6e81c728c689794e4b8bd8e337654a4ab04d5171fc1cce596"
+      "packages/mcp/src/tools.ts": "6ec2ed53185561c1a64c5c1b179ec5c2914b8474944749688c9d4aa2349fc8ef"
     },
     "SDD-002": {
       ".github/workflows/prdm-sync.yml": "571857e7d8c6dfbe82f91f9aa0129ab2e0f6adc6bf4634e2d596e57b038a454d",
@@ -199,15 +202,16 @@
       "packages/core/tsconfig.json": "4c83a6083cdd2e8a4a3cbdc83d2be0bd645c759f5cb2f98c3f44b5421ccab3bc",
       "packages/mcp/package.json": "37d63103befb572c5a83991eed1e2ffe40563fc1f31159cb4c7c67ef42019695",
       "packages/mcp/src/create.ts": "21552339bf6be1f0fb6118941e7afdbe23a0e81dee7fea0c66796206a2c4dd39",
-      "packages/mcp/src/deps.ts": "6a151e135ea7abdd6ebe397d544ba0b2f0ad48d713dc973ade67c158e18affe7",
-      "packages/mcp/src/prompts.ts": "286f3c09ffbf9aaf19565aef6ba60da7774abfdce933e8b5d25aee1fdf998a16",
-      "packages/mcp/src/resources.ts": "282ce26130f1fd14241849c4f4d1ea4657a9246cbb8c107bfd806124cfad9bb5",
-      "packages/mcp/src/server.ts": "0198c8e4f00d6fbf71c8007076e201386c729087efda2c9d5e1697860c59d92a",
+      "packages/mcp/src/deps.ts": "ab7eb6fdfd37e903deadc1b033a5940d8385b1be619ce67a8bcad054ce73484d",
+      "packages/mcp/src/prompts.ts": "bd47efeb6c634e5e236f30896dde2134ed7cca41e6489ac52dc9a2847334e907",
+      "packages/mcp/src/resources.ts": "a4c555171c78c2039a3af0079048192acbbdc9516ed5f6d2c476b857f16a827b",
+      "packages/mcp/src/server.ts": "a77b813083c6c0d93787f06c4c315fc44048ea3b864412a8415cd1ef69a4a5b4",
       "packages/mcp/src/shared.ts": "a7fea29903a909514a686e4f33f261ab6023d402b6ee7fb6dfbb0c6aab795433",
+      "packages/mcp/src/tools-authoring.ts": "6a02b43856623aed81438d3c4a3259bfe58f3ad38c5eeaf36803324b8875bad8",
       "packages/mcp/src/tools-drift.ts": "28fcd41185875b6a4ccdd5f07111e155e52d77f751aa692178a8e229314ee4f5",
       "packages/mcp/src/tools-read.ts": "9ff8deef4e7c6dd357ef49163a416289699e7ec8f8b04fedf6502c2e3926b501",
       "packages/mcp/src/tools-write.ts": "342263c9ce93d2fd281220e973a7db7c040c923a32dc6eb94aec57e941210168",
-      "packages/mcp/src/tools.ts": "7dff4d7e41e7e6b6e81c728c689794e4b8bd8e337654a4ab04d5171fc1cce596",
+      "packages/mcp/src/tools.ts": "6ec2ed53185561c1a64c5c1b179ec5c2914b8474944749688c9d4aa2349fc8ef",
       "packages/mcp/tsconfig.json": "d16fcefbf9784f19ddeaf9cd8d27819d55a602091c24696fb479f4cef2e974e7",
       "packages/testkit/package.json": "da3059669990c6ec7abb6576f44f7419e8a33e528a82e4605ce6f523a1a4b9c4",
       "packages/testkit/src/db.ts": "8ad2463df8b3d8225a3c369795ff79b5eeddb599e67713a4624064063e75554f",
