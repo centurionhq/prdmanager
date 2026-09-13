@@ -1,0 +1,53 @@
+# Example GitHub Actions workflow (documentation only, not wired into this repo's CI).
+#
+# Runs `prdm sync --check` against a disposable Neo4j service container on every push/PR,
+# failing the build when blueprints, work orders, or governed code have drifted out of sync.
+#
+# Required repository secret:
+#   NEO4J_PASSWORD - the password used for both the service container and the CLI.
+name: prdm-sync
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  sync-check:
+    runs-on: ubuntu-latest
+
+    services:
+      neo4j:
+        image: neo4j:2026.08.1-community
+        env:
+          NEO4J_AUTH: neo4j/${{ secrets.NEO4J_PASSWORD }}
+          NEO4J_PLUGINS: '["apoc"]'
+        ports:
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p ${{ secrets.NEO4J_PASSWORD }} 'RETURN 1'"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 30
+          --health-start-period 20s
+
+    env:
+      NEO4J_URI: neo4j://127.0.0.1:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_DATABASE: neo4j
+      NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - run: npx tsx src/cli/index.ts db migrate
+
+      - run: npx tsx src/cli/index.ts sync --check
