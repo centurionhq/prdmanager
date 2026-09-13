@@ -15,7 +15,7 @@ Arquitectura: [SDD-001](docs/sdd/SDD-001-graph-engine.md), [SDD-002](docs/sdd/SD
 |---|---|---|
 | Monorepo | npm workspaces | 10.8.2 |
 | Build | TypeScript `tsc -b` + project references | 7.0.2 |
-| Runtime | Node.js | 20.20.2 |
+| Runtime | Node.js | 24.21.0 |
 | Base de grafos | Neo4j Community + APOC en Docker (red interna, acceso local) | 2026.08.1 |
 | Driver Neo4j | neo4j-driver | 6.2.0 |
 | MCP | @modelcontextprotocol/sdk | 1.30.0 |
@@ -50,6 +50,11 @@ Scripts raíz (`package.json`):
 Cada paquete tiene su propio `package.json`, `tsconfig.json` y tests en `tests/`.
 
 ## Inicio rápido
+
+### Requisitos
+
+- **Node 24** (LTS "Krypton", vigente hasta 2028-04), instalado a nivel usuario con [nvm](https://github.com/nvm-sh/nvm) — nunca con `sudo`. El repo fija la versión exacta en [`.nvmrc`](.nvmrc); parado en la raíz del repo, `nvm install` la lee e instala/activa automáticamente. Ver [ADR-005](docs/adr/ADR-005-node-24-lts.md): supera la restricción de Node 20 de [ADR-004](docs/adr/ADR-004-stack-del-explorador-web.md), cuyas demás decisiones (Vite, Fastify, React, jsdom, etc.) siguen vigentes.
+- Docker (para Neo4j local).
 
 ### Proyecto Nuevo
 
