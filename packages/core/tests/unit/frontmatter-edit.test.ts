@@ -1,6 +1,6 @@
 import matter from 'gray-matter';
 import { describe, expect, test } from 'vitest';
-import { setFrontmatterFields } from '../../src/parser/frontmatter-edit.js';
+import { renameFrontmatterKey, setFrontmatterFields } from '../../src/parser/frontmatter-edit.js';
 
 const doc = `---
 id: WO-001
@@ -139,5 +139,42 @@ describe('setFrontmatterFields', () => {
     expect(parsed.data.status).toBe('done');
     expect(parsed.data.title).toBe('before --- after');
     expect(parsed.content.trim()).toBe('body');
+  });
+});
+
+describe('renameFrontmatterKey', () => {
+  test('renames a top-level key, preserving its value formatting exactly', () => {
+    const src = `---\nid: SDD-001\ntype: SDD\ngoverns:\n  - src/a.ts\n  - src/b.ts\n---\nbody`;
+    const out = renameFrontmatterKey(src, 'governs', 'impacts_paths');
+    expect(out).toBe(`---\nid: SDD-001\ntype: SDD\nimpacts_paths:\n  - src/a.ts\n  - src/b.ts\n---\nbody`);
+    expect(matter(out, {}).data.impacts_paths).toEqual(['src/a.ts', 'src/b.ts']);
+  });
+
+  test('is a no-op when the old key is absent', () => {
+    const src = `---\nid: SDD-001\ntype: SDD\nimpacts_paths: ["src/a.ts"]\n---\nbody`;
+    expect(renameFrontmatterKey(src, 'governs', 'impacts_paths')).toBe(src);
+  });
+
+  test('renames a double-quoted key', () => {
+    const src = `---\nid: SDD-001\n"governs": ["src/a.ts"]\n---\nbody`;
+    const out = renameFrontmatterKey(src, 'governs', 'impacts_paths');
+    expect(out).toContain('"impacts_paths": ["src/a.ts"]');
+  });
+
+  test('renames a single-quoted key', () => {
+    const src = `---\nid: SDD-001\n'governs': ["src/a.ts"]\n---\nbody`;
+    const out = renameFrontmatterKey(src, 'governs', 'impacts_paths');
+    expect(out).toContain("'impacts_paths': [\"src/a.ts\"]");
+  });
+
+  test('does not touch a key sharing a prefix', () => {
+    const src = `---\nid: WO-001\nstatus_note: keep me\nstatus: todo\n---\nbody`;
+    const out = renameFrontmatterKey(src, 'status', 'state');
+    expect(out).toContain('status_note: keep me');
+    expect(out).toContain('state: todo');
+  });
+
+  test('throws when the document has no frontmatter', () => {
+    expect(() => renameFrontmatterKey('# nope', 'governs', 'impacts_paths')).toThrow(/frontmatter/i);
   });
 });

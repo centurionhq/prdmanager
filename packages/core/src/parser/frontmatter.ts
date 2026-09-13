@@ -2,6 +2,8 @@ import matter from 'gray-matter';
 import {
   DEFAULT_STATUS,
   LABEL_BY_KIND,
+  frontmatterAliasConflict,
+  frontmatterDeprecations,
   frontmatterSchema,
   kindOfId,
   type Actor,
@@ -23,7 +25,17 @@ const SAFE_MATTER_OPTIONS = {
   engines: { js: refuseExecutableFrontmatter, javascript: refuseExecutableFrontmatter, coffee: refuseExecutableFrontmatter },
 };
 
-const VOLATILE_FIELDS = new Set(['status', 'assigned_to', 'claimed_at', 'completed_at', 'resolved_by', 'blueprint_hashes']);
+const VOLATILE_FIELDS = new Set([
+  'status',
+  'assigned_to',
+  'claimed_at',
+  'completed_at',
+  'resolved_by',
+  'blueprint_hashes',
+  // Not yet in the schema (added by a future work order); listed so their arrival never changes existing hashes.
+  'closed_at',
+  'closed_by',
+]);
 
 export function parseDocument(content: string, sourcePath: string): ParseResult | null {
   const normalized = content.replace(/\r\n?/g, '\n');
@@ -37,6 +49,9 @@ export function parseDocument(content: string, sourcePath: string): ParseResult 
   }
   const data = parsed.data as Record<string, unknown>;
   if (typeof data.id !== 'string' || typeof data.type !== 'string') return null;
+
+  const conflict = frontmatterAliasConflict(data);
+  if (conflict) return { ok: false, path: sourcePath, error: conflict };
 
   const validation = frontmatterSchema.safeParse(data);
   if (!validation.success) {
@@ -69,20 +84,51 @@ export function parseDocument(content: string, sourcePath: string): ParseResult 
     doc: {
       node,
       edges: edgesOf(fm),
-      governs: fm.type === 'SDD' || fm.type === 'ADR' || fm.type === 'WO' ? fm.governs : [],
+      impactsPaths: fm.type === 'SDD' || fm.type === 'ADR' || fm.type === 'WO' ? fm.impacts_paths : [],
       actor: actorOf(fm),
       frontmatter: fm,
+      deprecations: frontmatterDeprecations(data),
     },
   };
 }
 
-function contentHash(fm: Frontmatter, body: string): string {
+export interface ContentHashOptions {
+  /**
+   * Include the `## Tareas`/`## Tasks` section of a blueprint in the hash (ADR-002 D9 legacy behavior).
+   * Used by `prdm migrate docs` to recompute the hash that matches a pre-migration baseline entry.
+   */
+  includeTasks?: boolean;
+}
+
+const TASKS_HEADING = /^##\s+(Tareas|Tasks)\s*$/im;
+const NEXT_HEADING = /^##\s+.+$/m;
+
+/** Removes the `## Tareas`/`## Tasks` heading through the line before the next `## ` heading (or EOF). */
+function stripTasksSection(body: string): string {
+  const heading = TASKS_HEADING.exec(body);
+  if (!heading) return body;
+  const restStart = heading.index + heading[0].length;
+  const rest = body.slice(restStart);
+  const next = NEXT_HEADING.exec(rest);
+  const sectionEnd = next ? restStart + next.index : body.length;
+  return body.slice(0, heading.index) + body.slice(sectionEnd);
+}
+
+/**
+ * ADR-002 D9: the hashed key set is stable across the `impacts_paths` rename (hashed under the historical
+ * `governs` key) and across the WO `todo`/`pending` status alias (status is already volatile). Blueprints
+ * exclude their `## Tareas`/`## Tasks` section by default so checking off tasks never invalidates a WO.
+ */
+export function contentHash(fm: Frontmatter, body: string, options: ContentHashOptions = {}): string {
+  const isBlueprint = fm.type === 'SDD' || fm.type === 'ADR';
+  const hashedBody = isBlueprint && !options.includeTasks ? stripTasksSection(body) : body;
   const stable = Object.fromEntries(
     Object.entries(fm)
-      .filter(([key]) => !VOLATILE_FIELDS.has(key))
+      .filter(([key, value]): boolean => !VOLATILE_FIELDS.has(key) && value !== undefined)
+      .map(([key, value]): [string, unknown] => [key === 'impacts_paths' ? 'governs' : key, value])
       .sort(([a], [b]) => a.localeCompare(b)),
   );
-  return sha256(`${JSON.stringify(stable)}\n${body}`);
+  return sha256(`${JSON.stringify(stable)}\n${hashedBody}`);
 }
 
 function edgesOf(fm: Frontmatter): GraphEdge[] {
@@ -113,14 +159,14 @@ function extraProps(fm: Frontmatter): Record<string, PropValue> {
   switch (fm.type) {
     case 'SDD':
     case 'ADR':
-      return { governs: fm.governs };
+      return { impacts_paths: fm.impacts_paths };
     case 'WO':
       return {
         assigned_to: fm.assigned_to ?? null,
         claimed_at: fm.claimed_at ?? null,
         completed_at: fm.completed_at ?? null,
         resolved_by: fm.resolved_by,
-        governs: fm.governs,
+        impacts_paths: fm.impacts_paths,
         source_task: fm.source_task ?? null,
       };
     case 'ART':

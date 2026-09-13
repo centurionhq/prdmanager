@@ -70,7 +70,7 @@ describe('prdm CLI: work orders, feedback, artifacts', () => {
   });
 
   test('wo list filters by status', async () => {
-    const { code, stdout } = await run(['wo', 'list', '--status', 'todo']);
+    const { code, stdout } = await run(['wo', 'list', '--status', 'pending']);
     expect(code).toBe(0);
     expect(stdout.join('\n')).toContain('WO-002');
   });
@@ -93,7 +93,7 @@ describe('prdm CLI: work orders, feedback, artifacts', () => {
     expect(stderr.join('\n')).toContain('actor');
   });
 
-  test('wo claim claims a todo work order for an actor', async () => {
+  test('wo claim claims a pending work order for an actor', async () => {
     const { code, stdout } = await run(['wo', 'claim', 'WO-002', '--as', 'agent:claude']);
     expect(code).toBe(0);
     expect(stdout.join('\n')).toContain('in_progress');

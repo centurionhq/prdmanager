@@ -1,7 +1,7 @@
 import type { PrdmConfig } from './config.js';
 import type { ParsedDoc, WorkOrderStatus } from './domain/schema.js';
 import type { GraphStore } from './graph/types.js';
-import { setFrontmatterFields, type FieldValue } from './parser/frontmatter-edit.js';
+import { renameFrontmatterKey, setFrontmatterFields, type FieldValue } from './parser/frontmatter-edit.js';
 import { parseDocument } from './parser/frontmatter.js';
 import { scanDocuments, type ScanError, type ScanResult } from './parser/scan.js';
 import { loadBaseline, saveBaseline } from './sync/baseline.js';
@@ -29,6 +29,8 @@ export interface EngineOps {
   scan(): Promise<ScanResult>;
   createDocument(relPath: string, content: string): Promise<ParsedDoc>;
   updateDocument(id: string, fields: Record<string, FieldValue>): Promise<ParsedDoc>;
+  /** Renames a top-level frontmatter key in place (e.g. legacy `governs` -> `impacts_paths`), keeping its value's formatting. */
+  renameFrontmatterField(id: string, oldKey: string, newKey: string): Promise<ParsedDoc>;
   refresh(): Promise<RefreshReport>;
 }
 
@@ -46,6 +48,7 @@ export class Engine {
       scan: () => scanDocuments(config.root, config.ignore),
       createDocument: (relPath, content) => this.createDocument(relPath, content),
       updateDocument: (id, fields) => this.updateDocument(id, fields),
+      renameFrontmatterField: (id, oldKey, newKey) => this.renameFrontmatterField(id, oldKey, newKey),
       refresh: () => this.doRefresh(),
     };
   }
@@ -80,7 +83,7 @@ export class Engine {
     const governed = new Map<string, CodeRefState[]>();
     const governWarnings: DriftInput['governWarnings'] = [];
     for (const doc of scan.docs.filter((d) => d.node.label === 'Blueprint')) {
-      const { refs, warnings } = await resolveGoverned(root, doc.governs, ignore);
+      const { refs, warnings } = await resolveGoverned(root, doc.impactsPaths, ignore);
       governed.set(doc.node.id, refs);
       governWarnings.push(...warnings.map((message) => ({ blueprintId: doc.node.id, message })));
     }
@@ -147,18 +150,33 @@ export class Engine {
   }
 
   private async updateDocument(id: string, fields: Record<string, FieldValue>): Promise<ParsedDoc> {
+    const sourcePath = await this.sourcePathOf(id);
+    return this.writeFields(sourcePath, fields);
+  }
+
+  private async renameFrontmatterField(id: string, oldKey: string, newKey: string): Promise<ParsedDoc> {
+    const sourcePath = await this.sourcePathOf(id);
+    return this.applyEdit(sourcePath, (content) => renameFrontmatterKey(content, oldKey, newKey));
+  }
+
+  private async sourcePathOf(id: string): Promise<string> {
     const { docs } = await scanDocuments(this.config.root, this.config.ignore);
     const doc = docs.find((d) => d.node.id === id);
     if (!doc) throw new Error(`document ${id} not found`);
-    return this.writeFields(doc.node.sourcePath, fields);
+    return doc.node.sourcePath;
   }
 
   /** Rewrites frontmatter fields and rolls back if the result no longer validates. */
-  private async writeFields(sourcePath: string, fields: Record<string, FieldValue>): Promise<ParsedDoc> {
+  private writeFields(sourcePath: string, fields: Record<string, FieldValue>): Promise<ParsedDoc> {
+    return this.applyEdit(sourcePath, (content) => setFrontmatterFields(content, fields));
+  }
+
+  /** Applies `edit` to a document's raw content and rolls back if the result no longer validates. */
+  private async applyEdit(sourcePath: string, edit: (content: string) => string): Promise<ParsedDoc> {
     const { rel } = resolveInside(this.config.root, sourcePath);
     const original = await safeReadFile(this.config.root, rel);
     if (original === null) throw new Error(`document ${rel} no longer exists`);
-    const next = setFrontmatterFields(original, fields);
+    const next = edit(original);
     const parsed = parseDocument(next, rel);
     if (!parsed?.ok) throw new Error(`update would invalidate ${rel}: ${parsed ? parsed.error : 'frontmatter lost'}`);
     await safeWriteFile(this.config.root, rel, next);

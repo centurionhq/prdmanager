@@ -10,7 +10,7 @@ export function doc(frontmatter: string, body = 'body', path?: string): ParsedDo
 
 export const mrd = (): ParsedDoc => doc('id: MRD-001\ntype: MRD\ntitle: Market', 'market');
 export const prd = (body = 'product'): ParsedDoc => doc('id: PRD-001\ntype: PRD\ntitle: Product\nimplements: [MRD-001]', body);
-export const sdd = (body = 'design', governs = '["src/sync/**"]'): ParsedDoc =>
-  doc(`id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\ngoverns: ${governs}`, body);
+export const sdd = (body = 'design', impactsPaths = '["src/sync/**"]'): ParsedDoc =>
+  doc(`id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\nimpacts_paths: ${impactsPaths}`, body);
 export const wo = (id: string, status: string, extra = ''): ParsedDoc =>
   doc(`id: ${id}\ntype: WO\ntitle: Task ${id}\nstatus: ${status}\nimplements: [SDD-001]\n${extra}`, 'task');

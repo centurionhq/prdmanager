@@ -35,7 +35,7 @@ export function registerWriteTools(server: McpServer, deps: PrdmDeps): void {
     {
       title: 'Claim work order',
       description:
-        'Claims a todo/out_of_sync Work Order for an actor (assignee must look like `agent:name` or `dev:name`), moving it to in_progress. Call get_work_order_context right after claiming and before writing any code.',
+        'Claims a pending/out_of_sync Work Order for an actor (assignee must look like `agent:name` or `dev:name`), moving it to in_progress. Call get_work_order_context right after claiming and before writing any code.',
       inputSchema: { id: docId, assignee: z.string().regex(ACTOR_PATTERN, 'assignee must look like agent:name or dev:name') },
       annotations: { title: 'Claim work order', ...WRITE_ONCE },
     },

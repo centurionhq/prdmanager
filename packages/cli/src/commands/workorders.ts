@@ -131,7 +131,7 @@ export function register(program: Command, deps: CliDeps): void {
     .action((id: string, options: { json?: boolean }) => runContext(deps, id, options));
 
   wo.command('claim')
-    .description('claim a todo/out_of_sync work order')
+    .description('claim a pending/out_of_sync work order')
     .argument('<id>', 'work order id')
     .option('--as <actor>', 'actor claiming it (agent:name or dev:name); defaults to $PRDM_ACTOR', parseActor)
     .action((id: string, options: { as?: string }) => runClaim(deps, id, options));

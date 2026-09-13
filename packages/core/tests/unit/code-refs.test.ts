@@ -190,7 +190,7 @@ describe('resolveGoverned', () => {
       { key: 'src/gone.ts', path: 'src/gone.ts', symbol: null, hash: null },
       { key: 'src/sync/a.ts#nope', path: 'src/sync/a.ts', symbol: 'nope', hash: null },
     ]);
-    expect(warnings).toEqual(['governs pattern "src/nothing/**" matches no files']);
+    expect(warnings).toEqual(['impacts_paths pattern "src/nothing/**" matches no files']);
   });
 
   test('rejects patterns escaping the repository', async () => {

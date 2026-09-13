@@ -33,13 +33,13 @@ export async function resolveGoverned(
     try {
       rel = resolveInside(root, filePart).rel;
     } catch {
-      warnings.push(`governs pattern "${pattern}" is outside the repository or invalid`);
+      warnings.push(`impacts_paths pattern "${pattern}" is outside the repository or invalid`);
       continue;
     }
     const files = fg.isDynamicPattern(rel)
       ? (await fg.glob(rel, { cwd: root, ignore, onlyFiles: true, dot: false, followSymbolicLinks: false })).sort()
       : [rel];
-    if (files.length === 0) warnings.push(`governs pattern "${pattern}" matches no files`);
+    if (files.length === 0) warnings.push(`impacts_paths pattern "${pattern}" matches no files`);
 
     for (const path of files) {
       const key = symbol ? `${path}#${symbol}` : path;

@@ -23,8 +23,50 @@ export type DocRelType = (typeof DOC_REL_TYPES)[number];
 export const ARTIFACT_SOURCES = ['meeting', 'email', 'slack', 'call', 'doc', 'other'] as const;
 export type ArtifactSource = (typeof ARTIFACT_SOURCES)[number];
 
-export const WORK_ORDER_STATUSES = ['todo', 'in_progress', 'done', 'out_of_sync'] as const;
+export const WORK_ORDER_STATUSES = ['pending', 'in_progress', 'done', 'out_of_sync'] as const;
 export type WorkOrderStatus = (typeof WORK_ORDER_STATUSES)[number];
+
+/** ADR-002 D9/legacy alias support: `governs` -> `impacts_paths`, WO `status: todo` -> `pending`. */
+export interface FrontmatterDeprecation {
+  field: string;
+  replacement: string;
+}
+
+function isAliasableKind(type: unknown): type is 'SDD' | 'ADR' | 'WO' {
+  return type === 'SDD' || type === 'ADR' || type === 'WO';
+}
+
+/** Raw frontmatter (pre-validation) setting both the legacy and canonical field for the same concept. */
+export function frontmatterAliasConflict(raw: Record<string, unknown>): string | null {
+  if (isAliasableKind(raw.type) && 'governs' in raw && 'impacts_paths' in raw) {
+    return `${String(raw.id ?? raw.type)}: cannot set both "governs" (deprecated) and "impacts_paths"; remove "governs"`;
+  }
+  return null;
+}
+
+/** Deprecated fields present in raw frontmatter, computed before alias normalization. */
+export function frontmatterDeprecations(raw: Record<string, unknown>): FrontmatterDeprecation[] {
+  const deprecations: FrontmatterDeprecation[] = [];
+  if (isAliasableKind(raw.type) && 'governs' in raw && !('impacts_paths' in raw)) {
+    deprecations.push({ field: 'governs', replacement: 'impacts_paths' });
+  }
+  if (raw.type === 'WO' && raw.status === 'todo') {
+    deprecations.push({ field: 'status: todo', replacement: 'status: pending' });
+  }
+  return deprecations;
+}
+
+/** zod preprocess: rewrites legacy aliases to their canonical field/value before validation. */
+function normalizeFrontmatterAliases(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw;
+  const data: Record<string, unknown> = { ...(raw as Record<string, unknown>) };
+  if (isAliasableKind(data.type) && 'governs' in data && !('impacts_paths' in data)) {
+    data.impacts_paths = data.governs;
+    delete data.governs;
+  }
+  if (data.type === 'WO' && data.status === 'todo') data.status = 'pending';
+  return data;
+}
 
 export const ID_PATTERN = /^(MRD|PRD|FR|SDD|ADR|WO|ART|FB)-\d{3,9}$/;
 export const ACTOR_PATTERN = /^(agent|dev):[A-Za-z0-9._-]{1,64}$/;
@@ -52,18 +94,18 @@ export const featureSchema = base.extend({
 export const blueprintSchema = base.extend({
   type: z.enum(['SDD', 'ADR']),
   architects: z.array(docId).min(1, 'a blueprint must architect at least one feature'),
-  governs: z.array(z.string().min(1).max(300)).default([]),
+  impacts_paths: z.array(z.string().min(1).max(300)).default([]),
 });
 
 export const workOrderSchema = base.extend({
   type: z.literal('WO'),
-  status: z.enum(WORK_ORDER_STATUSES).default('todo'),
+  status: z.enum(WORK_ORDER_STATUSES).default('pending'),
   implements: z.array(docId).min(1, 'a work order must implement at least one blueprint'),
   assigned_to: z.string().regex(ACTOR_PATTERN, 'assigned_to must look like agent:name or dev:name').optional(),
   claimed_at: optionalTimestamp,
   completed_at: optionalTimestamp,
   resolved_by: z.array(z.string().regex(SHA_PATTERN)).default([]),
-  governs: z.array(z.string().min(1).max(300)).default([]),
+  impacts_paths: z.array(z.string().min(1).max(300)).default([]),
   source_task: z.string().max(64).optional(),
   blueprint_hashes: z.record(docId, z.string().regex(/^[0-9a-f]{64}$/)).default({}),
 });
@@ -81,13 +123,10 @@ export const feedbackSchema = base.extend({
   informs: idList,
 });
 
-export const frontmatterSchema = z.discriminatedUnion('type', [
-  featureSchema,
-  blueprintSchema,
-  workOrderSchema,
-  artifactSchema,
-  feedbackSchema,
-]);
+export const frontmatterSchema = z.preprocess(
+  normalizeFrontmatterAliases,
+  z.discriminatedUnion('type', [featureSchema, blueprintSchema, workOrderSchema, artifactSchema, feedbackSchema]),
+);
 export type Frontmatter = z.infer<typeof frontmatterSchema>;
 
 export type PropValue = string | number | boolean | string[] | null;
@@ -120,9 +159,10 @@ export interface Actor {
 export interface ParsedDoc {
   node: GraphNode;
   edges: GraphEdge[];
-  governs: string[];
+  impactsPaths: string[];
   actor: Actor | null;
   frontmatter: Frontmatter;
+  deprecations: FrontmatterDeprecation[];
 }
 
 export function kindOfId(id: string): DocKind | null {
@@ -133,7 +173,7 @@ export function kindOfId(id: string): DocKind | null {
 export const DEFAULT_STATUS: Readonly<Record<NodeLabel, string>> = {
   Feature: 'draft',
   Blueprint: 'active',
-  WorkOrder: 'todo',
+  WorkOrder: 'pending',
   Artifact: 'active',
   Feedback: 'new',
 };

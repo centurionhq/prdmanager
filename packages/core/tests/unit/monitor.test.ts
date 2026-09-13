@@ -36,8 +36,8 @@ describe('detectDrift', () => {
   });
 
   test('blueprint change flags done work orders and governed code out of sync', () => {
-    const before = [mrd(), prd(), sdd('design v1'), wo('WO-001', 'done'), wo('WO-002', 'todo')];
-    const after = [mrd(), prd(), sdd('design v2'), wo('WO-001', 'done'), wo('WO-002', 'todo')];
+    const before = [mrd(), prd(), sdd('design v1'), wo('WO-001', 'done'), wo('WO-002', 'pending')];
+    const after = [mrd(), prd(), sdd('design v2'), wo('WO-001', 'done'), wo('WO-002', 'pending')];
     const result = detectDrift(input({ docs: after, baseline: baselineOf(before) }));
     expect(result.workOrderUpdates).toEqual([{ id: 'WO-001', sourcePath: 'docs/WO-001.md', from: 'done', to: 'out_of_sync' }]);
     expect(result.governed[0]).toMatchObject({ status: 'out_of_sync', reason: 'blueprint_changed' });
@@ -115,8 +115,17 @@ describe('detectDrift', () => {
     expect(result.governed[0]).toMatchObject({ status: 'out_of_sync', reason: 'missing' });
     expect(result.issues.map((i) => [i.kind, i.severity])).toEqual([
       ['code_out_of_sync', 'error'],
-      ['governs_warning', 'warning'],
+      ['impacts_warning', 'warning'],
     ]);
+  });
+
+  test('surfaces a deprecated_field warning for docs still using the legacy governs/todo aliases', () => {
+    const legacyBlueprint = doc('id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\ngoverns: ["src/sync/**"]');
+    const legacyWorkOrder = doc('id: WO-001\ntype: WO\ntitle: x\nstatus: todo\nimplements: [SDD-001]');
+    const docs = [mrd(), prd(), legacyBlueprint, legacyWorkOrder];
+    const result = detectDrift(input({ docs, baseline: baselineOf(docs) }));
+    expect(result.issues.filter((i) => i.kind === 'deprecated_field').map((i) => i.nodeId)).toEqual(['SDD-001', 'WO-001']);
+    expect(result.issues.every((i) => i.kind !== 'deprecated_field' || i.severity === 'warning')).toBe(true);
   });
 
   test('reports broken links and links to the wrong node type', () => {
@@ -177,8 +186,8 @@ describe('detectDrift', () => {
 });
 
 describe('X2 shared coverage across blueprints', () => {
-  const sdd2 = (body = 'design2', governs = '["src/sync/**"]'): ParsedDoc =>
-    doc(`id: SDD-002\ntype: SDD\ntitle: Design 2\narchitects: [PRD-001]\ngoverns: ${governs}`, body);
+  const sdd2 = (body = 'design2', impactsPaths = '["src/sync/**"]'): ParsedDoc =>
+    doc(`id: SDD-002\ntype: SDD\ntitle: Design 2\narchitects: [PRD-001]\nimpacts_paths: ${impactsPaths}`, body);
   const woFor = (id: string, blueprintId: string, status: string, extra = ''): ParsedDoc =>
     doc(`id: ${id}\ntype: WO\ntitle: Task ${id}\nstatus: ${status}\nimplements: [${blueprintId}]\n${extra}`, 'task');
   const dualGoverned = new Map([
@@ -249,8 +258,8 @@ describe('X2 shared coverage across blueprints', () => {
 });
 
 describe('acknowledge', () => {
-  const before = [mrd(), prd('v1'), sdd('v1'), wo('WO-001', 'out_of_sync'), wo('WO-002', 'todo')];
-  const after = [mrd(), prd('v2'), sdd('v2'), wo('WO-001', 'out_of_sync'), wo('WO-002', 'todo')];
+  const before = [mrd(), prd('v1'), sdd('v1'), wo('WO-001', 'out_of_sync'), wo('WO-002', 'pending')];
+  const after = [mrd(), prd('v2'), sdd('v2'), wo('WO-001', 'out_of_sync'), wo('WO-002', 'pending')];
   const stale = { ...baselineOf(before), governs: { 'SDD-001': { 'src/sync/a.ts': 'old' } } };
 
   test('acknowledging a blueprint re-baselines it and its code but leaves its work orders flagged', () => {

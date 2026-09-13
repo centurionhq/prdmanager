@@ -20,7 +20,8 @@ export type IssueKind =
   | 'code_out_of_sync'
   | 'work_order_out_of_sync'
   | 'status_write_failed'
-  | 'governs_warning';
+  | 'impacts_warning'
+  | 'deprecated_field';
 
 export interface DriftIssue {
   kind: IssueKind;
@@ -179,8 +180,19 @@ function collectIssues(ctx: DriftContext, governed: GovernedState[], updates: Wo
       .filter(isWorkOrder)
       .filter((wo) => (finalStatus.get(wo.node.id) ?? wo.frontmatter.status) === 'out_of_sync')
       .map((wo): DriftIssue => ({ kind: 'work_order_out_of_sync', severity: 'error', nodeId: wo.node.id, message: `${wo.node.id} was completed against an older version of its blueprint` })),
-    ...ctx.input.governWarnings.map((w): DriftIssue => ({ kind: 'governs_warning', severity: 'warning', nodeId: w.blueprintId, message: w.message })),
+    ...ctx.input.governWarnings.map((w): DriftIssue => ({ kind: 'impacts_warning', severity: 'warning', nodeId: w.blueprintId, message: w.message })),
+    ...ctx.input.docs.flatMap((d) => deprecationIssues(d)),
   ];
+}
+
+/** ADR-002 D9: surfaces each legacy alias still on disk so `prdm migrate docs` has something to act on. */
+function deprecationIssues(doc: ParsedDoc): DriftIssue[] {
+  return doc.deprecations.map((dep) => ({
+    kind: 'deprecated_field',
+    severity: 'warning',
+    nodeId: doc.node.id,
+    message: `${doc.node.id} uses deprecated field "${dep.field}"; use "${dep.replacement}" instead (run \`prdm migrate docs\`)`,
+  }));
 }
 
 function evaluateGoverned(ctx: DriftContext): GovernedState[] {

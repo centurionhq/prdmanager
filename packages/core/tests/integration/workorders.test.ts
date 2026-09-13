@@ -32,14 +32,15 @@ describe('Work Order Generator (F-04)', () => {
 
     expect(result.skipped).toBe(0);
     expect(result.created).toEqual([
-      { id: 'WO-002', path: 'docs/work-orders/WO-002-implementar-hashing-de-codigo.md', title: 'Implementar hashing de código', status: 'todo' },
-      { id: 'WO-003', path: 'docs/work-orders/WO-003-leer-commits-de-git.md', title: 'Leer commits de git', status: 'done' },
+      { id: 'WO-002', path: 'docs/work-orders/WO-002-implementar-hashing-de-codigo.md', title: 'Implementar hashing de código', status: 'pending' },
+      { id: 'WO-003', path: 'docs/work-orders/WO-003-leer-commits-de-git.md', title: 'Leer commits de git', status: 'pending' },
     ]);
     expect(result.report.errors).toEqual([]);
-    expect(result.report.issues).toEqual([]);
+    // The fixture's SDD-001 still uses the deprecated `governs` alias (fixture.ts is shared and not owned by this WO).
+    expect(result.report.issues.filter((i) => i.kind !== 'deprecated_field')).toEqual([]);
 
     const created = readFileSync(`${root}/docs/work-orders/WO-002-implementar-hashing-de-codigo.md`, 'utf8');
-    expect(created).toContain('status: "todo"');
+    expect(created).toContain('status: "pending"');
 
     const second = await generateWorkOrders(engine, 'SDD-001');
     expect(second.created).toEqual([]);
@@ -83,7 +84,7 @@ describe('Work Order Generator (F-04)', () => {
     const completed = await completeWorkOrder(engine, 'WO-002', { commitSha: headSha.slice(0, 12) });
     expect(completed.status).toBe('done');
     expect(completed.resolvedBy).toContain(headSha);
-    expect(completed.drift).toEqual([]);
+    expect(completed.drift.filter((i) => i.kind !== 'deprecated_field')).toEqual([]);
 
     const content = readFileSync(`${root}/docs/work-orders/WO-002-implementar-hashing-de-codigo.md`, 'utf8');
     expect(content).toMatch(/blueprint_hashes: \{"SDD-001":"[0-9a-f]{64}"\}/);
@@ -111,7 +112,7 @@ describe('Work Order Generator (F-04)', () => {
 
   test('rejects invalid state transitions and malformed inputs', async () => {
     await expect(claimWorkOrder(engine, 'WO-001', 'agent:claude')).rejects.toThrow(/status is done/);
-    await expect(completeWorkOrder(engine, 'WO-003')).rejects.toThrow(/status is done/);
+    await expect(completeWorkOrder(engine, 'WO-003')).rejects.toThrow(/status is pending/);
     await expect(claimWorkOrder(engine, 'WO-404', 'agent:claude')).rejects.toThrow(/not found/i);
     await expect(claimWorkOrder(engine, 'WO-003', 'not-an-actor')).rejects.toThrow(/invalid assignee/);
     await expect(completeWorkOrder(engine, 'WO-002', { commitSha: 'not-a-sha' })).rejects.toThrow(/invalid commit sha/);
