@@ -309,7 +309,7 @@
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957",
       "tsconfig.json": "8a21dc4844e7b5eb4e0092c70cb7756fef7dd6159a32b802056a1bf6d4ed9357",
       "tsconfig.test.json": "af3edd226fbac6d7dc9adec2b2e0a2d554253da0160ce6593602b7d96f102a73",
-      "vitest.config.ts": "5c0ac4be26d80973e09e5cdb422add70f5488d3bab5a63513226d9ef4707c8c9"
+      "vitest.config.ts": "c1a0fdc07a9bb4d41c730689d8fb3583d62bf6eba480913de83d0ac2ffca9c35"
     },
     "SDD-003": {
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
@@ -409,7 +409,7 @@
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957",
       "tsconfig.json": "8a21dc4844e7b5eb4e0092c70cb7756fef7dd6159a32b802056a1bf6d4ed9357",
       "tsconfig.test.json": "af3edd226fbac6d7dc9adec2b2e0a2d554253da0160ce6593602b7d96f102a73",
-      "vitest.config.ts": "5c0ac4be26d80973e09e5cdb422add70f5488d3bab5a63513226d9ef4707c8c9"
+      "vitest.config.ts": "c1a0fdc07a9bb4d41c730689d8fb3583d62bf6eba480913de83d0ac2ffca9c35"
     }
   }
 }
