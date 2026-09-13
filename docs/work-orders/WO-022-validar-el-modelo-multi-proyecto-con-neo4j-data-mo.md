@@ -5,7 +5,7 @@ title: "Validar el modelo multi-proyecto con neo4j-data-modeling y actualizar do
 status: "in_progress"
 created_at: "2026-09-13"
 implements: ["ADR-002"]
-impacts_paths: ["packages/core/src/graph/migrations*.ts","docs/model/graph-model.json"]
+impacts_paths: ["packages/core/src/graph/migrations*.ts","docs/model/**","scripts/validate-graph-model.mjs"]
 source_task: "f95d2143e35aeafe"
 tags: ["architecture-decision","multi-project","neo4j","monorepo","atomicity"]
 assigned_to: "agent:claude"

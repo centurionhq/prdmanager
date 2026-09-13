@@ -2,7 +2,7 @@
   "version": 1,
   "docs": {
     "ADR-001": "35c521d0450ef64d28a260490b8066612239a8486c27acd3281bbf3f2c2fc675",
-    "ADR-002": "4172842732acde12db56bda7a8442c7f87df2b8be22ca4ab16974a7893bf37cc",
+    "ADR-002": "ba64e6c51d8decb778f03ee4337a5e2692dc53df73c2ff18ef7792d925ca3406",
     "ART-001": "a8a0dd4289fca521c94cd26671bfe7587a8e8b174e66c9f88a9389dff1aba5da",
     "ART-002": "3f4d2e8ae6674fd11b666b5ee47fddc9ad8760fe186fe508b24eac84935f0267",
     "FB-001": "2d567223972713dfcebdd7626c7ae83f2f6197b617668bc23062bc010abcf1b5",
@@ -44,7 +44,8 @@
     },
     "ADR-002": {
       "docs/model/graph-model.json": "1e65f136554888b128ee6f349427d5800fba5107c6ec902ac09eaeae6cbdfd63",
-      "packages/core/src/graph/migrations.ts": "369b04106ce40ced7d8cb372e02fb61082b87aef75d8c399bcc5313e56e6a4f7"
+      "packages/core/src/graph/migrations.ts": "369b04106ce40ced7d8cb372e02fb61082b87aef75d8c399bcc5313e56e6a4f7",
+      "scripts/validate-graph-model.mjs": null
     },
     "SDD-001": {
       "packages/cli/src/commands/artifacts.ts": "9c2b3bb39b25ce062b110fde851de2395fa0c362f6dfe84da89efa8044f2f6d7",
