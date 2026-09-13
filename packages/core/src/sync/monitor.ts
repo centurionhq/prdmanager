@@ -21,7 +21,8 @@ export type IssueKind =
   | 'work_order_out_of_sync'
   | 'status_write_failed'
   | 'impacts_warning'
-  | 'deprecated_field';
+  | 'deprecated_field'
+  | 'lifecycle_violation';
 
 export interface DriftIssue {
   kind: IssueKind;

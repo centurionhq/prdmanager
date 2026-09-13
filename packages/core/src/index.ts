@@ -19,6 +19,7 @@ export * from './sync/baseline.js';
 export * from './sync/code-refs.js';
 export * from './sync/git.js';
 export * from './sync/monitor.js';
+export * from './lifecycle/check.js';
 export * from './util/hash.js';
 export * from './util/ids.js';
 export * from './util/lock.js';
