@@ -5,7 +5,9 @@ import { registerBranchRoute } from './api/branch.js';
 import { registerDriftRoute } from './api/drift.js';
 import { registerFullGraphRoute } from './api/full-graph.js';
 import { registerHealthRoute } from './api/health.js';
+import { registerMetricsRoute } from './api/metrics.js';
 import { registerNodeRoute } from './api/node.js';
+import { registerProjectRoute } from './api/project.js';
 import { registerSearchRoute } from './api/search.js';
 import { registerTreeRoute } from './api/tree.js';
 import { registerWorkOrderRoutes } from './api/work-orders.js';
@@ -46,7 +48,7 @@ export function isAllowedHost(hostHeader: string | undefined, port: number): boo
  * `engine.recover()` — this process is strictly read-only (SDD-005 "Ciclo de vida del Engine").
  */
 export function buildApp(options: BuildAppOptions): FastifyInstance {
-  const { store, engine, staticDir, port = DEFAULT_WEB_PORT } = options;
+  const { config, store, engine, staticDir, port = DEFAULT_WEB_PORT } = options;
   const app = Fastify({ logger: true });
 
   // Runs before anything else, for every request (not just /api/*): SDD-005 "Seguridad".
@@ -74,8 +76,8 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   registerTreeRoute(app, { store });
   registerWorkOrderRoutes(app, { store });
   registerDriftRoute(app, { engine });
-
-  // Remaining `/api` route plugins are added here, one per work order, by WO-054.
+  registerMetricsRoute(app, { store });
+  registerProjectRoute(app, { config, engine });
 
   setErrorHandler(app);
   setNotFoundHandler(app, { hasStatic: Boolean(staticDir) });
