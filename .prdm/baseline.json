@@ -410,6 +410,7 @@
       "packages/web/tests/client/useCytoscape.test.tsx": "8b94fe3b393cf77ac9a37e680ff131c0ea3b650997b38134301f5ecd63d01e92",
       "packages/web/tests/client/useGraphData.test.tsx": "e2e00353059f1c9f586f662ab51f5dfd24546e354ff931eccfa5511b01ce4e24",
       "packages/web/tests/client/WorkOrderList.test.tsx": "86d891578885ca89e650b08094d8b53aa3a0450ddd423f4345fd765d2715acf4",
+      "packages/web/tests/e2e/golden-path.spec.ts": "fae56daa2e1f5885309a14148e23f98d0701daec985041dd73793a99d67dd0ec",
       "packages/web/tests/integration/app.test.ts": "c1b766527d4c324cd3117a6fd6f020b76d873f3d87b18c7d9d352422e32ce212",
       "packages/web/tests/integration/branch-full-graph.test.ts": "d59aae1a9b51b1bccc500035bf3abece825620552ccb4e9528de4ec3a2710a9f",
       "packages/web/tests/integration/drift.test.ts": "cd0ef8ca28290a44de44d23cebfe8a8a02e3ecd7014e314e51ed34a4abd31f77",

@@ -17,6 +17,8 @@
     "packages/web/src/**/*.ts",
     "packages/web/tests/unit/**/*.ts",
     "packages/web/tests/integration/**/*.ts",
+    "packages/web/tests/e2e/**/*.ts",
+    "packages/web/playwright.config.ts",
     "vitest.config.ts"
   ],
   "exclude": ["packages/web/src/client/**"]
