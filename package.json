@@ -14,7 +14,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prdm": "tsx src/cli/index.ts",
-    "mcp": "node dist/mcp/server.js",
+    "mcp": "tsx src/mcp/server.ts",
+    "mcp:dist": "node dist/mcp/server.js",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "coverage": "vitest run --coverage"

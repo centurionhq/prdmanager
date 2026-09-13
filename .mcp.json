@@ -9,6 +9,11 @@
       "type": "stdio",
       "command": "uvx",
       "args": ["mcp-neo4j-data-modeling@0.8.2", "--transport", "stdio"]
+    },
+    "prdm-graph": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["--no-install", "tsx", "src/mcp/server.ts"]
     }
   }
 }
