@@ -1,12 +1,12 @@
 # prdmanager — Product & Context Graph Engine
 
-Implementación de [PRD-001](PRD-001-Graph-Engine-Enhanced.md): un grafo de producto que une **Feature Tree** (MRD/PRD/FR), **Blueprints** (SDD/ADR), **Work Orders**, **Artifacts**, **Feedback** y **código**. Asistentes de IA lo usan vía MCP, y el grafo detecta cuándo la documentación y el código se desincronizan.
+Implementación de [PRD-001](docs/prd/PRD-001-Graph-Engine-Enhanced.md) y [PRD-002](docs/prd/PRD-002.md): un grafo de producto que une **Feature Tree** (MRD/PRD/FR), **Blueprints** (SDD/ADR), **Work Orders**, **Artifacts**, **Feedback** y **código**. Asistentes de IA lo usan vía MCP, y el grafo detecta cuándo la documentación y el código se desincronizan.
 
 - **Doc-as-code:** los `.md` con frontmatter YAML son la fuente de verdad, versionada en git.
 - **Neo4j local** es el índice vivo del grafo y se puede reconstruir siempre desde los documentos.
 - **La IA es el cliente MCP:** el motor entrega contexto y candidatos deterministas, y el asistente decide.
 
-Arquitectura: [SDD-001](docs/blueprints/SDD-001-graph-engine.md) · Decisión de base de datos: [ADR-001](docs/blueprints/ADR-001-neo4j-local.md) · Mercado: [MRD-001](docs/mrd/MRD-001.md) · Modelo validado: [docs/model/graph-model.json](docs/model/graph-model.json)
+Arquitectura: [SDD-001](docs/sdd/SDD-001-graph-engine.md), [SDD-002](docs/sdd/SDD-002-multi-project-authoring.md) · Decisiones: [ADR-001](docs/adr/ADR-001-neo4j-local.md), [ADR-002](docs/adr/ADR-002-multi-project-isolation.md) · Mercado: [MRD-001](docs/mrd/MRD-001.md) · Modelo validado: [docs/model/graph-model.json](docs/model/graph-model.json)
 
 ## Stack
 
@@ -120,6 +120,6 @@ UI web propia (se cubre con Neo4j Browser, Mermaid y MCP), GitHub App/webhooks (
 
 ## Limitaciones conocidas
 
-- El triaje por full-text usa scores Lucene sin normalizar. Con pocos documentos las diferencias entre candidatos son chicas, así que conviene ajustar `triage.autoLinkMinScore`/`autoLinkMargin` en `prdm.config.json` a medida que crece el corpus.
+- El triaje por full-text usa scores Lucene sin normalizar. Con pocos documentos las diferencias entre candidatos son chicas, así que conviene ajustar `triage.auto_link_min_score`/`auto_link_margin` en `.prdm.yaml` a medida que crece el corpus.
 - La extracción de símbolos (`archivo#símbolo`) es heurística: llaves para TS/JS (ignorando strings y comentarios de una línea) e indentación para Python. Los template literals multilínea no se analizan; ante bloques ambiguos hashea hasta el final del archivo, así que reporta drift de más en lugar de de menos.
 - `LOAD CSV` sigue permitido dentro de la red interna de Docker (Community no tiene blocklist de URLs); no hay salida a internet.

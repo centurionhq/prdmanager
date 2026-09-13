@@ -8,3 +8,6 @@ coverage/
 *.log
 .claude/settings.local.json
 .prdm/*.lock
+.prdm/engine.lock
+.prdm/journal-*.json
+.prdm/graph-stale
