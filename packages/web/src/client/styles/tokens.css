@@ -1,0 +1,101 @@
+/*
+ * PRD-004 / SDD-005 "Frontend": semantic design tokens, dark by default with a full light theme via
+ * `prefers-color-scheme`. Values here are placeholders for the infrastructure phase — shapes, contrast
+ * ratios (4.5:1) and the graph stylesheet get audited/refined once the actual UI (GraphCanvas, tree view,
+ * SearchBar, NodeDetailPanel, WorkOrderList) is built on top of this scaffold.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --color-bg: #0b0d10;
+  --color-bg-elevated: #14171b;
+  --color-bg-inset: #1b1f24;
+  --color-border: #2a2f35;
+
+  /* Text */
+  --color-fg: #e8eaed;
+  --color-fg-muted: #9aa0a6;
+  --color-fg-inverse: #0b0d10;
+
+  /* Accent / interactive */
+  --color-accent: #4da3ff;
+  --color-accent-fg: #041322;
+
+  /* Status (never the only signal — see graph-stylesheet.ts for shape + stroke pairing) */
+  --color-status-ok: #3ecf8e;
+  --color-status-warning: #f5c451;
+  --color-status-error: #f5615c;
+  --color-drift: #f0a500;
+
+  /* Typography: system stack only, no webfonts (ADR-004) */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+
+  /* Spacing scale */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+
+  /* Shape */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --border-width: 1px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --color-bg: #ffffff;
+    --color-bg-elevated: #f4f5f7;
+    --color-bg-inset: #eceef1;
+    --color-border: #d7dbe0;
+
+    --color-fg: #1a1d21;
+    --color-fg-muted: #5b6470;
+    --color-fg-inverse: #ffffff;
+
+    --color-accent: #1a6de0;
+    --color-accent-fg: #ffffff;
+
+    --color-status-ok: #1f9d63;
+    --color-status-warning: #a86a00;
+    --color-status-error: #c22a24;
+    --color-drift: #b06a00;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+}
