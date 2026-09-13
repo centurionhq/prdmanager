@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { Engine, GraphStore, PrdmConfig } from '@prdm/core';
 import { registerHealthRoute } from './api/health.js';
 import { registerNodeRoute } from './api/node.js';
+import { registerSearchRoute } from './api/search.js';
 import { setErrorHandler, setNotFoundHandler } from './errors.js';
 
 /** Matches `PRDM_WEB_PORT`'s own default (SDD-005 "Seguridad"). */
@@ -62,8 +63,9 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
 
   registerHealthRoute(app);
   registerNodeRoute(app, { store });
+  registerSearchRoute(app, { store });
 
-  // Remaining `/api` route plugins are added here, one per work order, by WO-049 through WO-054.
+  // Remaining `/api` route plugins are added here, one per work order, by WO-050 through WO-054.
 
   setErrorHandler(app);
   setNotFoundHandler(app, { hasStatic: Boolean(staticDir) });
