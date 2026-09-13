@@ -2,12 +2,14 @@
 id: "WO-017"
 type: "WO"
 title: "Archivo .prdm.yaml con descubrimiento del proyecto activo y mapa de carpetas por tipo de documento"
-status: "todo"
+status: "in_progress"
 created_at: "2026-09-13"
 implements: ["SDD-002"]
 governs: ["packages/core/src/**","packages/cli/src/**","packages/mcp/src/**","packages/testkit/src/**","package.json","packages/*/package.json","tsconfig*.json","packages/*/tsconfig*.json","vitest.config.ts",".github/workflows/prdm-sync.yml"]
 source_task: "0a6af19bb432e489"
 tags: ["architecture","multi-project","headless","authoring","mcp","neo4j"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-13T06:45:54.134Z"
 ---
 
 ## Objetivo

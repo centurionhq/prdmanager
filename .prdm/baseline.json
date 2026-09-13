@@ -136,6 +136,7 @@
       "packages/core/src/parser/frontmatter-edit.ts": "c63bbfb135d8ddce94400a7f7d325cbc0dc5d41d9884e9bb832f70ac3f337a36",
       "packages/core/src/parser/frontmatter.ts": "75adfe9f470be0797e06bc47b39ad0b18bc1ce11da5522bd69eaac665f86b73c",
       "packages/core/src/parser/scan.ts": "f11e03d83fce90afe19b324861bd9ee43f9912b8466839240052096e6edc04a9",
+      "packages/core/src/project/types.ts": "1d03c7bb9fb50f25e3526190e22632388196616636224c899c9e2de4bda65144",
       "packages/core/src/sync/baseline.ts": "2bbd8e16f921b838e60df19dbbff659f4c9bfae399daec5296d9eae02106f069",
       "packages/core/src/sync/code-refs.ts": "90eb92c8fc0d91dd241623aa218867888628f6c54330428f93be47b2fa79af1c",
       "packages/core/src/sync/git.ts": "ff5ec024ec24eb631c27bbdd74a93846b05b04faa841626a876f6ffb21109361",
