@@ -81,7 +81,7 @@ async function showConstraints(): Promise<{ name: string; type: string; label: s
 /** Excludes the backing range index Neo4j auto-creates for every uniqueness constraint (same name as the constraint, `owningConstraint` set): those aren't declared separately in x-prdm.indexes. */
 async function showOwnIndexes(): Promise<{ name: string; type: string; label: string; properties: string[]; options: unknown }[]> {
   const { records } = await rawDriver.executeQuery(
-    'SHOW INDEXES YIELD name, type, labelsOrTypes, properties, options, owningConstraint WHERE owningConstraint IS NULL RETURN name, type, labelsOrTypes, properties, options',
+    'SHOW INDEXES YIELD name, type, labelsOrTypes, properties, options, owningConstraint WHERE owningConstraint IS NULL AND type <> "LOOKUP" RETURN name, type, labelsOrTypes, properties, options',
     {},
     { database: config.neo4j.database },
   );
