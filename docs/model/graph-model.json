@@ -1,0 +1,180 @@
+{
+  "name": "Product & Context Graph Engine",
+  "description": "Graph model for unified product, architecture, and code context",
+  "nodes": [
+    {
+      "label": "Node",
+      "description": "Base entity for all document types",
+      "properties": {
+        "id": { "type": "String", "constraint": "UNIQUE", "required": true },
+        "title": { "type": "String", "required": true },
+        "body": { "type": "String" },
+        "status": { "type": "String" },
+        "tags": { "type": "String[]" },
+        "source_path": { "type": "String", "required": true },
+        "content_hash": { "type": "String", "required": true },
+        "baseline_hash": { "type": "String" },
+        "created_at": { "type": "String" },
+        "kind": { "type": "String", "required": true }
+      }
+    },
+    {
+      "label": "Feature",
+      "description": "Product requirements: MRD, PRD, FR",
+      "inherits": ["Node"]
+    },
+    {
+      "label": "Blueprint",
+      "description": "Technical architecture: SDD, ADR",
+      "inherits": ["Node"],
+      "properties": {
+        "governs": { "type": "String[]" }
+      }
+    },
+    {
+      "label": "WorkOrder",
+      "description": "Actionable task implementing blueprint",
+      "inherits": ["Node"],
+      "properties": {
+        "source_task": { "type": "String" },
+        "claimed_at": { "type": "String" },
+        "completed_at": { "type": "String" },
+        "blueprint_hashes": { "type": "Map<String,String>" }
+      }
+    },
+    {
+      "label": "Artifact",
+      "description": "Supporting context: meeting notes, email, call transcript",
+      "inherits": ["Node"],
+      "properties": {
+        "source": { "type": "String" }
+      }
+    },
+    {
+      "label": "Feedback",
+      "description": "User feedback informing features",
+      "inherits": ["Node"],
+      "properties": {
+        "source": { "type": "String" },
+        "customer": { "type": "String" }
+      }
+    },
+    {
+      "label": "CodeRef",
+      "description": "Reference to code file or symbol",
+      "properties": {
+        "key": { "type": "String", "constraint": "UNIQUE", "required": true },
+        "path": { "type": "String", "required": true },
+        "symbol": { "type": "String" }
+      }
+    },
+    {
+      "label": "Commit",
+      "description": "Git commit linking to work orders",
+      "properties": {
+        "sha": { "type": "String", "constraint": "UNIQUE", "required": true },
+        "message": { "type": "String" },
+        "author": { "type": "String" },
+        "committed_at": { "type": "String" }
+      }
+    },
+    {
+      "label": "Actor",
+      "description": "Developer or AI agent",
+      "properties": {
+        "id": { "type": "String", "constraint": "UNIQUE", "required": true },
+        "kind": { "type": "String", "required": true }
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "type": "EVOLVES_FROM",
+      "from": "Feature",
+      "to": "Feature",
+      "description": "Feature hierarchy and evolution",
+      "direction": "outgoing"
+    },
+    {
+      "type": "ARCHITECTS",
+      "from": "Blueprint",
+      "to": "Feature",
+      "description": "Blueprint architects a feature",
+      "direction": "outgoing",
+      "properties": {
+        "review_needed": { "type": "Boolean" }
+      }
+    },
+    {
+      "type": "GOVERNED_BY",
+      "from": "CodeRef",
+      "to": "Blueprint",
+      "description": "Code governed by blueprint; tracks sync status",
+      "direction": "outgoing",
+      "properties": {
+        "status": { "type": "String" }
+      }
+    },
+    {
+      "type": "IMPLEMENTS",
+      "from": "WorkOrder",
+      "to": "Blueprint",
+      "description": "Work order implements blueprint",
+      "direction": "outgoing"
+    },
+    {
+      "type": "ASSIGNED_TO",
+      "from": "WorkOrder",
+      "to": "Actor",
+      "description": "Work order assigned to developer or AI agent",
+      "direction": "outgoing"
+    },
+    {
+      "type": "RESOLVES",
+      "from": "Commit",
+      "to": "WorkOrder",
+      "description": "Commit resolves work order",
+      "direction": "outgoing"
+    },
+    {
+      "type": "PROVIDES_CONTEXT_FOR",
+      "from": "Artifact",
+      "to": "Feature",
+      "description": "Artifact provides context for feature",
+      "direction": "outgoing"
+    },
+    {
+      "type": "INFORMS",
+      "from": "Feedback",
+      "to": "Feature",
+      "description": "Feedback informs feature evolution",
+      "direction": "outgoing"
+    }
+  ],
+  "indexes": [
+    {
+      "type": "FULLTEXT",
+      "name": "node_text",
+      "labels": ["Node"],
+      "properties": ["title", "body"]
+    },
+    {
+      "type": "RANGE",
+      "name": "node_status_idx",
+      "labels": ["Node"],
+      "properties": ["status"]
+    },
+    {
+      "type": "RANGE",
+      "name": "coderef_path_idx",
+      "labels": ["CodeRef"],
+      "properties": ["path"]
+    },
+    {
+      "type": "RANGE",
+      "name": "commit_sha_idx",
+      "labels": ["Commit"],
+      "properties": ["sha"]
+    }
+  ]
+}
