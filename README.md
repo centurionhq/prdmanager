@@ -138,9 +138,10 @@ docs/
 
 ### Descubrimiento del Proyecto Activo
 
-1. Variable `$PRDM_ROOT` fuerza la raíz explícitamente
-2. Búsqueda hacia arriba desde `process.cwd()`: "¿Hay `.prdm.yaml` aquí?" → "¿Hay `.git` aquí?" → subir
-3. Si hay subdirectorio con su propio `.prdm.yaml`, ese es un proyecto separado (excluido del scan, código gobernado y política de commits)
+1. Variable `$PRDM_ROOT` fuerza la raíz explícitamente (debe contener `.prdm.yaml` o el legacy `prdm.config.json`)
+2. Si no, sube desde `process.cwd()` directorio por directorio buscando `.prdm.yaml`, **sin detenerse en `.git`**: llega hasta la raíz del filesystem si hace falta, y devuelve el primer `.prdm.yaml` que encuentra
+3. Si ningún ancestro tiene `.prdm.yaml`, cae al ancestro más cercano con el legacy `prdm.config.json`, y si tampoco hay ninguno, usa `process.cwd()` tal cual
+4. Si hay subdirectorio con su propio `.prdm.yaml`, ese es un proyecto separado (excluido del scan, código gobernado y política de commits)
 
 Ruta de proyecto (`project.root`): realpath del directorio que contiene `.prdm.yaml`.
 
@@ -151,7 +152,7 @@ Ruta de proyecto (`project.root`): realpath del directorio que contiene `.prdm.y
 - **Nodo `(:Project)`** por proyecto, guardado en Neo4j: `{id, name, rootFingerprint, nodeCount}`
 - **Partición por `project_id`:** todo `:Node`, `:CodeRef`, `:Commit`, `:Actor` tiene `project_id` y relación `[:BELONGS_TO]->(:Project)`
 - **Unicidad compuesta:** constraints `(project_id, id)`, `(project_id, key)`, `(project_id, sha)` en Community 2026.08.1
-- **Protección de raíz:** `.prdm.yaml` define un proyecto para una máquina (realpath único). Si se clona, fork o worktree crea otro checkout del mismo `project.id`, `writeSnapshot` se niega. Use `prdm project claim` para reasignar.
+- **Protección de raíz:** `.prdm.yaml` define un proyecto para una máquina (realpath único). Si se clona, fork o worktree crea otro checkout del mismo `project.id`, `writeSnapshot` y `db reset --yes` se niegan (nada se borra). Use `prdm project claim` para reasignar.
 
 ### Migraciones y Esquema
 
@@ -167,12 +168,14 @@ El motor bloquea avances si no se cumplen invariantes en cada etapa. Máquina de
 
 | Etapa | Artefacto(s) | Invariante | Error sin |
 |---|---|---|---|
-| **1. Ingesta** | `FB` (Feedback), `ART` (Artifact) | FB: `informs` hacia feature O `root: true`; ART: `provides_context_for` hacia feature O `root: true` | `lifecycle_violation` |
-| **2. Definición** | `MRD`, `PRD`, `FR` | Validación Zod + al menos una relación `[:JUSTIFIED_BY]` hacia FB/ART | `missing_justification` |
-| **3. Diseño** | `SDD`, `ADR` | `impacts_paths` no vacío + sección `## Tareas` con al menos un checkbox | `incomplete_blueprint` |
+| **1. Ingesta** | `FB` (Feedback), `ART` (Artifact) | FB: `informs` hacia feature O `root: true`; ART: `provides_context_for` hacia feature O `root: true` | issue `lifecycle_violation` |
+| **2. Definición** | `MRD`, `PRD`, `FR` | Validación Zod + al menos una relación `[:JUSTIFIED_BY]` hacia FB/ART | issue `lifecycle_violation` |
+| **3. Diseño** | `SDD`, `ADR` | `impacts_paths` no vacío + sección `## Tareas` con al menos un checkbox | issue `lifecycle_violation` |
 | **4. Planificación** | `WO` (Work Order) | Solo se generan con `prdm wo generate <SDD-ID>`, siempre nace `pending` | — |
-| **5. Ejecución** | Commits de código | Commit que toca código gobernado exige trailer `Refs: WO-xxx` hacia WO `pending`/`in_progress`/`out_of_sync` de este proyecto cuyo blueprint cubre al menos un path tocado | `missing_ref` |
-| **6. Cierre** | Feature + Blueprints | `prdm close <FEATURE> --ack --by <actor>`: todos los blueprints implementados (`done`), 0 drift en el proyecto, firma del arquitecto | `not_ready` |
+| **5. Ejecución** | Commits de código | Commit que toca código gobernado exige trailer `Refs: WO-xxx` hacia WO `pending`/`in_progress`/`out_of_sync` de este proyecto cuyo blueprint cubre al menos un path tocado | hook `commit-msg` rechaza el commit |
+| **6. Cierre** | Feature + Blueprints | `prdm close <FEATURE> --ack --by <actor>`: todos los blueprints implementados (`done`), 0 drift en el proyecto, firma del arquitecto | `prdm close`/`closure-readiness` listan los checks pendientes |
+
+Todo issue de ciclo de vida (etapas 1-3) usa el mismo `kind: lifecycle_violation`; no hay códigos por regla individual.
 
 ### Herencia (Grandfathering)
 
@@ -189,7 +192,7 @@ lifecycle:
 
 ### Git Hook `commit-msg`
 
-Inyectado por `prdm init` en `.git/hooks/commit-msg` (o `$GIT_HOOKS_PATH`). Valida el trailer `Refs: WO-xxx`:
+Inyectado por `prdm init`/`prdm hooks install` en el directorio que devuelve `git rev-parse --git-path hooks` (honra `core.hooksPath`, worktrees y husky; no depende de ninguna variable de entorno propia). Valida el trailer `Refs: WO-xxx`:
 
 - Solo se aplica a commits que tocan **código gobernado** (archivos listados en `impacts_paths` de blueprints activos)
 - Trailer requerido: `Refs: WO-NNN` (donde WO está en estado `pending`, `in_progress` o `out_of_sync`)
@@ -234,7 +237,9 @@ Servidor `prdm-graph` (bin: `packages/mcp/src/server.ts`):
 | `commit_artifact` | `draftId`, confirmación del usuario | `documentId` (ID final), documento completo con frontmatter |
 | `list_drafts` | — | Lista de borradores activos (ID, tipo, título, edad) |
 | `discard_draft` | `draftId` | — |
-| `get_closure_readiness` | `featureId` | Checks: feature exists, approved, blueprints have WOs, all WOs done, 0 errors en proyecto |
+| `get_closure_readiness` | `featureId` | Checks: feature exists, approved, blueprints have WOs, all WOs done, 0 errors en proyecto (read-only) |
+
+También expone lectura (`get_node`, `search_nodes`, `get_feature_branch`, `get_feature_tree`, `list_work_orders`, `get_work_order_context`, `triage_feedback`, `get_metrics`), escritura (`generate_work_orders`, `claim_work_order`, `complete_work_order`, `submit_feedback`, `create_feature_request`, `attach_artifact`) y drift (`get_drift_report`, `acknowledge_sync`, `refresh_index`). `acknowledge_sync` por MCP **solo acepta ids de Work Order** (`WO-xxx`); reconocer un Blueprint, Feature o `"all"` es exclusivo de la CLI (`prdm sync ack`, gate de arquitecto igual que `prdm close`).
 
 ### System Prompt `author_artifact`
 
@@ -261,7 +266,7 @@ Commit de artefacto:
 2. **Journal por transacción:** `.prdm/journal-<token>.json` registra contenido original antes de cada escritura
 3. **Orden:** escritura de estado → `writeSnapshot` → `saveBaseline`
 4. **Rollback:** si falla la mutación Neo4j, journal se aplica en orden inverso, archivos se restauran y se marca `.prdm/graph-stale`
-5. **Recuperación:** mientras existe `.prdm/graph-stale`, lecturas y `sync --check` fuerzan refresh desde disco
+5. **Recuperación:** todo comando CLI que abre contexto (excepto `db migrate`/`db status`/`db doctor`) y toda herramienta/recurso/prompt de lectura del servidor MCP llaman `engine.recover()` antes de leer: reproducen cualquier journal huérfano y, si existe `.prdm/graph-stale`, fuerzan un refresh desde disco antes de servir datos
 
 ## Modelo de Documentos
 
@@ -340,6 +345,8 @@ Si el contenido cambia (hash distinto), la exención se pierde. CI rechaza que l
 | `neo4j` | MCP oficial Neo4j v1.6.0 (`get-schema`, `read-cypher`). Script: `scripts/mcp-neo4j.sh` | Modo lectura forzada |
 | `neo4j-data-modeling` | Validación y export de modelo de grafo. Via `uvx` (mcp-neo4j-data-modeling@0.8.2) | Opcional |
 
+`prdm init --mcp` fusiona en `.mcp.json` del proyecto destino la entrada `"prdm-graph": { "type": "stdio", "command": "npx", "args": ["prdm-graph"] }` (idempotente; conserva otros servidores ya declarados).
+
 Cuando levantes Claude Code/MCP Client, pide aprobar servidores la primera vez. `claude mcp list` muestra estado.
 
 ## Skills (Claude Code)
@@ -379,7 +386,7 @@ Lectura desde `.env` (no versionado):
 ```bash
 NEO4J_URI=neo4j://127.0.0.1:7687
 NEO4J_DATABASE=neo4j
-NEO4J_USER=neo4j
+NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=<generado>
 PRDM_ROOT=<opcional; fuerza la raíz del proyecto>
 PRDM_SKIP_HOOKS=1           # Desactiva hooks de git (commit puntual)
@@ -391,10 +398,11 @@ El binario CLI busca `.env` en el directorio del proyecto descubierto.
 
 ## Limitaciones Conocidas
 
-- **Borradores:** perdidos si el servidor MCP se reinicia (estran en memoria del proceso, no en disco)
+- **Borradores:** perdidos si el servidor MCP se reinicia (están en memoria del proceso, no en disco)
 - **Refresh completo:** cada commit trae un re-scan del proyecto completo (repositorios pequeños, sin impacto observable)
 - **Gate de cierre:** por proyecto (no por feature): mientras un proyecto tenga drift, ninguna feature de él puede cerrarse
 - **Full-text:** triaje sin normalizar scores Lucene; ajustar `triage.auto_link_min_score`/`auto_link_margin` en `.prdm.yaml` según el corpus crezca
+- **Analizador fulltext:** `node_text_v2` no fija `analyzer` en `CREATE FULLTEXT INDEX` (sin cláusula `OPTIONS`); usa el default de Neo4j (`standard-no-stop-words` en 2026.08.1), verificado por `graph-model.test.ts` contra `docs/model/graph-model.json`, no una configuración explícita del proyecto
 - **Extracción de símbolos:** heurística (llaves para TS/JS, indentación para Python); templates multilínea no se analizan; reporta drift de más ante bloques ambiguos
 - **Validación de criterios de éxito:** PRD-002 §5 se valida cuando PRD-003 (Tree-sitter) se implemente de punta a punta en un proyecto con `prdm init` (sin drift al cierre)
 

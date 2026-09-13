@@ -25,7 +25,13 @@ function buildProgram(deps: CliDeps): Command {
 function fakeDeps(overrides: Partial<CliDeps> = {}): { deps: CliDeps; stdout: string[]; stderr: string[] } {
   const stdout: string[] = [];
   const stderr: string[] = [];
-  const ctx: CliContext = { config: {} as never, db: { assertSchemaCurrent: async () => {} } as never, store: {} as never, engine: {} as never, close: async () => {} };
+  const ctx: CliContext = {
+    config: {} as never,
+    db: { assertSchemaCurrent: async () => {} } as never,
+    store: {} as never,
+    engine: { recover: async () => {} } as never,
+    close: async () => {},
+  };
   return {
     stdout,
     stderr,

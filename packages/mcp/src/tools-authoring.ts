@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { closureReadiness, docId, DOC_KINDS, DRAFT_KINDS, DraftValidationError, scanDocuments, type DocKind, type DraftKind } from '@prdm/core';
 import type { PrdmDeps } from './deps.js';
-import { DESTRUCTIVE_IDEMPOTENT, jsonResult, jsonText, READ_ONLY, safeTool, WRITE_ONCE } from './shared.js';
+import { DESTRUCTIVE_IDEMPOTENT, jsonResult, jsonText, READ_ONLY, safeReadTool, safeTool, WRITE_ONCE } from './shared.js';
 
 const draftKindEnum = z.enum(DRAFT_KINDS as unknown as [string, ...string[]]);
 
@@ -83,7 +83,7 @@ export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void 
       inputSchema: {},
       annotations: { title: 'Get project', ...READ_ONLY },
     },
-    safeTool(async () => jsonResult({ ...(await buildProjectSummary(deps)) })),
+    safeReadTool(deps, async () => jsonResult({ ...(await buildProjectSummary(deps)) })),
   );
 
   server.registerTool(
@@ -135,7 +135,7 @@ export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void 
       inputSchema: { draft_id: z.string().min(1) },
       annotations: { title: 'Validate draft', ...READ_ONLY },
     },
-    safeTool(async ({ draft_id }: { draft_id: string }) => jsonResult({ ...(await deps.authoring.validate(draft_id)) })),
+    safeReadTool(deps, async ({ draft_id }: { draft_id: string }) => jsonResult({ ...(await deps.authoring.validate(draft_id)) })),
   );
 
   server.registerTool(
@@ -165,7 +165,7 @@ export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void 
       inputSchema: {},
       annotations: { title: 'List drafts', ...READ_ONLY },
     },
-    safeTool(async () => jsonResult({ drafts: deps.authoring.list() })),
+    safeReadTool(deps, async () => jsonResult({ drafts: deps.authoring.list() })),
   );
 
   server.registerTool(
@@ -188,6 +188,6 @@ export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void 
       inputSchema: { feature_id: docId },
       annotations: { title: 'Get closure readiness', ...READ_ONLY },
     },
-    safeTool(async ({ feature_id }: { feature_id: string }) => jsonResult({ ...(await closureReadiness(deps.engine, feature_id)) })),
+    safeReadTool(deps, async ({ feature_id }: { feature_id: string }) => jsonResult({ ...(await closureReadiness(deps.engine, feature_id)) })),
   );
 }

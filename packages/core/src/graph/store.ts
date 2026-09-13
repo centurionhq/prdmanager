@@ -1,9 +1,9 @@
 import type { Driver } from 'neo4j-driver';
 import type { NodeLabel } from '../domain/schema.js';
 import { assertProjectId, type ProjectRef } from '../project/types.js';
-import { CLEAR_PROJECT } from './queries.js';
+import { CLEAR_PROJECT, PROJECT_FINGERPRINT_CHECK } from './queries.js';
 import * as reads from './store-read.js';
-import { writeSnapshot } from './store-write.js';
+import { ProjectFingerprintMismatch, writeSnapshot } from './store-write.js';
 import type { GraphSnapshot, GraphStore, MetricsRaw, NodeDetail, SearchHit, Subgraph, WorkOrderContextRaw, WorkOrderSummary } from './types.js';
 
 /**
@@ -21,10 +21,17 @@ export class Neo4jGraphStore implements GraphStore {
     assertProjectId(project.id);
   }
 
-  /** Deletes only this project's Node/CodeRef/Commit/Actor nodes; the `(:Project)` node is kept so its root fingerprint survives a reset. */
+  /**
+   * Deletes only this project's Node/CodeRef/Commit/Actor nodes; the `(:Project)` node is kept so its root
+   * fingerprint survives a reset. Checks the same root fingerprint `writeSnapshot` does (ADR-002 D6) and throws
+   * before deleting anything on a mismatch; a project with no `(:Project)` node yet (never synced) is fine.
+   */
   async clear(): Promise<void> {
     const session = this.driver.session({ database: this.database });
     try {
+      const fp = await session.run(PROJECT_FINGERPRINT_CHECK, { projectId: this.project.id });
+      const existing = fp.records[0]?.get('fingerprint') as string | null | undefined;
+      if (existing && existing !== this.project.root) throw new ProjectFingerprintMismatch(this.project.id, existing);
       await session.run(CLEAR_PROJECT, { projectId: this.project.id });
     } finally {
       await session.close();

@@ -13,7 +13,7 @@ import {
   type Subgraph,
 } from '@prdm/core';
 import type { PrdmDeps } from './deps.js';
-import { jsonResult, READ_ONLY, safeTool, textOnlyResult } from './shared.js';
+import { jsonResult, READ_ONLY, safeReadTool, textOnlyResult } from './shared.js';
 
 const FORMATS = ['text', 'json', 'mermaid'] as const;
 type Format = (typeof FORMATS)[number];
@@ -34,7 +34,7 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
       inputSchema: { id: docId },
       annotations: { title: 'Get node', ...READ_ONLY },
     },
-    safeTool(async ({ id }: { id: string }) => {
+    safeReadTool(deps, async ({ id }: { id: string }) => {
       const node = await deps.store.getNode(id);
       if (!node) throw new Error(`node ${id} not found`);
       return jsonResult({ ...node });
@@ -54,7 +54,7 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
       },
       annotations: { title: 'Search nodes', ...READ_ONLY },
     },
-    safeTool(async ({ query, label, limit }: { query: string; label?: (typeof NODE_LABELS)[number]; limit: number }) => {
+    safeReadTool(deps, async ({ query, label, limit }: { query: string; label?: (typeof NODE_LABELS)[number]; limit: number }) => {
       const results = await deps.store.search(query, { labels: label ? [label] : undefined, limit });
       return jsonResult({ results });
     }),
@@ -69,7 +69,7 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
       inputSchema: { id: docId, format: z.enum(FORMATS).default('text') },
       annotations: { title: 'Get feature branch', ...READ_ONLY },
     },
-    safeTool(async ({ id, format }: { id: string; format: Format }) => {
+    safeReadTool(deps, async ({ id, format }: { id: string; format: Format }) => {
       const subgraph = await deps.store.branch(id);
       if (subgraph.nodes.length === 0) throw new Error(`node ${id} not found`);
       if (format === 'json') return jsonResult({ nodes: subgraph.nodes, edges: subgraph.edges });
@@ -86,7 +86,7 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
       inputSchema: { format: z.enum(FORMATS).default('text') },
       annotations: { title: 'Get feature tree', ...READ_ONLY },
     },
-    safeTool(async ({ format }: { format: Format }) => {
+    safeReadTool(deps, async ({ format }: { format: Format }) => {
       const subgraph = await deps.store.fullGraph();
       if (format === 'json') return jsonResult({ nodes: subgraph.nodes, edges: subgraph.edges });
       return textOnlyResult(renderSubgraph(subgraph, format));
@@ -102,7 +102,7 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
       inputSchema: { status: z.enum(WORK_ORDER_STATUSES).optional(), blueprint_id: docId.optional() },
       annotations: { title: 'List work orders', ...READ_ONLY },
     },
-    safeTool(async ({ status, blueprint_id }: { status?: (typeof WORK_ORDER_STATUSES)[number]; blueprint_id?: string }) => {
+    safeReadTool(deps, async ({ status, blueprint_id }: { status?: (typeof WORK_ORDER_STATUSES)[number]; blueprint_id?: string }) => {
       const results = await deps.store.listWorkOrders({ status, blueprint: blueprint_id });
       return jsonResult({ results });
     }),
@@ -117,7 +117,7 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
       inputSchema: { id: docId },
       annotations: { title: 'Get work order context', ...READ_ONLY },
     },
-    safeTool(async ({ id }: { id: string }) => {
+    safeReadTool(deps, async ({ id }: { id: string }) => {
       const context = await getWorkOrderContext(deps.store, id);
       if (!context) throw new Error(`work order ${id} not found`);
       return jsonResult({ ...context });
@@ -133,7 +133,7 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
       inputSchema: { text: z.string().min(1).max(20_000) },
       annotations: { title: 'Triage feedback', ...READ_ONLY },
     },
-    safeTool(async ({ text }: { text: string }) => jsonResult({ ...(await triageText(deps.store, deps.config, text)) })),
+    safeReadTool(deps, async ({ text }: { text: string }) => jsonResult({ ...(await triageText(deps.store, deps.config, text)) })),
   );
 
   server.registerTool(
@@ -145,6 +145,6 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
       inputSchema: {},
       annotations: { title: 'Get metrics', ...READ_ONLY },
     },
-    safeTool(async () => jsonResult({ ...(await getMetrics(deps.store)) })),
+    safeReadTool(deps, async () => jsonResult({ ...(await getMetrics(deps.store)) })),
   );
 }

@@ -1,4 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { PrdmDeps } from './deps.js';
+import { ensureRecovered } from './recover.js';
 
 export function jsonText(data: unknown): string {
   return JSON.stringify(data, null, 2);
@@ -30,6 +32,21 @@ export function safeTool<Args, Extra>(
       return errorResult(err);
     }
   };
+}
+
+/**
+ * Same error boundary as {@link safeTool}, plus `ensureRecovered(deps)` first (SDD-002 "Transacción atómica"):
+ * every read tool must recover any pending journal/stale-graph marker before serving data, exactly like a write
+ * does inside `engine.transaction()`.
+ */
+export function safeReadTool<Args, Extra>(
+  deps: PrdmDeps,
+  fn: (args: Args, extra: Extra) => Promise<CallToolResult>,
+): (args: Args, extra: Extra) => Promise<CallToolResult> {
+  return safeTool(async (args, extra) => {
+    await ensureRecovered(deps);
+    return fn(args, extra);
+  });
 }
 
 export const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true } as const;

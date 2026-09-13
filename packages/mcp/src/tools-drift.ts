@@ -1,8 +1,16 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { docId, type RefreshReport } from '@prdm/core';
+import type { RefreshReport } from '@prdm/core';
 import type { PrdmDeps } from './deps.js';
 import { DESTRUCTIVE_IDEMPOTENT, jsonResult, safeTool, WRITE_IDEMPOTENT } from './shared.js';
+
+/**
+ * WO ids only (architect gate, ADR-002 D15): acknowledging a Blueprint, Feature or `all` re-baselines other
+ * people's work without their review and is CLI-only (`prdm sync ack`, human/architect operated), same reasoning
+ * as `prdm close`. An MCP client (agent) may only accept its own Work Order's drift.
+ */
+const ACK_TARGET_PATTERN = /^WO-\d{3,9}$/;
+const ackTarget = z.string().regex(ACK_TARGET_PATTERN, 'acknowledge_sync only accepts a Work Order id (e.g. WO-001); acknowledging a Blueprint, Feature or "all" is CLI-only (`prdm sync ack`)');
 
 function reportResult(report: RefreshReport) {
   return jsonResult({ ...report });
@@ -26,8 +34,8 @@ export function registerDriftTools(server: McpServer, deps: PrdmDeps): void {
     {
       title: 'Acknowledge sync',
       description:
-        'Accepts the current state of one document as the new baseline (or "all"). A Blueprint ack re-baselines the Blueprint and its governed code but its finished Work Orders stay out_of_sync; acknowledge a Work Order id to accept it as current without rework. This removes a drift guardrail: only use it after a human confirmed the change needs no code work.',
-      inputSchema: { target: z.union([docId, z.literal('all')]) },
+        'Accepts the current state of a Work Order as its new baseline. This removes a drift guardrail: only use it after a human confirmed the change needs no rework. Acknowledging a Blueprint, Feature or "all" is CLI-only (`prdm sync ack`, architect gate like `prdm close`); this tool rejects anything other than a WO-xxx id.',
+      inputSchema: { target: ackTarget },
       annotations: { title: 'Acknowledge sync', ...DESTRUCTIVE_IDEMPOTENT },
     },
     safeTool(async ({ target }: { target: string }) => reportResult(await deps.engine.acknowledge(target))),
