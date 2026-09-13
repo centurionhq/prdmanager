@@ -4,7 +4,7 @@ type: SDD
 title: "Explorador web: backend Fastify de solo lectura y SPA React con Cytoscape"
 status: active
 architects: ["PRD-004"]
-impacts_paths: ["packages/web/src/**", "packages/web/tests/**", "packages/web/package.json", "packages/web/tsconfig*.json", "packages/web/vite.config.ts", "packages/web/playwright.config.ts", "packages/web/index.html", "package.json", "package-lock.json", "tsconfig.json", "tsconfig.base.json", "tsconfig.test.json", "vitest.config.ts", ".env.example", "README.md", ".github/workflows/prdm-sync.yml", ".gitignore", "packages/testkit/src/**"]
+impacts_paths: ["packages/web/src/**", "packages/web/tests/**", "packages/web/package.json", "packages/web/tsconfig*.json", "packages/web/vite.config.ts", "packages/web/playwright.config.ts", "package.json", "package-lock.json", "tsconfig.json", "tsconfig.base.json", "tsconfig.test.json", "vitest.config.ts", ".env.example", "README.md", ".github/workflows/prdm-sync.yml", ".gitignore", "packages/testkit/src/**"]
 created_at: 2026-09-13
 tags: ["web-ui", "fastify", "react", "cytoscape", "dogfooding"]
 ---
