@@ -60,11 +60,11 @@ export class AuthoringService {
 
     let record: DraftRecord;
     if (parsed.draftId) {
-      record = this.drafts.replace(parsed.draftId, content, parsed.expectedRevision);
+      record = await this.drafts.replace(parsed.draftId, content, parsed.expectedRevision);
     } else if (parsed.updateId) {
       record = await this.openUpdateDraft(parsed.updateId, content);
     } else {
-      record = this.drafts.create(content);
+      record = await this.drafts.create(content);
     }
     return this.buildView(record.draftId);
   }
@@ -73,7 +73,7 @@ export class AuthoringService {
     return this.buildView(draftId);
   }
 
-  discard(draftId: string): boolean {
+  async discard(draftId: string): Promise<boolean> {
     this.drafts.sweep();
     return this.drafts.remove(draftId);
   }
@@ -123,8 +123,8 @@ export class AuthoringService {
     // Only reached once the transaction has fully succeeded (its journal is already deleted): tombstoning any
     // earlier, inside the still-running transaction, would record success before a later failure (e.g. the
     // journal's own delete) triggers a rollback that contradicts it (WO-023 finding 8).
-    this.drafts.tombstone(draftId, expectedRevision, result);
-    this.drafts.remove(draftId);
+    await this.drafts.tombstone(draftId, expectedRevision, result);
+    await this.drafts.remove(draftId);
     return result;
   }
 

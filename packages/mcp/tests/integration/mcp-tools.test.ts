@@ -69,7 +69,7 @@ beforeAll(async () => {
   engine = new Engine(config, store);
   await engine.refresh();
 
-  const authoring = new AuthoringService({ engine, drafts: new DraftStore(config.authoring) });
+  const authoring = new AuthoringService({ engine, drafts: new DraftStore(config.authoring, config.root) });
   server = createPrdmServer({ config, store, engine, authoring });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   client = new Client({ name: 'test-client', version: '0.0.0' });

@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
+import { readdir } from 'node:fs/promises';
 import type { AuthoringSettings } from '../project/types.js';
 import type { ParsedDoc } from '../domain/schema.js';
+import { safeReadFile, safeReplaceAtomic, safeUnlink } from '../util/safe-fs.js';
 import type { CommitResult, DraftContent, DraftKind, DraftMode } from './types.js';
 
 export interface DraftRecord {
@@ -19,17 +21,42 @@ export interface DraftRecord {
   baseFrontmatter?: Record<string, unknown>;
 }
 
+interface TombstoneEntry {
+  result: CommitResult;
+  expiresAt: number;
+  expectedRevision: number;
+}
+
 const generateDraftId = (): string => `drf_${randomBytes(16).toString('base64url')}`;
 
-/** In-memory, per-process store of open drafts: sliding TTL, a cap on concurrent drafts and on each draft's size. */
+/** SDD-003 "Un archivo por borrador": one JSON file per open draft, replaced by a `.tombstone.json` sibling once it commits. */
+const DRAFTS_DIR = '.prdm/drafts';
+const draftPath = (draftId: string): string => `${DRAFTS_DIR}/${draftId}.json`;
+const tombstonePath = (draftId: string): string => `${DRAFTS_DIR}/${draftId}.tombstone.json`;
+
+/**
+ * Durable, per-process store of open drafts (SDD-003 / FR-001): sliding TTL, a cap on concurrent drafts and on
+ * each draft's size. Every mutation that must survive a crash (`create`, `openUpdate`, `replace`, `remove`,
+ * `tombstone`) persists to `.prdm/drafts/` via the same atomic-write primitives as everything else the engine
+ * writes, and returns only once that write has landed. `touch()` slides the in-memory TTL only: losing a few
+ * minutes of that slide to a crash is an accepted, documented trade-off (SDD-003 "DraftStore pasa a ser durable").
+ */
 export class DraftStore {
   private readonly records = new Map<string, DraftRecord>();
-  private readonly tombstones = new Map<string, { result: CommitResult; expiresAt: number; expectedRevision: number }>();
+  private readonly tombstones = new Map<string, TombstoneEntry>();
 
   constructor(
     private readonly limits: AuthoringSettings,
+    private readonly root: string,
     private readonly clock: () => Date = () => new Date(),
   ) {}
+
+  /** Recovers open drafts and tombstones left by a previous process (FR-001 "Recuperación de sesión"); never throws on a corrupt file. */
+  static async open(limits: AuthoringSettings, root: string, clock: () => Date = () => new Date()): Promise<{ store: DraftStore; warnings: string[] }> {
+    const store = new DraftStore(limits, root, clock);
+    const warnings = await store.load();
+    return { store, warnings };
+  }
 
   private now(): number {
     return this.clock().getTime();
@@ -48,14 +75,62 @@ export class DraftStore {
     if (this.records.size >= this.limits.maxDrafts) throw new Error(`draft limit reached (${this.limits.maxDrafts}); discard a draft before opening another`);
   }
 
-  /** Drops every draft and tombstone whose sliding TTL has elapsed. Idempotent; call before any read or write. */
-  sweep(): void {
-    const now = this.now();
-    for (const [id, record] of this.records) if (record.expiresAt <= now) this.records.delete(id);
-    for (const [id, tombstone] of this.tombstones) if (tombstone.expiresAt <= now) this.tombstones.delete(id);
+  private async persistDraft(record: DraftRecord): Promise<void> {
+    await safeReplaceAtomic(this.root, draftPath(record.draftId), JSON.stringify(record));
   }
 
-  create(content: DraftContent): DraftRecord {
+  /** Loads every `.prdm/drafts/*.json` left on disk; corrupt or already-expired entries are dropped (and their file removed) with a warning, not thrown. */
+  private async load(): Promise<string[]> {
+    const warnings: string[] = [];
+    let names: string[];
+    try {
+      names = await readdir(`${this.root}/${DRAFTS_DIR}`);
+    } catch {
+      return warnings;
+    }
+    const now = this.now();
+    for (const name of names.filter((n) => n.endsWith('.json'))) {
+      const rel = `${DRAFTS_DIR}/${name}`;
+      const raw = await safeReadFile(this.root, rel).catch((err: unknown) => {
+        warnings.push(`could not read ${name}: ${(err as Error).message}`);
+        return null;
+      });
+      if (raw === null) continue;
+      try {
+        if (name.endsWith('.tombstone.json')) {
+          const entry = JSON.parse(raw) as TombstoneEntry & { draftId: string };
+          if (entry.expiresAt > now) this.tombstones.set(entry.draftId, entry);
+          else await safeUnlink(this.root, rel).catch(() => undefined);
+        } else {
+          const record = JSON.parse(raw) as DraftRecord;
+          if (record.expiresAt > now) this.records.set(record.draftId, record);
+          else await safeUnlink(this.root, rel).catch(() => undefined);
+        }
+      } catch (err) {
+        warnings.push(`skipping corrupt draft file ${name}: ${(err as Error).message}`);
+      }
+    }
+    return warnings;
+  }
+
+  /** Drops every in-memory draft and tombstone whose sliding TTL has elapsed. Idempotent; call before any read. On-disk cleanup for the files that go with them is best-effort (a stray expired file is swept again on the next `open()`). */
+  sweep(): void {
+    const now = this.now();
+    for (const [id, record] of this.records) {
+      if (record.expiresAt <= now) {
+        this.records.delete(id);
+        void safeUnlink(this.root, draftPath(id)).catch(() => undefined);
+      }
+    }
+    for (const [id, tombstone] of this.tombstones) {
+      if (tombstone.expiresAt <= now) {
+        this.tombstones.delete(id);
+        void safeUnlink(this.root, tombstonePath(id)).catch(() => undefined);
+      }
+    }
+  }
+
+  async create(content: DraftContent): Promise<DraftRecord> {
     this.sweep();
     this.assertRoom();
     this.assertSize(content);
@@ -70,12 +145,13 @@ export class DraftStore {
       createdAt: now,
       expiresAt: now + this.ttlMs(),
     };
+    await this.persistDraft(record);
     this.records.set(record.draftId, record);
     return record;
   }
 
   /** `baseHash` must be the sha256 of the target document's raw file bytes at this exact moment (see WO-023 finding 5), not its parsed `contentHash` (which deliberately ignores fields like `status`). */
-  openUpdate(targetId: string, doc: ParsedDoc, content: DraftContent, baseHash: string): DraftRecord {
+  async openUpdate(targetId: string, doc: ParsedDoc, content: DraftContent, baseHash: string): Promise<DraftRecord> {
     this.sweep();
     this.assertRoom();
     this.assertSize(content);
@@ -93,11 +169,12 @@ export class DraftStore {
       baseHash,
       baseFrontmatter: doc.frontmatter as unknown as Record<string, unknown>,
     };
+    await this.persistDraft(record);
     this.records.set(record.draftId, record);
     return record;
   }
 
-  replace(draftId: string, content: DraftContent, expectedRevision?: number): DraftRecord {
+  async replace(draftId: string, content: DraftContent, expectedRevision?: number): Promise<DraftRecord> {
     this.sweep();
     const record = this.records.get(draftId);
     if (!record) throw new Error(`draft ${draftId} not found`);
@@ -107,6 +184,7 @@ export class DraftStore {
     }
     this.assertSize(content);
     const next: DraftRecord = { ...record, content, revision: record.revision + 1, expiresAt: this.now() + this.ttlMs() };
+    await this.persistDraft(next);
     this.records.set(draftId, next);
     return next;
   }
@@ -116,7 +194,7 @@ export class DraftStore {
     return this.records.get(draftId);
   }
 
-  /** Reads a draft and slides its TTL forward, as if it had just been accessed. */
+  /** Reads a draft and slides its TTL forward, as if it had just been accessed. In-memory only (see class doc). */
   touch(draftId: string): DraftRecord | undefined {
     this.sweep();
     const record = this.records.get(draftId);
@@ -125,8 +203,11 @@ export class DraftStore {
     return record;
   }
 
-  remove(draftId: string): boolean {
-    return this.records.delete(draftId);
+  /** Drops a draft; deletes its on-disk file, unless it was just tombstoned (that file is the tombstone now, and stays). */
+  async remove(draftId: string): Promise<boolean> {
+    const existed = this.records.delete(draftId);
+    if (existed && !this.tombstones.has(draftId)) await safeUnlink(this.root, draftPath(draftId)).catch(() => undefined);
+    return existed;
   }
 
   list(): DraftRecord[] {
@@ -134,9 +215,12 @@ export class DraftStore {
     return [...this.records.values()];
   }
 
-  /** Remembers a commit's result for the draft's remaining TTL so a retried commit (same draftId + expectedRevision) is idempotent instead of erroring on "not found". */
-  tombstone(draftId: string, expectedRevision: number, result: CommitResult): void {
-    this.tombstones.set(draftId, { result, expectedRevision, expiresAt: this.now() + this.ttlMs() });
+  /** Remembers a commit's result for the draft's remaining TTL so a retried commit (same draftId + expectedRevision) is idempotent instead of erroring on "not found". Replaces the draft's file with a tombstone file of the same lifetime. */
+  async tombstone(draftId: string, expectedRevision: number, result: CommitResult): Promise<void> {
+    const expiresAt = this.now() + this.ttlMs();
+    await safeReplaceAtomic(this.root, tombstonePath(draftId), JSON.stringify({ draftId, result, expiresAt, expectedRevision }));
+    await safeUnlink(this.root, draftPath(draftId)).catch(() => undefined);
+    this.tombstones.set(draftId, { result, expiresAt, expectedRevision });
   }
 
   /**

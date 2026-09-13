@@ -30,11 +30,14 @@ import {
 interface DraftView {
   draftId: string;
   revision: number;
+  rendered: string;
   validation: { ok: boolean; issues: { code: string; severity: string; message: string }[] };
 }
 
 interface CommitResult {
   id: string;
+  path: string;
+  hasBlockingIssues: boolean;
 }
 
 const ENV_KEYS = ['NEO4J_URI', 'NEO4J_PASSWORD', 'NEO4J_USERNAME', 'NEO4J_DATABASE', 'PRDM_BIN', 'PRDM_ROOT'] as const;
@@ -44,8 +47,10 @@ let scratchDir = '';
 let dirA = '';
 let dirB = '';
 let dirC = '';
+let dirD = '';
 let projectIdA = '';
 let projectIdB = '';
+let projectIdD = '';
 let mcpA: McpSession | undefined;
 
 let fbId = '';
@@ -82,6 +87,7 @@ beforeAll(async () => {
   dirA = makeTmpDir('prdm-e2e-a-');
   dirB = makeTmpDir('prdm-e2e-b-');
   dirC = makeTmpDir('prdm-e2e-c-');
+  dirD = makeTmpDir('prdm-e2e-d-');
 
   const migrate = runCli(scratchDir, ['db', 'migrate']);
   expect(migrate.code, `db migrate failed: ${migrate.stderr}`).toBe(0);
@@ -90,10 +96,10 @@ beforeAll(async () => {
 afterAll(async () => {
   await mcpA?.close();
 
-  for (const id of [projectIdA, projectIdB]) {
+  for (const id of [projectIdA, projectIdB, projectIdD]) {
     if (id) runCli(scratchDir, ['project', 'remove', id, '--yes']);
   }
-  for (const dir of [scratchDir, dirA, dirB, dirC]) if (dir && existsSync(dir)) removeDir(dir);
+  for (const dir of [scratchDir, dirA, dirB, dirC, dirD]) if (dir && existsSync(dir)) removeDir(dir);
 
   for (const key of ENV_KEYS) {
     if (priorEnv[key] === undefined) delete process.env[key];
@@ -439,4 +445,81 @@ describe('6. atomic rollback smoke', () => {
     const badEnv = { ...process.env, NEO4J_URI: 'neo4j://127.0.0.1:1' };
     await expect(connectMcp(dirA, badEnv)).rejects.toBeTruthy();
   }, 30_000);
+});
+
+describe('7. FR-001: draft persistence survives a killed MCP server', () => {
+  test('prdm init scaffolds a third, independent project D', () => {
+    gitInit(dirD);
+    const init = runCli(dirD, ['init', '--name', 'demo-d']);
+    expect(init.code, init.stderr).toBe(0);
+    projectIdD = parseProjectFile(readFileSync(join(dirD, '.prdm.yaml'), 'utf8')).project.id;
+  });
+
+  test('kill -9 mid-draft, restart, recover via list_drafts, and commit successfully', async () => {
+    let mcp = await connectMcp(dirD);
+    try {
+      const fb = toolResult(
+        await mcp.client.callTool({ name: 'draft_artifact', arguments: { kind: 'FB', title: 'Root feedback', body: 'root feedback body', fields: { root: true } } }),
+      ).data as unknown as DraftView;
+      const fbCommit = toolResult(await mcp.client.callTool({ name: 'commit_artifact', arguments: { draft_id: fb.draftId, expected_revision: fb.revision } })).data as unknown as CommitResult;
+
+      const prd = toolResult(
+        await mcp.client.callTool({
+          name: 'draft_artifact',
+          arguments: { kind: 'PRD', title: 'Producto D', body: 'cuerpo del producto', fields: { justified_by: [fbCommit.id], status: 'approved' } },
+        }),
+      ).data as unknown as DraftView;
+      const prdCommit = toolResult(await mcp.client.callTool({ name: 'commit_artifact', arguments: { draft_id: prd.draftId, expected_revision: prd.revision } })).data as unknown as CommitResult;
+
+      // Drafted but deliberately never committed: this is the "a mitad de la redacción de un SDD" moment FR-001 targets.
+      const sdd = toolResult(
+        await mcp.client.callTool({
+          name: 'draft_artifact',
+          arguments: {
+            kind: 'SDD',
+            title: 'Diseño D',
+            body: 'cuerpo del diseño\n\n## Tareas\n\n- [ ] tarea',
+            fields: { architects: [prdCommit.id], impacts_paths: ['src/**'] },
+          },
+        }),
+      ).data as unknown as DraftView;
+      expect(sdd.validation.ok).toBe(true);
+
+      const draftFile = join(dirD, '.prdm', 'drafts', `${sdd.draftId}.json`);
+      expect(existsSync(draftFile)).toBe(true); // FR-001: the working draft is already durable, not RAM-only
+
+      const pid = mcp.transport.pid;
+      expect(pid).not.toBeNull();
+      process.kill(pid!, 'SIGKILL');
+      await new Promise((resolve) => setTimeout(resolve, 500)); // let the OS actually reap the process
+      mcp = await connectMcp(dirD); // a brand-new server process: nothing survives in its memory from before
+
+      const listed = toolResult(await mcp.client.callTool({ name: 'list_drafts', arguments: {} })).data as unknown as { drafts: { draftId: string; kind: string }[] };
+      const recovered = listed.drafts.find((d) => d.draftId === sdd.draftId);
+      expect(recovered).toMatchObject({ draftId: sdd.draftId, kind: 'SDD' });
+
+      const revalidated = toolResult(await mcp.client.callTool({ name: 'validate_draft', arguments: { draft_id: sdd.draftId } })).data as unknown as DraftView;
+      expect(revalidated.validation.ok).toBe(true);
+      expect(revalidated.rendered).toContain('Diseño D');
+
+      const commit = toolResult(await mcp.client.callTool({ name: 'commit_artifact', arguments: { draft_id: sdd.draftId, expected_revision: sdd.revision } })).data as unknown as CommitResult;
+      expect(commit.id).toMatch(/^SDD-\d+$/);
+      expect(commit.hasBlockingIssues).toBe(false);
+      expect(readFileSync(join(dirD, commit.path), 'utf8')).toContain('Diseño D');
+
+      // Cleanup guarantee: the open-draft file is gone; a tombstone (for an idempotent retry) takes its place.
+      expect(existsSync(draftFile)).toBe(false);
+      expect(existsSync(join(dirD, '.prdm', 'drafts', `${sdd.draftId}.tombstone.json`))).toBe(true);
+    } finally {
+      await mcp.close().catch(() => undefined);
+    }
+  }, 30_000);
+
+  test('.prdm/drafts/ is gitignored in a project scaffolded by prdm init', () => {
+    // The previous test left a tombstone file under .prdm/drafts/; a plain `git status` must never surface it.
+    const status = git(dirD, ['status', '--porcelain']);
+    expect(status.stdout).not.toContain('.prdm/drafts');
+    const ignored = git(dirD, ['status', '--porcelain', '--ignored']);
+    expect(ignored.stdout).toMatch(/\.prdm\/drafts\/?/);
+  });
 });

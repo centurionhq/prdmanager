@@ -21,7 +21,7 @@ No se adopta una base de datos nueva (se descartó SQLite del pedido original): 
 
 `.prdm/drafts/<draftId>.json` (uno por borrador, nunca un archivo compartido): igual que el journal por transacción, evita que la escritura de un borrador interfiera con la de otro y hace trivial detectar y limpiar entradas individuales. `.prdm/**` ya está excluido del scan de documentos (`MANDATORY_IGNORE` en `config.ts`); se agrega a `.gitignore` (raíz y al que genera `prdm init`) porque es estado de trabajo, no fuente de verdad versionada.
 
-Cada archivo serializa el `DraftRecord` completo (incluida su fase: abierto, o resuelto por un commit exitoso — ver Tombstones). No se separan borradores y tombstones en archivos distintos: un borrador transiciona de un estado al otro conservando su mismo archivo, hasta que el TTL lo expira y se borra.
+Cada archivo serializa el `DraftRecord` completo mientras el borrador está abierto. Cuando `commit()` resuelve un borrador con éxito, su archivo se reemplaza por `.prdm/drafts/<draftId>.tombstone.json` (el resultado del commit y la ventana de TTL para reintentos idempotentes) y el original se borra — dos archivos con vidas disjuntas para el mismo id, nunca un archivo con dos formas.
 
 ### `DraftStore` pasa a ser durable y asíncrono
 

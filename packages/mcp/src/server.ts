@@ -20,7 +20,12 @@ async function main(): Promise<void> {
     `[prdm-graph] indexed ${report.documents} document(s); ${report.issues.length} issue(s); blocking=${report.hasBlockingIssues}`,
   );
 
-  const authoring = new AuthoringService({ engine, drafts: new DraftStore(config.authoring) });
+  // FR-001 / SDD-003: recovers drafts (and commit tombstones) a previous process left in `.prdm/drafts/` instead
+  // of starting with an empty, in-memory-only session.
+  const { store: drafts, warnings: draftWarnings } = await DraftStore.open(config.authoring, config.root);
+  for (const warning of draftWarnings) console.error(`[prdm-graph] ${warning}`);
+  if (drafts.list().length > 0) console.error(`[prdm-graph] recovered ${drafts.list().length} draft(s) from a previous session`);
+  const authoring = new AuthoringService({ engine, drafts });
   const server = createPrdmServer({ config, store, engine, authoring });
   const transport = new StdioServerTransport();
 

@@ -30,7 +30,7 @@ beforeAll(async () => {
   ({ db, store } = await openTestDb(config));
   engine = new Engine(config, store);
   await engine.refresh();
-  authoring = new AuthoringService({ engine, drafts: new DraftStore(config.authoring) });
+  authoring = new AuthoringService({ engine, drafts: new DraftStore(config.authoring, config.root) });
 });
 
 afterAll(async () => {
@@ -74,7 +74,7 @@ describe('AuthoringService: create -> commit', () => {
     await expect(authoring.commit(view.draftId, 0)).rejects.toThrow(DraftValidationError);
     // the draft survives a failed (validation-only) commit attempt
     expect(authoring.list().some((d) => d.draftId === view.draftId)).toBe(true);
-    authoring.discard(view.draftId);
+    await authoring.discard(view.draftId);
   });
 
   test('WO cannot be drafted', async () => {
@@ -126,7 +126,7 @@ describe('AuthoringService: update drafts', () => {
     expect(revalidated.validation.ok).toBe(false);
     expect(revalidated.validation.issues.map((i) => i.code)).toContain('stale_base');
     await expect(authoring.commit(view.draftId, 0)).rejects.toThrow(DraftValidationError);
-    authoring.discard(view.draftId);
+    await authoring.discard(view.draftId);
   });
 });
 
@@ -182,7 +182,7 @@ describe('atomic commit rollback', () => {
     flaky = new FlakyStore(opened.store);
     rbEngine = new Engine(rbConfig, flaky);
     await rbEngine.refresh();
-    rbAuthoring = new AuthoringService({ engine: rbEngine, drafts: new DraftStore(rbConfig.authoring) });
+    rbAuthoring = new AuthoringService({ engine: rbEngine, drafts: new DraftStore(rbConfig.authoring, rbConfig.root) });
   });
 
   afterAll(async () => {
@@ -217,8 +217,8 @@ describe('atomic commit rollback', () => {
     await rbEngine.refresh();
     expect(await graphStaleMarkerExists(rbRoot)).toBe(false);
 
-    rbAuthoring.discard(createView.draftId);
-    rbAuthoring.discard(updateView.draftId);
+    await rbAuthoring.discard(createView.draftId);
+    await rbAuthoring.discard(updateView.draftId);
   });
 });
 

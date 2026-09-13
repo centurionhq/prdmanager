@@ -176,7 +176,7 @@ export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void 
       inputSchema: { draft_id: z.string().min(1) },
       annotations: { title: 'Discard draft', ...DESTRUCTIVE_IDEMPOTENT },
     },
-    safeTool(async ({ draft_id }: { draft_id: string }) => jsonResult({ discarded: deps.authoring.discard(draft_id) })),
+    safeTool(async ({ draft_id }: { draft_id: string }) => jsonResult({ discarded: await deps.authoring.discard(draft_id) })),
   );
 
   server.registerTool(
