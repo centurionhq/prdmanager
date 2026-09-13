@@ -2,11 +2,13 @@
 id: "PRD-004"
 type: "PRD"
 title: "Explorador web del Feature Tree y del drift"
-status: "approved"
+status: "closed"
 created_at: "2026-09-13"
 evolves_from: ["PRD-002"]
 justified_by: ["FB-004"]
 tags: ["web-ui", "explorer", "drift", "dogfooding"]
+closed_at: "2026-09-13T20:12:34.221Z"
+closed_by: "agent:claude"
 ---
 
 ## 1. Visión
