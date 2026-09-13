@@ -13,3 +13,7 @@ coverage/
 .prdm/graph-stale
 .prdm/drafts/
 .prdm/symbol-cache.json
+packages/web/test-results/
+packages/web/playwright-report/
+packages/web/blob-report/
+packages/web/playwright/.cache/
