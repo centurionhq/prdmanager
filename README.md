@@ -13,7 +13,7 @@ Arquitectura: [SDD-001](docs/sdd/SDD-001-graph-engine.md), [SDD-002](docs/sdd/SD
 
 | Componente | Tecnología | Versión |
 |---|---|---|
-| Monorepo | npm workspaces | 10.8.2 |
+| Monorepo | npm workspaces | 11.19.0 |
 | Build | TypeScript `tsc -b` + project references | 7.0.2 |
 | Runtime | Node.js | 24.21.0 |
 | Base de grafos | Neo4j Community + APOC en Docker (red interna, acceso local) | 2026.08.1 |

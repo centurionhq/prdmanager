@@ -11,7 +11,7 @@
     "build": "tsc -b tsconfig.server.json && vite build",
     "dev": "vite",
     "typecheck": "tsc -b tsconfig.server.json --noEmit && tsc -b tsconfig.client.json --noEmit && tsc -p tsconfig.test-client.json --noEmit",
-    "test:e2e": "npm run build && playwright test"
+    "test:e2e": "npm run build && NODE_OPTIONS=--conditions=@prdm/source playwright test"
   },
   "dependencies": {
     "@fastify/static": "10.1.3",
