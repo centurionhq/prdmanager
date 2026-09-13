@@ -49,19 +49,19 @@ Nuevas en PRD-002:
 
 | Tool | Entrada | Salida | Caso de uso |
 |---|---|---|---|
-| `draft_artifact` | `kind: MRD\|PRD\|FR\|SDD\|ADR\|WO\|ART\|FB`, `title: string`, `body: string` | `{draftId: KIND-?, errors: []}` | Comienza un borrador en memoria |
+| `draft_artifact` | `kind: MRD\|PRD\|FR\|SDD\|ADR\|WO\|ART\|FB`, `title: string`, `body: string` | `{draftId: KIND-?, errors: []}` | Comienza (o actualiza) un borrador |
 | `validate_draft` | `draftId: string`, `body: string` | `{errors: []}` (vacío = válido) | Validación en vivo durante iteración |
 | `commit_artifact` | `draftId: string`, `confirm: boolean` | `{id: final_ID, document}` | Asigna ID, escribe en disco, actualiza Neo4j (atómico) |
 | `list_drafts` | — | `[{draftId, kind, title, age_minutes}]` | Listar borradores activos |
-| `discard_draft` | `draftId: string` | — | Descartar un borrador en memoria |
+| `discard_draft` | `draftId: string` | — | Descartar un borrador |
 | `get_closure_readiness` | `featureId: string` | `{ready: bool, checks: [{ok, name, detail}]}` | Validar si feature puede cerrarse |
 
 ### Borradores (Draft Sessions)
 
-- **Almacenamiento:** en memoria del proceso MCP (TTL, máximo de borradores, límite de bytes)
+- **Almacenamiento:** persistido en `.prdm/drafts/` (FR-001/SDD-003), no solo en memoria: un reinicio del servidor MCP recupera los borradores abiertos vía `list_drafts` en vez de perderlos
 - **ID provisional:** `KIND-?`, se asigna ID definitivo en `commit_artifact`
 - **Validación:** Zod + ciclo de vida + enlaces (incluyendo `draft_dependency` si refiere a otro borrador)
-- **Transacción atómica:** commit = lock + journal + writeSnapshot + Neo4j (rollback + marcador `graph-stale` si falla)
+- **Transacción atómica:** commit = lock + journal firmado (HMAC) + writeSnapshot + Neo4j (rollback + marcador `graph-stale` si falla)
 
 ### Flow de Autoría
 

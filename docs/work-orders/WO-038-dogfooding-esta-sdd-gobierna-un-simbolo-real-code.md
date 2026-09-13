@@ -1,0 +1,27 @@
+---
+id: "WO-038"
+type: "WO"
+title: "Dogfooding: esta SDD gobierna un símbolo real (code-refs.ts#resolveGoverned) sincronizado con 0 drift, y cierre de PRD-003 con prdm close"
+status: "done"
+created_at: "2026-09-13"
+implements: ["SDD-004"]
+impacts_paths: ["packages/core/src/sync/code-refs.ts","packages/core/src/sync/symbol-extractor.ts","packages/core/src/sync/tree-sitter-extractor.ts","packages/core/src/sync/legacy-extractor.ts","packages/core/src/sync/symbol-cache.ts","packages/core/src/engine.ts","packages/core/src/index.ts","packages/core/src/scaffold/gitignore.ts",".gitignore","packages/core/package.json","packages/core/src/sync/code-refs.ts#resolveGoverned"]
+source_task: "8f9028fbd4b917da"
+tags: ["parser","tree-sitter","drift","dogfooding"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-13T15:28:12.622Z"
+completed_at: "2026-09-13T15:31:49.328Z"
+resolved_by: ["eb82a64172eccaf3594f304201c89ae5361d2133"]
+blueprint_hashes: {"SDD-004":"0bd01301602a94fa03d5ebb3cd988190220267efb1b8f417e0f87ef499c74041"}
+---
+
+## Objetivo
+Dogfooding: esta SDD gobierna un símbolo real (code-refs.ts#resolveGoverned) sincronizado con 0 drift, y cierre de PRD-003 con prdm close
+
+## Contexto
+SDD-004 — Extracción de símbolos con Tree-sitter; features: PRD-003
+
+## Criterios de aceptación
+- [ ] Implementación realizada dentro del código gobernado por SDD-004
+- [ ] Tests que cubren el cambio
+- [ ] Commit realizado con el trailer `Refs: WO-038`

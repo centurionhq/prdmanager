@@ -1,5 +1,5 @@
 ---
-status: "proposed"
+status: "closed"
 evolves_from: ["PRD-002"]
 justified_by: ["ART-003"]
 tags: ["tree-sitter","parser","dogfooding"]
@@ -7,6 +7,8 @@ id: "PRD-003"
 type: "PRD"
 title: "Parser de símbolos con Tree-sitter validado de punta a punta con prdm init"
 created_at: "2026-09-13"
+closed_at: "2026-09-13T15:32:00.179Z"
+closed_by: "agent:claude"
 ---
 
 ## 1. Visión

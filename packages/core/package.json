@@ -22,6 +22,8 @@
     "gray-matter": "4.0.3",
     "neo4j-driver": "6.2.0",
     "picomatch": "2.3.2",
+    "tree-sitter-wasms": "0.1.13",
+    "web-tree-sitter": "0.25.10",
     "yaml": "2.9.1",
     "zod": "4.6.3"
   }

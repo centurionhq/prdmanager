@@ -53,7 +53,7 @@ describe('planInit / applyInit', () => {
     const plan = await planInit(root, { name: 'demo', random: RANDOM });
     await applyInit(root, plan);
     const content = readFileSync(join(root, '.gitignore'), 'utf8');
-    expect(content).toBe('dist/\n.prdm/engine.lock\n.prdm/journal-*.json\n.prdm/graph-stale\n.prdm/drafts/\n');
+    expect(content).toBe('dist/\n.prdm/engine.lock\n.prdm/journal-*.json\n.prdm/graph-stale\n.prdm/drafts/\n.prdm/symbol-cache.json\n');
 
     const second = await planInit(root, { name: 'demo', random: RANDOM });
     expect(second.writes.map((w) => w.path)).not.toContain('.gitignore');

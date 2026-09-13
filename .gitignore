@@ -12,3 +12,4 @@ coverage/
 .prdm/journal-*.json
 .prdm/graph-stale
 .prdm/drafts/
+.prdm/symbol-cache.json

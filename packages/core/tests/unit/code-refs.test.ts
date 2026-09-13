@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest';
 import { extractSymbol, resolveGoverned } from '../../src/sync/code-refs.js';
+import { SymbolCache } from '../../src/sync/symbol-cache.js';
+import type { SymbolExtractor } from '../../src/sync/symbol-extractor.js';
 import { sha256 } from '../../src/util/hash.js';
 import { makeTmpDir, removeDir, writeFiles } from '@prdm/testkit';
 
@@ -207,5 +209,35 @@ describe('resolveGoverned', () => {
     expect(refs).toEqual([]);
     expect(warnings).toHaveLength(2);
     expect(warnings[0]).toMatch(/outside/);
+  });
+
+  test('SDD-004: dispatches to Tree-sitter for a supported extension, and to the legacy heuristic for one it has no grammar for', async () => {
+    root = makeTmpDir();
+    writeFiles(root, { 'src/a.ts': ts, 'src/a.txt': ts.replace('a.ts', 'a.txt') });
+    const { refs: fromTreeSitter } = await resolveGoverned(root, ['src/a.ts#helper'], []);
+    const { refs: fromLegacy } = await resolveGoverned(root, ['src/a.txt#helper'], []);
+    // Same source text, only the extension differs: both land on the exact same hash, proving the unsupported
+    // extension really was routed to the legacy heuristic (which is extension-agnostic for TS-shaped syntax)
+    // rather than silently reporting the symbol as missing.
+    expect(fromTreeSitter[0]?.hash).not.toBeNull();
+    expect(fromLegacy[0]?.hash).toBe(fromTreeSitter[0]?.hash);
+  });
+
+  test('SDD-004: a symbol cache skips the extractor entirely when the file has not changed since it was cached', async () => {
+    root = makeTmpDir();
+    writeFiles(root, { 'src/a.ts': ts });
+    let calls = 0;
+    const countingExtractor: SymbolExtractor = { extract: (content, symbol, path) => (calls++, extractSymbol(content, symbol, path)) };
+    const cache = await SymbolCache.load(root);
+
+    const first = await resolveGoverned(root, ['src/a.ts#helper'], [], { extractor: countingExtractor, cache });
+    expect(calls).toBe(1);
+    const second = await resolveGoverned(root, ['src/a.ts#helper'], [], { extractor: countingExtractor, cache });
+    expect(calls).toBe(1); // same cache instance, file unchanged: no second call
+    expect(second.refs).toEqual(first.refs);
+
+    writeFiles(root, { 'src/a.ts': ts.replace('return a * 2;', 'return a * 3;') });
+    await resolveGoverned(root, ['src/a.ts#helper'], [], { extractor: countingExtractor, cache });
+    expect(calls).toBe(2); // file changed: cache correctly misses and re-extracts
   });
 });
