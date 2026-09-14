@@ -79,6 +79,27 @@ export interface EngineOps {
   inspect(): Promise<RefreshReport>;
 }
 
+/** Everything a `ProjectEngine` needs from `PrdmConfig` except `root` and `neo4j` (SaaS values come from `projects.settings`, not a filesystem path or a database connection). */
+export type ProjectSettings = Omit<PrdmConfig, 'root' | 'neo4j'>;
+
+/**
+ * Narrow port (WO-124/SDD-007) that every domain function (`generateWorkOrders`, `claimWorkOrder`, ...) is typed
+ * against instead of the concrete, disk-bound `Engine`. Implemented locally by `Engine` unchanged, and later by a
+ * Postgres-backed `PgProjectEngine` (SDD-007) with no local behavior change.
+ */
+export interface ProjectEngine {
+  readonly settings: ProjectSettings;
+  readonly store: GraphStore;
+  transaction<T>(fn: (ops: EngineOps) => Promise<T>, options?: TransactionOptions): Promise<T>;
+  refresh(): Promise<RefreshReport>;
+  inspect(): Promise<RefreshReport>;
+  /** Last computed report, read from saved state; never triggers a new scan/refresh (SDD-007: "estado guardado, nunca dispara refresh"). */
+  lastReport(): Promise<RefreshReport | null>;
+  acknowledge(target: string): Promise<RefreshReport>;
+  recover(): Promise<RecoverResult>;
+  scan(): Promise<ScanResult>;
+}
+
 export interface RecoverResult {
   /** Whether anything was actually rolled back or refreshed; false when there was nothing pending. */
   recovered: boolean;
@@ -91,10 +112,12 @@ export interface TransactionOptions {
   atomic?: boolean;
 }
 
-export class Engine {
+export class Engine implements ProjectEngine {
   private queue: Promise<unknown> = Promise.resolve();
   private readonly ops: EngineOps;
   private writer: FileWriter;
+  /** Set at the end of `doRefresh`/`doInspect` (whichever path reached them: `refresh()`, `inspect()`, `acknowledge()` or a transaction's `ops.refresh()`/`ops.inspect()`), read by `lastReport()`. */
+  private lastReportValue: RefreshReport | null = null;
 
   constructor(
     readonly config: PrdmConfig,
@@ -112,6 +135,21 @@ export class Engine {
       refresh: () => this.doRefresh(),
       inspect: () => this.doInspect(),
     };
+  }
+
+  /** `PrdmConfig` minus `root`/`neo4j`: the settings surface `ProjectEngine` callers may depend on (local-only fields are irrelevant to a future `PgProjectEngine`, which never has them at all). */
+  get settings(): ProjectSettings {
+    const { root: _root, neo4j: _neo4j, ...settings } = this.config;
+    return settings;
+  }
+
+  scan(): Promise<ScanResult> {
+    return scanDocuments(this.config.root, this.config.ignore);
+  }
+
+  /** Read-only, saved state; never recomputes (SDD-007). `null` until the first `refresh()`/`inspect()` of this process. */
+  async lastReport(): Promise<RefreshReport | null> {
+    return this.lastReportValue;
   }
 
   private plainWriter(): FileWriter {
@@ -246,7 +284,7 @@ export class Engine {
   private async doInspect(): Promise<RefreshReport> {
     const { scan, input } = await this.collect();
     const built = buildRefreshReport(input);
-    return {
+    const report: RefreshReport = {
       documents: scan.docs.length,
       errors: scan.errors,
       issues: built.issues,
@@ -255,6 +293,8 @@ export class Engine {
       baselineWritten: false,
       hasBlockingIssues: scan.errors.length > 0 || built.issues.some((i) => i.severity === 'error'),
     };
+    this.lastReportValue = report;
+    return report;
   }
 
   private async doRefresh(): Promise<RefreshReport> {
@@ -276,7 +316,7 @@ export class Engine {
     // A document that temporarily fails to parse would otherwise be pruned from the baseline and come back as "new" (drift silently accepted).
     const baselineWritten = scan.errors.length === 0 ? await saveBaseline(this.config.root, built.baseline) : false;
 
-    return {
+    const report: RefreshReport = {
       documents: docs.length,
       errors: scan.errors,
       issues,
@@ -285,6 +325,8 @@ export class Engine {
       baselineWritten,
       hasBlockingIssues: scan.errors.length > 0 || issues.some((i) => i.severity === 'error'),
     };
+    this.lastReportValue = report;
+    return report;
   }
 
   private async applyStatusUpdates(updates: WorkOrderUpdate[]): Promise<{ applied: WorkOrderUpdate[]; failures: DriftIssue[] }> {

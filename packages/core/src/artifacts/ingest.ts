@@ -2,7 +2,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
 import { z } from 'zod';
 import { ARTIFACT_SOURCES, docId } from '../domain/schema.js';
-import type { Engine } from '../engine.js';
+import type { ProjectEngine } from '../engine.js';
 import { extractFeatureMentions, triageText } from '../feedback/triage.js';
 import type { SearchHit } from '../graph/types.js';
 import { nextId, renderDocument, slugify, todayIso } from '../util/ids.js';
@@ -86,7 +86,7 @@ export interface AttachArtifactResult {
   candidates: SearchHit[];
 }
 
-export async function attachArtifact(engine: Engine, input: AttachArtifactInput): Promise<AttachArtifactResult> {
+export async function attachArtifact(engine: ProjectEngine, input: AttachArtifactInput): Promise<AttachArtifactResult> {
   const parsed = attachArtifactSchema.parse(input);
   if (Buffer.byteLength(parsed.content, 'utf8') > MAX_ARTIFACT_BYTES) throw new Error(`content exceeds ${MAX_ARTIFACT_BYTES} bytes`);
 
@@ -141,7 +141,7 @@ const ingestArtifactFileSchema = z.object({
 export type IngestArtifactFileInput = z.input<typeof ingestArtifactFileSchema>;
 
 /** CLI-only helper: reads an arbitrary local file (not necessarily under the repo), normalizes it and attaches it. */
-export async function ingestArtifactFile(engine: Engine, input: IngestArtifactFileInput): Promise<AttachArtifactResult> {
+export async function ingestArtifactFile(engine: ProjectEngine, input: IngestArtifactFileInput): Promise<AttachArtifactResult> {
   const parsed = ingestArtifactFileSchema.parse(input);
   const ext = extname(parsed.filePath).toLowerCase();
   const format = EXTENSION_FORMATS[ext];

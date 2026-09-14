@@ -106,4 +106,9 @@ describe('resolveInside', () => {
   test.each(['../etc/passwd', '/etc/passwd', 'src/../../x', 'a\0b', ''])('rejects unsafe path %j', (p) => {
     expect(() => resolveInside('/repo', p)).toThrow(/outside|invalid/i);
   });
+
+  test('rejects a non-absolute root (WO-124: a future saas:// pseudo-root must never reach a real fs call)', () => {
+    expect(() => resolveInside('relative/root', 'a.md')).toThrow(/root must be an absolute path/);
+    expect(() => resolveInside('saas://project/123', 'a.md')).toThrow(/root must be an absolute path/);
+  });
 });

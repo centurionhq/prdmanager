@@ -1,5 +1,5 @@
 import { ACTOR_PATTERN, ID_PATTERN, SHA_PATTERN, type ParsedDoc } from '../domain/schema.js';
-import type { Engine } from '../engine.js';
+import type { ProjectEngine } from '../engine.js';
 import { readCommit } from '../sync/git.js';
 import type { DriftIssue } from '../sync/monitor.js';
 
@@ -21,7 +21,7 @@ export interface ClaimResult {
 }
 
 /** Claims a pending/out_of_sync work order for an actor, moving it to in_progress. */
-export async function claimWorkOrder(engine: Engine, id: string, assignee: string, now: Date = new Date()): Promise<ClaimResult> {
+export async function claimWorkOrder(engine: ProjectEngine, id: string, assignee: string, now: Date = new Date()): Promise<ClaimResult> {
   if (!ACTOR_PATTERN.test(assignee)) throw new Error(`invalid assignee: ${assignee} (expected agent:name or dev:name)`);
 
   return engine.transaction(async (ops) => {
@@ -59,7 +59,7 @@ export interface CompleteResult {
 }
 
 /** Completes an in_progress/out_of_sync work order, recording the current content hash of every blueprint it implements. */
-export async function completeWorkOrder(engine: Engine, id: string, options: CompleteOptions = {}): Promise<CompleteResult> {
+export async function completeWorkOrder(engine: ProjectEngine, id: string, options: CompleteOptions = {}): Promise<CompleteResult> {
   const { commitSha, now = new Date() } = options;
   if (commitSha !== undefined && !SHA_PATTERN.test(commitSha)) throw new Error(`invalid commit sha: ${commitSha}`);
 
