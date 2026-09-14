@@ -8,7 +8,10 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { EditorView } from '@codemirror/view';
 import { buildEditorExtensions, readCspNonce } from '../collab/editor-extensions.js';
+import { setBlame } from '../collab/blame-gutter.js';
 import { useCollabDocumentContext } from '../collab/collab-document-context.js';
+import { useStatelessMessage } from '../collab/use-stateless-message.js';
+import { getDocumentBlame } from '../api/documents.js';
 import styles from '../styles/editor.module.css';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -21,8 +24,9 @@ const STATUS_LABEL: Record<string, string> = {
  * `HocuspocusProvider`, so it always shares the exact same connection/awareness identity as the
  * frontmatter form and every other panel on the same document page. */
 export function CollabEditor(): ReactElement {
-  const { provider, state } = useCollabDocumentContext();
+  const { provider, state, orgSlug, projectSlug, docId } = useCollabDocumentContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const viewRef = useRef<EditorView | null>(null);
   const [editorReady, setEditorReady] = useState(false);
 
   const readOnly = state.scope === 'readonly';
@@ -34,9 +38,11 @@ export function CollabEditor(): ReactElement {
       extensions: buildEditorExtensions({ provider, readOnly, cspNonce: readCspNonce() }),
       parent: containerRef.current,
     });
+    viewRef.current = view;
     setEditorReady(true);
     return () => {
       view.destroy();
+      viewRef.current = null;
       setEditorReady(false);
     };
     // `readOnly` intentionally excluded: it's re-derived from `state.scope`, which never changes after
@@ -45,6 +51,19 @@ export function CollabEditor(): ReactElement {
     // down and losing local (unsaved-to-Yjs-yet, though rare) cursor state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider]);
+
+  // WO-161: fetches once the editor mounts, then again on every blame:stale broadcast (WO-154) — never
+  // polling, never a timer.
+  function refetchBlame(): void {
+    getDocumentBlame(orgSlug, projectSlug, docId)
+      .then((blame) => viewRef.current?.dispatch({ effects: setBlame.of(blame) }))
+      .catch(() => undefined); // best-effort: a failed blame fetch never blocks editing
+  }
+  useEffect(() => {
+    if (editorReady) refetchBlame();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorReady]);
+  useStatelessMessage(provider, 'blame:stale', refetchBlame);
 
   return (
     <div className={styles.editorShell}>

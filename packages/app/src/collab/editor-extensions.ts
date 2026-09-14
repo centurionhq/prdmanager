@@ -11,6 +11,7 @@ import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next';
 import type { HocuspocusProvider } from '@hocuspocus/provider';
 import * as Y from 'yjs';
+import { blameGutterExtension } from './blame-gutter.js';
 
 export interface BuildEditorExtensionsOptions {
   provider: HocuspocusProvider;
@@ -32,6 +33,7 @@ export function buildEditorExtensions(opts: BuildEditorExtensionsOptions): Exten
     yCollab(ytext, provider.awareness, { undoManager }),
     EditorState.readOnly.of(readOnly),
     EditorView.editable.of(!readOnly),
+    blameGutterExtension,
   ];
   if (cspNonce) extensions.push(EditorView.cspNonce.of(cspNonce));
   return extensions;

@@ -177,7 +177,7 @@ export function DocumentDetail(): ReactElement {
       )}
 
       {doc.origin === 'collab' && projectId ? (
-        <CollabDocumentProvider documentName={formatCollabDocumentName(projectId, doc.id)}>
+        <CollabDocumentProvider documentName={formatCollabDocumentName(projectId, doc.id)} orgSlug={orgSlug} projectSlug={project} docId={doc.docId}>
           <FrontmatterForm kind={doc.kind} />
           <CollabEditor />
         </CollabDocumentProvider>

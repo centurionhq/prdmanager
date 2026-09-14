@@ -11,6 +11,7 @@ import type {
   PublishDocumentInput,
 } from '@prdm/contracts';
 import type { ClosureReadiness } from '@prdm/core';
+import type { BlameResult } from '@prdm/collab';
 import { request } from './request.js';
 
 function documentsBase(orgSlug: string, projectSlug: string): string {
@@ -79,4 +80,10 @@ export interface CloseFeatureResult {
  * flip is queued for a future SDD-008 Yjs transaction (WO-139), never written immediately. */
 export function closeFeature(orgSlug: string, projectSlug: string, docId: string): Promise<{ result: CloseFeatureResult; pendingEditablePatch: boolean }> {
   return request(`${documentBase(orgSlug, projectSlug, docId)}/close`, { method: 'POST' });
+}
+
+/** `GET .../blame` (SDD-008 §"Autoría por línea no falsificable", WO-154/161): viewer-or-above, same as
+ * any other document read. */
+export function getDocumentBlame(orgSlug: string, projectSlug: string, docId: string): Promise<BlameResult> {
+  return request<BlameResult>(`${documentBase(orgSlug, projectSlug, docId)}/blame`);
 }

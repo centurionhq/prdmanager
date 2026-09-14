@@ -86,3 +86,40 @@
   padding: 0.75rem;
   color: var(--color-fg-muted);
 }
+
+.editorContainer :global(.cm-blame-gutter) {
+  background: var(--color-bg-elevated-solid);
+  border-right: 1px solid var(--color-border);
+}
+
+.editorContainer :global(.cm-blame-marker) {
+  background: none;
+  border: none;
+  color: var(--color-fg-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  width: 1.4rem;
+  padding: 0;
+  position: relative;
+  cursor: pointer;
+}
+
+.editorContainer :global(.cm-blame-marker:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.editorContainer :global(.cm-blame-tooltip) {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  z-index: 10;
+  background: var(--color-bg-elevated-solid);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.35rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-fg);
+  white-space: nowrap;
+}

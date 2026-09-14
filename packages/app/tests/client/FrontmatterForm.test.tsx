@@ -15,6 +15,9 @@ function renderWithLocalDoc(ydoc: Y.Doc, scope: 'read-write' | 'readonly' = 'rea
   vi.spyOn(collabContext, 'useCollabDocumentContext').mockReturnValue({
     provider: provider as never,
     state: { status: 'connected', synced: true, scope, presence: [] },
+    orgSlug: 'acme',
+    projectSlug: 'web',
+    docId: 'PRD-001',
   });
 }
 
