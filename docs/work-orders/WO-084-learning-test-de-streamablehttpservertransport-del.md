@@ -2,12 +2,14 @@
 id: "WO-084"
 type: "WO"
 title: "Learning test de StreamableHTTPServerTransport del SDK MCP 1.30.0 en modo sin estado montado en Fastify"
-status: "pending"
+status: "in_progress"
 created_at: "2026-09-13"
 implements: ["ADR-006"]
 impacts_paths: ["packages/server/tests/learning/**","packages/server/scripts/**","packages/server/*.json","package.json","package-lock.json","tsconfig.json","tsconfig.test.json","vitest.config.ts"]
 source_task: "e72d67904edaa218"
 tags: ["architecture-decision","saas","stack"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-14T00:41:23.073Z"
 ---
 
 ## Objetivo
