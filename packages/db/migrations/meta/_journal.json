@@ -64,6 +64,13 @@
       "when": 1789379551776,
       "tag": "0008_documents_pending_editable_patch",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789383992762,
+      "tag": "0009_doc_updates",
+      "breakpoints": true
     }
   ]
 }

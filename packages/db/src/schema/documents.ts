@@ -80,6 +80,15 @@ export const documents = pgTable(
      * server-attributed commit, per SDD-007) once `packages/collab` exists, then clears it.
      */
     pendingEditablePatch: jsonb('pending_editable_patch'),
+    /**
+     * WO-145 (SDD-008 §"Servidor de tiempo real"): the `doc_updates.seq` this document's `workingState`
+     * snapshot already reflects — `0` when there is no snapshot yet (matches the column's own default
+     * and a never-collab-edited document). `onLoadDocument` decodes `workingState` and then replays
+     * every `doc_updates` row with `seq > snapshotSeq`, so a debounced snapshot can never silently drop
+     * updates written after it was taken but before the next debounce fires (or across a restart).
+     * `onStoreDocument` sets this to the highest `seq` written for the document at the moment it stores.
+     */
+    snapshotSeq: integer('snapshot_seq').notNull().default(0),
     createdBy: text('created_by').references(() => user.id),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },

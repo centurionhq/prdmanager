@@ -9,6 +9,7 @@ export * from './platform-audit.js';
 export * from './pool.js';
 export * from './repositories.js';
 export * from './resolve-project.js';
+export * from './resolve-document.js';
 export * from './tenant.js';
 export * from './tokens.js';
 export * from './user-profile.js';

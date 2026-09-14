@@ -12,3 +12,4 @@ export * from './schema/invitations.js';
 export * from './schema/tokens.js';
 export * from './schema/custom-types.js';
 export * from './schema/documents.js';
+export * from './schema/doc-updates.js';
