@@ -26,7 +26,8 @@ import type { Hocuspocus } from '@hocuspocus/server';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
-import { runAgentLoop, type AgentLoopEvent, type AgentTranscriptMessage } from '../agent/agent-loop.js';
+import { DEFAULT_MAX_TOKENS_PER_TURN, runAgentLoop, type AgentLoopEvent, type AgentTranscriptMessage } from '../agent/agent-loop.js';
+import { reconcileAgentTokens, reserveAgentTokens, todayUsageDate } from '../agent/agent-quota.js';
 import { buildAgentSystemPrompt } from '../agent/system-prompt.js';
 import type { LlmClient, LlmMessage, LlmToolCall } from '../agent/llm-client.js';
 import { ALL_AGENT_TOOLS, type AgentToolContext } from '../agent/tools/index.js';
@@ -34,7 +35,8 @@ import { acceptAgentProposal, ProposalNotFoundError as AcceptProposalNotFoundErr
 import { rejectAgentProposal, ProposalNotFoundError as RejectProposalNotFoundError, ProposalNotPendingError as RejectProposalNotPendingError } from '../collab/reject-agent-proposal.js';
 import { requireNeo4j } from '../engine/resolve-pg-project-engine.js';
 import type { ServerEnv } from '../env.js';
-import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
+import { ConflictError, ForbiddenError, NotFoundError, RateLimitedError, ValidationError } from '../errors.js';
+import type { AgentRateLimiter } from '../rate-limit/agent-rate-limits.js';
 import { requireAppSession } from './app-session.js';
 import { requireMemberOrg } from './require-member-org.js';
 import { resolveVisibleProject } from './projects.js';
@@ -52,6 +54,10 @@ export interface RegisterDocumentAgentRoutesOptions {
   model?: string;
   /** WO-174: accept applies a proposal as a direct-connection server transaction, same as `../collab/restore.js`. */
   hocuspocus: Hocuspocus;
+  /** WO-175: per-user requests-per-minute limit on this route. */
+  rateLimiter: AgentRateLimiter;
+  /** Test-only: overrides `() => new Date()` so a quota test never depends on which day it actually runs. */
+  clock?: () => Date;
 }
 
 interface ProposalRouteParams extends DocumentRouteParams {
@@ -98,7 +104,7 @@ function sendSseEvent(raw: { write: (chunk: string) => void }, event: AgentLoopE
 }
 
 export function registerDocumentAgentRoutes(app: FastifyInstance, opts: RegisterDocumentAgentRoutesOptions): void {
-  const { auth, pool, env, neo4j, llmClient, model, hocuspocus } = opts;
+  const { auth, pool, env, neo4j, llmClient, model, hocuspocus, rateLimiter, clock = () => new Date() } = opts;
   const activeStreamUserIds = new Set<string>();
 
   app.post<{ Params: DocumentRouteParams; Body: unknown }>(
@@ -115,6 +121,15 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
       const parsed = sendAgentMessageInputSchema.safeParse(req.body);
       if (!parsed.success) throw new ValidationError('invalid body');
 
+      // SDD-009 §Seguridad y costo: rate limit and quota are both checked, and sanitized on failure —
+      // neither the rate-limit nor the quota-exceeded response ever says which limit was hit or how much
+      // capacity remains beyond the standard Retry-After header a rate limiter already exposes.
+      const rateLimit = await rateLimiter.check(req, userId);
+      if (!rateLimit.allowed) {
+        void reply.header('retry-after', String(rateLimit.retryAfterSeconds));
+        throw new RateLimitedError();
+      }
+
       const tenantDb = createTenantDb(pool).forOrg(org.id);
       const existing = await tenantDb.forProject(project.id).documents.findByDocId(req.params.docId);
       if (!existing) throw new NotFoundError();
@@ -123,6 +138,14 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
       activeStreamUserIds.add(userId);
 
       try {
+        // Reserved *before* the model is ever called (SDD-009 "reserva de tokens antes de llamar (los
+        // turnos concurrentes no exceden la cuota)") — see agent-quota.ts's own module doc comment for why
+        // this is safe under concurrent requests. Reconciled once the turn actually finishes, below.
+        const usageDate = todayUsageDate(clock);
+        const reservationTokens = DEFAULT_MAX_TOKENS_PER_TURN;
+        const reservation = await reserveAgentTokens(pool, org.id, reservationTokens, env.agentQuotas, usageDate);
+        if (!reservation.ok) throw new RateLimitedError();
+
         const conversation =
           (await tenantDb.agent.conversations.findForDocumentAndOwner(existing.document.id, userId)) ??
           (await tenantDb.agent.conversations.create({ documentId: existing.document.id, ownerId: userId }));
@@ -165,7 +188,7 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
 
         let newMessages: AgentTranscriptMessage[] = [];
         try {
-          const loop = runAgentLoop({ llmClient, tools: ALL_AGENT_TOOLS, toolCtx, messages, model, signal: controller.signal });
+          const loop = runAgentLoop({ llmClient, tools: ALL_AGENT_TOOLS, toolCtx, messages, model, maxTokensPerTurn: reservationTokens, signal: controller.signal });
           let step = await loop.next();
           while (!step.done) {
             sendSseEvent(reply.raw, step.value);
@@ -176,6 +199,9 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
           req.log.error({ err: error }, 'agent loop failed unexpectedly');
           sendSseEvent(reply.raw, { type: 'error', code: 'llm_error', message: 'the agent failed unexpectedly' });
         }
+
+        const actualTokens = newMessages.reduce((sum, message) => sum + (message.usage?.totalTokens ?? 0), 0);
+        await reconcileAgentTokens(pool, org.id, reservationTokens, actualTokens, usageDate);
 
         for (const message of newMessages) {
           await tenantDb.agent.messages.append({

@@ -25,6 +25,7 @@ import { registerDocumentVersionRoutes } from './api/documents-versions.js';
 import { registerDocumentCommentRoutes } from './api/documents-comments.js';
 import { registerDocumentAgentRoutes } from './api/documents-agent.js';
 import { buildCommentRateLimiter } from './rate-limit/comment-rate-limits.js';
+import { buildAgentRateLimiter } from './rate-limit/agent-rate-limits.js';
 import type { LlmClient } from './agent/llm-client.js';
 import { createBlameCache } from './collab/blame.js';
 import { registerDriftRoutes } from './api/drift.js';
@@ -222,7 +223,18 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerDocumentBlameRoute(app, { auth, pool, env, blameCache: createBlameCache() });
       registerDocumentVersionRoutes(app, { auth, pool, env, hocuspocus });
       registerDocumentCommentRoutes(app, { auth, pool, env, hocuspocus, rateLimiter: buildCommentRateLimiter(app) });
-      if (llmClient) registerDocumentAgentRoutes(app, { auth, pool, env, neo4j, llmClient, model: env.deepseek?.model, hocuspocus });
+      if (llmClient)
+        registerDocumentAgentRoutes(app, {
+          auth,
+          pool,
+          env,
+          neo4j,
+          llmClient,
+          model: env.deepseek?.model,
+          hocuspocus,
+          rateLimiter: buildAgentRateLimiter(app, env.agentQuotas.rpmPerUser),
+          clock,
+        });
       registerDriftRoutes(app, { auth, pool, env, neo4j });
       registerGraphRoutes(app, { auth, pool, env, neo4j });
       registerCloseFeatureRoutes(app, { auth, pool, env, neo4j });
