@@ -37,10 +37,22 @@ export type AgentLoopEvent =
   | { type: 'done'; finishReason: AgentLoopFinishReason }
   | { type: 'error'; code: string; message: string };
 
+/** A message as returned in `RunAgentLoopResult.newMessages` — a superset of `LlmMessage` with
+ * persistence-only metadata (WO-172 stores this in `agent_messages`'s `model`/`*_tokens` columns) that
+ * the wire protocol to the provider itself has no use for; passing one of these back into `messages`
+ * on a later call is still valid (the extra fields are simply ignored by `LlmClient` implementations). */
+export interface AgentTranscriptMessage extends LlmMessage {
+  model?: string;
+  usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+}
+
 export interface RunAgentLoopInput {
   llmClient: LlmClient;
   tools: readonly AgentTool[];
   toolCtx: AgentToolContext;
+  /** Stamped onto every assistant message in `newMessages` (SDD-009 §Persistencia: `agent_messages`
+   * records which model produced each turn) — purely descriptive, never sent to the provider itself. */
+  model?: string;
   /** Every message so far, including the leading `system` message — this turn's new `user` message must
    * already be the last entry (the caller, WO-172, appends it before calling this). */
   messages: readonly LlmMessage[];
@@ -53,7 +65,7 @@ export interface RunAgentLoopInput {
 export interface RunAgentLoopResult {
   /** Every message this turn produced (assistant turns and tool results) — `input.messages` plus these,
    * in order, is the complete transcript the caller persists. */
-  newMessages: LlmMessage[];
+  newMessages: AgentTranscriptMessage[];
   finishReason: AgentLoopFinishReason;
 }
 
@@ -82,13 +94,14 @@ export async function* runAgentLoop(input: RunAgentLoopInput): AsyncGenerator<Ag
     maxIterations = DEFAULT_MAX_ITERATIONS,
     maxTokensPerTurn = DEFAULT_MAX_TOKENS_PER_TURN,
     maxHistoryMessages = DEFAULT_MAX_HISTORY_MESSAGES,
+    model,
     signal,
   } = input;
 
   yield { type: 'message_start' };
 
   const history: LlmMessage[] = [...initialMessages];
-  const newMessages: LlmMessage[] = [];
+  const newMessages: AgentTranscriptMessage[] = [];
   let tokensUsedThisTurn = 0;
   const toolDefinitions = buildToolDefinitions(tools);
 
@@ -108,6 +121,7 @@ export async function* runAgentLoop(input: RunAgentLoopInput): AsyncGenerator<Ag
     const toolCalls: LlmToolCall[] = [];
     let modelFinishReason: string | undefined;
     let sawError = false;
+    let iterationUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
 
     const resendMessages = boundMessagesForResend(history, maxHistoryMessages);
     for await (const event of llmClient.streamChat({ messages: resendMessages, tools: toolDefinitions, maxTokens: remainingTokens, signal })) {
@@ -119,6 +133,7 @@ export async function* runAgentLoop(input: RunAgentLoopInput): AsyncGenerator<Ag
         yield event;
       } else if (event.type === 'usage') {
         tokensUsedThisTurn += event.totalTokens;
+        iterationUsage = { promptTokens: event.promptTokens, completionTokens: event.completionTokens, totalTokens: event.totalTokens };
         yield event;
       } else if (event.type === 'error') {
         sawError = true;
@@ -137,7 +152,13 @@ export async function* runAgentLoop(input: RunAgentLoopInput): AsyncGenerator<Ag
       return { newMessages, finishReason: 'aborted' };
     }
 
-    const assistantMessage: LlmMessage = { role: 'assistant', content: assistantText, ...(toolCalls.length > 0 ? { toolCalls } : {}) };
+    const assistantMessage: AgentTranscriptMessage = {
+      role: 'assistant',
+      content: assistantText,
+      ...(toolCalls.length > 0 ? { toolCalls } : {}),
+      ...(model ? { model } : {}),
+      ...(iterationUsage ? { usage: iterationUsage } : {}),
+    };
     history.push(assistantMessage);
     newMessages.push(assistantMessage);
 

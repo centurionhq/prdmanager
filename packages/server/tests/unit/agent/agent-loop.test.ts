@@ -45,7 +45,7 @@ describe('runAgentLoop (WO-171, SDD-009 §Diseño)', () => {
       newMessages: [
         { role: 'assistant', content: '', toolCalls: [{ id: 'call_1', name: 'echo', argumentsJson: '{"value":"hi"}' }] },
         expect.objectContaining({ role: 'tool', toolCallId: 'call_1', name: 'echo' }),
-        { role: 'assistant', content: 'the tool said hi' },
+        { role: 'assistant', content: 'the tool said hi', usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 } },
       ],
     });
     expect(events.map((e) => e.type)).toEqual(['message_start', 'tool_call', 'tool_result', 'token', 'usage', 'done']);
@@ -129,6 +129,13 @@ describe('runAgentLoop (WO-171, SDD-009 §Diseño)', () => {
     const { result } = await collect(runAgentLoop({ llmClient, tools: [], toolCtx: FAKE_CTX, messages: baseMessages, signal: controller.signal }));
     expect(result).toEqual({ newMessages: [], finishReason: 'aborted' });
     expect(llmClient.calls).toHaveLength(0);
+  });
+
+  test('stamps model onto every assistant message when provided, purely for persistence', async () => {
+    const script: FakeLlmScript = [[{ type: 'token', text: 'hi' }, { type: 'done', finishReason: 'stop' }]];
+    const llmClient = createFakeLlmClient(script);
+    const { result } = await collect(runAgentLoop({ llmClient, tools: [], toolCtx: FAKE_CTX, messages: baseMessages, model: 'deepseek-v4-flash' }));
+    expect(result).toMatchObject({ newMessages: [{ role: 'assistant', content: 'hi', model: 'deepseek-v4-flash' }] });
   });
 
   test('an llm_error event ends the turn immediately without retrying', async () => {

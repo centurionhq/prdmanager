@@ -1,3 +1,4 @@
+export * from './agent.js';
 export * from './comments.js';
 export * from './documents.js';
 export * from './drift.js';

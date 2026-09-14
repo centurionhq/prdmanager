@@ -23,7 +23,9 @@ import { registerDocumentBlameRoute } from './api/documents-blame.js';
 import { registerDocumentPublishRoute } from './api/documents-publish.js';
 import { registerDocumentVersionRoutes } from './api/documents-versions.js';
 import { registerDocumentCommentRoutes } from './api/documents-comments.js';
+import { registerDocumentAgentRoutes } from './api/documents-agent.js';
 import { buildCommentRateLimiter } from './rate-limit/comment-rate-limits.js';
+import type { LlmClient } from './agent/llm-client.js';
 import { createBlameCache } from './collab/blame.js';
 import { registerDriftRoutes } from './api/drift.js';
 import { registerGraphRoutes } from './api/graph.js';
@@ -83,6 +85,11 @@ export interface BuildServerDeps {
   collabBatchScheduler?: CollabBatchScheduler;
   /** Test-only: see `./collab/register-collab-route.js`'s own `persistDebounce` doc comment. */
   collabPersistDebounce?: { debounce: number; maxDebounce: number };
+  /** SDD-009: the conversational agent's `/agent/messages` route (WO-172) is only ever registered when
+   * this is provided — `main.ts` builds a real `DeepSeekClient` when `env.deepseek` is configured;
+   * omitted (the default), the agent is entirely absent from the server, same as today. Every test that
+   * exercises it passes a `FakeLlmClient` (SDD-009: "es el único usado en tests y E2E"). */
+  llmClient?: LlmClient;
 }
 
 /**
@@ -104,6 +111,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
     collabScheduler = realCollabScheduler,
     collabBatchScheduler = realCollabBatchScheduler,
     collabPersistDebounce,
+    llmClient,
   } = deps;
   // Fastify only derives `request.ip`/`request.hostname` from X-Forwarded-* headers when this is
   // set (SDD-006 §Autenticación): same PRDM_TRUST_PROXY gate as the /api/auth/* Host guard and,
@@ -214,6 +222,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerDocumentBlameRoute(app, { auth, pool, env, blameCache: createBlameCache() });
       registerDocumentVersionRoutes(app, { auth, pool, env, hocuspocus });
       registerDocumentCommentRoutes(app, { auth, pool, env, hocuspocus, rateLimiter: buildCommentRateLimiter(app) });
+      if (llmClient) registerDocumentAgentRoutes(app, { auth, pool, env, neo4j, llmClient, model: env.deepseek?.model });
       registerDriftRoutes(app, { auth, pool, env, neo4j });
       registerGraphRoutes(app, { auth, pool, env, neo4j });
       registerCloseFeatureRoutes(app, { auth, pool, env, neo4j });
