@@ -1,3 +1,4 @@
+import rateLimitPlugin, { type FastifyRateLimitStoreCtor } from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { Pool } from 'pg';
 import { registerHealthRoute } from './api/health.js';
@@ -7,6 +8,7 @@ import { setErrorHandler, setNotFoundHandler } from './errors.js';
 import type { ServerEnv } from './env.js';
 import { resolveLoggerOption } from './logging.js';
 import type { Mailer } from './mailer.js';
+import { buildAuthRateLimiters } from './rate-limit/auth-rate-limits.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -29,6 +31,9 @@ export interface BuildServerDeps {
    * omitted, `/api/auth/*` simply 404s like any other unmatched route. */
   pool?: Pool;
   mailer?: Mailer;
+  /** Test-only: a `@fastify/rate-limit` store backed by a fake clock (`./rate-limit/clock-store.js`)
+   * so rate-limit window tests never `sleep`. Production leaves this unset (real wall-clock `LocalStore`). */
+  rateLimitStore?: FastifyRateLimitStoreCtor;
 }
 
 /**
@@ -38,7 +43,7 @@ export interface BuildServerDeps {
  * its allowlist on `/api/auth/*` — `graph`, `llm` and `oidc` land with the SDD-006 tasks that need them.
  */
 export function buildServer(deps: BuildServerDeps): FastifyInstance {
-  const { env, logger = true, clock = () => new Date(), pool, mailer } = deps;
+  const { env, logger = true, clock = () => new Date(), pool, mailer, rateLimitStore } = deps;
   // Fastify only derives `request.ip`/`request.hostname` from X-Forwarded-* headers when this is
   // set (SDD-006 §Autenticación): same PRDM_TRUST_PROXY gate as the /api/auth/* Host guard and,
   // later, @fastify/rate-limit's IP source (WO-095) — one flag, one trust decision, everywhere.
@@ -52,7 +57,16 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
   if (pool && mailer) {
     const auth = buildAuth({ env, pool, mailer, clock });
     app.decorate('auth', auth);
-    registerAuth(app, { auth, env });
+    // `global: false`: no route is rate-limited unless it opts in explicitly (register-auth.ts does,
+    // per-path, via the exported keyed helper) — this plugin only ever supplies `app.createRateLimit`.
+    void app.register(rateLimitPlugin, { global: false, store: rateLimitStore });
+    // `app.createRateLimit` only exists once the plugin above has finished registering; `app.after`
+    // defers building the limiters (and therefore mounting /api/auth/*) until that's guaranteed.
+    app.after((err) => {
+      if (err) throw err;
+      const rateLimiters = buildAuthRateLimiters(app);
+      registerAuth(app, { auth, env, rateLimiters });
+    });
   }
 
   setErrorHandler(app);
