@@ -17,10 +17,15 @@
  * baseline-trusted).
  *
  * `refresh()`/`inspect()`/`acknowledge()` are implemented here in a real but intentionally minimal
- * form (no code-governance state yet: `governed` is always empty and `dirty` is always empty, since
- * PgProjectEngine has no local git working tree to read `dirty` from at all) — WO-134 replaces the
- * `governed`/`commits` wiring with real CI-verified code state and hash-based reconciliation without
- * changing this file's transaction/scan/write plumbing.
+ * form: `governed` is always empty and `dirty` is always empty, since no per-code-ref state exists
+ * anywhere in Postgres yet (SDD-010's CI-report ingestion owns populating that) and PgProjectEngine has
+ * no local git working tree to read `dirty` from at all. What WO-134 *can* honestly do without that
+ * data is reconciliation-by-hash at the `impacts_paths`-signature level: `project_code_state`'s stored
+ * hash per blueprint (from the last report that covered it) is compared against each published
+ * blueprint's current `impacts_paths`; a mismatch (including "never reported") produces a non-blocking
+ * `awaiting_ci_report` issue and leaves that blueprint's `baseline.governs` entry untouched by this
+ * refresh, rather than fabricating a reconciliation the CI report hasn't actually happened. See
+ * `reconcileByHash`/`preserveStaleGoverns`.
  *
  * **Outbox projection (WO-133):** every write inside `withTx` only ever touches Postgres plus
  * `projects.graph_version`/`graph_dirty` (SDD-007: "dentro de la transacción solo se escribe
@@ -94,6 +99,14 @@ function seqOf(id: string): number {
   const seq = Number(id.split('-')[1]);
   if (!Number.isInteger(seq) || seq < 1) throw new Error(`cannot derive a sequence number from id ${id}`);
   return seq;
+}
+
+/** Order-independent hash of a blueprint's `impacts_paths` (WO-134's reconciliation-by-hash): a plain
+ * signature of *what a blueprint currently claims to govern*, never of any actual code content, so it
+ * can be computed here with zero source access and compared against whatever `project_code_state`
+ * recorded as of the last CI report (SDD-010) that covered this blueprint. */
+function impactsPathsHash(paths: readonly string[]): string {
+  return sha256(JSON.stringify([...paths].sort()));
 }
 
 /**
@@ -521,12 +534,13 @@ export class PgProjectEngine implements ProjectEngine {
   }
 
   /**
-   * WO-134 replaces `governed`/`governWarnings` with real CI-verified code state
-   * (`project_code_state`/hash-based reconciliation); until then this always reports "no code
-   * governance data" rather than fabricating a synced/out-of-sync state it cannot actually verify —
-   * `detectDrift` treats an empty `governed` map as "nothing to check", never as "everything is fine".
-   * `dirty` (uncommitted local changes) has no SaaS equivalent at all (there is no local working tree),
-   * so it is always empty.
+   * `governed`/`governWarnings` stay empty: no per-code-ref state exists yet anywhere in Postgres (that
+   * table is SDD-010's CI-report-ingestion job) — `detectDrift` treats an empty `governed` map as
+   * "nothing to check", never as "everything is fine", so this never fabricates a synced/out-of-sync
+   * verdict it cannot actually verify. `dirty` (uncommitted local changes) has no SaaS equivalent at
+   * all (there is no local working tree), so it is always empty too. What real reconciliation *is*
+   * possible today — `awaiting_ci_report` and baseline preservation — lives in
+   * {@link PgProjectEngine.reconcileByHash}, applied around this input in `doRefreshOrInspect`.
    */
   private async buildDriftInput(tx: PgDatabase, scan: ScanResult): Promise<DriftInput> {
     const [baseline, commits] = await Promise.all([this.loadBaseline(tx), this.loadBaselineCommits(tx)]);
@@ -541,38 +555,88 @@ export class PgProjectEngine implements ProjectEngine {
     };
   }
 
+  private async loadImpactsHashes(tx: PgDatabase): Promise<Record<string, string>> {
+    const [row] = await tx.select({ impactsHashes: schema.projectCodeState.impactsHashes }).from(schema.projectCodeState).where(eq(schema.projectCodeState.projectId, this.projectId));
+    return (row?.impactsHashes as Record<string, string> | null) ?? {};
+  }
+
+  /**
+   * SDD-007 "PgProjectEngine" reconciliation-by-hash (WO-134): `project_code_state.impacts_hashes`
+   * records, per blueprint, the hash of its `impacts_paths` as of the last CI-verified code report that
+   * covered it (SDD-010 populates this — until then every blueprint is simply never reconciled, which
+   * is the honest, safe default). A blueprint whose *current* `impacts_paths` still hashes to that
+   * recorded value is "reconcilable" (nothing to warn about, even though there is not yet any live
+   * per-ref code state to actually reconcile against — see `buildDriftInput`'s doc comment); one whose
+   * hash changed (or that was never reported at all) gets a non-blocking `awaiting_ci_report` issue and
+   * must never have its stored `baseline.governs` entry touched by this refresh.
+   */
+  private reconcileByHash(scan: ScanResult, reportedHashes: Record<string, string>): { warnings: DriftIssue[]; staleBlueprintIds: string[] } {
+    const warnings: DriftIssue[] = [];
+    const staleBlueprintIds: string[] = [];
+    for (const doc of scan.docs) {
+      if (doc.node.label !== 'Blueprint') continue;
+      const currentHash = impactsPathsHash(doc.impactsPaths);
+      if (reportedHashes[doc.node.id] === currentHash) continue;
+      staleBlueprintIds.push(doc.node.id);
+      warnings.push({
+        kind: 'awaiting_ci_report',
+        severity: 'warning',
+        nodeId: doc.node.id,
+        message: `${doc.node.id}'s impacts_paths changed since the last CI-verified code report (or none exists yet); its code governance baseline is left untouched until a new report arrives`,
+      });
+    }
+    return { warnings, staleBlueprintIds };
+  }
+
+  /** Restores `next`'s `governs` entry for every blueprint `reconcileByHash` flagged as stale, from
+   * whatever `previous` (the baseline this refresh started from) already had — `buildRefreshReport`
+   * never writes those keys itself (they are absent from `governed`, per `buildDriftInput`'s doc
+   * comment), so without this a refresh would silently drop a blueprint's recorded code state the
+   * moment its `impacts_paths` changed, instead of just leaving it alone until the next CI report. */
+  private preserveStaleGoverns(previous: Baseline, next: Baseline, staleBlueprintIds: string[]): Baseline {
+    if (staleBlueprintIds.length === 0) return next;
+    const governs = { ...next.governs };
+    for (const id of staleBlueprintIds) {
+      if (previous.governs[id] !== undefined) governs[id] = previous.governs[id];
+    }
+    return { ...next, governs };
+  }
+
   private async doRefreshOrInspect(tx: PgDatabase, persist: boolean): Promise<RefreshReport> {
     const scan = await loadScanState(tx, this.projectId);
     const input = await this.buildDriftInput(tx, scan);
+    const reportedHashes = await this.loadImpactsHashes(tx);
+    const { warnings, staleBlueprintIds } = this.reconcileByHash(scan, reportedHashes);
     const built = buildRefreshReport(input);
+    const issues: DriftIssue[] = [...built.issues, ...warnings];
 
     if (!persist) {
       return {
         documents: scan.docs.length,
         errors: scan.errors,
-        issues: built.issues,
+        issues,
         governed: built.governed,
         workOrderUpdates: built.workOrderUpdates,
         baselineWritten: false,
-        hasBlockingIssues: scan.errors.length > 0 || built.issues.some((i) => i.severity === 'error'),
+        hasBlockingIssues: scan.errors.length > 0 || issues.some((i) => i.severity === 'error'),
       };
     }
 
     const { applied, failures } = await this.applyStatusUpdates(tx, built.workOrderUpdates);
-    const issues: DriftIssue[] = [...built.issues, ...failures];
+    const allIssues: DriftIssue[] = [...issues, ...failures];
     // Mirrors `Engine.doRefresh`: a document that temporarily fails to parse must not be silently
     // pruned from the baseline (it would come back as "new" — drift silently accepted).
     const baselineWritten = scan.errors.length === 0;
-    if (baselineWritten) await this.saveBaseline(tx, built.baseline);
+    if (baselineWritten) await this.saveBaseline(tx, this.preserveStaleGoverns(input.baseline, built.baseline, staleBlueprintIds));
 
     return {
       documents: scan.docs.length,
       errors: scan.errors,
-      issues,
+      issues: allIssues,
       governed: built.governed,
       workOrderUpdates: applied,
       baselineWritten,
-      hasBlockingIssues: scan.errors.length > 0 || issues.some((i) => i.severity === 'error'),
+      hasBlockingIssues: scan.errors.length > 0 || allIssues.some((i) => i.severity === 'error'),
     };
   }
 

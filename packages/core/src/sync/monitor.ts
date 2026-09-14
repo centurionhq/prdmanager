@@ -25,7 +25,16 @@ export type IssueKind =
   | 'status_write_failed'
   | 'impacts_warning'
   | 'deprecated_field'
-  | 'lifecycle_violation';
+  | 'lifecycle_violation'
+  /**
+   * SDD-007 "PgProjectEngine" reconciliation-by-hash (WO-134): a blueprint's `impacts_paths` changed
+   * since the last CI-verified code report ingested it (or no report has ever covered it), so
+   * `PgProjectEngine.refresh()` deliberately left its `governs` baseline entries untouched rather than
+   * reconciling them against stale/nonexistent code state. Never blocking (`severity: 'warning'`) —
+   * unlike `impacts_warning` (a static `impacts_paths` glob that resolves to nothing on disk), this is
+   * purely about *when* a report last covered a blueprint, not whether its paths are well-formed.
+   */
+  | 'awaiting_ci_report';
 
 export interface DriftIssue {
   kind: IssueKind;
