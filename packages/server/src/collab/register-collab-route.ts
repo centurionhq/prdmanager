@@ -123,8 +123,10 @@ export function registerCollabWebsocketPlugin(app: FastifyInstance, env: ServerE
 
 /** Declares `GET /collab` itself — must run after {@link registerCollabWebsocketPlugin}'s plugin has
  * finished registering (see that function's own doc comment), i.e. inside the same `app.after` callback
- * every other `auth`/`pool`-dependent route is registered from. */
-export function registerCollabRoute(app: FastifyInstance, opts: RegisterCollabRouteOptions): void {
+ * every other `auth`/`pool`-dependent route is registered from. Returns the embedded `Hocuspocus`
+ * instance so a server-side route (WO-157's version restore) can `openDirectConnection` against the exact
+ * same in-memory documents real clients are editing — never a second, disconnected `Hocuspocus`. */
+export function registerCollabRoute(app: FastifyInstance, opts: RegisterCollabRouteOptions): Hocuspocus {
   const {
     auth,
     pool,
@@ -178,4 +180,6 @@ export function registerCollabRoute(app: FastifyInstance, opts: RegisterCollabRo
       socket.on('close', (event: unknown) => connection.handleClose(event as never));
     },
   );
+
+  return hocuspocus;
 }

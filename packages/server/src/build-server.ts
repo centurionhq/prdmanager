@@ -184,7 +184,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       const collabRevocationHub: CollabRevocationHub = createCollabRevocationHub();
       registerProjectRoutes(app, { auth, pool, env, collabRevocationHub });
       registerDocumentRoutes(app, { auth, pool, env, collabRevocationHub });
-      registerCollabRoute(app, {
+      const hocuspocus = registerCollabRoute(app, {
         auth,
         pool,
         env,
@@ -197,7 +197,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       });
       registerDocumentPublishRoute(app, { auth, pool, env, neo4j });
       registerDocumentBlameRoute(app, { auth, pool, env, blameCache: createBlameCache() });
-      registerDocumentVersionRoutes(app, { auth, pool, env });
+      registerDocumentVersionRoutes(app, { auth, pool, env, hocuspocus });
       registerDriftRoutes(app, { auth, pool, env, neo4j });
       registerGraphRoutes(app, { auth, pool, env, neo4j });
       registerCloseFeatureRoutes(app, { auth, pool, env, neo4j });

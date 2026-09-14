@@ -8,10 +8,12 @@ import { can, createDocumentVersionInputSchema } from '@prdm/contracts';
 import { createTenantDb, schema, withTenantTx } from '@prdm/db';
 import { diffLines } from '@prdm/collab';
 import { eq } from 'drizzle-orm';
+import type { Hocuspocus } from '@hocuspocus/server';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
 import { captureDocumentVersion } from '../collab/versions.js';
+import { restoreDocumentVersion, VersionHasNoSnapshotError, VersionNotFoundError } from '../collab/restore.js';
 import type { ServerEnv } from '../env.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { requireAppSession } from './app-session.js';
@@ -22,6 +24,7 @@ export interface RegisterDocumentVersionRoutesOptions {
   auth: Auth;
   pool: Pool;
   env: ServerEnv;
+  hocuspocus: Hocuspocus;
 }
 
 interface DocumentRouteParams {
@@ -53,7 +56,7 @@ function toVersionSummary(version: typeof schema.documentVersions.$inferSelect) 
 }
 
 export function registerDocumentVersionRoutes(app: FastifyInstance, opts: RegisterDocumentVersionRoutesOptions): void {
-  const { auth, pool, env } = opts;
+  const { auth, pool, env, hocuspocus } = opts;
 
   app.get<{ Params: DocumentRouteParams }>(
     '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/versions',
@@ -126,6 +129,39 @@ export function registerDocumentVersionRoutes(app: FastifyInstance, opts: Regist
       if (!from || !to) throw new NotFoundError();
 
       return { from: toVersionSummary(from), to: toVersionSummary(to), diff: diffLines(from.renderedMarkdown, to.renderedMarkdown) };
+    },
+  );
+
+  app.post<{ Params: DocumentVersionRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/versions/:versionNo/restore',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+      const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+      if (!can(subject, 'edit_document')) throw new ForbiddenError();
+
+      const scope = createTenantDb(pool).forOrg(org.id).forProject(project.id);
+      const existing = await scope.documents.findByDocId(req.params.docId);
+      if (!existing) throw new NotFoundError();
+
+      const versionNo = Number.parseInt(req.params.versionNo, 10);
+      if (!Number.isInteger(versionNo)) throw new ValidationError('versionNo must be an integer');
+
+      try {
+        const version = await restoreDocumentVersion(pool, hocuspocus, {
+          orgId: org.id,
+          projectId: project.id,
+          documentId: existing.document.id,
+          versionNo,
+          restoringUserId: session.user.id,
+        });
+        return { version: toVersionSummary(version) };
+      } catch (err) {
+        if (err instanceof VersionNotFoundError) throw new NotFoundError();
+        if (err instanceof VersionHasNoSnapshotError) throw new ConflictError(err.message);
+        throw err;
+      }
     },
   );
 }
