@@ -20,6 +20,12 @@ export interface AgentToolContext {
   orgId: string;
   project: ProjectRecord;
   document: DocumentRecord;
+  /** The conversation this tool call belongs to — `propose_edit` (WO-173) stamps every proposal it
+   * creates with this. Never sent to the model as a tool argument, same as `orgId`/`project`/`document`. */
+  conversationId: string;
+  /** The human who owns this conversation (WO-172: `agent_conversations.owner_id`) — `propose_edit`
+   * records this as `agent_proposals.requested_by` (SDD-009: "guarda ... quién la pidió"). */
+  requestedBy: string;
   loadSubject(): Promise<PermissionSubject>;
 }
 

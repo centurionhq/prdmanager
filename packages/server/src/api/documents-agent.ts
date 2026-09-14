@@ -28,7 +28,7 @@ import type { Auth } from '../auth/build-auth.js';
 import { runAgentLoop, type AgentLoopEvent, type AgentTranscriptMessage } from '../agent/agent-loop.js';
 import { buildAgentSystemPrompt } from '../agent/system-prompt.js';
 import type { LlmClient, LlmMessage, LlmToolCall } from '../agent/llm-client.js';
-import { READ_ONLY_AGENT_TOOLS, type AgentToolContext } from '../agent/tools/index.js';
+import { ALL_AGENT_TOOLS, type AgentToolContext } from '../agent/tools/index.js';
 import { requireNeo4j } from '../engine/resolve-pg-project-engine.js';
 import type { ServerEnv } from '../env.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
@@ -116,6 +116,8 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
           orgId: org.id,
           project,
           document: existing.document,
+          conversationId: conversation.id,
+          requestedBy: userId,
           // Re-resolved on every tool call (SDD-009 "re-leídos en cada llamada") — a role change or
           // removal mid-conversation takes effect on the very next tool call, not only at the next request.
           loadSubject: async () => {
@@ -137,7 +139,7 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
 
         let newMessages: AgentTranscriptMessage[] = [];
         try {
-          const loop = runAgentLoop({ llmClient, tools: READ_ONLY_AGENT_TOOLS, toolCtx, messages, model, signal: controller.signal });
+          const loop = runAgentLoop({ llmClient, tools: ALL_AGENT_TOOLS, toolCtx, messages, model, signal: controller.signal });
           let step = await loop.next();
           while (!step.done) {
             sendSseEvent(reply.raw, step.value);

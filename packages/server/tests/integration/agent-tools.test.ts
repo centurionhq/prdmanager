@@ -77,6 +77,8 @@ describe('agent tools (SDD-009 §Herramientas, WO-169)', () => {
       orgId: base.org.id,
       project: base.project,
       document: base.document,
+      conversationId: 'unused-in-this-suite',
+      requestedBy: 'unused-in-this-suite',
       loadSubject: async () => (canView ? { orgRole: 'owner' } : {}),
     };
   }

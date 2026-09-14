@@ -9,6 +9,7 @@ import { AgentToolError, truncateToolOutput, type AgentToolContext } from './con
 import { getFeatureBranchTool } from './get-feature-branch.js';
 import { getNodeTool } from './get-node.js';
 import { getTemplateTool } from './get-template.js';
+import { proposeEditTool } from './propose-edit.js';
 import { readDocumentTool } from './read-document.js';
 import { searchProjectTool } from './search-project.js';
 import { toJsonSchemaParameters, type AgentTool } from './tool.js';
@@ -27,6 +28,10 @@ export const READ_ONLY_AGENT_TOOLS: readonly AgentTool[] = [
   getTemplateTool,
   validateDocumentTool,
 ];
+
+/** WO-173: every read-only tool plus `propose_edit`, the one write-shaped tool a conversation actually
+ * uses (the endpoint, WO-172, passes this — not `READ_ONLY_AGENT_TOOLS` — to `runAgentLoop`). */
+export const ALL_AGENT_TOOLS: readonly AgentTool[] = [...READ_ONLY_AGENT_TOOLS, proposeEditTool];
 
 export function buildToolDefinitions(tools: readonly AgentTool[]): LlmToolDefinition[] {
   return tools.map((tool) => ({ name: tool.name, description: tool.description, parameters: toJsonSchemaParameters(tool.inputSchema) }));
