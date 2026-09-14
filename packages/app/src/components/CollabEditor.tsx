@@ -4,14 +4,24 @@
  * presence, and a read-only banner driven entirely by what the server actually authorized (never a
  * client-side guess re-derived from the caller's own role) — matches `authorize-document.ts`'s own logic
  * by construction, since `scope` comes straight from the server's `onAuthenticate` result.
+ *
+ * WO-214: also the "create a comment thread from a selection" trigger — a toolbar button that only exists
+ * while the current CodeMirror selection is non-empty and `subject` may comment, opening a small inline
+ * form that calls the already-existing `POST .../comments` endpoint (WO-158) with the selection's
+ * character offsets. The new thread shows up in `CommentsPanel`/the highlight decorations on its own, via
+ * the `comment:updated` stateless broadcast the create route already sends — this component never
+ * refreshes those itself.
  */
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react';
 import { EditorView } from '@codemirror/view';
+import { can, type PermissionSubject } from '@prdm/contracts';
 import { buildEditorExtensions, readCspNonce } from '../collab/editor-extensions.js';
 import { setBlame } from '../collab/blame-gutter.js';
 import { useCollabDocumentContext } from '../collab/collab-document-context.js';
 import { useStatelessMessage } from '../collab/use-stateless-message.js';
 import { getDocumentBlame } from '../api/documents.js';
+import { createCommentThread } from '../api/comments.js';
+import { errorMessage } from '../api/error-message.js';
 import { MarkdownPreview } from './MarkdownPreview.js';
 import styles from '../styles/editor.module.css';
 
@@ -21,24 +31,43 @@ const STATUS_LABEL: Record<string, string> = {
   disconnected: 'Desconectado',
 };
 
+export interface CollabEditorProps {
+  subject: PermissionSubject;
+}
+
 /** Renders inside a `CollabDocumentProvider` (`../routes/DocumentDetail.js`) — never creates its own
  * `HocuspocusProvider`, so it always shares the exact same connection/awareness identity as the
  * frontmatter form and every other panel on the same document page. */
-export function CollabEditor(): ReactElement {
+export function CollabEditor({ subject }: CollabEditorProps): ReactElement {
   const { provider, state, orgSlug, projectSlug, docId, setEditorView } = useCollabDocumentContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [editorReady, setEditorReady] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [bodyText, setBodyText] = useState('');
+  // WO-214: `null` whenever the selection is empty — the trigger button is simply absent then, never a
+  // disabled button with an unclear reason (SDD-008's own comment UI is transient, tied to selection).
+  const [selection, setSelection] = useState<{ from: number; to: number } | null>(null);
+  const [showCommentForm, setShowCommentForm] = useState(false);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [commentBusy, setCommentBusy] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
 
   const readOnly = state.scope === 'readonly';
+  const canComment = can(subject, 'comment');
 
   useEffect(() => {
     if (!provider || !containerRef.current) return;
     const view = new EditorView({
       doc: provider.document.getText('body').toString(),
-      extensions: buildEditorExtensions({ provider, readOnly, cspNonce: readCspNonce() }),
+      extensions: [
+        ...buildEditorExtensions({ provider, readOnly, cspNonce: readCspNonce() }),
+        EditorView.updateListener.of((update) => {
+          if (!update.selectionSet) return;
+          const { from, to } = update.state.selection.main;
+          setSelection(from === to ? null : { from, to });
+        }),
+      ],
       parent: containerRef.current,
     });
     viewRef.current = view;
@@ -49,6 +78,8 @@ export function CollabEditor(): ReactElement {
       viewRef.current = null;
       setEditorView(null);
       setEditorReady(false);
+      setSelection(null);
+      setShowCommentForm(false);
     };
     // `readOnly` intentionally excluded: it's re-derived from `state.scope`, which never changes after
     // the initial `authenticated` event for a real connection — a genuine mid-session role downgrade
@@ -56,6 +87,36 @@ export function CollabEditor(): ReactElement {
     // down and losing local (unsaved-to-Yjs-yet, though rare) cursor state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider]);
+
+  // A selection that collapses (e.g. the user clicks elsewhere) closes any still-open inline form too —
+  // there is nothing left to anchor a new thread to.
+  useEffect(() => {
+    if (!selection) setShowCommentForm(false);
+  }, [selection]);
+
+  async function handleCreateComment(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    if (!selection) return;
+    const body = commentDraft.trim();
+    if (!body) return;
+    setCommentBusy(true);
+    setCommentError(null);
+    try {
+      await createCommentThread(orgSlug, projectSlug, docId, { startIndex: selection.from, endIndex: selection.to, body });
+      setCommentDraft('');
+      setShowCommentForm(false);
+    } catch (err) {
+      setCommentError(errorMessage(err));
+    } finally {
+      setCommentBusy(false);
+    }
+  }
+
+  function closeCommentForm(): void {
+    setShowCommentForm(false);
+    setCommentDraft('');
+    setCommentError(null);
+  }
 
   // WO-161: fetches once the editor mounts, then again on every blame:stale broadcast (WO-154) — never
   // polling, never a timer.
@@ -102,10 +163,48 @@ export function CollabEditor(): ReactElement {
             ))}
           </span>
         )}
+        {canComment && selection && !showCommentForm && (
+          <button type="button" className={styles.commentTrigger} onClick={() => setShowCommentForm(true)}>
+            Comentar selección
+          </button>
+        )}
         <button type="button" className={styles.previewToggle} aria-pressed={showPreview} onClick={() => setShowPreview((v) => !v)}>
           {showPreview ? 'Editor' : 'Vista previa'}
         </button>
       </div>
+
+      {canComment && selection && showCommentForm && (
+        <form className={styles.commentForm} onSubmit={(event: FormEvent) => void handleCreateComment(event)}>
+          <label htmlFor="new-comment-body" className={styles.srOnly}>
+            Nuevo comentario
+          </label>
+          <input
+            id="new-comment-body"
+            type="text"
+            className={styles.commentInput}
+            aria-label="Nuevo comentario"
+            autoFocus
+            value={commentDraft}
+            onChange={(e) => setCommentDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape') return;
+              e.preventDefault();
+              closeCommentForm();
+            }}
+          />
+          <button type="submit" className={styles.smallButton} disabled={commentBusy || !commentDraft.trim()}>
+            Comentar
+          </button>
+          <button type="button" className={styles.smallButton} onClick={closeCommentForm}>
+            Cancelar
+          </button>
+        </form>
+      )}
+      {commentError && (
+        <p role="alert" className={styles.commentError}>
+          {commentError}
+        </p>
+      )}
       {/* Kept mounted (never unmounted) while previewing — CodeMirror re-creating its view on every
           toggle would lose scroll position/undo history for no reason; hiding it visually is enough. */}
       <div ref={containerRef} className={styles.editorContainer} data-testid="collab-editor-container" hidden={showPreview} />

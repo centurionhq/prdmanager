@@ -146,3 +146,61 @@
   color: var(--color-fg);
   overflow-wrap: break-word;
 }
+
+.commentTrigger {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--color-accent);
+  border-radius: 0.3rem;
+  color: var(--color-accent);
+  padding: 0.15rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.commentForm {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated-solid);
+}
+
+.commentInput {
+  flex: 1;
+  background: var(--color-bg-inset);
+  border: 1px solid var(--color-border);
+  border-radius: 0.3rem;
+  color: var(--color-fg);
+  padding: 0.2rem 0.4rem;
+  font: inherit;
+}
+
+.smallButton {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 0.3rem;
+  color: var(--color-accent);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.15rem 0.5rem;
+}
+
+.commentError {
+  padding: 0 0.75rem 0.5rem;
+  color: var(--color-status-error);
+  font-size: 0.85rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
