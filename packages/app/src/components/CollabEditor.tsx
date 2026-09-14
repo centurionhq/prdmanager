@@ -12,6 +12,7 @@ import { setBlame } from '../collab/blame-gutter.js';
 import { useCollabDocumentContext } from '../collab/collab-document-context.js';
 import { useStatelessMessage } from '../collab/use-stateless-message.js';
 import { getDocumentBlame } from '../api/documents.js';
+import { MarkdownPreview } from './MarkdownPreview.js';
 import styles from '../styles/editor.module.css';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -28,6 +29,8 @@ export function CollabEditor(): ReactElement {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [editorReady, setEditorReady] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [bodyText, setBodyText] = useState('');
 
   const readOnly = state.scope === 'readonly';
 
@@ -67,6 +70,18 @@ export function CollabEditor(): ReactElement {
   }, [editorReady]);
   useStatelessMessage(provider, 'blame:stale', refetchBlame);
 
+  // WO-165: the preview always reflects the live Y.Text('body'), never a stale server-fetched copy —
+  // kept in a plain React string mirror only while the preview toggle is actually on, so typing in the
+  // editor doesn't re-render a hidden ReactMarkdown tree on every keystroke for nothing.
+  useEffect(() => {
+    if (!provider || !showPreview) return;
+    const body = provider.document.getText('body');
+    const sync = () => setBodyText(body.toString());
+    sync();
+    body.observe(sync);
+    return () => body.unobserve(sync);
+  }, [provider, showPreview]);
+
   return (
     <div className={styles.editorShell}>
       <div className={styles.statusBar} role="status">
@@ -87,8 +102,18 @@ export function CollabEditor(): ReactElement {
             ))}
           </span>
         )}
+        <button type="button" className={styles.previewToggle} aria-pressed={showPreview} onClick={() => setShowPreview((v) => !v)}>
+          {showPreview ? 'Editor' : 'Vista previa'}
+        </button>
       </div>
-      <div ref={containerRef} className={styles.editorContainer} data-testid="collab-editor-container" />
+      {/* Kept mounted (never unmounted) while previewing — CodeMirror re-creating its view on every
+          toggle would lose scroll position/undo history for no reason; hiding it visually is enough. */}
+      <div ref={containerRef} className={styles.editorContainer} data-testid="collab-editor-container" hidden={showPreview} />
+      {showPreview && (
+        <div className={styles.preview} data-testid="markdown-preview">
+          <MarkdownPreview body={bodyText} />
+        </div>
+      )}
       {!editorReady && <p className={styles.loading}>Cargando editor…</p>}
     </div>
   );
