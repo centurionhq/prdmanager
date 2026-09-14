@@ -11,6 +11,7 @@ export * from './invitations.js';
 export * from './projects.js';
 export * from './documents.js';
 export * from './comments.js';
+export * from './versions.js';
 export * from './graph.js';
 export * from './tokens.js';
 export * from './admin.js';

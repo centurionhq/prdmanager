@@ -2,12 +2,14 @@
 id: "WO-163"
 type: "WO"
 title: "Panel de versiones con diff y restauración, con tests"
-status: "pending"
+status: "in_progress"
 created_at: "2026-09-13"
 implements: ["SDD-008"]
 impacts_paths: ["packages/collab/src/**","packages/collab/tests/**","packages/collab/*.json","packages/contracts/src/**","packages/contracts/tests/**","packages/server/src/**","packages/server/tests/**","packages/server/*.json","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/app/src/**","packages/app/tests/**","packages/app/*.json","packages/app/*.config.ts","package.json","package-lock.json","tsconfig.json","tsconfig.test.json","vitest.config.ts",".env.example","README.md"]
 source_task: "cb3238f1ce37cd2b"
 tags: ["saas","realtime","yjs","blame","comments","versions"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-14T15:29:58.629Z"
 ---
 
 ## Objetivo
