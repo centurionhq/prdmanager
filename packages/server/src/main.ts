@@ -5,20 +5,12 @@ import process from 'node:process';
 import { createPool } from '@prdm/db';
 import { buildServer } from './build-server.js';
 import { DEFAULT_SERVER_HOST, resolveServerEnv } from './env.js';
-import type { Mailer } from './mailer.js';
-
-// TODO(WO-096): replace with the real nodemailer SMTP transport (mailpit in dev, real SMTP in prod).
-// A silent no-op keeps `main.ts` runnable meanwhile without pretending mail was actually delivered.
-class UnconfiguredMailer implements Mailer {
-  async sendMail(): Promise<void> {
-    /* no-op until WO-096 wires the nodemailer transport */
-  }
-}
+import { NodemailerMailer } from './nodemailer-mailer.js';
 
 async function main(): Promise<void> {
   const env = resolveServerEnv(process.env);
   const pool = createPool({ connectionString: env.databaseUrl });
-  const mailer = new UnconfiguredMailer();
+  const mailer = new NodemailerMailer(env.smtp);
   const app = buildServer({ env, pool, mailer });
 
   let closing = false;

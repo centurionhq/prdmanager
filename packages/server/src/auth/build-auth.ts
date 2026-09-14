@@ -10,6 +10,7 @@ import { organization } from 'better-auth/plugins/organization';
 import { twoFactor } from 'better-auth/plugins/two-factor';
 import { connect, schema } from '@prdm/db';
 import type { Pool } from 'pg';
+import { buildResetPasswordEmail } from '../email/reset-password-email.js';
 import type { ServerEnv } from '../env.js';
 import type { Mailer } from '../mailer.js';
 
@@ -99,12 +100,11 @@ export function buildAuth(deps: BuildAuthDeps) {
       minPasswordLength: 12,
       // The WO-083 learning test confirms this revokes every session unconditionally.
       revokeSessionsOnPasswordReset: true,
+      // The email itself (SDD-006 §Autenticación, WO-096): the user's own name is HTML-escaped and
+      // CR/LF-stripped in both bodies, and the link is always `url` — already rooted at
+      // PRDM_PUBLIC_URL, never a request Host (WO-083 learning test finding, WO-094 Host guard).
       sendResetPassword: async ({ user, url }) => {
-        await mailer.sendMail({
-          to: user.email,
-          subject: 'Reset your prdm password',
-          text: `Reset your password: ${url}`,
-        });
+        await mailer.sendMail(buildResetPasswordEmail({ userName: user.name, userEmail: user.email, url }));
       },
     },
     session: {
