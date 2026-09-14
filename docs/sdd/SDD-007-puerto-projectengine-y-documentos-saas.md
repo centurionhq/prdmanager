@@ -80,6 +80,7 @@ Equivalencia `scanContents` ≡ `scanDocuments` y del report; **suite de contrat
 ## Tareas
 
 - [ ] Corregir la carrera de withRepoLock en la que un heartbeat en vuelo reescribe el lock después de release y lo deja huérfano (deadlock hasta staleAfterMs), serializando y esperando los heartbeats antes de liberar, con test de regresión de adquisiciones secuenciales
+- [ ] Corregir que timeoutMs del test de estrés multi-proceso del lock era menor que staleAfterMs, así que ningún proceso en espera llegaba a beneficiarse de la recuperación por staleness bajo contención real de CI y siempre se rendía primero; reordenar los márgenes y widen los timeouts externos en proporción
 - [ ] Extraer scanContents puro de scanDocuments y buildRefreshReport de Engine sin cambio de comportamiento, con tests de equivalencia
 - [ ] Interfaz ProjectEngine con settings sin neo4j ni root, lastReport y scan, implementada por Engine y usada para tipar las funciones de dominio, con guardia de raíz absoluta en safe-fs
 - [ ] EngineOps.readCommit y ProjectEngine.scan reemplazando la lectura directa de git y de config.root en workorders/lifecycle.ts, lifecycle/close.ts y mcp tools-authoring.ts, con tests
