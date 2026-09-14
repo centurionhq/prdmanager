@@ -9,3 +9,4 @@ export * from './schema/user-profile.js';
 export * from './schema/projects.js';
 export * from './schema/audit.js';
 export * from './schema/invitations.js';
+export * from './schema/tokens.js';

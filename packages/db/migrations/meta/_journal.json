@@ -36,6 +36,13 @@
       "when": 1789360000000,
       "tag": "0004_resolve_project_functions",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789365000000,
+      "tag": "0005_api_tokens",
+      "breakpoints": true
     }
   ]
 }

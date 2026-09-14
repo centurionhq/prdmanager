@@ -8,4 +8,6 @@ export * from './pool.js';
 export * from './repositories.js';
 export * from './resolve-project.js';
 export * from './tenant.js';
+export * from './tokens.js';
+export * from './user-profile.js';
 export * as schema from './schema.js';

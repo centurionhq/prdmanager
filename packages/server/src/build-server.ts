@@ -2,11 +2,14 @@ import rateLimitPlugin, { type FastifyRateLimitStoreCtor } from '@fastify/rate-l
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { Pool } from 'pg';
 import { registerAdminOrganizationRoutes } from './api/admin-organizations.js';
+import { registerCiTokenRoutes } from './api/ci-tokens.js';
 import { registerHealthRoute } from './api/health.js';
 import { registerInvitationAcceptRoute } from './api/invitation-accept.js';
 import { registerOrganizationInvitationRoutes } from './api/organization-invitations.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
 import { registerProjectRoutes } from './api/projects.js';
+import { registerTokenRoutes } from './api/tokens.js';
+import { registerV1MeRoute } from './api/v1-me.js';
 import { buildAuth, type Auth } from './auth/build-auth.js';
 import { registerAuth } from './auth/register-auth.js';
 import { registerCsrfEnforcement, registerCsrfPlugins } from './csrf/register-csrf.js';
@@ -15,6 +18,7 @@ import type { ServerEnv } from './env.js';
 import { resolveLoggerOption } from './logging.js';
 import type { Mailer } from './mailer.js';
 import { buildAuthRateLimiters } from './rate-limit/auth-rate-limits.js';
+import { buildBearerAuthRateLimiter } from './rate-limit/bearer-rate-limits.js';
 import { buildInvitationAcceptRateLimiter } from './rate-limit/invitation-rate-limits.js';
 import { registerSecurityHeaders } from './security-headers.js';
 
@@ -89,6 +93,9 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerOrganizationInvitationRoutes(app, { auth, pool, mailer, env });
       registerProjectRoutes(app, { auth, pool, env });
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
+      registerTokenRoutes(app, { auth, pool, env, clock });
+      registerCiTokenRoutes(app, { auth, pool, env, clock });
+      registerV1MeRoute(app, { pool, bearer: { pool, clock, rateLimiter: buildBearerAuthRateLimiter(app) } });
     });
   }
 

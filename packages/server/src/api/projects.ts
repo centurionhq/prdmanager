@@ -75,7 +75,7 @@ function userAgentOf(req: { headers: Record<string, unknown> }): string | undefi
  * for both a nonexistent project and a real one the caller (a plain org member) has no `project_members`
  * row for — the two cases are indistinguishable to the caller by design. Returns the caller's *effective*
  * permission subject alongside the project so route handlers never re-derive it. */
-async function resolveVisibleProject(
+export async function resolveVisibleProject(
   pool: Pool,
   org: MemberOrg,
   projectSlug: string,

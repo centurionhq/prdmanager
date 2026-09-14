@@ -75,6 +75,15 @@ export async function findOrganizationBySlug(pool: Pool, slug: string): Promise<
   return rows[0] ?? null;
 }
 
+/** Looks an organization up by its internal id rather than its slug — used by callers that already
+ * resolved `org_id` some other way (e.g. the Bearer plugin's `resolve_token`, WO-109) and never had a
+ * slug to begin with. */
+export async function findOrganizationById(pool: Pool, organizationId: string): Promise<OrganizationRecord | null> {
+  const db = connect(pool);
+  const rows = await db.select({ id: organization.id, slug: organization.slug, name: organization.name }).from(organization).where(eq(organization.id, organizationId));
+  return rows[0] ?? null;
+}
+
 export async function findMembership(pool: Pool, organizationId: string, userId: string): Promise<{ role: OrgRole } | null> {
   const db = connect(pool);
   const rows = await db
