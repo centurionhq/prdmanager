@@ -657,7 +657,7 @@
       "docker/postgres/init/01-roles.sh": "debbcd64f4e3b5fcbd30c5ef6b35f6066d9239bb42c59844b9a2d2292d8fa6b9",
       "package-lock.json": "794a5d7e4a75794dfb0ca990377b2fddf75c45828f896d36946ea9b9ec74d8fa",
       "package.json": "14b216d694aaccb1d3dd7820edabe84cdfd44fdd44d6529326f44e185e0c845f",
-      "packages/app/index.html": "6772995590f925b8fd47234c7f7be818893319dc695e6499b65841049483c341",
+      "packages/app/index.html": "6dc74e6104eacb0acfbd0d3d2389f997c441fea472ceda0def4a992ef7447b21",
       "packages/app/package.json": "0633c3d3e7f438aace81e2882ec12ef23e75f7dd1ac572e07a3f40e5fb6c8822",
       "packages/app/src/api/admin.ts": "7504b13678ae1327faa7c0e2430a429d4daa311369137583104d91c35d26c70c",
       "packages/app/src/api/api-client-error.ts": "45f4309eba08b1c822725855bd671c268e6e78c04bf2920951cfbdba34f8c323",
