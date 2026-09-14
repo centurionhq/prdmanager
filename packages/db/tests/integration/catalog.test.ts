@@ -102,6 +102,11 @@ interface SecurityDefinerFunctionRow {
   proname: string;
   owner: string;
   proconfig: string[] | null;
+  /** `regprocedure` text, e.g. `resolve_token(text)` — the exact signature `has_function_privilege` needs. */
+  signature: string;
+  /** Trigger functions (e.g. `guard_user_profile_handle_reuse`) are invoked by the trigger mechanism, never
+   * called directly, so they're never granted EXECUTE to prdm_app — only PUBLIC's default grant is revoked. */
+  isTrigger: boolean;
 }
 
 /** Every `SECURITY DEFINER` function in the `public` schema (WO-097: `resolve_project`,
@@ -110,7 +115,8 @@ interface SecurityDefinerFunctionRow {
  * future migration that adds one without following the template is caught here automatically. */
 async function listSecurityDefinerFunctions(): Promise<SecurityDefinerFunctionRow[]> {
   const { rows } = await pg.ownerPool.query<SecurityDefinerFunctionRow>(
-    `SELECT p.proname, own.rolname AS owner, p.proconfig
+    `SELECT p.proname, own.rolname AS owner, p.proconfig, p.oid::regprocedure::text AS signature,
+            (p.prorettype = 'trigger'::regtype) AS "isTrigger"
        FROM pg_proc p
        JOIN pg_namespace n ON n.oid = p.pronamespace
        JOIN pg_roles own ON own.oid = p.proowner
@@ -118,6 +124,11 @@ async function listSecurityDefinerFunctions(): Promise<SecurityDefinerFunctionRo
       ORDER BY p.proname`,
   );
   return rows;
+}
+
+async function hasFunctionPrivilege(role: string, signature: string, privilege: string): Promise<boolean> {
+  const { rows } = await pg.ownerPool.query<{ has: boolean }>(`SELECT has_function_privilege($1, $2, $3) AS has`, [role, signature, privilege]);
+  return rows[0]!.has;
 }
 
 beforeAll(async () => {
@@ -199,5 +210,33 @@ describe('catalog test: every non-allowlisted table is tenant-isolated (WO-099)'
       expect(searchPathSetting, `${fn.proname} must SET search_path`).toBeDefined();
       expect(searchPathSetting, `${fn.proname} must pin search_path to pg_catalog, public`).toBe('search_path=pg_catalog, public');
     }
+  });
+
+  test('every SECURITY DEFINER function grants EXECUTE only to prdm_app, never to PUBLIC (security review #1)', async () => {
+    // `CREATE FUNCTION` grants EXECUTE to PUBLIC by default; each 000X migration's `GRANT EXECUTE ... TO
+    // prdm_app` only ever added to that default, so any future login role would silently inherit access
+    // unless PUBLIC is explicitly revoked (0006). Checked per-function, not just "some role lacks it".
+    const functions = await listSecurityDefinerFunctions();
+    for (const fn of functions) {
+      expect(await hasFunctionPrivilege('public', fn.signature, 'EXECUTE'), `${fn.proname} must not grant EXECUTE to PUBLIC`).toBe(false);
+      if (!fn.isTrigger) {
+        expect(await hasFunctionPrivilege('prdm_app', fn.signature, 'EXECUTE'), `${fn.proname} must grant EXECUTE to prdm_app`).toBe(true);
+      }
+    }
+  });
+
+  test('prdm_app can only INSERT into platform_audit_log (append-only, no read)', async () => {
+    expect(await hasTablePrivilege('prdm_app', 'platform_audit_log', 'INSERT')).toBe(true);
+    expect(await hasTablePrivilege('prdm_app', 'platform_audit_log', 'SELECT')).toBe(false);
+    expect(await hasTablePrivilege('prdm_app', 'platform_audit_log', 'UPDATE')).toBe(false);
+    expect(await hasTablePrivilege('prdm_app', 'platform_audit_log', 'DELETE')).toBe(false);
+  });
+
+  test('prdm_app can read and insert audit_log but never modify or truncate it (append-only)', async () => {
+    expect(await hasTablePrivilege('prdm_app', 'audit_log', 'SELECT')).toBe(true);
+    expect(await hasTablePrivilege('prdm_app', 'audit_log', 'INSERT')).toBe(true);
+    expect(await hasTablePrivilege('prdm_app', 'audit_log', 'UPDATE')).toBe(false);
+    expect(await hasTablePrivilege('prdm_app', 'audit_log', 'DELETE')).toBe(false);
+    expect(await hasTablePrivilege('prdm_app', 'audit_log', 'TRUNCATE')).toBe(false);
   });
 });

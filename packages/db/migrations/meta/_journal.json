@@ -43,6 +43,13 @@
       "when": 1789365000000,
       "tag": "0005_api_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789371000000,
+      "tag": "0006_harden_security_definer_grants",
+      "breakpoints": true
     }
   ]
 }
