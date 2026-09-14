@@ -4,12 +4,21 @@
 // separate `react-router-dom` dependency in this package.
 import { createBrowserRouter, type RouteObject } from 'react-router';
 import type { ReactElement } from 'react';
+import { InviteAccept } from './routes/InviteAccept.js';
+import { Login } from './routes/Login.js';
+import { ResetPassword } from './routes/ResetPassword.js';
 
-/** Placeholder for `/` — WO-116+ replace this with the real login/dashboard screens (SDD-006 "Dashboard (shell)"). */
+/** Placeholder for `/` — WO-117 replaces this with the org switcher / projects dashboard (SDD-006
+ * "Dashboard (shell)"). */
 function Root(): ReactElement {
   return <p>prdm</p>;
 }
 
-export const routes: RouteObject[] = [{ path: '/', element: <Root /> }];
+export const routes: RouteObject[] = [
+  { path: '/', element: <Root /> },
+  { path: '/login', element: <Login /> },
+  { path: '/reset-password', element: <ResetPassword /> },
+  { path: '/invite/:id', element: <InviteAccept /> },
+];
 
 export const router = createBrowserRouter(routes);

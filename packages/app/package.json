@@ -13,6 +13,8 @@
     "typecheck": "tsc -b tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {
+    "@prdm/contracts": "0.2.0",
+    "@prdm/ui": "0.2.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-router": "8.3.1"

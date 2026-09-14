@@ -1,0 +1,162 @@
+/* Shared form styling for the dashboard shell's auth/settings screens (SDD-006 "Dashboard (shell)"):
+   built entirely from @prdm/ui's "Stark HUD" tokens.css custom properties — no new palette. */
+
+.page {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+}
+
+.card {
+  width: 100%;
+  max-width: 28rem;
+  background: var(--color-bg-elevated);
+  backdrop-filter: var(--panel-blur);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.title {
+  font-size: var(--font-size-xl);
+  margin: 0;
+}
+
+.subtitle {
+  color: var(--color-fg-muted);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.field label {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-muted);
+}
+
+.field input,
+.field select {
+  background: var(--color-bg-inset);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-fg);
+  padding: var(--space-sm);
+  font-size: var(--font-size-md);
+  font-family: inherit;
+}
+
+.field input:invalid[data-touched='true'] {
+  border-color: var(--color-status-error);
+}
+
+.hint {
+  color: var(--color-fg-subtle);
+  font-size: var(--font-size-xs);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+}
+
+.primaryButton {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--font-size-md);
+  cursor: pointer;
+}
+
+.primaryButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.secondaryButton {
+  background: transparent;
+  color: var(--color-fg);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-lg);
+  cursor: pointer;
+}
+
+.error {
+  color: var(--color-status-error);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.success {
+  color: var(--color-status-ok);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.link {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  padding: 0;
+  font-size: var(--font-size-sm);
+  text-align: left;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--space-sm);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.table th {
+  color: var(--color-fg-muted);
+  font-weight: 500;
+}
+
+.notice {
+  background: var(--color-bg-inset);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-muted);
+}
+
+.secretPanel {
+  background: var(--color-bg-inset);
+  border: var(--border-width) solid var(--color-status-warning);
+  border-radius: var(--radius-sm);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.secretValue {
+  font-family: var(--font-mono);
+  word-break: break-all;
+  background: var(--color-bg);
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+}

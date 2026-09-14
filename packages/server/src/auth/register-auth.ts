@@ -37,7 +37,7 @@ export function registerAuth(app: FastifyInstance, opts: RegisterAuthOptions): v
     { onRequest: createHostGuardHook(env), config: { access: { public: true } } },
     async (req, reply) => {
       const pathname = stripAuthPrefix(req.url);
-      if (!isAllowedAuthPath(pathname)) {
+      if (!isAllowedAuthPath(pathname, req.method)) {
         reply.code(404).send(errorEnvelope('not_found', 'route not found'));
         return;
       }

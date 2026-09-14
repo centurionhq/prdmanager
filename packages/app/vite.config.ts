@@ -6,6 +6,13 @@ const target = `http://127.0.0.1:${serverPort}`;
 
 export default defineConfig({
   plugins: [react()],
+  // `@prdm/source` (tsconfig.base.json's `customConditions`, the same condition every workspace `dev`/`server`
+  // script already runs Node under via `tsx --conditions=@prdm/source`): workspace packages like `@prdm/contracts`
+  // and `@prdm/ui` declare that export condition pointing straight at their TS source, so Vite consumes them the
+  // same way the rest of the repo does in dev/test — without requiring a `tsc -b` build of every dependency first.
+  resolve: {
+    conditions: ['@prdm/source'],
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

@@ -42,6 +42,24 @@ export const ORGANIZATION_MUTATION_PATHS: readonly string[] = [
   '/organization/set-active',
 ];
 
-export function isAllowedAuthPath(pathname: string): boolean {
-  return AUTH_ALLOWED_PATHS.has(pathname);
+/**
+ * `GET /reset-password/:token` (WO-116 addition, flagged in the WO report): better-auth's own
+ * `request-password-reset` endpoint always mails a link of exactly this shape
+ * (`${baseURL}/reset-password/${token}?callbackURL=...`, see `better-auth`'s
+ * `dist/api/routes/password.mjs`) — a dynamic segment `AUTH_ALLOWED_PATHS`'s plain `Set<string>` can
+ * never match by exact membership. Without this, the emailed link 404s and a real user can never reach
+ * the dashboard's `/reset-password` screen from it (the token would only ever be visible by reading the
+ * raw email source). This is the smallest addition that makes the already-shipped WO-096 email link
+ * actually work: it only recognizes the literal `/reset-password/<opaque-token>` shape (one path segment,
+ * no further slashes) and defers to better-auth's own endpoint (`requestPasswordResetCallback`, GET-only)
+ * for everything else, including rejecting an invalid/expired token — this allowlist only decides
+ * *reachability*, never validity. Gated to `GET` (the real endpoint's own method) so the WO-093 learning
+ * test's literal `/reset-password/:token` template path — exercised there with `POST`, expecting a
+ * 404 — still 404s exactly as before; only an actual `GET` to a concrete token path is newly reachable.
+ */
+const RESET_PASSWORD_CALLBACK_PATTERN = /^\/reset-password\/[^/]+$/;
+
+export function isAllowedAuthPath(pathname: string, method = 'GET'): boolean {
+  if (AUTH_ALLOWED_PATHS.has(pathname)) return true;
+  return method.toUpperCase() === 'GET' && RESET_PASSWORD_CALLBACK_PATTERN.test(pathname);
 }
