@@ -30,9 +30,6 @@ export interface ProjectFixture {
   graphProjectId: string;
 }
 
-const notYetImplemented = (factory: string, table: string): Error =>
-  new Error(`${factory}: the "${table}" table does not exist yet (SDD-006, later work order)`);
-
 export async function createOrganizationFixture(pg: PgTestDb, overrides: Partial<OrganizationFixture> = {}): Promise<OrganizationFixture> {
   const suffix = randomUUID();
   const fixture: OrganizationFixture = {
@@ -63,6 +60,22 @@ export async function createUserFixture(pg: PgTestDb, overrides: Partial<UserFix
   return fixture;
 }
 
-export function createProjectFixture(_pg: PgTestDb, _overrides: Partial<ProjectFixture> = {}): Promise<ProjectFixture> {
-  return Promise.reject(notYetImplemented('createProjectFixture', 'projects'));
+/** `orgId` is required (no server-side default makes sense for a project without a tenant). */
+export async function createProjectFixture(
+  pg: PgTestDb,
+  overrides: Partial<ProjectFixture> & { orgId: string },
+): Promise<ProjectFixture> {
+  const suffix = randomUUID();
+  const fixture: ProjectFixture = {
+    id: overrides.id ?? randomUUID(),
+    orgId: overrides.orgId,
+    name: overrides.name ?? `Test Project ${suffix}`,
+    slug: overrides.slug ?? `test-project-${suffix}`,
+    graphProjectId: overrides.graphProjectId ?? `prj_${suffix.replace(/-/g, '').slice(0, 16)}`,
+  };
+  await pg.ownerPool.query(
+    `INSERT INTO "projects" (id, org_id, slug, name, graph_project_id) VALUES ($1, $2, $3, $4, $5)`,
+    [fixture.id, fixture.orgId, fixture.slug, fixture.name, fixture.graphProjectId],
+  );
+  return fixture;
 }
