@@ -140,6 +140,7 @@ Nota general: toda tarea que agregue dependencias incluye `package-lock.json` en
 - [ ] Tokens personales y de CI con prefijo con checksum, sha256, expiración obligatoria de hasta 90 días, revocación y last_used_at, y plugin Bearer separado del de sesión, con tests
 - [ ] Registro de scopes declarados por ruta que falla si una ruta no declara scope, con tests de matriz scope por ruta
 - [ ] Harness de la suite de aislamiento que recorre cada ruta registrada y endpoint de auth habilitado con credenciales de otra organización y de otro proyecto exigiendo 404 y ausencia de canario, extensible a tools MCP y documentName (SDD-008 y SDD-010 suman sus casos)
+- [ ] Correcciones de la revisión de seguridad #1: revocar EXECUTE de PUBLIC en toda función SECURITY DEFINER (con test de catálogo que lo verifica por firma exacta) y reconciliar al arrancar el servidor cualquier membresía de organización que haya quedado en un superadmin por un fallo a mitad del flujo de creación, con tests
 - [ ] Scaffold de packages/app (Vite 8.3.0, React 19.3.0, react-router 8.3.1 en modo data) con proxy de /api, /collab y /mcp, y bundle servido por el servidor con fallback SPA
 - [ ] Scaffold de packages/ui con tokens.css movido desde packages/web y su test de contraste
 - [ ] Mover a packages/ui to-elements, apply-drift y useCytoscape con sus tests, consumidos desde packages/web
