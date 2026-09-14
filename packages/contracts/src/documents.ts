@@ -52,13 +52,23 @@ export type DocumentSummary = z.infer<typeof documentSummarySchema>;
 export const documentVersionSummarySchema = z.object({
   id: z.string(),
   versionNo: z.number().int().positive(),
+  label: z.string().nullable(),
   reason: z.enum(['manual', 'review_request', 'published', 'agent_accept', 'restore', 'engine_write', 'import']),
   renderedMarkdown: z.string(),
   frontmatter: z.record(z.string(), z.unknown()),
   contentHash: z.string(),
+  contributors: z.array(z.string()),
   createdAt: z.string(),
 });
 export type DocumentVersionSummary = z.infer<typeof documentVersionSummarySchema>;
+
+/** `POST .../documents/:docId/versions` (SDD-008 §"Versiones", WO-156): a manual save-with-label — the
+ * only field a caller supplies, everything else (content, contributors, hash) is captured server-side
+ * from the live collaborative document. */
+export const createDocumentVersionInputSchema = z.object({
+  label: z.string().min(1).max(200),
+});
+export type CreateDocumentVersionInput = z.infer<typeof createDocumentVersionInputSchema>;
 
 /** Mirrors `@prdm/core`'s `ValidationIssue` by hand (same SDD-006 §Arquitectura reasoning as
  * `DOCUMENT_KINDS` above: `packages/contracts` never depends on `@prdm/core`). */

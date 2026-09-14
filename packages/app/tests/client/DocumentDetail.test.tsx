@@ -17,7 +17,7 @@ function baseDoc(overrides: Partial<DocumentDetailDto> = {}): DocumentDetailDto 
     workflowState: 'draft',
     sourcePath: 'docs/prd/PRD-001.md',
     updatedAt: '2026-01-01T00:00:00.000Z',
-    latestVersion: { id: 'v1', versionNo: 1, reason: 'manual', renderedMarkdown: '---\nid: PRD-001\n---\n\nBody', frontmatter: {}, contentHash: 'hash1', createdAt: '2026-01-01T00:00:00.000Z' },
+    latestVersion: { id: 'v1', versionNo: 1, label: null, reason: 'manual', renderedMarkdown: '---\nid: PRD-001\n---\n\nBody', frontmatter: {}, contentHash: 'hash1', contributors: [], createdAt: '2026-01-01T00:00:00.000Z' },
     publishedVersionId: null,
     publishedRaw: null,
     publishedContentHash: null,
@@ -103,7 +103,7 @@ describe('DocumentDetail', () => {
     const approved = baseDoc({
       workflowState: 'published',
       publishedRaw: 'content',
-      latestVersion: { id: 'v1', versionNo: 2, reason: 'published', renderedMarkdown: 'content', frontmatter: { status: 'approved' }, contentHash: 'hash2', createdAt: '2026-01-01T00:00:00.000Z' },
+      latestVersion: { id: 'v1', versionNo: 2, label: null, reason: 'published', renderedMarkdown: 'content', frontmatter: { status: 'approved' }, contentHash: 'hash2', contributors: [], createdAt: '2026-01-01T00:00:00.000Z' },
     });
     renderPage(approved, 'editor');
     await screen.findByRole('heading', { name: 'Feature A' });
@@ -112,7 +112,7 @@ describe('DocumentDetail', () => {
     const draftStatus = baseDoc({
       workflowState: 'published',
       publishedRaw: 'content',
-      latestVersion: { id: 'v1', versionNo: 2, reason: 'published', renderedMarkdown: 'content', frontmatter: { status: 'draft' }, contentHash: 'hash2', createdAt: '2026-01-01T00:00:00.000Z' },
+      latestVersion: { id: 'v1', versionNo: 2, label: null, reason: 'published', renderedMarkdown: 'content', frontmatter: { status: 'draft' }, contentHash: 'hash2', contributors: [], createdAt: '2026-01-01T00:00:00.000Z' },
     });
     renderPage(draftStatus, 'admin');
     await screen.findAllByRole('heading', { name: 'Feature A' });
@@ -123,7 +123,7 @@ describe('DocumentDetail', () => {
     const approved = baseDoc({
       workflowState: 'published',
       publishedRaw: 'content',
-      latestVersion: { id: 'v1', versionNo: 2, reason: 'published', renderedMarkdown: 'content', frontmatter: { status: 'approved' }, contentHash: 'hash2', createdAt: '2026-01-01T00:00:00.000Z' },
+      latestVersion: { id: 'v1', versionNo: 2, label: null, reason: 'published', renderedMarkdown: 'content', frontmatter: { status: 'approved' }, contentHash: 'hash2', contributors: [], createdAt: '2026-01-01T00:00:00.000Z' },
     });
     renderPage(approved, 'admin');
     await screen.findByRole('heading', { name: 'Feature A' });
@@ -148,7 +148,7 @@ describe('DocumentDetail', () => {
     const approved = baseDoc({
       workflowState: 'published',
       publishedRaw: 'content',
-      latestVersion: { id: 'v1', versionNo: 2, reason: 'published', renderedMarkdown: 'content', frontmatter: { status: 'approved' }, contentHash: 'hash2', createdAt: '2026-01-01T00:00:00.000Z' },
+      latestVersion: { id: 'v1', versionNo: 2, label: null, reason: 'published', renderedMarkdown: 'content', frontmatter: { status: 'approved' }, contentHash: 'hash2', contributors: [], createdAt: '2026-01-01T00:00:00.000Z' },
     });
     renderPage(approved, 'admin');
     await screen.findByRole('heading', { name: 'Feature A' });

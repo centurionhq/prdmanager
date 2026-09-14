@@ -8,3 +8,5 @@ export { checkUpdateAgainstBindings } from './anti-spoofing.js';
 export type { AntiSpoofCheckParams, AntiSpoofCheckResult } from './anti-spoofing.js';
 export { buildRangeIndex, computeBlame } from './blame.js';
 export type { BlameActorKind, BlameAttribution, BlameResult, FieldBlame, LineBlame, RangeIndex, RangeIndexRow } from './blame.js';
+export { diffLines } from './diff.js';
+export type { LineDiffOp, LineDiffOpType } from './diff.js';

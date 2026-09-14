@@ -11,37 +11,21 @@
  * hook is a *separate* concern: it tells already-connected clients (WO-161's gutter) to refetch, entirely
  * independent of whether this process's own cache happens to be warm.
  */
-import { eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
-import * as Y from 'yjs';
-import { createTenantDb, schema, withTenantTx } from '@prdm/db';
-import { buildRangeIndex, computeBlame, createDocumentYDoc, type BlameResult } from '@prdm/collab';
+import { createTenantDb } from '@prdm/db';
+import { buildRangeIndex, computeBlame, type BlameResult } from '@prdm/collab';
+import { reconstructLiveYDoc } from './reconstruct-ydoc.js';
 
 export interface BlameCache {
   /** Recomputes only if `doc_updates`' highest `seq` for `documentId` has changed since the last call. */
   get(pool: Pool, orgId: string, documentId: string): Promise<BlameResult>;
 }
 
-async function loadWorkingState(pool: Pool, orgId: string, documentId: string): Promise<{ workingState: Buffer | null; snapshotSeq: number } | null> {
-  return withTenantTx(pool, orgId, async (tx) => {
-    const [row] = await tx.select({ workingState: schema.documents.workingState, snapshotSeq: schema.documents.snapshotSeq }).from(schema.documents).where(eq(schema.documents.id, documentId));
-    return row ?? null;
-  });
-}
-
 async function computeLiveBlame(pool: Pool, orgId: string, documentId: string): Promise<BlameResult> {
-  const documentRow = await loadWorkingState(pool, orgId, documentId);
-  const ydoc = createDocumentYDoc();
-  if (documentRow?.workingState) Y.applyUpdate(ydoc, documentRow.workingState);
-
-  const rows = await createTenantDb(pool).forOrg(orgId).docUpdates.listForDocument(documentId);
-  const snapshotSeq = documentRow?.snapshotSeq ?? 0;
-  for (const row of rows) {
-    if (row.seq > snapshotSeq) Y.applyUpdate(ydoc, row.update);
-  }
+  const { ydoc, updates } = await reconstructLiveYDoc(pool, orgId, documentId);
 
   const index = buildRangeIndex(
-    rows.map((row) => ({
+    updates.map((row) => ({
       structRanges: row.structRanges,
       deleteRanges: row.deleteRanges,
       // `actorKind` is nullable only at the schema level for rows a future migration might backfill

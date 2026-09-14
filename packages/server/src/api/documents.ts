@@ -24,6 +24,7 @@ import type { Auth } from '../auth/build-auth.js';
 import type { CollabRevocationHub } from '../collab/revocation.js';
 import type { ServerEnv } from '../env.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
+import { captureDocumentVersion } from '../collab/versions.js';
 import { requireAppSession } from './app-session.js';
 import { requireMemberOrg } from './require-member-org.js';
 import { resolveVisibleProject, userAgentOf } from './projects.js';
@@ -69,10 +70,12 @@ function toDetail(document: DocumentRecord, latestVersion: DocumentVersionRecord
       ? {
           id: latestVersion.id,
           versionNo: latestVersion.versionNo,
+          label: latestVersion.label,
           reason: latestVersion.reason,
           renderedMarkdown: latestVersion.renderedMarkdown,
           frontmatter: latestVersion.frontmatter as Record<string, unknown>,
           contentHash: latestVersion.contentHash,
+          contributors: latestVersion.contributors,
           createdAt: latestVersion.createdAt.toISOString(),
         }
       : null,
@@ -186,6 +189,12 @@ export function registerDocumentRoutes(app: FastifyInstance, opts: RegisterDocum
 
       const updated = await scope.documents.requestReview(req.params.docId);
       if (!updated) throw new ConflictError(`${req.params.docId} is not a draft (currently ${existing.document.workflowState})`);
+
+      // SDD-008 §"Versiones": "automáticas al pedir revisión" — captures the live collab Y.Doc as it
+      // stands at this exact transition, never the (possibly stale) `document_versions` row from
+      // creation time. Best-effort: a capture failure must never roll back an already-committed
+      // workflow transition (the document is genuinely `in_review` either way).
+      await captureDocumentVersion(pool, org.id, { documentId: updated.id, reason: 'review_request', createdBy: session.user.id }).catch(() => undefined);
 
       await createTenantDb(pool)
         .forOrg(org.id)
