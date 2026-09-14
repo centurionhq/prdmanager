@@ -117,6 +117,7 @@ Nota general: toda tarea que agregue dependencias incluye `package-lock.json` en
 - [ ] Scaffold de packages/contracts y packages/db (drizzle-orm 0.45.2, drizzle-kit 0.31.10, pg 8.23.0) con tsconfig, referencias en tsconfig.json raíz y alias en vitest.config.ts
 - [ ] Scaffold de packages/server con buildServer inyectable sin listen, main.ts, GET /api/health y envelope de errores con unauthorized, forbidden, conflict y rate_limited
 - [ ] docker-compose con postgres y postgres-test (perfil test, 5433, tmpfs) con imágenes fijadas por digest, mailpit, script de roles prdm_owner y prdm_app sin BYPASSRLS ni membresía en prdm_owner, y nombres de variables en .env.example
+- [ ] Puertos locales de postgres, postgres-test y mailpit configurables por entorno en docker-compose con los valores por defecto del SDD, para máquinas donde ya están ocupados, documentados en .env.example
 - [ ] Harness de integración en testkit para Postgres de test con migraciones, truncado entre tests y fábricas de organización, usuario y proyecto
 - [ ] Esquema de entorno del servidor con zod (PRDM_PUBLIC_URL obligatorio, BETTER_AUTH_SECRET de 32 bytes o más) y redacción de secretos en el logger con serializador de URL, con test de que claves, cookies, Authorization y tokens de reseteo e invitación nunca aparecen en logs
 - [ ] Esquema de better-auth generado para drizzle, user_profile con handle inmutable compatible con ACTOR_PATTERN y migración inicial
