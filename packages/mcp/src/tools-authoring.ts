@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { closureReadiness, docId, DOC_KINDS, DRAFT_KINDS, DraftValidationError, scanDocuments, type DocKind, type DraftKind } from '@prdm/core';
+import { closureReadiness, docId, DOC_KINDS, DRAFT_KINDS, DraftValidationError, type DocKind, type DraftKind } from '@prdm/core';
 import type { PrdmDeps } from './deps.js';
 import { DESTRUCTIVE_IDEMPOTENT, jsonResult, jsonText, READ_ONLY, safeReadTool, safeTool, WRITE_ONCE } from './shared.js';
 
@@ -53,7 +53,7 @@ export interface ProjectSummary {
 
 /** Shared by the `get_project` tool and the `prdm://project` resource so both report the exact same data. */
 export async function buildProjectSummary(deps: PrdmDeps): Promise<ProjectSummary> {
-  const { docs } = await scanDocuments(deps.engine.config.root, deps.engine.config.ignore);
+  const { docs } = await deps.engine.scan();
   const counts = Object.fromEntries(DOC_KINDS.map((kind) => [kind, 0])) as Record<DocKind, number>;
   for (const doc of docs) counts[doc.node.kind] += 1;
   return {

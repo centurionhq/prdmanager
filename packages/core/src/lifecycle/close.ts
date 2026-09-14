@@ -1,6 +1,5 @@
 import { ACTOR_PATTERN, type ParsedDoc } from '../domain/schema.js';
-import type { Engine, RefreshReport } from '../engine.js';
-import { scanDocuments } from '../parser/scan.js';
+import type { ProjectEngine, RefreshReport } from '../engine.js';
 
 export interface ClosureCheck {
   name: string;
@@ -71,8 +70,8 @@ function evaluateReadiness(docs: readonly ParsedDoc[], featureId: string, report
  * status field, not the baseline, not a graph snapshot (WO-023 finding 9): it reads straight from disk and uses
  * `engine.inspect()`, so it is safe to call without holding the repo lock.
  */
-export async function closureReadiness(engine: Engine, featureId: string): Promise<ClosureReadiness> {
-  const { docs } = await scanDocuments(engine.config.root, engine.config.ignore);
+export async function closureReadiness(engine: ProjectEngine, featureId: string): Promise<ClosureReadiness> {
+  const { docs } = await engine.scan();
   const report = await engine.inspect();
   return evaluateReadiness(docs, featureId, report);
 }
@@ -98,7 +97,7 @@ export interface CloseResult {
  * afterwards, never from within the transaction (Engine's own contract: never call its public methods from
  * inside `transaction()`).
  */
-export async function closeFeature(engine: Engine, featureId: string, options: CloseOptions): Promise<CloseResult> {
+export async function closeFeature(engine: ProjectEngine, featureId: string, options: CloseOptions): Promise<CloseResult> {
   if (!ACTOR_PATTERN.test(options.by)) throw new Error(`invalid "by" actor: ${options.by} (expected agent:name or dev:name)`);
 
   const readiness = await closureReadiness(engine, featureId);

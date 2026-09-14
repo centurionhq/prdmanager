@@ -8,7 +8,7 @@ import { parseDocument } from './parser/frontmatter.js';
 import { scanDocuments, type ScanError, type ScanResult } from './parser/scan.js';
 import { loadBaseline, saveBaseline } from './sync/baseline.js';
 import { resolveGoverned, type CodeRefState } from './sync/code-refs.js';
-import { dirtyPaths, readCommits } from './sync/git.js';
+import { dirtyPaths, readCommit as readCommitFromGit, readCommits, type CommitInfo } from './sync/git.js';
 import { SymbolCache } from './sync/symbol-cache.js';
 import { acknowledge, detectDrift, type DriftInput, type DriftIssue, type DriftResult, type GovernedState, type WorkOrderUpdate } from './sync/monitor.js';
 import { resolveInside } from './util/paths.js';
@@ -77,6 +77,13 @@ export interface EngineOps {
   refresh(): Promise<RefreshReport>;
   /** Read-only equivalent of `refresh()`: scans, detects drift and computes lifecycle issues without writing any status field, baseline or graph snapshot. */
   inspect(): Promise<RefreshReport>;
+  /**
+   * Looks up a commit by sha (WO-125/SDD-007): local `Engine` delegates to `git log` on `config.root`; a future
+   * `PgProjectEngine` only returns commits that arrived in a CI-verified baseline report (SDD-010), answering
+   * `commit_not_verified_by_ci` for anything seen only in a preview. Callers must go through this instead of
+   * `sync/git.ts`'s `readCommit` directly, so they never assume local git access.
+   */
+  readCommit(sha: string): Promise<CommitInfo | null>;
 }
 
 /** Everything a `ProjectEngine` needs from `PrdmConfig` except `root` and `neo4j` (SaaS values come from `projects.settings`, not a filesystem path or a database connection). */
@@ -134,6 +141,7 @@ export class Engine implements ProjectEngine {
       replaceDocument: (id, content) => this.replaceDocument(id, content),
       refresh: () => this.doRefresh(),
       inspect: () => this.doInspect(),
+      readCommit: (sha) => readCommitFromGit(config.root, sha),
     };
   }
 

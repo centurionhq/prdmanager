@@ -53,6 +53,10 @@ function trackedDeps(calls: string[]): PrdmDeps {
     recover: async () => {
       calls.push('engine.recover');
     },
+    scan: async () => {
+      calls.push('engine.scan');
+      return { docs: [], errors: [], ids: [] };
+    },
   } as unknown as Engine;
 
   const authoring = {

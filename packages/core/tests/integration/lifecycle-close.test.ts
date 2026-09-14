@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { closeFeature, closureReadiness, Engine, type GraphStore, type Neo4jGraphDatabase, type PrdmConfig, type RefreshReport } from '@prdm/core';
+import { closeFeature, closureReadiness, Engine, type GraphStore, type Neo4jGraphDatabase, type PrdmConfig, type ProjectEngine, type RefreshReport } from '@prdm/core';
 import { commitAll, gitInit, makeTmpDir, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 
 // Isolate the journal HMAC key (WO-023 finding 1) from the developer's real ~/.config/prdm/journal.key: closeFeature now runs atomically.
@@ -130,7 +130,8 @@ describe('WO-023 finding 9: closureReadiness is read-only; closeFeature re-check
       transaction: raceEngine.transaction.bind(raceEngine),
       acknowledge: raceEngine.acknowledge.bind(raceEngine),
       recover: raceEngine.recover.bind(raceEngine),
-    } as unknown as Engine;
+      scan: raceEngine.scan.bind(raceEngine),
+    } as unknown as ProjectEngine;
 
     try {
       // closeFeature's OWN internal outer check (calls === 1) captures the docs snapshot before `inspect()` runs,

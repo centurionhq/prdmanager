@@ -1,6 +1,5 @@
 import { ACTOR_PATTERN, ID_PATTERN, SHA_PATTERN, type ParsedDoc } from '../domain/schema.js';
-import type { ProjectEngine } from '../engine.js';
-import { readCommit } from '../sync/git.js';
+import type { EngineOps, ProjectEngine } from '../engine.js';
 import type { DriftIssue } from '../sync/monitor.js';
 
 type WorkOrderDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'WO' }> };
@@ -38,8 +37,8 @@ export async function claimWorkOrder(engine: ProjectEngine, id: string, assignee
   });
 }
 
-async function verifyResolvingCommit(root: string, id: string, sha: string): Promise<string> {
-  const commit = await readCommit(root, sha);
+async function verifyResolvingCommit(ops: Pick<EngineOps, 'readCommit'>, id: string, sha: string): Promise<string> {
+  const commit = await ops.readCommit(sha);
   if (!commit) throw new Error(`commit ${sha} was not found in the repository`);
   if (!commit.refs.includes(id)) throw new Error(`commit ${sha} does not reference ${id}; add the trailer "Refs: ${id}" to its message`);
   return commit.sha;
@@ -70,7 +69,7 @@ export async function completeWorkOrder(engine: ProjectEngine, id: string, optio
       throw new Error(`cannot complete ${id}: status is ${doc.frontmatter.status}, expected in_progress or out_of_sync`);
     }
 
-    const resolvingSha = commitSha ? await verifyResolvingCommit(ops.config.root, id, commitSha) : null;
+    const resolvingSha = commitSha ? await verifyResolvingCommit(ops, id, commitSha) : null;
     const completedAt = now.toISOString();
     const resolvedBy = resolvingSha ? [...new Set([...doc.frontmatter.resolved_by, resolvingSha])] : doc.frontmatter.resolved_by;
     const blueprintHashes = Object.fromEntries(

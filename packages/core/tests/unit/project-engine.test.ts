@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest';
 import { Engine, type ProjectEngine } from '../../src/engine.js';
 import type { GraphSnapshot, GraphStore } from '../../src/graph/types.js';
-import { createFixtureRepo, removeDir, testConfig } from '@prdm/testkit';
+import { createFixtureRepo, commitAll, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 
 function fakeStore(): GraphStore {
   const snapshots: GraphSnapshot[] = [];
@@ -66,5 +66,20 @@ describe('Engine as ProjectEngine', () => {
     expect(await engine.lastReport()).toEqual(refreshed);
     // lastReport must be a plain read of saved state: calling it again does not change it or touch the fake store beyond the one refresh() above.
     expect(await engine.lastReport()).toEqual(refreshed);
+  });
+
+  test('EngineOps.readCommit (WO-125) delegates to local git log, resolving the same sha/refs verifyResolvingCommit relies on', async () => {
+    root = createFixtureRepo();
+    writeFiles(root, { 'src/extra.ts': 'export const extra = 1;\n' });
+    const sha = commitAll(root, 'feat: extra\n\nRefs: WO-042');
+    const config = testConfig(root);
+    const engine: ProjectEngine = new Engine(config, fakeStore());
+
+    const found = await engine.transaction((ops) => ops.readCommit(sha));
+    expect(found?.sha).toBe(sha);
+    expect(found?.refs).toContain('WO-042');
+
+    const missing = await engine.transaction((ops) => ops.readCommit('deadbeefdeadbeef'));
+    expect(missing).toBeNull();
   });
 });
