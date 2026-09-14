@@ -6,6 +6,7 @@ import { createMemberFixture, createOrganizationFixture, openTestPg, truncateAll
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
 import { FakeMailer } from '../../src/mailer.js';
+import { mutationHeaders } from '../helpers/csrf.js';
 import { seedUser } from '../helpers/seed-auth.js';
 import { buildTestServerEnv } from '../helpers/test-env.js';
 
@@ -13,6 +14,7 @@ describe('/api/app/organizations/:orgSlug/invitations (WO-105)', () => {
   let pg: PgTestDb;
   const env = buildTestServerEnv();
   const AUTH_HOST = { host: new URL(env.publicUrl).host };
+  const ORIGIN = env.publicUrl;
   const PASSWORD = 'correct-horse-battery-staple';
 
   beforeAll(async () => {
@@ -44,7 +46,7 @@ describe('/api/app/organizations/:orgSlug/invitations (WO-105)', () => {
     const create = await app.inject({
       method: 'POST',
       url: `/api/app/organizations/${org.slug}/invitations`,
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
       payload: { email: 'invitee@example.test', role: 'member' },
     });
     expect(create.statusCode).toBe(403);
@@ -66,7 +68,7 @@ describe('/api/app/organizations/:orgSlug/invitations (WO-105)', () => {
     const create = await app.inject({
       method: 'POST',
       url: `/api/app/organizations/${org.slug}/invitations`,
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
       payload: { email: 'invitee@example.test', role: 'member' },
     });
     expect(create.statusCode).toBe(200);
@@ -83,7 +85,7 @@ describe('/api/app/organizations/:orgSlug/invitations (WO-105)', () => {
     const revoke = await app.inject({
       method: 'POST',
       url: `/api/app/organizations/${org.slug}/invitations/${invitationId}/revoke`,
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
     });
     expect(revoke.statusCode).toBe(200);
 
@@ -104,7 +106,7 @@ describe('/api/app/organizations/:orgSlug/invitations (WO-105)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/app/organizations/${org.slug}/invitations`,
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
       payload: { email: 'newowner@example.test', role: 'owner' },
     });
     expect(res.statusCode).toBe(403);

@@ -9,6 +9,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
 import { bootstrapSuperadmin, type BootstrapPrompts } from '../../src/cli/bootstrap-superadmin.js';
 import { FakeMailer } from '../../src/mailer.js';
+import { mutationHeaders } from '../helpers/csrf.js';
 import { seedUser } from '../helpers/seed-auth.js';
 import { buildTestServerEnv } from '../helpers/test-env.js';
 import { computeTotpCode } from '../helpers/totp.js';
@@ -17,6 +18,7 @@ describe('POST /api/app/admin/organizations (WO-101/WO-102)', () => {
   let pg: PgTestDb;
   const env = buildTestServerEnv();
   const AUTH_HOST = { host: new URL(env.publicUrl).host };
+  const ORIGIN = env.publicUrl;
   const PASSWORD = 'correct-horse-battery-staple';
 
   beforeAll(async () => {
@@ -95,7 +97,7 @@ describe('POST /api/app/admin/organizations (WO-101/WO-102)', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/app/admin/organizations',
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
       payload: { name: 'Acme', slug: 'acme', ownerEmail: 'owner@example.test' },
     });
 
@@ -110,7 +112,7 @@ describe('POST /api/app/admin/organizations (WO-101/WO-102)', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/app/admin/organizations',
-      headers: AUTH_HOST,
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN),
       payload: { name: 'Acme', slug: 'acme', ownerEmail: 'owner@example.test' },
     });
 
@@ -144,7 +146,7 @@ describe('POST /api/app/admin/organizations (WO-101/WO-102)', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/app/admin/organizations',
-      headers: { ...AUTH_HOST, cookie: pendingCookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, pendingCookie),
       payload: { name: 'Acme', slug: 'acme', ownerEmail: 'owner@example.test' },
     });
 
@@ -160,7 +162,7 @@ describe('POST /api/app/admin/organizations (WO-101/WO-102)', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/app/admin/organizations',
-      headers: { ...AUTH_HOST, cookie: admin.cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, admin.cookie),
       payload: { name: 'Acme Inc', slug: 'acme-inc', ownerEmail: 'owner@example.test' },
     });
 
@@ -189,10 +191,10 @@ describe('POST /api/app/admin/organizations (WO-101/WO-102)', () => {
     const admin = await bootstrapAndSignInSuperadmin(app, 'root2@example.test');
     const payload = { name: 'Acme', slug: 'dup-slug', ownerEmail: 'owner@example.test' };
 
-    const first = await app.inject({ method: 'POST', url: '/api/app/admin/organizations', headers: { ...AUTH_HOST, cookie: admin.cookie }, payload });
+    const first = await app.inject({ method: 'POST', url: '/api/app/admin/organizations', headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, admin.cookie), payload });
     expect(first.statusCode).toBe(200);
 
-    const second = await app.inject({ method: 'POST', url: '/api/app/admin/organizations', headers: { ...AUTH_HOST, cookie: admin.cookie }, payload });
+    const second = await app.inject({ method: 'POST', url: '/api/app/admin/organizations', headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, admin.cookie), payload });
     expect(second.statusCode).toBe(409);
 
     await app.close();

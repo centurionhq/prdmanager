@@ -21,6 +21,8 @@
     "bootstrap-superadmin": "tsx --conditions=@prdm/source src/cli/run-bootstrap-superadmin.ts"
   },
   "dependencies": {
+    "@fastify/cookie": "11.1.2",
+    "@fastify/csrf-protection": "8.0.1",
     "@fastify/rate-limit": "11.2.0",
     "@fastify/websocket": "11.3.0",
     "@hocuspocus/provider": "4.7.0",

@@ -7,6 +7,7 @@ import { createMemberFixture, createOrganizationFixture, createProjectFixture, o
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
 import { FakeMailer } from '../../src/mailer.js';
+import { mutationHeaders } from '../helpers/csrf.js';
 import { buildTestServerEnv } from '../helpers/test-env.js';
 import { seedUser } from '../helpers/seed-auth.js';
 
@@ -14,6 +15,7 @@ describe('/api/app/organizations/:orgSlug/projects/* (WO-107)', () => {
   let pg: PgTestDb;
   const env = buildTestServerEnv();
   const AUTH_HOST = { host: new URL(env.publicUrl).host };
+  const ORIGIN = env.publicUrl;
   const PASSWORD = 'correct-horse-battery-staple';
 
   beforeAll(async () => {
@@ -123,7 +125,7 @@ describe('/api/app/organizations/:orgSlug/projects/* (WO-107)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/app/organizations/${org.slug}/projects`,
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
       payload: { slug: 'roadmap', name: 'Roadmap' },
     });
 
@@ -152,7 +154,7 @@ describe('/api/app/organizations/:orgSlug/projects/* (WO-107)', () => {
     const dup = await app.inject({
       method: 'POST',
       url: `/api/app/organizations/${org.slug}/projects`,
-      headers: { ...AUTH_HOST, cookie: ownerCookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, ownerCookie),
       payload: { slug: 'roadmap', name: 'Roadmap Again' },
     });
     expect(dup.statusCode).toBe(409);
@@ -161,7 +163,7 @@ describe('/api/app/organizations/:orgSlug/projects/* (WO-107)', () => {
     const forbidden = await app.inject({
       method: 'POST',
       url: `/api/app/organizations/${org.slug}/projects`,
-      headers: { ...AUTH_HOST, cookie: memberCookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, memberCookie),
       payload: { slug: 'another', name: 'Another' },
     });
     expect(forbidden.statusCode).toBe(403);
@@ -187,7 +189,7 @@ describe('/api/app/organizations/:orgSlug/projects/* (WO-107)', () => {
     const forbidden = await app.inject({
       method: 'PATCH',
       url: `/api/app/organizations/${org.slug}/projects/${project.slug}/settings`,
-      headers: { ...AUTH_HOST, cookie: editorCookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, editorCookie),
       payload: { settings: { default_branch: 'trunk' } },
     });
     expect(forbidden.statusCode).toBe(403);
@@ -196,7 +198,7 @@ describe('/api/app/organizations/:orgSlug/projects/* (WO-107)', () => {
     const ok = await app.inject({
       method: 'PATCH',
       url: `/api/app/organizations/${org.slug}/projects/${project.slug}/settings`,
-      headers: { ...AUTH_HOST, cookie: ownerCookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, ownerCookie),
       payload: { settings: { default_branch: 'trunk' } },
     });
     expect(ok.statusCode).toBe(200);
@@ -232,7 +234,7 @@ describe('/api/app/organizations/:orgSlug/projects/* (WO-107)', () => {
     const add = await app.inject({
       method: 'POST',
       url: `/api/app/organizations/${org.slug}/projects/${project.slug}/members`,
-      headers: { ...AUTH_HOST, cookie: ownerCookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, ownerCookie),
       payload: { userId: target.id, role: 'viewer' },
     });
     expect(add.statusCode).toBe(200);
@@ -241,7 +243,7 @@ describe('/api/app/organizations/:orgSlug/projects/* (WO-107)', () => {
     const editorForbidden = await app.inject({
       method: 'PATCH',
       url: `/api/app/organizations/${org.slug}/projects/${project.slug}/members/${target.id}`,
-      headers: { ...AUTH_HOST, cookie: editorCookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, editorCookie),
       payload: { role: 'editor' },
     });
     expect(editorForbidden.statusCode).toBe(403);
@@ -249,7 +251,7 @@ describe('/api/app/organizations/:orgSlug/projects/* (WO-107)', () => {
     const promote = await app.inject({
       method: 'PATCH',
       url: `/api/app/organizations/${org.slug}/projects/${project.slug}/members/${target.id}`,
-      headers: { ...AUTH_HOST, cookie: ownerCookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, ownerCookie),
       payload: { role: 'editor' },
     });
     expect(promote.statusCode).toBe(200);
@@ -258,14 +260,14 @@ describe('/api/app/organizations/:orgSlug/projects/* (WO-107)', () => {
     const remove = await app.inject({
       method: 'DELETE',
       url: `/api/app/organizations/${org.slug}/projects/${project.slug}/members/${target.id}`,
-      headers: { ...AUTH_HOST, cookie: ownerCookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, ownerCookie),
     });
     expect(remove.statusCode).toBe(200);
 
     const missing = await app.inject({
       method: 'PATCH',
       url: `/api/app/organizations/${org.slug}/projects/${project.slug}/members/${target.id}`,
-      headers: { ...AUTH_HOST, cookie: ownerCookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, ownerCookie),
       payload: { role: 'viewer' },
     });
     expect(missing.statusCode).toBe(404);

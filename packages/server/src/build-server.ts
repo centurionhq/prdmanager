@@ -9,12 +9,14 @@ import { registerOrganizationRoutes } from './api/organizations.js';
 import { registerProjectRoutes } from './api/projects.js';
 import { buildAuth, type Auth } from './auth/build-auth.js';
 import { registerAuth } from './auth/register-auth.js';
+import { registerCsrfEnforcement, registerCsrfPlugins } from './csrf/register-csrf.js';
 import { setErrorHandler, setNotFoundHandler } from './errors.js';
 import type { ServerEnv } from './env.js';
 import { resolveLoggerOption } from './logging.js';
 import type { Mailer } from './mailer.js';
 import { buildAuthRateLimiters } from './rate-limit/auth-rate-limits.js';
 import { buildInvitationAcceptRateLimiter } from './rate-limit/invitation-rate-limits.js';
+import { registerSecurityHeaders } from './security-headers.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -58,6 +60,10 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
   app.decorate('env', env);
   app.decorate('clock', clock);
 
+  // Unconditional (not gated behind `pool && mailer`): every response — health check, a bare 404,
+  // /api/app/* alike — carries these (SDD-006 §Cabeceras).
+  registerSecurityHeaders(app, env);
+
   registerHealthRoute(app);
 
   if (pool && mailer) {
@@ -66,12 +72,18 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
     // `global: false`: no route is rate-limited unless it opts in explicitly (register-auth.ts does,
     // per-path, via the exported keyed helper) — this plugin only ever supplies `app.createRateLimit`.
     void app.register(rateLimitPlugin, { global: false, store: rateLimitStore });
-    // `app.createRateLimit` only exists once the plugin above has finished registering; `app.after`
-    // defers building the limiters (and therefore mounting /api/auth/*) until that's guaranteed.
+    // CSRF (WO-108): both plugins decorate `app`/`reply` via `fastify-plugin`, so registering them here
+    // (unawaited, like the rate-limit plugin above) is enough for `app.after` below to see the
+    // decorations.
+    registerCsrfPlugins(app, env);
+    // `app.createRateLimit`/`app.csrfProtection`/`reply.generateCsrf` only exist once the plugins above
+    // have finished registering; `app.after` defers everything that depends on them (every /api/app/*
+    // and /api/auth/* route) until that's guaranteed.
     app.after((err) => {
       if (err) throw err;
       const rateLimiters = buildAuthRateLimiters(app);
       registerAuth(app, { auth, env, rateLimiters });
+      registerCsrfEnforcement(app, env);
       registerOrganizationRoutes(app, { auth, pool, env });
       registerAdminOrganizationRoutes(app, { auth, pool, mailer, env });
       registerOrganizationInvitationRoutes(app, { auth, pool, mailer, env });

@@ -7,6 +7,7 @@ import { createMemberFixture, createOrganizationFixture, openTestPg, truncateAll
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
 import { FakeMailer } from '../../src/mailer.js';
+import { mutationHeaders } from '../helpers/csrf.js';
 import { seedUser } from '../helpers/seed-auth.js';
 import { buildTestServerEnv } from '../helpers/test-env.js';
 
@@ -14,6 +15,7 @@ describe('POST /api/app/invitations/:id/accept (WO-105)', () => {
   let pg: PgTestDb;
   const env = buildTestServerEnv();
   const AUTH_HOST = { host: new URL(env.publicUrl).host };
+  const ORIGIN = env.publicUrl;
   const PASSWORD = 'correct-horse-battery-staple';
 
   beforeAll(async () => {
@@ -55,7 +57,7 @@ describe('POST /api/app/invitations/:id/accept (WO-105)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/app/organizations/${org.slug}/invitations`,
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
       payload,
     });
     expect(res.statusCode).toBe(200);
@@ -71,7 +73,7 @@ describe('POST /api/app/invitations/:id/accept (WO-105)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/app/invitations/${id}/accept`,
-      headers: AUTH_HOST,
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN),
       payload: { secret, name: 'New Member', password: PASSWORD },
     });
 
@@ -89,7 +91,7 @@ describe('POST /api/app/invitations/:id/accept (WO-105)', () => {
     const org = await createOrganizationFixture(pg);
     const { id, secret } = await createInvitationViaAdmin(app, mailer, org, { email: 'nopass@example.test', role: 'member' });
 
-    const res = await app.inject({ method: 'POST', url: `/api/app/invitations/${id}/accept`, headers: AUTH_HOST, payload: { secret } });
+    const res = await app.inject({ method: 'POST', url: `/api/app/invitations/${id}/accept`, headers: await mutationHeaders(app, AUTH_HOST, ORIGIN), payload: { secret } });
 
     expect(res.statusCode).toBe(400);
     await app.close();
@@ -104,7 +106,7 @@ describe('POST /api/app/invitations/:id/accept (WO-105)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/app/invitations/${id}/accept`,
-      headers: AUTH_HOST,
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN),
       payload: { secret: 'totally-wrong-secret', name: 'X', password: PASSWORD },
     });
 
@@ -122,7 +124,7 @@ describe('POST /api/app/invitations/:id/accept (WO-105)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/app/invitations/${invB.id}/accept`,
-      headers: AUTH_HOST,
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN),
       payload: { secret: invA.secret, name: 'X', password: PASSWORD },
     });
 
@@ -139,7 +141,7 @@ describe('POST /api/app/invitations/:id/accept (WO-105)', () => {
     const first = await app.inject({
       method: 'POST',
       url: `/api/app/invitations/${id}/accept`,
-      headers: AUTH_HOST,
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN),
       payload: { secret, name: 'First', password: PASSWORD },
     });
     expect(first.statusCode).toBe(200);
@@ -147,7 +149,7 @@ describe('POST /api/app/invitations/:id/accept (WO-105)', () => {
     const second = await app.inject({
       method: 'POST',
       url: `/api/app/invitations/${id}/accept`,
-      headers: AUTH_HOST,
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN),
       payload: { secret, name: 'Second', password: PASSWORD },
     });
     expect(second.statusCode).toBe(409);
@@ -166,7 +168,7 @@ describe('POST /api/app/invitations/:id/accept (WO-105)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/app/invitations/${id}/accept`,
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
       payload: { secret },
     });
 
@@ -188,7 +190,7 @@ describe('POST /api/app/invitations/:id/accept (WO-105)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/app/invitations/${id}/accept`,
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
       payload: { secret },
     });
 
@@ -208,14 +210,14 @@ describe('POST /api/app/invitations/:id/accept (WO-105)', () => {
     const revoke = await app.inject({
       method: 'POST',
       url: `/api/app/organizations/${org.slug}/invitations/${id}/revoke`,
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
     });
     expect(revoke.statusCode).toBe(200);
 
     const accept = await app.inject({
       method: 'POST',
       url: `/api/app/invitations/${id}/accept`,
-      headers: AUTH_HOST,
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN),
       payload: { secret, name: 'X', password: PASSWORD },
     });
     expect(accept.statusCode).toBe(409);
@@ -229,11 +231,12 @@ describe('POST /api/app/invitations/:id/accept (WO-105)', () => {
     const org = await createOrganizationFixture(pg);
     const { id, secret } = await createInvitationViaAdmin(app, mailer, org, { email: 'racer@example.test', role: 'member' });
 
+    const csrfHeaders = await mutationHeaders(app, AUTH_HOST, ORIGIN);
     const attempt = () =>
       app.inject({
         method: 'POST',
         url: `/api/app/invitations/${id}/accept`,
-        headers: AUTH_HOST,
+        headers: csrfHeaders,
         payload: { secret, name: 'Racer', password: PASSWORD },
       });
 

@@ -66,6 +66,16 @@ function sendError(reply: FastifyReply, code: ErrorCode, message: string): void 
   void reply.code(STATUS_BY_CODE[code]).send(errorEnvelope(code, message));
 }
 
+/** `@fastify/csrf-protection` (WO-108) reports failures via `reply.send(new SomeCsrfError())` rather than
+ * throwing, but a sent `Error` instance still flows through this same `setErrorHandler` (verified against
+ * the plugin's actual behavior) — recognized by its `FST_CSRF_*` error code (`FST_CSRF_MISSING_SECRET`,
+ * `FST_CSRF_INVALID_TOKEN`) rather than an `instanceof` check, since the plugin doesn't export its error
+ * classes. Mapped to the same shared 403 envelope every other `ForbiddenError` gets, never leaking the
+ * plugin's own message/shape. */
+function isCsrfError(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && typeof (err as { code: unknown }).code === 'string' && (err as { code: string }).code.startsWith('FST_CSRF_');
+}
+
 /**
  * Single central error handler (SDD-006 §Arquitectura): any `HttpError` subclass maps to its own status
  * and message; anything else is logged in full server-side and reported to the client as a fixed
@@ -76,6 +86,10 @@ export function setErrorHandler(app: FastifyInstance): void {
   app.setErrorHandler((err: FastifyError | Error, request: FastifyRequest, reply: FastifyReply) => {
     if (err instanceof HttpError) {
       sendError(reply, err.code, err.message);
+      return;
+    }
+    if (isCsrfError(err)) {
+      sendError(reply, 'forbidden', 'invalid csrf token');
       return;
     }
     request.log.error({ err }, 'unhandled error in packages/server');

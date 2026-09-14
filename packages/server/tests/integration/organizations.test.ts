@@ -6,6 +6,7 @@ import { createMemberFixture, createOrganizationFixture, openTestPg, truncateAll
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
 import { FakeMailer } from '../../src/mailer.js';
+import { mutationHeaders } from '../helpers/csrf.js';
 import { buildTestServerEnv } from '../helpers/test-env.js';
 import { seedUser } from '../helpers/seed-auth.js';
 
@@ -13,6 +14,7 @@ describe('/api/app/organizations/* (WO-104)', () => {
   let pg: PgTestDb;
   const env = buildTestServerEnv();
   const AUTH_HOST = { host: new URL(env.publicUrl).host };
+  const ORIGIN = env.publicUrl;
   const PASSWORD = 'correct-horse-battery-staple';
 
   beforeAll(async () => {
@@ -72,7 +74,7 @@ describe('/api/app/organizations/* (WO-104)', () => {
     const notMember = await app.inject({
       method: 'POST',
       url: '/api/app/organizations/active',
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
       payload: { organizationId: otherOrg.id },
     });
     expect(notMember.statusCode).toBe(404);
@@ -80,7 +82,7 @@ describe('/api/app/organizations/* (WO-104)', () => {
     const ok = await app.inject({
       method: 'POST',
       url: '/api/app/organizations/active',
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
       payload: { organizationId: org.id },
     });
     expect(ok.statusCode).toBe(200);
@@ -113,7 +115,7 @@ describe('/api/app/organizations/* (WO-104)', () => {
     const res = await app.inject({
       method: 'PATCH',
       url: `/api/app/organizations/${org.slug}/members/${target.id}`,
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
       payload: { role: 'admin' },
     });
 
@@ -142,7 +144,7 @@ describe('/api/app/organizations/* (WO-104)', () => {
     const demote = await app.inject({
       method: 'PATCH',
       url: `/api/app/organizations/${org.slug}/members/${owner.id}`,
-      headers: { ...AUTH_HOST, cookie: adminCookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, adminCookie),
       payload: { role: 'member' },
     });
     expect(demote.statusCode).toBe(403);
@@ -150,7 +152,7 @@ describe('/api/app/organizations/* (WO-104)', () => {
     const remove = await app.inject({
       method: 'DELETE',
       url: `/api/app/organizations/${org.slug}/members/${owner.id}`,
-      headers: { ...AUTH_HOST, cookie: adminCookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, adminCookie),
     });
     expect(remove.statusCode).toBe(403);
 
@@ -158,7 +160,7 @@ describe('/api/app/organizations/* (WO-104)', () => {
     const memberTries = await app.inject({
       method: 'PATCH',
       url: `/api/app/organizations/${org.slug}/members/${admin.id}`,
-      headers: { ...AUTH_HOST, cookie: memberCookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, memberCookie),
       payload: { role: 'admin' },
     });
     expect(memberTries.statusCode).toBe(403);

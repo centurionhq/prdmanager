@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
 import { createClockStore } from '../../src/rate-limit/clock-store.js';
 import { FakeMailer } from '../../src/mailer.js';
+import { mutationHeaders } from '../helpers/csrf.js';
 import { seedUser } from '../helpers/seed-auth.js';
 import { buildTestServerEnv } from '../helpers/test-env.js';
 
@@ -20,6 +21,7 @@ describe('rate limiting on invitation acceptance (WO-105)', () => {
   let pg: PgTestDb;
   const env = buildTestServerEnv();
   const AUTH_HOST = { host: new URL(env.publicUrl).host };
+  const ORIGIN = env.publicUrl;
   const PASSWORD = 'correct-horse-battery-staple';
 
   beforeAll(async () => {
@@ -52,18 +54,20 @@ describe('rate limiting on invitation acceptance (WO-105)', () => {
     const create = await app.inject({
       method: 'POST',
       url: `/api/app/organizations/${org.slug}/invitations`,
-      headers: { ...AUTH_HOST, cookie },
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
       payload: { email: 'target@example.test', role: 'member' },
     });
     const match = /\/invite\/([^#\s]+)#s=/.exec(mailer.messages[0]!.text);
     const invitationId = match![1]!;
     expect(create.statusCode).toBe(200);
 
+    const acceptHeaders = await mutationHeaders(app, AUTH_HOST, ORIGIN);
+
     for (let attempt = 1; attempt <= 10; attempt += 1) {
       const res = await app.inject({
         method: 'POST',
         url: `/api/app/invitations/${invitationId}/accept`,
-        headers: AUTH_HOST,
+        headers: acceptHeaders,
         payload: { secret: 'wrong', name: 'X', password: PASSWORD },
       });
       expect(res.statusCode, `attempt ${attempt} should not be rate-limited yet`).toBe(404);
@@ -72,7 +76,7 @@ describe('rate limiting on invitation acceptance (WO-105)', () => {
     const eleventh = await app.inject({
       method: 'POST',
       url: `/api/app/invitations/${invitationId}/accept`,
-      headers: AUTH_HOST,
+      headers: acceptHeaders,
       payload: { secret: 'wrong', name: 'X', password: PASSWORD },
     });
     expect(eleventh.statusCode).toBe(429);
@@ -82,7 +86,7 @@ describe('rate limiting on invitation acceptance (WO-105)', () => {
     const afterWindow = await app.inject({
       method: 'POST',
       url: `/api/app/invitations/${invitationId}/accept`,
-      headers: AUTH_HOST,
+      headers: acceptHeaders,
       payload: { secret: 'wrong', name: 'X', password: PASSWORD },
     });
     expect(afterWindow.statusCode).toBe(404);
