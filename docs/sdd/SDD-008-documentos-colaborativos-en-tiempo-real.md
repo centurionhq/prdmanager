@@ -84,3 +84,5 @@ Unitarios de proyección, blame (tablas con inserciones, borrados, unión de lí
 - [ ] Vista previa markdown con react-markdown sin HTML crudo ni imágenes remotas y test con payloads XSS
 - [ ] Tests de convergencia multi-cliente con ediciones concurrentes, reconexión offline, reinicio del servidor y blame correcto, esperando eventos y sin aserciones de tiempo de reloj
 - [ ] Trigger para crear un hilo de comentario desde una selección de texto en el editor CodeMirror, llamando al endpoint de creación ya existente y refrescando el panel de comentarios, con tests
+- [ ] Corregir el posicionamiento del tooltip visual del gutter de blame (el aria-label ya es correcto, pero el tooltip no se ve donde corresponde al hacer click), con test de posición relativa al marcador enfocado
+- [ ] Eliminar el ruido espurio en el diff de versiones causado por normalizar comillas de valores YAML sin comillas (p. ej. `type: PRD` vs `type: "PRD"`) entre snapshots, con test de diff estable cuando el contenido no cambió
