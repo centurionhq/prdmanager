@@ -17,6 +17,7 @@ import { auditLog } from './schema/audit.js';
 import { user } from './schema/auth.js';
 import { projectMembers, projectRole, projects } from './schema/projects.js';
 import { withTenantTx } from './tenant.js';
+import { buildDocumentsRepository, type DocumentsRepository } from './documents-repository.js';
 
 export type ProjectRecord = typeof projects.$inferSelect;
 export type ProjectMemberRecord = typeof projectMembers.$inferSelect;
@@ -99,6 +100,7 @@ export interface ProjectScope {
   /** `null` for a wrong-org or nonexistent id alike — see the module doc comment. */
   get(): Promise<ProjectRecord | null>;
   members: ProjectMembersRepository;
+  documents: DocumentsRepository;
 }
 
 export interface OrgRepositories {
@@ -202,6 +204,7 @@ function buildProjectScope(pool: Pool, orgId: string, projectId: string): Projec
   return {
     get: () =>
       withTenantTx(pool, orgId, async (tx) => (await tx.select().from(projects).where(eq(projects.id, projectId)))[0] ?? null),
+    documents: buildDocumentsRepository(pool, orgId, projectId),
     members: {
       list: () =>
         withTenantTx(pool, orgId, (tx) =>

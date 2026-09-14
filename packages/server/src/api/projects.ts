@@ -67,7 +67,9 @@ function toProjectSummary(project: ProjectRecord): ProjectSummary {
   };
 }
 
-function userAgentOf(req: { headers: Record<string, unknown> }): string | undefined {
+/** Exported (WO-136) so other `/api/app/organizations/:orgSlug/projects/:projectSlug/*` route modules
+ * (e.g. `./documents.ts`) share the same audit-log user-agent extraction instead of a second copy. */
+export function userAgentOf(req: { headers: Record<string, unknown> }): string | undefined {
   return typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined;
 }
 

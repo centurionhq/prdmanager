@@ -9,6 +9,7 @@ import { registerCiTokenRoutes } from './api/ci-tokens.js';
 import { registerHealthRoute } from './api/health.js';
 import { registerInvitationAcceptRoute } from './api/invitation-accept.js';
 import { registerOrganizationInvitationRoutes } from './api/organization-invitations.js';
+import { registerDocumentRoutes } from './api/documents.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
 import { registerProjectRoutes } from './api/projects.js';
 import { registerTokenRoutes } from './api/tokens.js';
@@ -143,6 +144,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerAdminOrganizationRoutes(app, { auth, pool, mailer, env });
       registerOrganizationInvitationRoutes(app, { auth, pool, mailer, env });
       registerProjectRoutes(app, { auth, pool, env });
+      registerDocumentRoutes(app, { auth, pool, env });
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
       registerTokenRoutes(app, { auth, pool, env, clock });
       registerCiTokenRoutes(app, { auth, pool, env, clock });
