@@ -19,6 +19,7 @@ import { resolveDocumentById, schema, withTenantTx, type PgDatabase } from '@prd
 import { assertValidRoot, FRONTMATTER_ROOT, InvalidDocumentRootError, type FrontmatterValue } from '@prdm/collab';
 import { parseDocumentName } from './document-name.js';
 import { createDocSizeTracker, type DocSizeTracker } from './doc-size-tracker.js';
+import { defaultLiveYDocCache, type LiveYDocCache } from './reconstruct-ydoc.js';
 
 /** Matches `@hocuspocus/server`'s own `Extension` interface structurally (never imported directly: this
  * module stays decoupled from the exact Hocuspocus version's exported type surface, same reasoning as
@@ -38,6 +39,12 @@ export interface CollabPersistenceDeps {
    * about size tracking); `register-collab-route.ts` passes the one shared instance every other extension
    * reads. */
   sizeTracker?: DocSizeTracker;
+  /** WO-223: evicted on both load and unload — see `./reconstruct-ydoc.js`'s own doc comment for why a
+   * *load* also has to invalidate it (content a live session applies outside the normal sync path, like
+   * WO-139's `pending_editable_patch`, never becomes its own `doc_updates` row). Defaults to the one
+   * shared {@link defaultLiveYDocCache} instance every blame/restore/versions/comments call site reads
+   * through. */
+  liveYDocCache?: LiveYDocCache;
 }
 
 /** `system:engine` per SDD-008 §"Autoría por línea no falsificable": a server-attributed transaction,
@@ -79,7 +86,7 @@ async function replayTail(tx: PgDatabase, document: Y.Doc, documentId: string, s
 }
 
 export function createCollabPersistenceExtension(deps: CollabPersistenceDeps): CollabPersistenceExtension {
-  const { pool, sizeTracker = createDocSizeTracker() } = deps;
+  const { pool, sizeTracker = createDocSizeTracker(), liveYDocCache = defaultLiveYDocCache } = deps;
 
   return {
     extensionName: 'prdm-collab-persistence',
@@ -113,12 +120,18 @@ export function createCollabPersistenceExtension(deps: CollabPersistenceDeps): C
       // computed once here (a normal document load, never on the `beforeSync` hot path) so a server
       // restart never silently resets a near-the-limit document's counter back to zero.
       sizeTracker.seed(parsed.documentId, Y.encodeStateAsUpdate(document).byteLength);
+
+      // WO-223: a live session may have just applied content (the pending-patch branch above) that never
+      // becomes its own `doc_updates` row — any reconstruction cached for this document from before this
+      // load must not keep being served as if it were still current.
+      liveYDocCache.evict(parsed.documentId);
     },
 
     async afterUnloadDocument({ documentName }) {
       const parsed = parseDocumentName(documentName);
       if (!parsed) return;
       sizeTracker.delete(parsed.documentId);
+      liveYDocCache.evict(parsed.documentId);
     },
 
     async onStoreDocument({ documentName, document }) {
