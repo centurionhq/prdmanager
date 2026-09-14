@@ -46,6 +46,9 @@ function buildSeedAuth(env: ReturnType<typeof buildTestServerEnv>, pool: PgTestD
 describe('better-auth mounted behind the SDD-006 allowlist (WO-093)', () => {
   let pg: PgTestDb;
   const env = buildTestServerEnv();
+  // The WO-094 host guard 404s any /api/auth/* request whose Host doesn't match PRDM_PUBLIC_URL;
+  // every inject() below must present it to test allowlist behavior in isolation from that guard.
+  const AUTH_HOST = { host: new URL(env.publicUrl).host };
 
   beforeAll(async () => {
     pg = await openTestPg();
@@ -77,7 +80,7 @@ describe('better-auth mounted behind the SDD-006 allowlist (WO-093)', () => {
     expect(disallowed).toContain('/organization/create');
 
     for (const path of disallowed) {
-      const res = await app.inject({ method: 'POST', url: `/api/auth${path}`, payload: {} });
+      const res = await app.inject({ method: 'POST', url: `/api/auth${path}`, payload: {}, headers: AUTH_HOST });
       expect(res.statusCode, `expected 404 for disallowed path ${path}`).toBe(404);
       expect(res.json()).toEqual({ error: { code: 'not_found', message: 'route not found' } });
     }
@@ -90,7 +93,7 @@ describe('better-auth mounted behind the SDD-006 allowlist (WO-093)', () => {
     const app = buildServer({ env, pool: pg.appPool, mailer, logger: false });
 
     for (const path of ORGANIZATION_MUTATION_PATHS) {
-      const res = await app.inject({ method: 'POST', url: `/api/auth${path}`, payload: {} });
+      const res = await app.inject({ method: 'POST', url: `/api/auth${path}`, payload: {}, headers: AUTH_HOST });
       expect(res.statusCode, `expected 404 for organization mutation path ${path}`).toBe(404);
     }
 
@@ -102,13 +105,14 @@ describe('better-auth mounted behind the SDD-006 allowlist (WO-093)', () => {
     const app = buildServer({ env, pool: pg.appPool, mailer, logger: false });
     const notFoundEnvelope = { error: { code: 'not_found', message: 'route not found' } };
 
-    const getSession = await app.inject({ method: 'GET', url: '/api/auth/get-session' });
+    const getSession = await app.inject({ method: 'GET', url: '/api/auth/get-session', headers: AUTH_HOST });
     expect(getSession.json()).not.toEqual(notFoundEnvelope);
 
     const signIn = await app.inject({
       method: 'POST',
       url: '/api/auth/sign-in/email',
       payload: { email: 'nope@example.test', password: 'whatever12345' },
+      headers: AUTH_HOST,
     });
     expect(signIn.json()).not.toEqual(notFoundEnvelope);
 
@@ -121,7 +125,7 @@ describe('better-auth mounted behind the SDD-006 allowlist (WO-093)', () => {
     const mailer = new FakeMailer();
     const app = buildServer({ env, pool: pg.appPool, mailer, logger: false });
 
-    const res = await app.inject({ method: 'POST', url: '/api/auth/sign-in/email', payload: { email, password } });
+    const res = await app.inject({ method: 'POST', url: '/api/auth/sign-in/email', payload: { email, password }, headers: AUTH_HOST });
 
     expect(res.statusCode).toBe(200);
     expect(res.json().user.email).toBe(email);
@@ -138,6 +142,7 @@ describe('better-auth mounted behind the SDD-006 allowlist (WO-093)', () => {
       method: 'POST',
       url: '/api/auth/sign-up/email',
       payload: { name: 'Nope', email: `${randomUUID()}@example.test`, password: 'whatever12345' },
+      headers: AUTH_HOST,
     });
 
     expect(res.statusCode).toBe(404);
@@ -151,7 +156,7 @@ describe('better-auth mounted behind the SDD-006 allowlist (WO-093)', () => {
     const mailer = new FakeMailer();
     const app = buildServer({ env, pool: pg.appPool, mailer, logger: false });
 
-    const signIn = await app.inject({ method: 'POST', url: '/api/auth/sign-in/email', payload: { email, password } });
+    const signIn = await app.inject({ method: 'POST', url: '/api/auth/sign-in/email', payload: { email, password }, headers: AUTH_HOST });
     const cookie = signIn.headers['set-cookie'];
     expect(cookie).toBeDefined();
     const cookieHeader = (Array.isArray(cookie) ? cookie[0] : cookie)!.split(';')[0]!;

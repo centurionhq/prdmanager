@@ -39,7 +39,10 @@ export interface BuildServerDeps {
  */
 export function buildServer(deps: BuildServerDeps): FastifyInstance {
   const { env, logger = true, clock = () => new Date(), pool, mailer } = deps;
-  const app = Fastify({ logger: resolveLoggerOption(logger) });
+  // Fastify only derives `request.ip`/`request.hostname` from X-Forwarded-* headers when this is
+  // set (SDD-006 §Autenticación): same PRDM_TRUST_PROXY gate as the /api/auth/* Host guard and,
+  // later, @fastify/rate-limit's IP source (WO-095) — one flag, one trust decision, everywhere.
+  const app = Fastify({ logger: resolveLoggerOption(logger), trustProxy: env.trustProxy });
 
   app.decorate('env', env);
   app.decorate('clock', clock);

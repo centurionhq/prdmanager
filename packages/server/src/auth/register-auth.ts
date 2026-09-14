@@ -7,6 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ServerEnv } from '../env.js';
 import { isAllowedAuthPath } from './allowlist.js';
 import type { Auth } from './build-auth.js';
+import { createHostGuardHook } from './host-guard.js';
 import { sendFetchResponse, toFetchRequest } from './to-fetch-request.js';
 
 export const AUTH_PREFIX = '/api/auth';
@@ -27,14 +28,18 @@ function stripAuthPrefix(url: string): string {
 export function registerAuth(app: FastifyInstance, opts: RegisterAuthOptions): void {
   const { auth, env } = opts;
 
-  app.all(`${AUTH_PREFIX}/*`, async (req, reply) => {
-    const pathname = stripAuthPrefix(req.url);
-    if (!isAllowedAuthPath(pathname)) {
-      reply.code(404).send(errorEnvelope('not_found', 'route not found'));
-      return;
-    }
-    const request = toFetchRequest(req, env.publicUrl);
-    const response = await auth.handler(request);
-    await sendFetchResponse(response, reply);
-  });
+  app.all(
+    `${AUTH_PREFIX}/*`,
+    { onRequest: createHostGuardHook(env) },
+    async (req, reply) => {
+      const pathname = stripAuthPrefix(req.url);
+      if (!isAllowedAuthPath(pathname)) {
+        reply.code(404).send(errorEnvelope('not_found', 'route not found'));
+        return;
+      }
+      const request = toFetchRequest(req, env.publicUrl);
+      const response = await auth.handler(request);
+      await sendFetchResponse(response, reply);
+    },
+  );
 }

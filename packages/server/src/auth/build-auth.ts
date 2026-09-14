@@ -21,6 +21,10 @@ const ORG_OPTIONS = { allowUserToCreateOrganization: false, disableOrganizationD
 /** `/update-user` accepts `name` and `image` by default; SDD-006 restricts it to `name` only. */
 const UPDATE_USER_ALLOWED_FIELDS = new Set(['name']);
 
+/** `__Host-` requires Secure, `Path=/` and no `Domain` attribute — all true here (no
+ * `crossSubDomainCookies`), so it's safe to force on every better-auth cookie in production. */
+const HOST_COOKIE_PREFIX = '__Host-';
+
 export interface BuildAuthDeps {
   env: ServerEnv;
   pool: Pool;
@@ -29,16 +33,36 @@ export interface BuildAuthDeps {
   clock?: () => Date;
 }
 
-function restrictUpdateUserFields() {
-  return createAuthMiddleware(async (ctx) => {
-    if (ctx.path !== '/update-user') return;
+/** `/change-password`'s own `revokeOtherSessions` flag is client-controlled and optional; SDD-006
+ * ("cambiar la contraseña revoca las otras sesiones") makes it mandatory, so it's forced server-side
+ * regardless of what the request body says. Combined with the `/update-user` field restriction into
+ * a single `before` hook, since better-auth only accepts one. */
+const beforeHook = createAuthMiddleware(async (ctx) => {
+  if (ctx.path === '/update-user') {
     const body = (ctx.body ?? {}) as Record<string, unknown>;
     for (const key of Object.keys(body)) {
       if (!UPDATE_USER_ALLOWED_FIELDS.has(key)) {
         throw new APIError('BAD_REQUEST', { message: `field "${key}" cannot be changed via update-user` });
       }
     }
-  });
+    return;
+  }
+  if (ctx.path === '/change-password') {
+    (ctx.body as Record<string, unknown>).revokeOtherSessions = true;
+  }
+});
+
+/** Builds the `advanced.cookies` overrides for the `__Host-` prefix (SDD-006 §Autenticación:
+ * "prefijo __Host- en producción"; plain names stay allowed everywhere else, including tests). Each
+ * cookie's `name` is fully qualified here (bypassing better-auth's own `__Secure-` auto-prefixing,
+ * which would otherwise stack in front of `__Host-` and produce an invalid cookie name). */
+function hostPrefixedCookies(): Record<string, { name: string; attributes: Record<string, unknown> }> {
+  const secureAttributes = { secure: true, httpOnly: true, sameSite: 'lax' as const, path: '/' };
+  return {
+    session_token: { name: `${HOST_COOKIE_PREFIX}prdm.session_token`, attributes: secureAttributes },
+    session_data: { name: `${HOST_COOKIE_PREFIX}prdm.session_data`, attributes: secureAttributes },
+    dont_remember: { name: `${HOST_COOKIE_PREFIX}prdm.dont_remember`, attributes: secureAttributes },
+  };
 }
 
 export function buildAuth(deps: BuildAuthDeps) {
@@ -66,10 +90,15 @@ export function buildAuth(deps: BuildAuthDeps) {
     // @fastify/rate-limit (WO-095) is the single rate-limiting layer, sharing one IP source with
     // better-auth (SDD-006 §Autenticación): better-auth's own built-in limiter is disabled.
     rateLimit: { enabled: false },
+    // Verification identifiers (reset-password tokens) are hashed at rest (SDD-006 §Autenticación),
+    // confirmed by the WO-083 learning test to never store the plaintext token.
+    verification: { storeIdentifier: 'hashed' },
     emailAndPassword: {
       enabled: true,
       disableSignUp: true,
       minPasswordLength: 12,
+      // The WO-083 learning test confirms this revokes every session unconditionally.
+      revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
         await mailer.sendMail({
           to: user.email,
@@ -78,12 +107,17 @@ export function buildAuth(deps: BuildAuthDeps) {
         });
       },
     },
+    session: {
+      // No server-side session cache cookie (SDD-006 §Autenticación): every session read hits Postgres.
+      cookieCache: { enabled: false },
+    },
     user: {
       changeEmail: { enabled: false },
       deleteUser: { enabled: false },
     },
     plugins: [organization(ORG_OPTIONS), twoFactor()],
-    hooks: { before: restrictUpdateUserFields() },
+    hooks: { before: beforeHook },
+    advanced: env.nodeEnv === 'production' ? { useSecureCookies: false, cookies: hostPrefixedCookies() } : {},
     logger: { disabled: env.nodeEnv === 'test' },
   });
 }
