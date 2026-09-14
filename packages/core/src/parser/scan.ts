@@ -32,25 +32,24 @@ function extractFrontmatterId(content: string): string | null {
   return null;
 }
 
-/** A subdirectory with its own `.prdm.yaml` is a separate project (SDD-002 "Proyecto activo") and is excluded here in full. */
-export async function scanDocuments(root: string, ignore: string[]): Promise<ScanResult> {
-  const nestedRoots = await findNestedProjectRoots(root, ignore);
-  const effectiveIgnore = [...ignore, ...nestedRoots.map((rel) => `${rel}/**`)];
-  const files = (await fg.glob('**/*.md', { cwd: root, ignore: effectiveIgnore, onlyFiles: true, dot: false, followSymbolicLinks: false })).sort();
+export interface ScannedFile {
+  path: string;
+  content: string;
+}
+
+/**
+ * Pure core of `scanDocuments` (WO-123/SDD-007): given already-read file contents (no filesystem access), parses
+ * each one, collects every frontmatter id (even from documents that fail validation or duplicate, for
+ * id-reservation purposes) and reports duplicates. Callers own reading the files in whatever order they must be
+ * reported in: this function preserves `files`' order for `docs` and `ids`.
+ */
+export function scanContents(files: readonly ScannedFile[]): ScanResult {
   const docs: ParsedDoc[] = [];
   const errors: ScanError[] = [];
   const ids: string[] = [];
   const seen = new Map<string, string>();
 
-  for (const rel of files) {
-    let content: string | null;
-    try {
-      content = await safeReadFile(root, rel, { maxBytes: MAX_DOCUMENT_BYTES });
-    } catch (err) {
-      errors.push({ path: rel, error: (err as Error).message });
-      continue;
-    }
-    if (content === null) continue;
+  for (const { path: rel, content } of files) {
     const frontmatterId = extractFrontmatterId(content);
     if (frontmatterId) ids.push(frontmatterId);
 
@@ -69,4 +68,39 @@ export async function scanDocuments(root: string, ignore: string[]): Promise<Sca
     docs.push(result.doc);
   }
   return { docs, errors, ids };
+}
+
+/** A subdirectory with its own `.prdm.yaml` is a separate project (SDD-002 "Proyecto activo") and is excluded here in full. */
+export async function scanDocuments(root: string, ignore: string[]): Promise<ScanResult> {
+  const nestedRoots = await findNestedProjectRoots(root, ignore);
+  const effectiveIgnore = [...ignore, ...nestedRoots.map((rel) => `${rel}/**`)];
+  const files = (await fg.glob('**/*.md', { cwd: root, ignore: effectiveIgnore, onlyFiles: true, dot: false, followSymbolicLinks: false })).sort();
+
+  const readable: ScannedFile[] = [];
+  const readErrors = new Map<string, string>();
+  for (const rel of files) {
+    let content: string | null;
+    try {
+      content = await safeReadFile(root, rel, { maxBytes: MAX_DOCUMENT_BYTES });
+    } catch (err) {
+      readErrors.set(rel, (err as Error).message);
+      continue;
+    }
+    if (content === null) continue;
+    readable.push({ path: rel, content });
+  }
+
+  const scanned = scanContents(readable);
+  // Merged back into `files`' original order so the combined errors array is identical to the pre-WO-123 single loop.
+  const parseErrors = new Map(scanned.errors.map((e) => [e.path, e.error]));
+  const errors: ScanError[] = [];
+  for (const rel of files) {
+    const readError = readErrors.get(rel);
+    if (readError !== undefined) errors.push({ path: rel, error: readError });
+    else {
+      const parseError = parseErrors.get(rel);
+      if (parseError !== undefined) errors.push({ path: rel, error: parseError });
+    }
+  }
+  return { docs: scanned.docs, errors, ids: scanned.ids };
 }

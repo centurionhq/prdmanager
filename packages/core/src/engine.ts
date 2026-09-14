@@ -10,7 +10,7 @@ import { loadBaseline, saveBaseline } from './sync/baseline.js';
 import { resolveGoverned, type CodeRefState } from './sync/code-refs.js';
 import { dirtyPaths, readCommits } from './sync/git.js';
 import { SymbolCache } from './sync/symbol-cache.js';
-import { acknowledge, detectDrift, type DriftInput, type DriftIssue, type GovernedState, type WorkOrderUpdate } from './sync/monitor.js';
+import { acknowledge, detectDrift, type DriftInput, type DriftIssue, type DriftResult, type GovernedState, type WorkOrderUpdate } from './sync/monitor.js';
 import { resolveInside } from './util/paths.js';
 import { withRepoLock } from './util/lock.js';
 import {
@@ -41,6 +41,26 @@ export interface RefreshReport {
   workOrderUpdates: WorkOrderUpdate[];
   baselineWritten: boolean;
   hasBlockingIssues: boolean;
+}
+
+export interface BuiltRefreshReport {
+  issues: DriftIssue[];
+  governed: (GovernedState & { hash: string | null })[];
+  workOrderUpdates: WorkOrderUpdate[];
+  reviewNeeded: DriftResult['reviewNeeded'];
+  baseline: DriftResult['baseline'];
+}
+
+/**
+ * Pure core shared by `doInspect`/`doRefresh` (WO-123/SDD-007): runs `detectDrift` and stitches each governed
+ * ref's current content hash back onto it (drift's own `governed` doesn't carry it). Does no I/O and never
+ * touches `this`, so it is safe to call from a future `PgProjectEngine` too.
+ */
+export function buildRefreshReport(input: DriftInput): BuiltRefreshReport {
+  const drift = detectDrift(input);
+  const hashByKey = new Map([...input.governed].flatMap(([bp, refs]) => refs.map((r) => [`${bp}|${r.key}`, r.hash] as const)));
+  const governed = drift.governed.map((g) => ({ ...g, hash: hashByKey.get(`${g.blueprintId}|${g.key}`) ?? null }));
+  return { issues: drift.issues, governed, workOrderUpdates: drift.workOrderUpdates, reviewNeeded: drift.reviewNeeded, baseline: drift.baseline };
 }
 
 /** Unlocked operations available inside Engine.transaction(); never call Engine's public methods from within one. */
@@ -225,17 +245,15 @@ export class Engine {
    */
   private async doInspect(): Promise<RefreshReport> {
     const { scan, input } = await this.collect();
-    const drift = detectDrift(input);
-    const hashByKey = new Map([...input.governed].flatMap(([bp, refs]) => refs.map((r) => [`${bp}|${r.key}`, r.hash] as const)));
-    const governed = drift.governed.map((g) => ({ ...g, hash: hashByKey.get(`${g.blueprintId}|${g.key}`) ?? null }));
+    const built = buildRefreshReport(input);
     return {
       documents: scan.docs.length,
       errors: scan.errors,
-      issues: drift.issues,
-      governed,
-      workOrderUpdates: drift.workOrderUpdates,
+      issues: built.issues,
+      governed: built.governed,
+      workOrderUpdates: built.workOrderUpdates,
       baselineWritten: false,
-      hasBlockingIssues: scan.errors.length > 0 || drift.issues.some((i) => i.severity === 'error'),
+      hasBlockingIssues: scan.errors.length > 0 || built.issues.some((i) => i.severity === 'error'),
     };
   }
 
@@ -245,27 +263,24 @@ export class Engine {
     // even if the snapshot write or a status update fails later (WO-023's atomic-transaction guarantees are
     // about documents, not this purely-derived, self-healing cache).
     await symbolCache.saveIfDirty(this.config.root);
-    const drift = detectDrift(input);
+    const built = buildRefreshReport(input);
 
-    const { applied, failures } = await this.applyStatusUpdates(drift.workOrderUpdates);
+    const { applied, failures } = await this.applyStatusUpdates(built.workOrderUpdates);
     const statusById = new Map(applied.map((u) => [u.id, u.to]));
     const docs = scan.docs.map((d) => withStatus(d, statusById.get(d.node.id)));
-    const issues = [...drift.issues, ...failures];
-
-    const hashByKey = new Map([...input.governed].flatMap(([bp, refs]) => refs.map((r) => [`${bp}|${r.key}`, r.hash] as const)));
-    const governed = drift.governed.map((g) => ({ ...g, hash: hashByKey.get(`${g.blueprintId}|${g.key}`) ?? null }));
+    const issues = [...built.issues, ...failures];
 
     // Snapshot before baseline: if writeSnapshot throws (e.g. the store is unreachable), the baseline must stay
     // untouched so a retry recomputes the exact same drift instead of silently accepting it as newly acknowledged.
-    await this.store.writeSnapshot({ docs, governed, reviewNeeded: drift.reviewNeeded, commits: input.commits });
+    await this.store.writeSnapshot({ docs, governed: built.governed, reviewNeeded: built.reviewNeeded, commits: input.commits });
     // A document that temporarily fails to parse would otherwise be pruned from the baseline and come back as "new" (drift silently accepted).
-    const baselineWritten = scan.errors.length === 0 ? await saveBaseline(this.config.root, drift.baseline) : false;
+    const baselineWritten = scan.errors.length === 0 ? await saveBaseline(this.config.root, built.baseline) : false;
 
     return {
       documents: docs.length,
       errors: scan.errors,
       issues,
-      governed,
+      governed: built.governed,
       workOrderUpdates: applied,
       baselineWritten,
       hasBlockingIssues: scan.errors.length > 0 || issues.some((i) => i.severity === 'error'),
