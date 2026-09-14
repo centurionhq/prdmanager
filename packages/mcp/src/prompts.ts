@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { DRAFT_KINDS, docId, getWorkOrderContext, templateFor, type DraftKind } from '@prdm/core';
-import type { PrdmDeps } from './deps.js';
+import { requireAuthoring, type PrdmDeps } from './deps.js';
 import { ensureRecovered } from './recover.js';
 import { jsonText } from './shared.js';
 
@@ -58,7 +58,7 @@ async function projectContextBlock(deps: PrdmDeps, parentId?: string): Promise<s
   const subgraph = await deps.store.fullGraph();
   const relevant = subgraph.nodes.filter((n) => n.label === 'Feature' || n.label === 'Blueprint').slice(0, PROJECT_CONTEXT_CAP);
   const featureLines = relevant.map((n) => escapeFenceChars(`- ${n.ref}: ${n.title} (${n.status ?? 'unknown'})`));
-  const drafts = deps.authoring.list();
+  const drafts = requireAuthoring(deps).list();
   const draftLines = drafts.map((d) => escapeFenceChars(`- ${d.draftId}: ${d.kind} ${d.targetId} (revision ${d.revision})`));
 
   const tag = fenceTag('project_context');

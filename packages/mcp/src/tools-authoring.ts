@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { closureReadiness, docId, DOC_KINDS, DRAFT_KINDS, DraftValidationError, type DocKind, type DraftKind } from '@prdm/core';
-import type { PrdmDeps } from './deps.js';
+import { requireAuthoring, type PrdmDeps } from './deps.js';
 import { DESTRUCTIVE_IDEMPOTENT, jsonResult, jsonText, READ_ONLY, safeReadTool, safeTool, WRITE_ONCE } from './shared.js';
 
 const draftKindEnum = z.enum(DRAFT_KINDS as unknown as [string, ...string[]]);
@@ -62,7 +62,7 @@ export async function buildProjectSummary(deps: PrdmDeps): Promise<ProjectSummar
     folders: deps.config.folders,
     lifecycle: LIFECYCLE_RULES,
     counts,
-    openDrafts: deps.authoring.list().length,
+    openDrafts: requireAuthoring(deps).list().length,
     draftableKinds: DRAFT_KINDS,
   };
 }
@@ -114,7 +114,7 @@ export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void 
         expected_revision?: number;
       }) =>
         jsonResult({
-          ...(await deps.authoring.draft({
+          ...(await requireAuthoring(deps).draft({
             kind: args.kind as DraftKind,
             title: args.title,
             body: args.body,
@@ -135,7 +135,7 @@ export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void 
       inputSchema: { draft_id: z.string().min(1) },
       annotations: { title: 'Validate draft', ...READ_ONLY },
     },
-    safeReadTool(deps, async ({ draft_id }: { draft_id: string }) => jsonResult({ ...(await deps.authoring.validate(draft_id)) })),
+    safeReadTool(deps, async ({ draft_id }: { draft_id: string }) => jsonResult({ ...(await requireAuthoring(deps).validate(draft_id)) })),
   );
 
   server.registerTool(
@@ -149,7 +149,7 @@ export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void 
     },
     safeTool(async ({ draft_id, expected_revision }: { draft_id: string; expected_revision: number }) => {
       try {
-        return jsonResult({ ...(await deps.authoring.commit(draft_id, expected_revision)) });
+        return jsonResult({ ...(await requireAuthoring(deps).commit(draft_id, expected_revision)) });
       } catch (err) {
         if (err instanceof DraftValidationError) return draftValidationErrorResult(err);
         throw err;
@@ -165,7 +165,7 @@ export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void 
       inputSchema: {},
       annotations: { title: 'List drafts', ...READ_ONLY },
     },
-    safeReadTool(deps, async () => jsonResult({ drafts: deps.authoring.list() })),
+    safeReadTool(deps, async () => jsonResult({ drafts: requireAuthoring(deps).list() })),
   );
 
   server.registerTool(
@@ -176,7 +176,7 @@ export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void 
       inputSchema: { draft_id: z.string().min(1) },
       annotations: { title: 'Discard draft', ...DESTRUCTIVE_IDEMPOTENT },
     },
-    safeTool(async ({ draft_id }: { draft_id: string }) => jsonResult({ discarded: await deps.authoring.discard(draft_id) })),
+    safeTool(async ({ draft_id }: { draft_id: string }) => jsonResult({ discarded: await requireAuthoring(deps).discard(draft_id) })),
   );
 
   server.registerTool(
