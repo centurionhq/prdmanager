@@ -3,16 +3,16 @@
  * per-document authorization (SDD-008 §"Servidor de tiempo real"): a real Fastify server listening on an
  * OS-assigned port, real `ws`/`HocuspocusProvider` clients, and a real Postgres test database.
  */
-import { randomUUID } from 'node:crypto';
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import { createOrganizationFixture, createProjectFixture, createMemberFixture, openTestPg, type PgTestDb } from '@prdm/testkit';
-import * as Y from 'yjs';
 import WebSocket from 'ws';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer, type BuildServerDeps } from '../../src/build-server.js';
 import { FakeMailer } from '../../src/mailer.js';
 import { ISOLATION_ORIGIN, ISOLATION_TEST_ENV, signIn } from '../isolation/fixtures.js';
 import { seedUser } from '../helpers/seed-auth.js';
+import { insertCollabDocumentFixture } from './document-fixture.js';
+import { makeCollabProvider, onceAuthenticationFailed, onceSynced } from './ws-test-helpers.js';
 
 type BuiltApp = ReturnType<typeof buildServer>;
 
@@ -25,48 +25,8 @@ async function startApp(deps: Partial<BuildServerDeps> = {}): Promise<{ app: Bui
   return { app, url: `ws://127.0.0.1:${address.port}/collab` };
 }
 
-function headeredPolyfill(headers: Record<string, string>): typeof WebSocket {
-  return class extends WebSocket {
-    constructor(address: string | URL) {
-      super(address, [], { headers });
-    }
-  } as unknown as typeof WebSocket;
-}
-
-function makeProvider(url: string, name: string, headers: Record<string, string>): HocuspocusProvider {
-  const config: object = { url, name, document: new Y.Doc({ gc: false }), WebSocketPolyfill: headeredPolyfill(headers) };
-  return new HocuspocusProvider(config as ConstructorParameters<typeof HocuspocusProvider>[0]);
-}
-
-function onceSynced(provider: HocuspocusProvider): Promise<void> {
-  return new Promise((resolve) => {
-    const handler = () => {
-      provider.off('synced', handler);
-      resolve();
-    };
-    provider.on('synced', handler);
-  });
-}
-
-function onceAuthenticationFailed(provider: HocuspocusProvider): Promise<{ reason: string }> {
-  return new Promise((resolve) => {
-    const handler = (data: { reason: string }) => {
-      provider.off('authenticationFailed', handler);
-      resolve(data);
-    };
-    provider.on('authenticationFailed', handler);
-  });
-}
-
-async function insertDocument(pg: PgTestDb, overrides: { orgId: string; projectId: string; origin?: string; workflowState?: string }): Promise<string> {
-  const id = randomUUID();
-  await pg.ownerPool.query(
-    `INSERT INTO "documents" (id, org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state)
-     VALUES ($1, $2, $3, $4, 'PRD', 'Test doc', 'docs/prd/PRD-001-test.md', $5, $6)`,
-    [id, overrides.orgId, overrides.projectId, `PRD-${id.slice(0, 8)}`, overrides.origin ?? 'collab', overrides.workflowState ?? 'draft'],
-  );
-  return id;
-}
+const makeProvider = makeCollabProvider;
+const insertDocument = insertCollabDocumentFixture;
 
 describe('/collab upgrade + onAuthenticate (SDD-008, WO-146)', () => {
   let pg: PgTestDb;
