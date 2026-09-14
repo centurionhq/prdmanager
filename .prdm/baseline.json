@@ -271,13 +271,15 @@
     "ADR-005": {
       ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
       ".nvmrc": "07a8533ef4d8265fe6c7e676c7e8c265075888ba6046b5755df43b1cd9f6fb92",
-      "package-lock.json": "3ae7143138c6a10db4961d59fe9016d0cf2c30278e11e9dd648a4c1c0969c8fe",
+      "package-lock.json": "3de453b0e44b200131472b6bf35c659064bfd1f706104c4fb06f695a468aed4e",
       "package.json": "14b216d694aaccb1d3dd7820edabe84cdfd44fdd44d6529326f44e185e0c845f",
       "packages/app/package.json": "afe53f096a761f46857142b0c3976dfa535f0c34fe52967ad2c9988258932650",
       "packages/app/tsconfig.json": "9938b65436a42125084981d96a36405e0c6c1974f70a8b50b54bc805e1f5037d",
       "packages/app/tsconfig.test.json": "b25c6085b4658332746ed87f7fda357733b46c6c8d14efa12a6c11896ffd3a7e",
       "packages/cli/package.json": "88f04a647427411f2950efcf7b0f2253c5a3b6827ec862c768933b428eff6dd2",
       "packages/cli/tsconfig.json": "d16fcefbf9784f19ddeaf9cd8d27819d55a602091c24696fb479f4cef2e974e7",
+      "packages/collab/package.json": "5c70d5e56ccbb97071995f23a8897cc458001cbfb7fe9a3fb9b370d621cbd529",
+      "packages/collab/tsconfig.json": "4c83a6083cdd2e8a4a3cbdc83d2be0bd645c759f5cb2f98c3f44b5421ccab3bc",
       "packages/contracts/package.json": "eb1000d3aa1fdaa319ef0b9a6dfa8db4cd3b48bda7f71312fb2607c8ecbd6df2",
       "packages/contracts/tsconfig.json": "4c83a6083cdd2e8a4a3cbdc83d2be0bd645c759f5cb2f98c3f44b5421ccab3bc",
       "packages/core/package.json": "3c775fda3a9250a6edc524684d68b5ac6530957b64e701f0bd1a3b0615cd2d79",
@@ -287,7 +289,7 @@
       "packages/mcp/package.json": "9f52932c447420fe9976aebbd36d7bd73204f32e778c670d740ed53f494f1190",
       "packages/mcp/tsconfig.json": "d16fcefbf9784f19ddeaf9cd8d27819d55a602091c24696fb479f4cef2e974e7",
       "packages/server/package.json": "6f05304c9f1f3566952139f153bd88f3ea9cc178a17c024a2ddffe96826fd1dd",
-      "packages/server/tsconfig.json": "486e6c23b94d4f04c8ab71ee87c961600506a52a7db612c1a216641c9ccb4213",
+      "packages/server/tsconfig.json": "06bf9f05da271777d8cc847d24c680518fe0f71b34d8a711c4d9c9855cebc206",
       "packages/testkit/package.json": "018d2863cea429aec10127ce35aef4c12ab74d62d5048297325dd634b47162e4",
       "packages/ui/package.json": "b7d894e3bc4a80aa9b997c3fe82c2035bb7a0274ba1e9d2107d8ff14cbcc6786",
       "packages/ui/tsconfig.json": "84c43b202cb9bce344ef9d85a72b3e5e14316a02e720e57468912c3a163e89e5",
@@ -322,7 +324,7 @@
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957"
     },
     "ADR-006": {
-      "package-lock.json": "3ae7143138c6a10db4961d59fe9016d0cf2c30278e11e9dd648a4c1c0969c8fe",
+      "package-lock.json": "3de453b0e44b200131472b6bf35c659064bfd1f706104c4fb06f695a468aed4e",
       "package.json": "14b216d694aaccb1d3dd7820edabe84cdfd44fdd44d6529326f44e185e0c845f",
       "packages/server/package.json": "6f05304c9f1f3566952139f153bd88f3ea9cc178a17c024a2ddffe96826fd1dd",
       "packages/server/scripts/dev.d.mts": "b2a9f445cb15b66c8947e297ec5e86ab205fd67946c4e7f8d4dc0a2012477c3e",
@@ -330,10 +332,10 @@
       "packages/server/tests/learning/better-auth-drizzle.test.ts": "325beef4eca60f5055d394de77f1be172fb596f5d9e0364e799ffafbf1eeae11",
       "packages/server/tests/learning/hocuspocus-fastify.test.ts": "3ef2cc4eb120ba506578436ad9c59f6914595296484d760b4bd5b6c1e5c7ed25",
       "packages/server/tests/learning/mcp-streamable-http.test.ts": "81d219b39c4332e4c49eab561b0a9b498cf97cc6e4109fb1a5e97ed54c9fb759",
-      "packages/server/tsconfig.json": "486e6c23b94d4f04c8ab71ee87c961600506a52a7db612c1a216641c9ccb4213",
-      "tsconfig.json": "233c69d85a26995d0619848ca92ff132f0aa77f6b7d15e41abe2e0c8943a7ca0",
-      "tsconfig.test.json": "9e997a37f5907db89938823caeaa1b9b6b7781ecc63a1e4c6533a8dc8c4a5d9f",
-      "vitest.config.ts": "6c08883ffe01ee7e68ea4557597ac7492ca6bef28b411d0d15238b4cbe87b5d4"
+      "packages/server/tsconfig.json": "06bf9f05da271777d8cc847d24c680518fe0f71b34d8a711c4d9c9855cebc206",
+      "tsconfig.json": "c3d1ca643ab62f4a3d8da09834191ad876007c4425ca349355cf0bba873fa21f",
+      "tsconfig.test.json": "022bf36e3fc9c22d8941f589c978c25a7b343ff4d6ee08d70a6740cb32c84f55",
+      "vitest.config.ts": "cb32a1ee1afc88c1dd1c74206df4c5f63de4b6102c48617274e253bb58f7850c"
     },
     "SDD-001": {
       "packages/cli/src/commands/artifacts.ts": "9c2b3bb39b25ce062b110fde851de2395fa0c362f6dfe84da89efa8044f2f6d7",
@@ -438,6 +440,8 @@
       "packages/cli/src/scheduler.ts": "c33685c3870f9c9b2c9fde031cc9371ee0e334a1b25ef7690953338dc6a82f16",
       "packages/cli/src/watch-ignore.ts": "26c5c6ffdfe55530f45b579b6c7842e1a69e5cb7d7b244b877aec419aef0a783",
       "packages/cli/tsconfig.json": "d16fcefbf9784f19ddeaf9cd8d27819d55a602091c24696fb479f4cef2e974e7",
+      "packages/collab/package.json": "5c70d5e56ccbb97071995f23a8897cc458001cbfb7fe9a3fb9b370d621cbd529",
+      "packages/collab/tsconfig.json": "4c83a6083cdd2e8a4a3cbdc83d2be0bd645c759f5cb2f98c3f44b5421ccab3bc",
       "packages/contracts/package.json": "eb1000d3aa1fdaa319ef0b9a6dfa8db4cd3b48bda7f71312fb2607c8ecbd6df2",
       "packages/contracts/tsconfig.json": "4c83a6083cdd2e8a4a3cbdc83d2be0bd645c759f5cb2f98c3f44b5421ccab3bc",
       "packages/core/package.json": "3c775fda3a9250a6edc524684d68b5ac6530957b64e701f0bd1a3b0615cd2d79",
@@ -522,7 +526,7 @@
       "packages/mcp/src/tools.ts": "d03a843be7a81ac8088e8c3bcc3f215e5bc1ef491299e160d40854c8a2cf3519",
       "packages/mcp/tsconfig.json": "d16fcefbf9784f19ddeaf9cd8d27819d55a602091c24696fb479f4cef2e974e7",
       "packages/server/package.json": "6f05304c9f1f3566952139f153bd88f3ea9cc178a17c024a2ddffe96826fd1dd",
-      "packages/server/tsconfig.json": "486e6c23b94d4f04c8ab71ee87c961600506a52a7db612c1a216641c9ccb4213",
+      "packages/server/tsconfig.json": "06bf9f05da271777d8cc847d24c680518fe0f71b34d8a711c4d9c9855cebc206",
       "packages/testkit/package.json": "018d2863cea429aec10127ce35aef4c12ab74d62d5048297325dd634b47162e4",
       "packages/testkit/src/db.ts": "8ad2463df8b3d8225a3c369795ff79b5eeddb599e67713a4624064063e75554f",
       "packages/testkit/src/docs.ts": "541007690fa52cf7e3b3c494461b241f9c0d2944a3b5ee780bca6f5b9c355c36",
@@ -541,9 +545,9 @@
       "packages/web/tsconfig.server.json": "a6a64bb73e91813583c363a768f64bfc6c28bfaecfd219d1bd4bff6bdbad9a38",
       "packages/web/tsconfig.test-client.json": "c2387a60a63ad1703cc89302754d4ee4e95f1911eaff5c8f63c4529faded6ad6",
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957",
-      "tsconfig.json": "233c69d85a26995d0619848ca92ff132f0aa77f6b7d15e41abe2e0c8943a7ca0",
-      "tsconfig.test.json": "9e997a37f5907db89938823caeaa1b9b6b7781ecc63a1e4c6533a8dc8c4a5d9f",
-      "vitest.config.ts": "6c08883ffe01ee7e68ea4557597ac7492ca6bef28b411d0d15238b4cbe87b5d4"
+      "tsconfig.json": "c3d1ca643ab62f4a3d8da09834191ad876007c4425ca349355cf0bba873fa21f",
+      "tsconfig.test.json": "022bf36e3fc9c22d8941f589c978c25a7b343ff4d6ee08d70a6740cb32c84f55",
+      "vitest.config.ts": "cb32a1ee1afc88c1dd1c74206df4c5f63de4b6102c48617274e253bb58f7850c"
     },
     "SDD-003": {
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
@@ -575,7 +579,7 @@
       ".env.example": "e8737f31ef0a497ffa354f32cad8cb47784de0a3ec2e1981226bc3ddfb7ef4a9",
       ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
-      "package-lock.json": "3ae7143138c6a10db4961d59fe9016d0cf2c30278e11e9dd648a4c1c0969c8fe",
+      "package-lock.json": "3de453b0e44b200131472b6bf35c659064bfd1f706104c4fb06f695a468aed4e",
       "package.json": "14b216d694aaccb1d3dd7820edabe84cdfd44fdd44d6529326f44e185e0c845f",
       "packages/testkit/src/db.ts": "8ad2463df8b3d8225a3c369795ff79b5eeddb599e67713a4624064063e75554f",
       "packages/testkit/src/docs.ts": "541007690fa52cf7e3b3c494461b241f9c0d2944a3b5ee780bca6f5b9c355c36",
@@ -641,9 +645,9 @@
       "packages/web/vite.config.ts": "bafbe6bc381c457a48b6ea79ed4e73f487b0d01de1493a587c2ae1a83245baf7",
       "README.md": "625fa6faa60e555f96d54e159c53688cc7314f6913dfbbeb4cca232667a686e1",
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957",
-      "tsconfig.json": "233c69d85a26995d0619848ca92ff132f0aa77f6b7d15e41abe2e0c8943a7ca0",
-      "tsconfig.test.json": "9e997a37f5907db89938823caeaa1b9b6b7781ecc63a1e4c6533a8dc8c4a5d9f",
-      "vitest.config.ts": "6c08883ffe01ee7e68ea4557597ac7492ca6bef28b411d0d15238b4cbe87b5d4"
+      "tsconfig.json": "c3d1ca643ab62f4a3d8da09834191ad876007c4425ca349355cf0bba873fa21f",
+      "tsconfig.test.json": "022bf36e3fc9c22d8941f589c978c25a7b343ff4d6ee08d70a6740cb32c84f55",
+      "vitest.config.ts": "cb32a1ee1afc88c1dd1c74206df4c5f63de4b6102c48617274e253bb58f7850c"
     },
     "SDD-006": {
       ".env.example": "e8737f31ef0a497ffa354f32cad8cb47784de0a3ec2e1981226bc3ddfb7ef4a9",
@@ -651,7 +655,7 @@
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
       "docker-compose.yml": "005201727bc885d15c18c36b8a6289bcd3e2a0acc80c48d0e10fa6f3fdf408d0",
       "docker/postgres/init/01-roles.sh": "debbcd64f4e3b5fcbd30c5ef6b35f6066d9239bb42c59844b9a2d2292d8fa6b9",
-      "package-lock.json": "3ae7143138c6a10db4961d59fe9016d0cf2c30278e11e9dd648a4c1c0969c8fe",
+      "package-lock.json": "3de453b0e44b200131472b6bf35c659064bfd1f706104c4fb06f695a468aed4e",
       "package.json": "14b216d694aaccb1d3dd7820edabe84cdfd44fdd44d6529326f44e185e0c845f",
       "packages/app/index.html": "6772995590f925b8fd47234c7f7be818893319dc695e6499b65841049483c341",
       "packages/app/package.json": "afe53f096a761f46857142b0c3976dfa535f0c34fe52967ad2c9988258932650",
@@ -903,7 +907,7 @@
       "packages/server/tests/unit/route-access-registry.test.ts": "93933b7083d3837109258c7ed48291d5ab1322ddb682b76392697311984aa709",
       "packages/server/tests/unit/security-headers.test.ts": "4626d2a9559800eb3e85d11277566862ae557e2b365f7ca46d043ccb74a9dde3",
       "packages/server/tests/unit/static-serving.test.ts": "fe5b750ba488d49305771d03f5ce30694fb7a5e2f57abb3e7d1546cd8fa9141c",
-      "packages/server/tsconfig.json": "486e6c23b94d4f04c8ab71ee87c961600506a52a7db612c1a216641c9ccb4213",
+      "packages/server/tsconfig.json": "06bf9f05da271777d8cc847d24c680518fe0f71b34d8a711c4d9c9855cebc206",
       "packages/testkit/package.json": "018d2863cea429aec10127ce35aef4c12ab74d62d5048297325dd634b47162e4",
       "packages/testkit/src/db.ts": "8ad2463df8b3d8225a3c369795ff79b5eeddb599e67713a4624064063e75554f",
       "packages/testkit/src/docs.ts": "541007690fa52cf7e3b3c494461b241f9c0d2944a3b5ee780bca6f5b9c355c36",
@@ -1004,14 +1008,14 @@
       "packages/web/vite.config.ts": "bafbe6bc381c457a48b6ea79ed4e73f487b0d01de1493a587c2ae1a83245baf7",
       "README.md": "625fa6faa60e555f96d54e159c53688cc7314f6913dfbbeb4cca232667a686e1",
       "tsconfig.base.json": "bf4f09afb483f68b287e8c7a1c75b086e19a24f2fbd3e85470e8c7ec6c59d957",
-      "tsconfig.json": "233c69d85a26995d0619848ca92ff132f0aa77f6b7d15e41abe2e0c8943a7ca0",
-      "tsconfig.test.json": "9e997a37f5907db89938823caeaa1b9b6b7781ecc63a1e4c6533a8dc8c4a5d9f",
-      "vitest.config.ts": "6c08883ffe01ee7e68ea4557597ac7492ca6bef28b411d0d15238b4cbe87b5d4"
+      "tsconfig.json": "c3d1ca643ab62f4a3d8da09834191ad876007c4425ca349355cf0bba873fa21f",
+      "tsconfig.test.json": "022bf36e3fc9c22d8941f589c978c25a7b343ff4d6ee08d70a6740cb32c84f55",
+      "vitest.config.ts": "cb32a1ee1afc88c1dd1c74206df4c5f63de4b6102c48617274e253bb58f7850c"
     },
     "SDD-007": {
       "docs/model/graph-model.cypher": "99e4c49ad68ff543ebf442a96bbe07a5dbe885ebc5dbe5fa3c7b26ef070ab409",
       "docs/model/graph-model.json": "b9ec3e9368e0e5f54e7a7db57ede1ea710f4095c99da96df04b27cf3dfcf7602",
-      "package-lock.json": "3ae7143138c6a10db4961d59fe9016d0cf2c30278e11e9dd648a4c1c0969c8fe",
+      "package-lock.json": "3de453b0e44b200131472b6bf35c659064bfd1f706104c4fb06f695a468aed4e",
       "package.json": "14b216d694aaccb1d3dd7820edabe84cdfd44fdd44d6529326f44e185e0c845f",
       "packages/app/package.json": "afe53f096a761f46857142b0c3976dfa535f0c34fe52967ad2c9988258932650",
       "packages/app/src/api/admin.ts": "7504b13678ae1327faa7c0e2430a429d4daa311369137583104d91c35d26c70c",
@@ -1383,12 +1387,12 @@
       "packages/web/src/server.ts": "9b0aea69f69973fe8ed60fc226ae75601c0888991ccc08f749578cd77d809703",
       "packages/web/src/summary.ts": "d2e66b70b8d75bb807e476f82527bb929891de3df5690984d665e8cfb99751dc",
       "scripts/validate-graph-model.mjs": "69e3cebb068a1e67c659eec44ab07863cae026ef70727719de84029711c20614",
-      "tsconfig.test.json": "9e997a37f5907db89938823caeaa1b9b6b7781ecc63a1e4c6533a8dc8c4a5d9f",
-      "vitest.config.ts": "6c08883ffe01ee7e68ea4557597ac7492ca6bef28b411d0d15238b4cbe87b5d4"
+      "tsconfig.test.json": "022bf36e3fc9c22d8941f589c978c25a7b343ff4d6ee08d70a6740cb32c84f55",
+      "vitest.config.ts": "cb32a1ee1afc88c1dd1c74206df4c5f63de4b6102c48617274e253bb58f7850c"
     },
     "SDD-008": {
       ".env.example": "e8737f31ef0a497ffa354f32cad8cb47784de0a3ec2e1981226bc3ddfb7ef4a9",
-      "package-lock.json": "3ae7143138c6a10db4961d59fe9016d0cf2c30278e11e9dd648a4c1c0969c8fe",
+      "package-lock.json": "3de453b0e44b200131472b6bf35c659064bfd1f706104c4fb06f695a468aed4e",
       "package.json": "14b216d694aaccb1d3dd7820edabe84cdfd44fdd44d6529326f44e185e0c845f",
       "packages/app/package.json": "afe53f096a761f46857142b0c3976dfa535f0c34fe52967ad2c9988258932650",
       "packages/app/src/api/admin.ts": "7504b13678ae1327faa7c0e2430a429d4daa311369137583104d91c35d26c70c",
@@ -1453,6 +1457,13 @@
       "packages/app/tsconfig.json": "9938b65436a42125084981d96a36405e0c6c1974f70a8b50b54bc805e1f5037d",
       "packages/app/tsconfig.test.json": "b25c6085b4658332746ed87f7fda357733b46c6c8d14efa12a6c11896ffd3a7e",
       "packages/app/vite.config.ts": "54554cfc95002aea8a11ae50d119eef730345ee50b389c2b75fe96cfc4109215",
+      "packages/collab/package.json": "5c70d5e56ccbb97071995f23a8897cc458001cbfb7fe9a3fb9b370d621cbd529",
+      "packages/collab/src/index.ts": "2a12a9f9b7647a524f45a0646ebfacebfc18b0d90d23dd022d158e7e4783ff0a",
+      "packages/collab/src/projection.ts": "7f18388cae44e1b55cad16bf7ec20f007465b4543fd290c786dfc72c52340de5",
+      "packages/collab/src/schema.ts": "9a1373d538af6813b0369c5c1c416d81d98e5bf1e925c9dc45cb3a3d0baae6bc",
+      "packages/collab/tests/unit/projection.test.ts": "c6cd8783ead2503b7dc8c9d34d0237594ca40045d87b8dd4e4a2334d32249c03",
+      "packages/collab/tests/unit/schema.test.ts": "5ad937bea5b4af984b0cdd3de8e10de946a7858c8f99ed79b21cacd973578457",
+      "packages/collab/tsconfig.json": "4c83a6083cdd2e8a4a3cbdc83d2be0bd645c759f5cb2f98c3f44b5421ccab3bc",
       "packages/contracts/src/documents.ts": "567659937fef9af8399210c7aa0dcb43ba51527b7c09683764fe500cdae83f19",
       "packages/contracts/src/drift.ts": "388c16fc7a56b0d7d5d6df22a8da65c383761655c6b9095133a49178d69bdd92",
       "packages/contracts/src/error-envelope.ts": "890cad3c40415661009c613a1e3602d07fb7ee7f6708423511d41700f2ce0c66",
@@ -1630,15 +1641,15 @@
       "packages/server/tests/unit/route-access-registry.test.ts": "93933b7083d3837109258c7ed48291d5ab1322ddb682b76392697311984aa709",
       "packages/server/tests/unit/security-headers.test.ts": "4626d2a9559800eb3e85d11277566862ae557e2b365f7ca46d043ccb74a9dde3",
       "packages/server/tests/unit/static-serving.test.ts": "fe5b750ba488d49305771d03f5ce30694fb7a5e2f57abb3e7d1546cd8fa9141c",
-      "packages/server/tsconfig.json": "486e6c23b94d4f04c8ab71ee87c961600506a52a7db612c1a216641c9ccb4213",
+      "packages/server/tsconfig.json": "06bf9f05da271777d8cc847d24c680518fe0f71b34d8a711c4d9c9855cebc206",
       "README.md": "625fa6faa60e555f96d54e159c53688cc7314f6913dfbbeb4cca232667a686e1",
-      "tsconfig.json": "233c69d85a26995d0619848ca92ff132f0aa77f6b7d15e41abe2e0c8943a7ca0",
-      "tsconfig.test.json": "9e997a37f5907db89938823caeaa1b9b6b7781ecc63a1e4c6533a8dc8c4a5d9f",
-      "vitest.config.ts": "6c08883ffe01ee7e68ea4557597ac7492ca6bef28b411d0d15238b4cbe87b5d4"
+      "tsconfig.json": "c3d1ca643ab62f4a3d8da09834191ad876007c4425ca349355cf0bba873fa21f",
+      "tsconfig.test.json": "022bf36e3fc9c22d8941f589c978c25a7b343ff4d6ee08d70a6740cb32c84f55",
+      "vitest.config.ts": "cb32a1ee1afc88c1dd1c74206df4c5f63de4b6102c48617274e253bb58f7850c"
     },
     "SDD-009": {
       ".env.example": "e8737f31ef0a497ffa354f32cad8cb47784de0a3ec2e1981226bc3ddfb7ef4a9",
-      "package-lock.json": "3ae7143138c6a10db4961d59fe9016d0cf2c30278e11e9dd648a4c1c0969c8fe",
+      "package-lock.json": "3de453b0e44b200131472b6bf35c659064bfd1f706104c4fb06f695a468aed4e",
       "package.json": "14b216d694aaccb1d3dd7820edabe84cdfd44fdd44d6529326f44e185e0c845f",
       "packages/app/package.json": "afe53f096a761f46857142b0c3976dfa535f0c34fe52967ad2c9988258932650",
       "packages/app/src/api/admin.ts": "7504b13678ae1327faa7c0e2430a429d4daa311369137583104d91c35d26c70c",
@@ -1702,6 +1713,11 @@
       "packages/app/tests/unit/request.test.ts": "195638fb16fb746b0abde01245694d0a9d560ea8a1547db9f05dfb1abb5873a8",
       "packages/app/tsconfig.json": "9938b65436a42125084981d96a36405e0c6c1974f70a8b50b54bc805e1f5037d",
       "packages/app/tsconfig.test.json": "b25c6085b4658332746ed87f7fda357733b46c6c8d14efa12a6c11896ffd3a7e",
+      "packages/collab/src/index.ts": "2a12a9f9b7647a524f45a0646ebfacebfc18b0d90d23dd022d158e7e4783ff0a",
+      "packages/collab/src/projection.ts": "7f18388cae44e1b55cad16bf7ec20f007465b4543fd290c786dfc72c52340de5",
+      "packages/collab/src/schema.ts": "9a1373d538af6813b0369c5c1c416d81d98e5bf1e925c9dc45cb3a3d0baae6bc",
+      "packages/collab/tests/unit/projection.test.ts": "c6cd8783ead2503b7dc8c9d34d0237594ca40045d87b8dd4e4a2334d32249c03",
+      "packages/collab/tests/unit/schema.test.ts": "5ad937bea5b4af984b0cdd3de8e10de946a7858c8f99ed79b21cacd973578457",
       "packages/contracts/src/documents.ts": "567659937fef9af8399210c7aa0dcb43ba51527b7c09683764fe500cdae83f19",
       "packages/contracts/src/drift.ts": "388c16fc7a56b0d7d5d6df22a8da65c383761655c6b9095133a49178d69bdd92",
       "packages/contracts/src/error-envelope.ts": "890cad3c40415661009c613a1e3602d07fb7ee7f6708423511d41700f2ce0c66",
@@ -1892,14 +1908,14 @@
       "packages/server/tests/unit/route-access-registry.test.ts": "93933b7083d3837109258c7ed48291d5ab1322ddb682b76392697311984aa709",
       "packages/server/tests/unit/security-headers.test.ts": "4626d2a9559800eb3e85d11277566862ae557e2b365f7ca46d043ccb74a9dde3",
       "packages/server/tests/unit/static-serving.test.ts": "fe5b750ba488d49305771d03f5ce30694fb7a5e2f57abb3e7d1546cd8fa9141c",
-      "packages/server/tsconfig.json": "486e6c23b94d4f04c8ab71ee87c961600506a52a7db612c1a216641c9ccb4213",
+      "packages/server/tsconfig.json": "06bf9f05da271777d8cc847d24c680518fe0f71b34d8a711c4d9c9855cebc206",
       "README.md": "625fa6faa60e555f96d54e159c53688cc7314f6913dfbbeb4cca232667a686e1"
     },
     "SDD-010": {
       ".env.example": "e8737f31ef0a497ffa354f32cad8cb47784de0a3ec2e1981226bc3ddfb7ef4a9",
       ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
-      "package-lock.json": "3ae7143138c6a10db4961d59fe9016d0cf2c30278e11e9dd648a4c1c0969c8fe",
+      "package-lock.json": "3de453b0e44b200131472b6bf35c659064bfd1f706104c4fb06f695a468aed4e",
       "package.json": "14b216d694aaccb1d3dd7820edabe84cdfd44fdd44d6529326f44e185e0c845f",
       "packages/app/src/api/admin.ts": "7504b13678ae1327faa7c0e2430a429d4daa311369137583104d91c35d26c70c",
       "packages/app/src/api/api-client-error.ts": "45f4309eba08b1c822725855bd671c268e6e78c04bf2920951cfbdba34f8c323",
@@ -2250,7 +2266,7 @@
       "packages/server/tests/unit/route-access-registry.test.ts": "93933b7083d3837109258c7ed48291d5ab1322ddb682b76392697311984aa709",
       "packages/server/tests/unit/security-headers.test.ts": "4626d2a9559800eb3e85d11277566862ae557e2b365f7ca46d043ccb74a9dde3",
       "packages/server/tests/unit/static-serving.test.ts": "fe5b750ba488d49305771d03f5ce30694fb7a5e2f57abb3e7d1546cd8fa9141c",
-      "packages/server/tsconfig.json": "486e6c23b94d4f04c8ab71ee87c961600506a52a7db612c1a216641c9ccb4213",
+      "packages/server/tsconfig.json": "06bf9f05da271777d8cc847d24c680518fe0f71b34d8a711c4d9c9855cebc206",
       "packages/testkit/src/db.ts": "8ad2463df8b3d8225a3c369795ff79b5eeddb599e67713a4624064063e75554f",
       "packages/testkit/src/docs.ts": "541007690fa52cf7e3b3c494461b241f9c0d2944a3b5ee780bca6f5b9c355c36",
       "packages/testkit/src/fixture.ts": "5649facc1b52770e1058907b4f7443bedf41d9f465333366222a5599bcea9088",
@@ -2260,7 +2276,7 @@
       "packages/testkit/src/project-engine-contract.ts": "97829ac1003adef5e464fd4bcf333881b944db7629eb8a66f098997338e12b3d",
       "packages/testkit/src/tmp.ts": "d7ddf9b3063acc3aa77c390525bd684b6a2db00cd1a07f2d622b95e6c969bbfa",
       "README.md": "625fa6faa60e555f96d54e159c53688cc7314f6913dfbbeb4cca232667a686e1",
-      "vitest.config.ts": "6c08883ffe01ee7e68ea4557597ac7492ca6bef28b411d0d15238b4cbe87b5d4"
+      "vitest.config.ts": "cb32a1ee1afc88c1dd1c74206df4c5f63de4b6102c48617274e253bb58f7850c"
     }
   }
 }
