@@ -1,4 +1,5 @@
 export * from './audit-metadata.js';
+export * from './doc-updates-repository.js';
 export * from './documents-repository.js';
 export * from './id-counters.js';
 export * from './invitations.js';

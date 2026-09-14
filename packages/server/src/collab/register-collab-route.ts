@@ -28,6 +28,7 @@ import { createCollabAntiSpoofingExtension } from './anti-spoofing.js';
 import { createCollabAttributionExtension } from './attribution.js';
 import { createCollabAuthenticateExtension, type CollabAuthContext } from './authenticate.js';
 import { createCollabAwarenessExtension } from './awareness.js';
+import { createBlameBroadcastExtension } from './blame.js';
 import { realCollabBatchScheduler, type CollabBatchScheduler } from './batch-scheduler.js';
 import { createDocUpdateBatcher } from './doc-update-writer.js';
 import { createCollabLimitsExtension, type CollabLimits } from './limits.js';
@@ -85,6 +86,10 @@ export function buildCollabExtensions(deps: CollabExtensionsDeps): Extension[] {
   return [
     createCollabAuthenticateExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabPersistenceExtension({ pool: deps.pool }) as unknown as Extension,
+    // Runs its own onStoreDocument after persistence's — order between the two never matters for
+    // correctness (a stale-blame notice just tells clients to refetch WO-154's endpoint, which always
+    // reads whatever is durably committed at the moment it's called), kept adjacent for readability.
+    createBlameBroadcastExtension() as unknown as Extension,
     createCollabRevalidateExtension({ auth: deps.auth, pool: deps.pool, scheduler: deps.scheduler }) as unknown as Extension,
     // Order matters among these `beforeSync`/`connected` extensions: Hocuspocus runs each extension's
     // same-named hook in array order, awaiting each before the next. Limits comes first so a

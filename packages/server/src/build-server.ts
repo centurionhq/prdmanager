@@ -16,7 +16,9 @@ import { createCollabRevocationHub, type CollabRevocationHub } from './collab/re
 import { realCollabScheduler, type CollabScheduler } from './collab/scheduler.js';
 import { realCollabBatchScheduler, type CollabBatchScheduler } from './collab/batch-scheduler.js';
 import { registerDocumentRoutes } from './api/documents.js';
+import { registerDocumentBlameRoute } from './api/documents-blame.js';
 import { registerDocumentPublishRoute } from './api/documents-publish.js';
+import { createBlameCache } from './collab/blame.js';
 import { registerDriftRoutes } from './api/drift.js';
 import { registerGraphRoutes } from './api/graph.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
@@ -192,6 +194,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
         clock,
       });
       registerDocumentPublishRoute(app, { auth, pool, env, neo4j });
+      registerDocumentBlameRoute(app, { auth, pool, env, blameCache: createBlameCache() });
       registerDriftRoutes(app, { auth, pool, env, neo4j });
       registerGraphRoutes(app, { auth, pool, env, neo4j });
       registerCloseFeatureRoutes(app, { auth, pool, env, neo4j });

@@ -18,6 +18,7 @@ import { user } from './schema/auth.js';
 import { projectMembers, projectRole, projects } from './schema/projects.js';
 import { withTenantTx } from './tenant.js';
 import { buildDocumentsRepository, type DocumentsRepository } from './documents-repository.js';
+import { buildDocUpdatesRepository, type DocUpdatesRepository } from './doc-updates-repository.js';
 
 export type ProjectRecord = typeof projects.$inferSelect;
 export type ProjectMemberRecord = typeof projectMembers.$inferSelect;
@@ -107,6 +108,7 @@ export interface OrgRepositories {
   projects: ProjectsRepository;
   members: MembersRepository;
   auditLog: AuditLogRepository;
+  docUpdates: DocUpdatesRepository;
   forProject(projectId: string): ProjectScope;
 }
 
@@ -121,6 +123,7 @@ export function createTenantDb(pool: Pool): TenantDb {
         projects: buildProjectsRepository(pool, orgId),
         members: buildMembersRepository(pool, orgId),
         auditLog: buildAuditLogRepository(pool, orgId),
+        docUpdates: buildDocUpdatesRepository(pool, orgId),
         forProject: (projectId: string) => buildProjectScope(pool, orgId, projectId),
       };
     },
