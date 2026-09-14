@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const TOKENS_PATH = join(import.meta.dirname, '..', '..', 'src', 'client', 'styles', 'tokens.css');
+const TOKENS_PATH = join(import.meta.dirname, '..', '..', 'src', 'styles', 'tokens.css');
 const CSS = readFileSync(TOKENS_PATH, 'utf8');
 
 /** WCAG relative luminance (https://www.w3.org/TR/WCAG21/#dfn-relative-luminance). */
