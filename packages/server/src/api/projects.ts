@@ -29,6 +29,7 @@ import { assertNoSecretsInAuditMetadata, createTenantDb, type OrgRole, type Proj
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
+import type { CollabRevocationHub } from '../collab/revocation.js';
 import type { ServerEnv } from '../env.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { requireAppSession } from './app-session.js';
@@ -38,6 +39,10 @@ export interface RegisterProjectRoutesOptions {
   auth: Auth;
   pool: Pool;
   env: ServerEnv;
+  /** SDD-008 §"Servidor de tiempo real" (WO-148): closes affected `/collab` connections right after a
+   * member is removed or their role changes. Optional so every test building this route family without
+   * a live Hocuspocus instance keeps working unchanged. */
+  collabRevocationHub?: CollabRevocationHub;
 }
 
 interface OrgRouteParams {
@@ -95,7 +100,7 @@ export async function resolveVisibleProject(
 }
 
 export function registerProjectRoutes(app: FastifyInstance, opts: RegisterProjectRoutesOptions): void {
-  const { auth, pool, env } = opts;
+  const { auth, pool, env, collabRevocationHub } = opts;
 
   app.get<{ Params: OrgRouteParams }>('/api/app/organizations/:orgSlug/projects', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
@@ -246,6 +251,11 @@ export function registerProjectRoutes(app: FastifyInstance, opts: RegisterProjec
         userAgent: userAgentOf(req),
       });
 
+    // SDD-008 (WO-148): a role change (up or down) means an already-open /collab connection may be
+    // authorized differently now — closing it and letting the client reconnect through onAuthenticate
+    // is simpler and safer than trying to patch a live connection's permissions in place.
+    collabRevocationHub?.revokeUserProjectAccess(member.userId, project.id);
+
     return { userId: member.userId, role: member.role };
   });
 
@@ -272,6 +282,9 @@ export function registerProjectRoutes(app: FastifyInstance, opts: RegisterProjec
         ip: req.ip,
         userAgent: userAgentOf(req),
       });
+
+    // SDD-008 (WO-148): "quitar miembro ... cierra las conexiones afectadas".
+    collabRevocationHub?.revokeUserProjectAccess(req.params.userId, project.id);
 
     return { userId: req.params.userId };
   });

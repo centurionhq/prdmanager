@@ -21,6 +21,7 @@ import { createTenantDb, type DocumentRecord, type DocumentVersionRecord } from 
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
+import type { CollabRevocationHub } from '../collab/revocation.js';
 import type { ServerEnv } from '../env.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { requireAppSession } from './app-session.js';
@@ -31,6 +32,10 @@ export interface RegisterDocumentRoutesOptions {
   auth: Auth;
   pool: Pool;
   env: ServerEnv;
+  /** SDD-008 §"Servidor de tiempo real" (WO-148): closes every open `/collab` connection to a document
+   * the moment it's archived. Optional so every test building this route family without a live
+   * Hocuspocus instance keeps working unchanged. */
+  collabRevocationHub?: CollabRevocationHub;
 }
 
 interface ProjectRouteParams {
@@ -85,7 +90,7 @@ function findPublishedLinkers(published: { sourcePath: string; publishedRaw: str
 }
 
 export function registerDocumentRoutes(app: FastifyInstance, opts: RegisterDocumentRoutesOptions): void {
-  const { auth, pool, env } = opts;
+  const { auth, pool, env, collabRevocationHub } = opts;
 
   app.get<{ Params: ProjectRouteParams; Querystring: Record<string, unknown> }>(
     '/api/app/organizations/:orgSlug/projects/:projectSlug/documents',
@@ -231,6 +236,10 @@ export function registerDocumentRoutes(app: FastifyInstance, opts: RegisterDocum
           ip: req.ip,
           userAgent: userAgentOf(req),
         });
+
+      // SDD-008 (WO-148): "archivar cierra las conexiones afectadas" — an archived document is always
+      // read-only (see collab/authorize-document.ts), so closing rather than downgrading in place.
+      collabRevocationHub?.revokeDocument(updated.id);
 
       return { document: toSummary(updated) };
     },

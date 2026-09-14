@@ -13,8 +13,9 @@
  * 2. A real `/api/app/*`-style session (`requireAppSession`, browser-only — never a Bearer token, this
  *    surface is never reached by the CI/MCP token surface).
  *
- * The resolved user id seeds `handleConnection`'s `defaultContext`; `./authenticate.js`'s `onAuthenticate`
- * then does the per-document authorization (role, read-only, generated/archived) once per `documentName`.
+ * The resolved user id (and, for WO-148's periodic revalidation, the raw session cookie) seeds
+ * `handleConnection`'s `defaultContext`; `./authenticate.js`'s `onAuthenticate` then does the
+ * per-document authorization (role, read-only, generated/archived) once per `documentName`.
  */
 import fastifyWebsocket from '@fastify/websocket';
 import { Hocuspocus, type Extension } from '@hocuspocus/server';
@@ -26,12 +27,16 @@ import { requireAppSession } from '../api/app-session.js';
 import { createCollabAuthenticateExtension, type CollabAuthContext } from './authenticate.js';
 import { isTrustedCollabOrigin } from './origin-check.js';
 import { createCollabPersistenceExtension } from './persistence.js';
+import { createCollabRevalidateExtension } from './revalidate.js';
+import { createCollabRevocationHub, type CollabRevocationHub } from './revocation.js';
+import { realCollabScheduler, type CollabScheduler } from './scheduler.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
     /** Set by `/collab`'s own `preValidation` once the upgrade's session is resolved; absent (and never
      * read) on every other route. */
     collabUserId?: string;
+    collabSessionCookie?: string;
   }
 }
 
@@ -39,19 +44,29 @@ export interface RegisterCollabRouteOptions {
   auth: Auth;
   pool: Pool;
   env: ServerEnv;
+  /** Attached to the constructed `Hocuspocus` instance so `projects.ts`/`documents.ts` can close
+   * affected connections right after a membership/archive write commits (WO-148). Defaults to a
+   * freshly created, unattached-elsewhere hub when omitted (every existing caller keeps working
+   * unchanged; it simply has no other route revoking through it). */
+  revocationHub?: CollabRevocationHub;
+  /** Injected so tests never wait out a real 60-second interval (WO-148, `./scheduler.js`). */
+  scheduler?: CollabScheduler;
 }
 
-/** Extra extensions a later WO composes in (WO-148 revocation, WO-149 attribution, WO-150 anti-spoofing,
- * WO-151 awareness/stateless, WO-152 limits) — kept as an explicit seam so this route registration never
- * has to change shape again, only the array passed here. */
+/** Extra extensions a later WO composes in (WO-149 attribution, WO-150 anti-spoofing, WO-151 awareness/
+ * stateless, WO-152 limits) — kept as an explicit seam so this route registration never has to change
+ * shape again, only the array passed here. */
 export interface CollabExtensionsDeps {
+  auth: Auth;
   pool: Pool;
+  scheduler: CollabScheduler;
 }
 
 export function buildCollabExtensions(deps: CollabExtensionsDeps): Extension[] {
   return [
     createCollabAuthenticateExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabPersistenceExtension({ pool: deps.pool }) as unknown as Extension,
+    createCollabRevalidateExtension({ auth: deps.auth, pool: deps.pool, scheduler: deps.scheduler }) as unknown as Extension,
   ];
 }
 
@@ -70,12 +85,13 @@ export function registerCollabWebsocketPlugin(app: FastifyInstance, env: ServerE
  * finished registering (see that function's own doc comment), i.e. inside the same `app.after` callback
  * every other `auth`/`pool`-dependent route is registered from. */
 export function registerCollabRoute(app: FastifyInstance, opts: RegisterCollabRouteOptions): void {
-  const { auth, pool, env } = opts;
+  const { auth, pool, env, revocationHub = createCollabRevocationHub(), scheduler = realCollabScheduler } = opts;
 
   const hocuspocus = new Hocuspocus({
     yDocOptions: { gc: false, gcFilter: () => true },
-    extensions: buildCollabExtensions({ pool }),
+    extensions: buildCollabExtensions({ auth, pool, scheduler }),
   });
+  revocationHub.attach(hocuspocus);
 
   app.get(
     '/collab',
@@ -90,6 +106,7 @@ export function registerCollabRoute(app: FastifyInstance, opts: RegisterCollabRo
         try {
           const session = await requireAppSession(auth, req, env.publicUrl);
           req.collabUserId = session.user.id;
+          req.collabSessionCookie = req.headers.cookie;
         } catch {
           await reply.code(401).send();
         }
@@ -97,13 +114,14 @@ export function registerCollabRoute(app: FastifyInstance, opts: RegisterCollabRo
     },
     (socket, request) => {
       const userId = request.collabUserId;
-      if (!userId) {
+      const sessionCookie = request.collabSessionCookie;
+      if (!userId || !sessionCookie) {
         // preValidation already rejected the HTTP upgrade in this case; reaching here with no userId
         // would only happen if a future change wires this route without that hook — fail closed.
         socket.close(1008, 'unauthorized');
         return;
       }
-      const defaultContext: CollabAuthContext = { userId };
+      const defaultContext: CollabAuthContext = { userId, sessionCookie };
       const connection = hocuspocus.handleConnection(socket, request.raw as unknown as Request, defaultContext);
       socket.on('message', (data: Uint8Array) => connection.handleMessage(data));
       socket.on('close', (event: unknown) => connection.handleClose(event as never));

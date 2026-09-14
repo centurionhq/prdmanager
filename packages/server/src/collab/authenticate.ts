@@ -3,27 +3,27 @@
  * though a single WebSocket may multiplex several (confirmed by the ADR-006 learning test). The
  * upgrade's session was already resolved once, per-socket, by `register-collab-route.js`'s
  * `preValidation` — this hook only does the per-*document* authorization: parse `documentName`, resolve
- * its org/project via `resolve_document`, look up the caller's effective role, and reject (throw) unless
- * they can at least `view` it. Read-only is decided by `can(subject, 'edit_document')` — never a
- * hand-rolled role list — plus two SDD-008-specific overrides: a `generated`-origin document (no working
- * copy of its own) and an `archived` one are always read-only regardless of role.
+ * its org/project via `resolve_document`, then defer the actual view/read-only decision to
+ * `./authorize-document.js` (shared with WO-148's periodic revalidation, so the two can never disagree).
  *
  * Every rejection throws the same generic error, deliberately indistinguishable whether the document
  * doesn't exist, belongs to another organization, or the caller simply has no access (SDD-006 §Arquitectura:
  * "Cualquier recurso de otra organización o proyecto responde 404, nunca 403" — the WS equivalent of
  * that is one permission-denied reason, never a hint).
  */
-import { eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
-import { can } from '@prdm/contracts';
-import { resolveDocumentById, schema, withTenantTx } from '@prdm/db';
+import { resolveDocumentById } from '@prdm/db';
+import { authorizeCollabDocument } from './authorize-document.js';
 import { parseDocumentName } from './document-name.js';
-import { resolveCollabPermissionSubject } from './resolve-subject.js';
 
 export interface CollabAuthContext {
   /** Seeded by `register-collab-route.js` into `handleConnection`'s `defaultContext`, from the session
    * already resolved during the WebSocket upgrade's `preValidation`. */
   userId: string;
+  /** The upgrade request's raw `Cookie` header (WO-148): kept only to let the periodic revalidation
+   * extension (`./revalidate.js`) re-run the exact same session check every 60s, never sent anywhere
+   * else and never logged. */
+  sessionCookie: string;
 }
 
 export interface CollabDocumentContext extends CollabAuthContext {
@@ -64,7 +64,8 @@ export function createCollabAuthenticateExtension(deps: CollabAuthenticateDeps):
 
     async onAuthenticate(data) {
       const userId = data.context.userId;
-      if (!userId) throw new CollabPermissionDeniedError();
+      const sessionCookie = data.context.sessionCookie;
+      if (!userId || !sessionCookie) throw new CollabPermissionDeniedError();
 
       const parsed = parseDocumentName(data.documentName);
       if (!parsed) throw new CollabPermissionDeniedError();
@@ -72,22 +73,12 @@ export function createCollabAuthenticateExtension(deps: CollabAuthenticateDeps):
       const resolved = await resolveDocumentById(pool, parsed.documentId);
       if (!resolved || resolved.projectId !== parsed.projectId) throw new CollabPermissionDeniedError();
 
-      const subject = await resolveCollabPermissionSubject(pool, resolved.orgId, parsed.projectId, userId);
-      if (!subject || !can(subject, 'view')) throw new CollabPermissionDeniedError();
+      const authorization = await authorizeCollabDocument(pool, { orgId: resolved.orgId, projectId: parsed.projectId, documentId: parsed.documentId, userId });
+      if (!authorization) throw new CollabPermissionDeniedError();
 
-      const documentRow = await withTenantTx(pool, resolved.orgId, async (tx) => {
-        const [row] = await tx
-          .select({ origin: schema.documents.origin, workflowState: schema.documents.workflowState })
-          .from(schema.documents)
-          .where(eq(schema.documents.id, parsed.documentId));
-        return row ?? null;
-      });
-      if (!documentRow) throw new CollabPermissionDeniedError();
+      data.connectionConfig.readOnly = authorization.readOnly;
 
-      const forcedReadOnly = documentRow.origin === 'generated' || documentRow.workflowState === 'archived';
-      data.connectionConfig.readOnly = forcedReadOnly || !can(subject, 'edit_document');
-
-      const context: CollabDocumentContext = { userId, orgId: resolved.orgId, projectId: parsed.projectId, documentId: parsed.documentId };
+      const context: CollabDocumentContext = { userId, sessionCookie, orgId: resolved.orgId, projectId: parsed.projectId, documentId: parsed.documentId };
       return context;
     },
   };

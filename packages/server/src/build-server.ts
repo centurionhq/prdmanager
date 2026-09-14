@@ -12,6 +12,8 @@ import { registerInvitationAcceptRoute } from './api/invitation-accept.js';
 import { registerOrganizationInvitationRoutes } from './api/organization-invitations.js';
 import { registerCloseFeatureRoutes } from './api/close-feature.js';
 import { registerCollabRoute, registerCollabWebsocketPlugin } from './collab/register-collab-route.js';
+import { createCollabRevocationHub, type CollabRevocationHub } from './collab/revocation.js';
+import { realCollabScheduler, type CollabScheduler } from './collab/scheduler.js';
 import { registerDocumentRoutes } from './api/documents.js';
 import { registerDocumentPublishRoute } from './api/documents-publish.js';
 import { registerDriftRoutes } from './api/drift.js';
@@ -64,6 +66,9 @@ export interface BuildServerDeps {
    * Optional so every existing test that never touches a document/graph route keeps working unchanged;
    * a route that actually needs one calls `requireNeo4j` (`./engine/resolve-pg-project-engine.js`). */
   neo4j?: Neo4jGraphDatabase;
+  /** Test-only: a manually-advanced `CollabScheduler` (`./collab/scheduler.js`) so a WO-148 revalidation
+   * test never waits out a real 60-second interval. Production leaves this unset (the real `setInterval`). */
+  collabScheduler?: CollabScheduler;
 }
 
 /**
@@ -73,7 +78,7 @@ export interface BuildServerDeps {
  * its allowlist on `/api/auth/*` — `graph`, `llm` and `oidc` land with the SDD-006 tasks that need them.
  */
 export function buildServer(deps: BuildServerDeps): FastifyInstance {
-  const { env, logger = true, clock = () => new Date(), pool, mailer, rateLimitStore, staticDir, neo4j } = deps;
+  const { env, logger = true, clock = () => new Date(), pool, mailer, rateLimitStore, staticDir, neo4j, collabScheduler = realCollabScheduler } = deps;
   // Fastify only derives `request.ip`/`request.hostname` from X-Forwarded-* headers when this is
   // set (SDD-006 §Autenticación): same PRDM_TRUST_PROXY gate as the /api/auth/* Host guard and,
   // later, @fastify/rate-limit's IP source (WO-095) — one flag, one trust decision, everywhere.
@@ -155,9 +160,10 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerOrganizationRoutes(app, { auth, pool, env });
       registerAdminOrganizationRoutes(app, { auth, pool, mailer, env });
       registerOrganizationInvitationRoutes(app, { auth, pool, mailer, env });
-      registerProjectRoutes(app, { auth, pool, env });
-      registerDocumentRoutes(app, { auth, pool, env });
-      registerCollabRoute(app, { auth, pool, env });
+      const collabRevocationHub: CollabRevocationHub = createCollabRevocationHub();
+      registerProjectRoutes(app, { auth, pool, env, collabRevocationHub });
+      registerDocumentRoutes(app, { auth, pool, env, collabRevocationHub });
+      registerCollabRoute(app, { auth, pool, env, revocationHub: collabRevocationHub, scheduler: collabScheduler });
       registerDocumentPublishRoute(app, { auth, pool, env, neo4j });
       registerDriftRoutes(app, { auth, pool, env, neo4j });
       registerGraphRoutes(app, { auth, pool, env, neo4j });
