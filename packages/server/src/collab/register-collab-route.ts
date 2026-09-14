@@ -24,6 +24,7 @@ import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
 import type { ServerEnv } from '../env.js';
 import { requireAppSession } from '../api/app-session.js';
+import { createCollabAntiSpoofingExtension } from './anti-spoofing.js';
 import { createCollabAttributionExtension } from './attribution.js';
 import { createCollabAuthenticateExtension, type CollabAuthContext } from './authenticate.js';
 import { realCollabBatchScheduler, type CollabBatchScheduler } from './batch-scheduler.js';
@@ -81,6 +82,10 @@ export function buildCollabExtensions(deps: CollabExtensionsDeps): Extension[] {
     createCollabAuthenticateExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabPersistenceExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabRevalidateExtension({ auth: deps.auth, pool: deps.pool, scheduler: deps.scheduler }) as unknown as Extension,
+    // Order matters for the two `beforeSync` extensions below: Hocuspocus runs each extension's
+    // `beforeSync` in array order, awaiting each before the next — anti-spoofing must reject (throw)
+    // *before* attribution ever durably logs the update, so it comes first.
+    createCollabAntiSpoofingExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabAttributionExtension({ batcher }) as unknown as Extension,
   ];
 }

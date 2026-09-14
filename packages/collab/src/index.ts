@@ -4,3 +4,5 @@ export { applyProjection, projectDoc } from './projection.js';
 export type { DocProjection } from './projection.js';
 export { decodeUpdateRanges } from './update-ranges.js';
 export type { DecodedUpdateRanges, DeleteRange, StructRange } from './update-ranges.js';
+export { checkUpdateAgainstBindings } from './anti-spoofing.js';
+export type { AntiSpoofCheckParams, AntiSpoofCheckResult } from './anti-spoofing.js';
