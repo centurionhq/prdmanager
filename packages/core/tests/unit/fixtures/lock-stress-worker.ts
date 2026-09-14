@@ -34,18 +34,23 @@ async function main(): Promise<void> {
         await new Promise((resolve) => setTimeout(resolve, 1));
         unlinkSync(markerPath);
       },
-      // Two margins, both needed (WO-207 finding 2):
+      // Two margins, both needed, and both empirically evidenced (not just theorized) on this repo's CI
+      // runner across four separate failures:
       // - `staleAfterMs` over `heartbeatMs`: a held lock is only "stale" once it has missed a heartbeat by
       //   that much. Equal values (an earlier 5s/5s) meant a single scheduling delay made a still-live
       //   holder's lock look abandoned and get broken out from under it — a genuine mutual-exclusion
-      //   violation caught by the `wx` marker, not a flaky assertion.
-      // - `timeoutMs` (how long a *waiter* retries before giving up) over `staleAfterMs`: with the earlier
-      //   15s/30s pairing a waiter always gave up *before* a truly stuck holder could ever be reclaimed,
-      //   so every waiter hard-failed with "another process holds the lock" instead of recovering — on a
-      //   2-vCPU CI runner, 6 contending processes can genuinely starve the current holder's event loop for
-      //   several seconds without anything being wrong. `timeoutMs` now gives multiple eviction cycles of
-      //   headroom over `staleAfterMs` so a waiter can actually benefit from the recovery it pays for.
-      { timeoutMs: 40_000, staleAfterMs: 8_000, heartbeatMs: 250 },
+      //   violation caught by the `wx` marker (EEXIST), not a flaky assertion. 30s was then verified safe
+      //   across many CI runs with zero such violations. WO-209 tried shrinking it to 8s to let waiters
+      //   recover sooner — that reproduced the *exact same* EEXIST violation on the very next CI run: real
+      //   scheduling delays under 6-way contention on a 2-vCPU runner can exceed 8s, so 30s is the actual
+      //   evidenced floor, not just a guess, and is restored here.
+      // - `timeoutMs` (how long a *waiter* retries before giving up) over `staleAfterMs`: with an earlier
+      //   15s/30s pairing a waiter always gave up *before* a truly stuck holder could ever be reclaimed, so
+      //   every waiter hard-failed with "another process holds the lock" instead of recovering. This part
+      //   of WO-209's fix was correct and stays: `timeoutMs` gives multiple eviction cycles of headroom
+      //   over `staleAfterMs` so a waiter can actually benefit from the recovery it pays for, without
+      //   needing `staleAfterMs` itself to shrink.
+      { timeoutMs: 90_000, staleAfterMs: 30_000, heartbeatMs: 500 },
     );
   }
 }

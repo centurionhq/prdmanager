@@ -41,7 +41,7 @@ describe('withRepoLock: real multi-process mutual exclusion (WO-023 finding 3)',
         // 2-vCPU CI runner that contention can dwarf the time seen on a many-core dev machine, so the exec/test
         // timeouts need real headroom over the worker's own (much larger, see the WO-207 comment there) per-
         // acquisition `timeoutMs`, itself needing headroom over `staleAfterMs` for eviction to ever help a waiter.
-        const workers = Array.from({ length: WORKERS }, (_, i) => run('node', ['--import', 'tsx', WORKER, root, String(ITERATIONS_PER_WORKER), String(i)], { timeout: 90_000 }));
+        const workers = Array.from({ length: WORKERS }, (_, i) => run('node', ['--import', 'tsx', WORKER, root, String(ITERATIONS_PER_WORKER), String(i)], { timeout: 150_000 }));
         const results = await Promise.allSettled(workers);
         const failures = results.flatMap((result, i) =>
           result.status === 'rejected' ? [`worker ${i}: ${describeFailure(result.reason)}`] : [],
@@ -56,6 +56,6 @@ describe('withRepoLock: real multi-process mutual exclusion (WO-023 finding 3)',
         removeDir(root);
       }
     },
-    100_000,
+    160_000,
   );
 });
