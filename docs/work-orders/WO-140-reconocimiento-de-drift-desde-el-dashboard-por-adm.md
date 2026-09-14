@@ -2,7 +2,7 @@
 id: "WO-140"
 type: "WO"
 title: "Reconocimiento de drift desde el dashboard por admin de proyecto (WO, blueprint o feature) con confirmación y auditoría, con tests"
-status: "in_progress"
+status: "done"
 created_at: "2026-09-13"
 implements: ["SDD-007"]
 impacts_paths: ["packages/core/src/**","packages/core/package.json","packages/mcp/src/**","packages/mcp/package.json","packages/cli/src/**","packages/web/src/**","packages/server/src/**","packages/server/tests/**","packages/contracts/src/**","packages/contracts/tests/**","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/app/src/**","packages/app/tests/**","packages/app/*.json","packages/testkit/src/**","docs/model/**","scripts/validate-graph-model.mjs","package.json","package-lock.json","vitest.config.ts","tsconfig.test.json"]
@@ -10,6 +10,9 @@ source_task: "d80a56133ce732cb"
 tags: ["saas","engine","documents","workflow"]
 assigned_to: "agent:claude"
 claimed_at: "2026-09-14T10:00:16.988Z"
+completed_at: "2026-09-14T10:05:57.057Z"
+resolved_by: ["e097ef2d50de62b84c999705f0d457cd4f4fad34"]
+blueprint_hashes: {"SDD-007":"90f1c5e5fc0d68d1ab72838572230d813e01547be66463f35ae5a0504b2ac8c4"}
 ---
 
 ## Objetivo
