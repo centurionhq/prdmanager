@@ -14,6 +14,14 @@
  * second `betterAuth` instance over the same tables with `disableSignUp: false` — the exact "system
  * action" pattern the WO-083 learning test already established for seeding fixture users, reused here
  * for the one legitimate case of creating a user outside the invitation flow.
+ *
+ * WO-102: SDD-006 §Autenticación requires TOTP to be enrolled "before the first admin action" — since
+ * this command's own completion is the earliest a fresh superadmin could take one, enrollment happens
+ * here, unconditionally, as the last step. The `otpauth://` URI is printed to the terminal exactly once
+ * (via `log`, never written to a file) and the flow only finishes once `prompts.totpCode()` proves the
+ * operator actually captured it in an authenticator app — an enrollment nobody could complete would
+ * otherwise leave a superadmin permanently locked out of `/api/app/admin/*` (WO-102 requires a
+ * 2FA-verified session there), which is worse than requiring it up front.
  */
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -60,6 +68,9 @@ export interface BootstrapPrompts {
   /** Must read from a hidden/non-echoing input; the CLI entrypoint never accepts this via argv or an
    * environment variable (SDD-006 §Autenticación). */
   password(): Promise<string>;
+  /** The 6-digit code from the operator's authenticator app, entered after `log` prints the enrollment
+   * URI (WO-102) — proves the operator actually captured the secret before bootstrap finishes. */
+  totpCode(): Promise<string>;
 }
 
 export interface BootstrapSuperadminOptions {
@@ -87,6 +98,12 @@ export interface BootstrapSuperadminResult {
   email: string;
 }
 
+function extractCookie(headers: Headers): string {
+  const setCookie = headers.getSetCookie()[0];
+  if (!setCookie) throw new Error('expected a Set-Cookie header from signInEmail');
+  return setCookie.split(';')[0]!;
+}
+
 export async function bootstrapSuperadmin(opts: BootstrapSuperadminOptions): Promise<BootstrapSuperadminResult> {
   const { pool, env, prompts, additional = false, clock = () => new Date(), log = (message: string) => process.stdout.write(`${message}\n`) } = opts;
 
@@ -103,12 +120,31 @@ export async function bootstrapSuperadmin(opts: BootstrapSuperadminOptions): Pro
   const { user } = await bootstrapAuth.api.signUpEmail({ body: { name, email, password } });
 
   await insertPlatformAdmin(pool, user.id);
+
+  // WO-102: enroll TOTP before this command (and therefore any admin action) can be considered done.
+  // Signing in first is what gets a normal, non-2FA-pending session — the user was just created with
+  // twoFactorEnabled=false, so /sign-in/email's own two-factor hook has nothing to intercept yet.
+  const signIn = await bootstrapAuth.api.signInEmail({ body: { email, password }, returnHeaders: true });
+  const headers = new Headers({ cookie: extractCookie(signIn.headers) });
+
+  const enrolled = await bootstrapAuth.api.enableTwoFactor({ headers, body: { password, method: 'totp' } });
+  if (enrolled.method !== 'totp') {
+    throw new Error('two-factor enrollment did not return a TOTP URI');
+  }
+  log(`Scan this URI with your authenticator app (shown once, never logged): ${enrolled.totpURI}`);
+
+  const code = await prompts.totpCode();
+  // `trustDevice: false` unconditionally (SDD-006 §Autenticación: "trustDevice deshabilitado para
+  // superadmins") — irrelevant here anyway (this is enrollment, not a sign-in challenge), but explicit
+  // for anyone reading this as the reference call site.
+  await bootstrapAuth.api.verifyTOTP({ headers, body: { code, trustDevice: false } });
+
   await recordPlatformAuditLog(pool, {
     actorType: 'system',
     actorId: user.id,
     action: 'platform.superadmin.bootstrapped',
     target: user.id,
-    metadata: { email, additional },
+    metadata: { email, additional, totpEnrolled: true },
   });
 
   log(`Superadmin created: ${email} (user ${user.id}) at ${clock().toISOString()}`);

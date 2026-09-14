@@ -51,6 +51,14 @@ const beforeHook = createAuthMiddleware(async (ctx) => {
   if (ctx.path === '/change-password') {
     (ctx.body as Record<string, unknown>).revokeOtherSessions = true;
   }
+  // WO-102: "trustDevice deshabilitado para superadmins". 2FA in this slice is exclusively enrolled by
+  // and enforced for superadmins (the bootstrap CLI is the only enrollment path; `/api/app/admin/*` is
+  // the only place a verified session is required) — forcing this off unconditionally for every
+  // `/two-factor/verify-totp` call is therefore exactly "disabled for superadmins" today. A future WO
+  // that extends 2FA to non-superadmin members would need to scope this by role instead.
+  if (ctx.path === '/two-factor/verify-totp') {
+    (ctx.body as Record<string, unknown>).trustDevice = false;
+  }
 });
 
 /** Builds the `advanced.cookies` overrides for the `__Host-` prefix (SDD-006 §Autenticación:

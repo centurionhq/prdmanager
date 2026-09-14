@@ -75,6 +75,7 @@ function buildRealPrompts(): BootstrapPrompts {
     email: () => askVisible('Superadmin email: '),
     name: () => askVisible('Superadmin name: '),
     password: () => askHidden('Superadmin password (hidden): '),
+    totpCode: () => askVisible('Enter the 6-digit code from your authenticator app: '),
   };
 }
 
