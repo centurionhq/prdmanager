@@ -10,3 +10,5 @@ export { buildRangeIndex, computeBlame } from './blame.js';
 export type { BlameActorKind, BlameAttribution, BlameResult, FieldBlame, LineBlame, RangeIndex, RangeIndexRow } from './blame.js';
 export { diffLines } from './diff.js';
 export type { LineDiffOp, LineDiffOpType } from './diff.js';
+export { createCommentAnchor, resolveCommentAnchor } from './comment-anchor.js';
+export type { EncodedCommentAnchor, ResolvedCommentAnchor } from './comment-anchor.js';

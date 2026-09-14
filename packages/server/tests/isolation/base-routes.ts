@@ -163,6 +163,75 @@ export function registerBaseIsolationRoutes(): void {
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'SDD-001' } })),
   });
 
+  // SDD-008 (WO-154/156/157/158): same reasoning as every other documents/:docId probe above —
+  // resolveVisibleProject() 404s a cross-org/outsider caller before any of these ever look up a real
+  // doc_id, so a plausible placeholder is enough.
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/blame', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' } })),
+  });
+
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/versions', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/versions', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' }, body: { label: 'probe' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' }, body: { label: 'probe' } })),
+  });
+
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/versions/:versionNo/diff', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001', versionNo: '1' }, query: { against: '1' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001', versionNo: '1' }, query: { against: '1' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/versions/:versionNo/restore', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001', versionNo: '1' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001', versionNo: '1' } })),
+  });
+
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/comments', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/comments', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' }, body: { startIndex: 0, endIndex: 1, body: 'probe' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' }, body: { startIndex: 0, endIndex: 1, body: 'probe' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/comments/:threadId/replies', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001', threadId: '00000000-0000-0000-0000-000000000000' }, body: { body: 'probe' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001', threadId: '00000000-0000-0000-0000-000000000000' }, body: { body: 'probe' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/comments/:threadId/resolve', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001', threadId: '00000000-0000-0000-0000-000000000000' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001', threadId: '00000000-0000-0000-0000-000000000000' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/comments/:threadId/reopen', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001', threadId: '00000000-0000-0000-0000-000000000000' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001', threadId: '00000000-0000-0000-0000-000000000000' } })),
+  });
+
+  registerIsolationProbe('DELETE', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/comments/:threadId/messages/:commentId', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({
+      path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001', threadId: '00000000-0000-0000-0000-000000000000', commentId: '00000000-0000-0000-0000-000000000000' },
+    })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({
+      path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001', threadId: '00000000-0000-0000-0000-000000000000', commentId: '00000000-0000-0000-0000-000000000000' },
+    })),
+  });
+
   registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/drift/acknowledge', {
     mutating: true,
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug }, body: { target: 'all' } })),

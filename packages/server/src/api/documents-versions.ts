@@ -139,7 +139,9 @@ export function registerDocumentVersionRoutes(app: FastifyInstance, opts: Regist
       const session = await requireAppSession(auth, req, env.publicUrl);
       const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
       const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
-      if (!can(subject, 'edit_document')) throw new ForbiddenError();
+      // `@prdm/contracts`' permission matrix has a dedicated `restore_version` action (same role set as
+      // `edit_document` today, but the semantically correct one for this specific route).
+      if (!can(subject, 'restore_version')) throw new ForbiddenError();
 
       const scope = createTenantDb(pool).forOrg(org.id).forProject(project.id);
       const existing = await scope.documents.findByDocId(req.params.docId);

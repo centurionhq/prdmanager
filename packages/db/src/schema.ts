@@ -14,3 +14,4 @@ export * from './schema/custom-types.js';
 export * from './schema/documents.js';
 export * from './schema/doc-updates.js';
 export * from './schema/doc-client-bindings.js';
+export * from './schema/doc-comments.js';

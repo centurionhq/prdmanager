@@ -1,3 +1,4 @@
+export * from './comments.js';
 export * from './documents.js';
 export * from './drift.js';
 export * from './error-envelope.js';

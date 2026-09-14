@@ -78,6 +78,13 @@
       "when": 1789386360465,
       "tag": "0010_doc_client_bindings",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789394604651,
+      "tag": "0011_doc_comments",
+      "breakpoints": true
     }
   ]
 }
