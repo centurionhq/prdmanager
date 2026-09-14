@@ -54,3 +54,4 @@ Todo con `FakeLlmClient`: bucles de varias tools, intentos de inyección desde d
 - [ ] Aceptar y rechazar propuestas con detección de stale, aplicación como transacción de servidor atribuida a agent:deepseek en nombre de quien acepta, versión y auditoría, con tests de blame
 - [ ] Cuotas por organización, tope global con corte, reserva de tokens y rate limit por usuario con errores del proveedor saneados y test de que la clave no aparece en logs
 - [ ] Panel de chat del agente con streaming, salida sin HTML ni imágenes remotas y tarjetas de propuesta con diff que destacan frontmatter y Tareas, con tests
+- [ ] Deshabilitar el requestTimeout/headersTimeout por defecto de Node (5 min) en la conexión SSE de .../agent/messages: verificado con la clave real que este modelo puede tardar varios minutos en producir el primer token útil incluso en una respuesta trivial, con test de que se llama setTimeout(0) al iniciar el stream
