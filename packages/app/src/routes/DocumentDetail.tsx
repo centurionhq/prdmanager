@@ -13,6 +13,9 @@ import { archiveDocument, generateWorkOrders, getDocument, getProject, getSessio
 import { errorMessage } from '../api/error-message.js';
 import { CloseFeatureAction } from './CloseFeatureAction.js';
 import { CollabEditor } from '../components/CollabEditor.js';
+import { FrontmatterForm } from '../components/FrontmatterForm.js';
+import { CollabDocumentProvider } from '../collab/collab-document-context.js';
+import { formatCollabDocumentName } from '../collab/document-name.js';
 import { FormError } from '../components/FormError.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { useOrgShellContext } from './OrgShell.js';
@@ -174,7 +177,10 @@ export function DocumentDetail(): ReactElement {
       )}
 
       {doc.origin === 'collab' && projectId ? (
-        <CollabEditor projectId={projectId} documentId={doc.id} />
+        <CollabDocumentProvider documentName={formatCollabDocumentName(projectId, doc.id)}>
+          <FrontmatterForm kind={doc.kind} />
+          <CollabEditor />
+        </CollabDocumentProvider>
       ) : (
         <pre className={formStyles.card}>{content || '(sin contenido)'}</pre>
       )}

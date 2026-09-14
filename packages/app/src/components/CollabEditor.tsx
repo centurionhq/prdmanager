@@ -8,14 +8,8 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { EditorView } from '@codemirror/view';
 import { buildEditorExtensions, readCspNonce } from '../collab/editor-extensions.js';
-import { formatCollabDocumentName } from '../collab/document-name.js';
-import { useCollabProvider } from '../collab/use-collab-provider.js';
+import { useCollabDocumentContext } from '../collab/collab-document-context.js';
 import styles from '../styles/editor.module.css';
-
-export interface CollabEditorProps {
-  projectId: string;
-  documentId: string;
-}
 
 const STATUS_LABEL: Record<string, string> = {
   connecting: 'Conectando…',
@@ -23,9 +17,11 @@ const STATUS_LABEL: Record<string, string> = {
   disconnected: 'Desconectado',
 };
 
-export function CollabEditor({ projectId, documentId }: CollabEditorProps): ReactElement {
-  const documentName = formatCollabDocumentName(projectId, documentId);
-  const { provider, state } = useCollabProvider(documentName);
+/** Renders inside a `CollabDocumentProvider` (`../routes/DocumentDetail.js`) — never creates its own
+ * `HocuspocusProvider`, so it always shares the exact same connection/awareness identity as the
+ * frontmatter form and every other panel on the same document page. */
+export function CollabEditor(): ReactElement {
+  const { provider, state } = useCollabDocumentContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [editorReady, setEditorReady] = useState(false);
 
