@@ -241,7 +241,7 @@
   "governs": {
     "ADR-001": {
       ".mcp.json": "691d720317adc75931825d29250f4aa9c6636e63b78fadb5eebb7d070c6029ef",
-      "docker-compose.yml": "9d1f8b98fb060a9620c1af09648f556ad28bb03521f485a2beec5081128f05f9",
+      "docker-compose.yml": "6a2324f095e6ffdfb15591da5954f860b5ff5479e0d58428810aad887224d61d",
       "scripts/install-tooling.sh": "f7353d94b1424472a3810163d4add2a1e965adbbdd3a6c0ddfbb2c4e512f51e5",
       "scripts/mcp-neo4j.sh": "37c776f5abf1e28da03da971816e529870fdd7a1e095efd8e616fcf83546b9b0",
       "scripts/validate-graph-model.mjs": "69e3cebb068a1e67c659eec44ab07863cae026ef70727719de84029711c20614"
@@ -550,7 +550,7 @@
       "packages/core/src/sync/tree-sitter-extractor.ts": "52a1ab5c871c6a97977391a16edeca3e1deb908973c62cfebc2205a54686ca8c"
     },
     "SDD-005": {
-      ".env.example": "aeec492c6faa29a7280d83849a0b2f1af08ea338e33175e7d50f911a0837cf4a",
+      ".env.example": "4da22105989cb05b88a31043a627756ae357b0aa3f582627421314054dd4453a",
       ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
       "package-lock.json": "8445ab415d5d152fe825da4d576113c7c852a80fbb634dbcf9da854b4be5a1c2",
@@ -652,10 +652,11 @@
       "vitest.config.ts": "08fb701335317191db988c4bfe9cb155261493353fc0f4592710e0e0b248650f"
     },
     "SDD-006": {
-      ".env.example": "aeec492c6faa29a7280d83849a0b2f1af08ea338e33175e7d50f911a0837cf4a",
+      ".env.example": "4da22105989cb05b88a31043a627756ae357b0aa3f582627421314054dd4453a",
       ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
-      "docker-compose.yml": "9d1f8b98fb060a9620c1af09648f556ad28bb03521f485a2beec5081128f05f9",
+      "docker-compose.yml": "6a2324f095e6ffdfb15591da5954f860b5ff5479e0d58428810aad887224d61d",
+      "docker/postgres/init/01-roles.sh": "debbcd64f4e3b5fcbd30c5ef6b35f6066d9239bb42c59844b9a2d2292d8fa6b9",
       "package-lock.json": "8445ab415d5d152fe825da4d576113c7c852a80fbb634dbcf9da854b4be5a1c2",
       "package.json": "57ade579c27e89e453ab0c10285681ee19d5276a043a2d10d5de5f9e86b26be8",
       "packages/contracts/package.json": "eb1000d3aa1fdaa319ef0b9a6dfa8db4cd3b48bda7f71312fb2607c8ecbd6df2",
@@ -947,7 +948,7 @@
       "vitest.config.ts": "08fb701335317191db988c4bfe9cb155261493353fc0f4592710e0e0b248650f"
     },
     "SDD-008": {
-      ".env.example": "aeec492c6faa29a7280d83849a0b2f1af08ea338e33175e7d50f911a0837cf4a",
+      ".env.example": "4da22105989cb05b88a31043a627756ae357b0aa3f582627421314054dd4453a",
       "package-lock.json": "8445ab415d5d152fe825da4d576113c7c852a80fbb634dbcf9da854b4be5a1c2",
       "package.json": "57ade579c27e89e453ab0c10285681ee19d5276a043a2d10d5de5f9e86b26be8",
       "packages/contracts/src/error-envelope.ts": "890cad3c40415661009c613a1e3602d07fb7ee7f6708423511d41700f2ce0c66",
@@ -974,7 +975,7 @@
       "vitest.config.ts": "08fb701335317191db988c4bfe9cb155261493353fc0f4592710e0e0b248650f"
     },
     "SDD-009": {
-      ".env.example": "aeec492c6faa29a7280d83849a0b2f1af08ea338e33175e7d50f911a0837cf4a",
+      ".env.example": "4da22105989cb05b88a31043a627756ae357b0aa3f582627421314054dd4453a",
       "package-lock.json": "8445ab415d5d152fe825da4d576113c7c852a80fbb634dbcf9da854b4be5a1c2",
       "package.json": "57ade579c27e89e453ab0c10285681ee19d5276a043a2d10d5de5f9e86b26be8",
       "packages/contracts/src/error-envelope.ts": "890cad3c40415661009c613a1e3602d07fb7ee7f6708423511d41700f2ce0c66",
@@ -1010,7 +1011,7 @@
       "README.md": "f1428780bc1bb21b33bcbd501071d44bff5e6b416f3eb43fae58e54bdd8a9000"
     },
     "SDD-010": {
-      ".env.example": "aeec492c6faa29a7280d83849a0b2f1af08ea338e33175e7d50f911a0837cf4a",
+      ".env.example": "4da22105989cb05b88a31043a627756ae357b0aa3f582627421314054dd4453a",
       ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
       "package-lock.json": "8445ab415d5d152fe825da4d576113c7c852a80fbb634dbcf9da854b4be5a1c2",
