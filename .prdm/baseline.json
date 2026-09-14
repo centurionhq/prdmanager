@@ -757,6 +757,8 @@
       "packages/db/tests/unit/migrate.test.ts": "f722a415d69f8027664c7257cb024c5a6579650b8f2553b26f38ba4be2f330bd",
       "packages/db/tests/unit/pool.test.ts": "120302336741464ed0aeb0dd1bde092b95163512f1538c3702d7f846ead9467f",
       "packages/db/tsconfig.json": "4c83a6083cdd2e8a4a3cbdc83d2be0bd645c759f5cb2f98c3f44b5421ccab3bc",
+      "packages/server/Dockerfile": "343a99ef16fa1430ba925a5e187fee2b92570954d2166941e7b6d7d9a681c958",
+      "packages/server/Dockerfile.dockerignore": "c8c8021f2961c0793c486b6a9c4cb5249a188f101e5be8c67e79f31f39cd0777",
       "packages/server/package.json": "6f05304c9f1f3566952139f153bd88f3ea9cc178a17c024a2ddffe96826fd1dd",
       "packages/server/src/access/bearer-access-prehandler.ts": "f7f8f22617c6d2d5b82a8a8a103ae082b2855938fb92aed49ba97a73d6144351",
       "packages/server/src/access/route-access.ts": "ece152889fdd3461653343bfe8a0152fd9774cd6dbe8d0002fa5a418773a02ee",
