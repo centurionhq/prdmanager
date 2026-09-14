@@ -98,6 +98,28 @@ async function hasTablePrivilege(role: string, table: string, privilege: string)
   return rows[0]!.has;
 }
 
+interface SecurityDefinerFunctionRow {
+  proname: string;
+  owner: string;
+  proconfig: string[] | null;
+}
+
+/** Every `SECURITY DEFINER` function in the `public` schema (WO-097: `resolve_project`,
+ * `resolve_graph_project`, `resolve_invitation` today; `resolve_token`/`resolve_document` once WO-109
+ * adds them; `read_platform_audit_log` from 0002) — enumerated by `prosecdef`, never by name, so a
+ * future migration that adds one without following the template is caught here automatically. */
+async function listSecurityDefinerFunctions(): Promise<SecurityDefinerFunctionRow[]> {
+  const { rows } = await pg.ownerPool.query<SecurityDefinerFunctionRow>(
+    `SELECT p.proname, own.rolname AS owner, p.proconfig
+       FROM pg_proc p
+       JOIN pg_namespace n ON n.oid = p.pronamespace
+       JOIN pg_roles own ON own.oid = p.proowner
+      WHERE n.nspname = 'public' AND p.prosecdef = true
+      ORDER BY p.proname`,
+  );
+  return rows;
+}
+
 beforeAll(async () => {
   pg = await openTestPg();
 });
@@ -163,5 +185,19 @@ describe('catalog test: every non-allowlisted table is tenant-isolated (WO-099)'
     expect(await hasTablePrivilege('prdm_app', 'platform_admins', 'INSERT')).toBe(false);
     expect(await hasTablePrivilege('prdm_app', 'platform_admins', 'UPDATE')).toBe(false);
     expect(await hasTablePrivilege('prdm_app', 'platform_admins', 'DELETE')).toBe(false);
+  });
+
+  test('every SECURITY DEFINER function in public is owned by prdm_owner and pins a fixed search_path (WO-097)', async () => {
+    const functions = await listSecurityDefinerFunctions();
+    // sanity: this test isn't vacuously passing — resolve_project/resolve_graph_project (WO-097),
+    // resolve_invitation (WO-105) and read_platform_audit_log (WO-101) must all be present.
+    expect(functions.length).toBeGreaterThanOrEqual(4);
+
+    for (const fn of functions) {
+      expect(fn.owner, `${fn.proname} must be owned by prdm_owner, not ${fn.owner}`).toBe('prdm_owner');
+      const searchPathSetting = (fn.proconfig ?? []).find((entry) => entry.startsWith('search_path='));
+      expect(searchPathSetting, `${fn.proname} must SET search_path`).toBeDefined();
+      expect(searchPathSetting, `${fn.proname} must pin search_path to pg_catalog, public`).toBe('search_path=pg_catalog, public');
+    }
   });
 });

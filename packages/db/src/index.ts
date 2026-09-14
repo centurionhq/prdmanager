@@ -6,5 +6,6 @@ export * from './platform-admins.js';
 export * from './platform-audit.js';
 export * from './pool.js';
 export * from './repositories.js';
+export * from './resolve-project.js';
 export * from './tenant.js';
 export * as schema from './schema.js';

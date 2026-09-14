@@ -29,6 +29,13 @@
       "when": 1789352575435,
       "tag": "0003_invitation_secrets_and_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789360000000,
+      "tag": "0004_resolve_project_functions",
+      "breakpoints": true
     }
   ]
 }
