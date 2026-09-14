@@ -1,0 +1,4 @@
+export { assertValidRoot, createDocumentYDoc, BODY_ROOT, FRONTMATTER_ROOT, InvalidDocumentRootError } from './schema.js';
+export type { FrontmatterPrimitive, FrontmatterValue } from './schema.js';
+export { applyProjection, projectDoc } from './projection.js';
+export type { DocProjection } from './projection.js';

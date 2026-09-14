@@ -15,6 +15,8 @@
     "packages/mcp/tests/**/*.ts",
     "packages/contracts/src/**/*.ts",
     "packages/contracts/tests/**/*.ts",
+    "packages/collab/src/**/*.ts",
+    "packages/collab/tests/**/*.ts",
     "packages/db/src/**/*.ts",
     "packages/db/tests/**/*.ts",
     "packages/server/src/**/*.ts",
