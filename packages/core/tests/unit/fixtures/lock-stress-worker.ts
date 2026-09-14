@@ -34,12 +34,18 @@ async function main(): Promise<void> {
         await new Promise((resolve) => setTimeout(resolve, 1));
         unlinkSync(markerPath);
       },
-      // `staleAfterMs` needs real margin over `heartbeatMs`: a held lock is only ever "stale" once it has
-      // missed a heartbeat by that much. Leaving `heartbeatMs` at its 5s default (equal to `staleAfterMs`)
-      // meant a single scheduling delay on a contended CI runner (6 concurrent tsx processes on ~2 vCPUs)
-      // could make a still-live holder's lock look abandoned and get broken out from under it — a genuine
-      // mutual-exclusion violation, not a flaky assertion.
-      { timeoutMs: 15_000, staleAfterMs: 30_000, heartbeatMs: 500 },
+      // Two margins, both needed (WO-207 finding 2):
+      // - `staleAfterMs` over `heartbeatMs`: a held lock is only "stale" once it has missed a heartbeat by
+      //   that much. Equal values (an earlier 5s/5s) meant a single scheduling delay made a still-live
+      //   holder's lock look abandoned and get broken out from under it — a genuine mutual-exclusion
+      //   violation caught by the `wx` marker, not a flaky assertion.
+      // - `timeoutMs` (how long a *waiter* retries before giving up) over `staleAfterMs`: with the earlier
+      //   15s/30s pairing a waiter always gave up *before* a truly stuck holder could ever be reclaimed,
+      //   so every waiter hard-failed with "another process holds the lock" instead of recovering — on a
+      //   2-vCPU CI runner, 6 contending processes can genuinely starve the current holder's event loop for
+      //   several seconds without anything being wrong. `timeoutMs` now gives multiple eviction cycles of
+      //   headroom over `staleAfterMs` so a waiter can actually benefit from the recovery it pays for.
+      { timeoutMs: 40_000, staleAfterMs: 8_000, heartbeatMs: 250 },
     );
   }
 }

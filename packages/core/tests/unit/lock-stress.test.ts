@@ -21,6 +21,13 @@ function readViolations(root: string): string {
   return existsSync(path) ? readFileSync(path, 'utf8').trim() : '';
 }
 
+/** Whatever owner state is left behind on failure — tells us whether a timeout was caused by a genuinely
+ * stuck/dead holder (stale heartbeat, dead pid) or something else entirely, instead of guessing. */
+function readLockFile(root: string): string {
+  const path = join(root, '.prdm', 'engine.lock');
+  return existsSync(path) ? readFileSync(path, 'utf8').trim() : '(no lock file left behind)';
+}
+
 const WORKERS = 6;
 const ITERATIONS_PER_WORKER = 100;
 
@@ -31,19 +38,24 @@ describe('withRepoLock: real multi-process mutual exclusion (WO-023 finding 3)',
       const root = makeTmpDir('prdm-lock-stress-');
       try {
         // 6 concurrent `node --import tsx` processes are CPU-bound at startup (tsx transpiles on the fly); on a
-        // 2-vCPU CI runner that contention can dwarf the time seen on a many-core dev machine, so both timeouts
-        // here need real headroom over what's sufficient locally.
-        const workers = Array.from({ length: WORKERS }, (_, i) => run('node', ['--import', 'tsx', WORKER, root, String(ITERATIONS_PER_WORKER), String(i)], { timeout: 45_000 }));
+        // 2-vCPU CI runner that contention can dwarf the time seen on a many-core dev machine, so the exec/test
+        // timeouts need real headroom over the worker's own (much larger, see the WO-207 comment there) per-
+        // acquisition `timeoutMs`, itself needing headroom over `staleAfterMs` for eviction to ever help a waiter.
+        const workers = Array.from({ length: WORKERS }, (_, i) => run('node', ['--import', 'tsx', WORKER, root, String(ITERATIONS_PER_WORKER), String(i)], { timeout: 90_000 }));
         const results = await Promise.allSettled(workers);
         const failures = results.flatMap((result, i) =>
           result.status === 'rejected' ? [`worker ${i}: ${describeFailure(result.reason)}`] : [],
         );
         // vitest only prints execFile's "Command failed" line, so surface the worker's own diagnosis instead.
-        expect({ failures, violations: readViolations(root) }).toEqual({ failures: [], violations: '' });
+        expect({ failures, violations: readViolations(root), lockFile: readLockFile(root) }).toEqual({
+          failures: [],
+          violations: '',
+          lockFile: '(no lock file left behind)',
+        });
       } finally {
         removeDir(root);
       }
     },
-    50_000,
+    100_000,
   );
 });
