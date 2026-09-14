@@ -5,6 +5,7 @@
  * being imported. Only re-exports; never imports `./server.js`.
  */
 export { createPrdmServer } from './create.js';
-export { registerPrdmTools, type RegisterPrdmToolsOptions } from './tools.js';
+export { registerPrdmTools, type PrdmMcpProfile, type RegisterPrdmToolsOptions } from './tools.js';
+export { denyRemoteWrite, registerRemoteWriteTools, type RemoteWriteAuth } from './tools-remote.js';
 export { escapeFenceChars, fenceTag } from './prompts.js';
 export { requireAuthoring, type PrdmDeps } from './deps.js';

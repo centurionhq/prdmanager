@@ -34,6 +34,8 @@ import type { LlmClient } from './agent/llm-client.js';
 import { createBlameCache } from './collab/blame.js';
 import { registerDriftRoutes } from './api/drift.js';
 import { registerForcePushOverrideRoutes } from './api/force-push-overrides.js';
+import { DEFAULT_MCP_TOOL_RATE_LIMIT_PER_MINUTE, registerMcpRemoteRoutes } from './api/mcp-remote.js';
+import { buildMcpToolRateLimiter } from './rate-limit/mcp-tool-rate-limits.js';
 import { registerGovernanceRoutes } from './api/governance.js';
 import { registerGraphRoutes } from './api/graph.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
@@ -273,6 +275,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerGovernanceRoutes(app, { pool });
       registerCodeReportRoutes(app, { pool, neo4j });
       registerPolicyDocsRoutes(app, { pool });
+      registerMcpRemoteRoutes(app, { pool, neo4j, rateLimiter: buildMcpToolRateLimiter(app, DEFAULT_MCP_TOOL_RATE_LIMIT_PER_MINUTE) });
     });
   }
 

@@ -57,7 +57,10 @@ interface ProjectMemberRouteParams extends ProjectRouteParams {
   userId: string;
 }
 
-function isOrgAdmin(role: OrgRole): boolean {
+/** Exported for `./mcp-remote.js` (SDD-010, WO-184): resolving a bearer-authenticated caller's project
+ * role needs the exact same "org owner/admin inherits project admin" rule this file's own
+ * `resolveVisibleProject` already applies to session callers. */
+export function isOrgAdmin(role: OrgRole): boolean {
   return role === 'owner' || role === 'admin';
 }
 

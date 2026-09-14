@@ -100,7 +100,9 @@ function instructions(id: string): string[] {
   ];
 }
 
-export function registerPrdmPrompts(server: McpServer, deps: PrdmDeps): void {
+/** `implement_work_order` (SDD-010's remote profile, WO-184): the only prompt ever exposed remotely —
+ * `author_artifact` (below) is dashboard/local-only, since authoring never happens over the remote MCP. */
+export function registerImplementWorkOrderPrompt(server: McpServer, deps: PrdmDeps): void {
   server.registerPrompt(
     'implement_work_order',
     {
@@ -125,7 +127,10 @@ export function registerPrdmPrompts(server: McpServer, deps: PrdmDeps): void {
       return { messages: [{ role: 'user' as const, content: { type: 'text' as const, text } }] };
     },
   );
+}
 
+/** `author_artifact`: local/stdio profile only (authoring is dashboard/local-only over the remote MCP). */
+export function registerAuthorArtifactPrompt(server: McpServer, deps: PrdmDeps): void {
   server.registerPrompt(
     'author_artifact',
     {
@@ -163,4 +168,10 @@ export function registerPrdmPrompts(server: McpServer, deps: PrdmDeps): void {
       return { messages: [{ role: 'user' as const, content: { type: 'text' as const, text } }] };
     },
   );
+}
+
+/** Full local/stdio prompt set: `implement_work_order` + `author_artifact`. */
+export function registerPrdmPrompts(server: McpServer, deps: PrdmDeps): void {
+  registerImplementWorkOrderPrompt(server, deps);
+  registerAuthorArtifactPrompt(server, deps);
 }

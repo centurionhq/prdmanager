@@ -51,7 +51,9 @@ export interface ProjectSummary {
   draftableKinds: readonly DraftKind[];
 }
 
-/** Shared by the `get_project` tool and the `prdm://project` resource so both report the exact same data. */
+/** Shared by the `get_project` tool and the `prdm://project` resource so both report the exact same
+ * data. `openDrafts` is `0` for a profile with no `deps.authoring` at all (SDD-010's remote profile —
+ * there is no in-memory draft concept over HTTP), rather than throwing. */
 export async function buildProjectSummary(deps: PrdmDeps): Promise<ProjectSummary> {
   const { docs } = await deps.engine.scan();
   const counts = Object.fromEntries(DOC_KINDS.map((kind) => [kind, 0])) as Record<DocKind, number>;
@@ -62,7 +64,7 @@ export async function buildProjectSummary(deps: PrdmDeps): Promise<ProjectSummar
     folders: deps.config.folders,
     lifecycle: LIFECYCLE_RULES,
     counts,
-    openDrafts: requireAuthoring(deps).list().length,
+    openDrafts: deps.authoring ? requireAuthoring(deps).list().length : 0,
     draftableKinds: DRAFT_KINDS,
   };
 }
@@ -73,7 +75,14 @@ function draftValidationErrorResult(err: DraftValidationError): CallToolResult {
   return { isError: true, content: [{ type: 'text', text: jsonText(data) }], structuredContent: data };
 }
 
-export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void {
+/**
+ * `get_project` and `get_closure_readiness` (SDD-010's remote profile, WO-184): both read-only, both
+ * safe with no `deps.authoring` at all — the only two tools `tools-authoring.ts` contributes to the
+ * remote MCP tool set. Kept in their own registration function (rather than lumped into
+ * `registerAuthoringTools`) precisely so the remote profile can register exactly these two without the
+ * drafting family (`draft_artifact` and its siblings, never exposed remotely — SDD-010's own table).
+ */
+export function registerProjectSummaryTools(server: McpServer, deps: PrdmDeps): void {
   server.registerTool(
     'get_project',
     {
@@ -86,6 +95,22 @@ export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void 
     safeReadTool(deps, async () => jsonResult({ ...(await buildProjectSummary(deps)) })),
   );
 
+  server.registerTool(
+    'get_closure_readiness',
+    {
+      title: 'Get closure readiness',
+      description:
+        'Read-only checklist for closing a Feature (PRD-002 §3 "Cierre"): approved status, every architecting Blueprint has at least one Work Order, all of those are done, and a project-wide refresh reports zero error-level issues. There is no MCP tool to close a feature (ADR-002 D15): closure is a human gate, run with `prdm close <id> --ack --by dev:<name>` on the CLI.',
+      inputSchema: { feature_id: docId },
+      annotations: { title: 'Get closure readiness', ...READ_ONLY },
+    },
+    safeReadTool(deps, async ({ feature_id }: { feature_id: string }) => jsonResult({ ...(await closureReadiness(deps.engine, feature_id)) })),
+  );
+}
+
+/** Drafting/authoring tools (`draft_artifact` and its whole family): local/stdio profile only — SDD-010
+ * is explicit that authoring never happens over the remote MCP, only in the dashboard. */
+export function registerDraftingTools(server: McpServer, deps: PrdmDeps): void {
   server.registerTool(
     'draft_artifact',
     {
@@ -178,16 +203,10 @@ export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void 
     },
     safeTool(async ({ draft_id }: { draft_id: string }) => jsonResult({ discarded: await requireAuthoring(deps).discard(draft_id) })),
   );
+}
 
-  server.registerTool(
-    'get_closure_readiness',
-    {
-      title: 'Get closure readiness',
-      description:
-        'Read-only checklist for closing a Feature (PRD-002 §3 "Cierre"): approved status, every architecting Blueprint has at least one Work Order, all of those are done, and a project-wide refresh reports zero error-level issues. There is no MCP tool to close a feature (ADR-002 D15): closure is a human gate, run with `prdm close <id> --ack --by dev:<name>` on the CLI.',
-      inputSchema: { feature_id: docId },
-      annotations: { title: 'Get closure readiness', ...READ_ONLY },
-    },
-    safeReadTool(deps, async ({ feature_id }: { feature_id: string }) => jsonResult({ ...(await closureReadiness(deps.engine, feature_id)) })),
-  );
+/** Full local/stdio tool set from this module: project summary + closure readiness + drafting. */
+export function registerAuthoringTools(server: McpServer, deps: PrdmDeps): void {
+  registerProjectSummaryTools(server, deps);
+  registerDraftingTools(server, deps);
 }

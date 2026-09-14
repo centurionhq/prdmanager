@@ -328,6 +328,32 @@ export function registerBaseIsolationRoutes(): void {
   // nonexistent project id would — no `sameOrgOtherProject` case: an unscoped org-A token is allowed
   // to read any project in its own org (SDD-010 never adds a per-user role check to this route, only
   // token-scope + org-ownership + optional `project_ids`).
+  // SDD-010 (WO-184): a fuller MCP-specific battery (same-project-id-different-org tool calls, a
+  // project_ids-scoped token) lives in WO-185's own extension of this suite; this base entry only
+  // proves the same IDOR-safe 404 every other bearer route already gets.
+  registerIsolationProbe('POST', '/mcp/:graphProjectId', {
+    mutating: true,
+    crossOrg: (fixtures) => ({
+      credential: { kind: 'bearer', secret: fixtures.orgBOwnerBearerSecret },
+      params: { path: { graphProjectId: fixtures.projectA1.graphProjectId }, body: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} } },
+    }),
+  });
+  registerIsolationProbe('GET', '/mcp/:graphProjectId', {
+    skip: 'always answers 405 by hand before any tenant resolution runs — no 404 signal to probe',
+  });
+  registerIsolationProbe('DELETE', '/mcp/:graphProjectId', {
+    skip: 'always answers 405 by hand before any tenant resolution runs — no 404 signal to probe',
+  });
+  registerIsolationProbe('POST', '/mcp', {
+    skip: 'lists projects the caller\'s own token/org can already see — no other org\'s resource id to probe',
+  });
+  registerIsolationProbe('GET', '/mcp', {
+    skip: 'always answers 405 by hand before any tenant resolution runs — no 404 signal to probe',
+  });
+  registerIsolationProbe('DELETE', '/mcp', {
+    skip: 'always answers 405 by hand before any tenant resolution runs — no 404 signal to probe',
+  });
+
   registerIsolationProbe('GET', '/api/v1/projects/:graphProjectId/governance', {
     crossOrg: (fixtures) => ({
       credential: { kind: 'bearer', secret: fixtures.orgBOwnerBearerSecret },

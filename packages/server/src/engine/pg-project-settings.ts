@@ -13,7 +13,7 @@
  * TTL/limits aren't part of the dashboard's project settings screen either, same reasoning).
  */
 import { projectSettingsSchema } from '@prdm/contracts';
-import { DEFAULT_AUTHORING, foldersForDocsDir, type FolderMap, type ProjectSettings } from '@prdm/core';
+import { DEFAULT_AUTHORING, foldersForDocsDir, type FolderMap, type PrdmConfig, type ProjectSettings } from '@prdm/core';
 import type { ProjectRecord } from '@prdm/db';
 
 /** SaaS projects never have a real `docs/` directory on disk; kept as a named constant since it also
@@ -49,5 +49,18 @@ export function buildProjectSettings(project: ProjectRecord): ProjectSettings {
       maxCandidates: raw.triage.max_candidates,
       minMatchedTerms: raw.triage.min_matched_terms,
     },
+  };
+}
+
+/** The full `PrdmConfig` a `PrdmDeps`-shaped MCP tool handler expects (SDD-010's remote MCP profile,
+ * WO-184): `buildProjectSettings` plus the two fields `ProjectSettings` deliberately omits
+ * (`root`/`neo4j` — SDD-007 "PgProjectEngine": neither is ever dereferenced for real disk/network I/O
+ * by a SaaS-backed `EngineOps`, so both are inert placeholders, matching `PgProjectEngine`'s own
+ * private `this.config` construction exactly). */
+export function buildPrdmConfig(project: ProjectRecord): PrdmConfig {
+  return {
+    ...buildProjectSettings(project),
+    root: saasProjectRoot(project.id),
+    neo4j: { uri: 'saas://unused', username: 'unused', password: 'unused', database: 'unused' },
   };
 }
