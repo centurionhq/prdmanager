@@ -4,7 +4,7 @@
  * live `quoted_text` recomputation) is `@prdm/collab`'s `comment-anchor.ts`'s job, kept isomorphic and
  * database-free; this module only ever stores/reads the encoded anchor bytes.
  */
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { docComments, docCommentThreads } from './schema/doc-comments.js';
 import { withTenantTx } from './tenant.js';
@@ -71,12 +71,25 @@ export function buildDocCommentsRepository(pool: Pool, orgId: string): DocCommen
     listThreads: (documentId) =>
       withTenantTx(pool, orgId, async (tx) => {
         const threads = await tx.select().from(docCommentThreads).where(eq(docCommentThreads.documentId, documentId)).orderBy(asc(docCommentThreads.createdAt));
-        const result: ThreadWithComments[] = [];
-        for (const thread of threads) {
-          const comments = await tx.select().from(docComments).where(eq(docComments.threadId, thread.id)).orderBy(asc(docComments.createdAt));
-          result.push({ thread, comments });
+        if (threads.length === 0) return [];
+
+        // WO-224: one query for every listed thread's comments (grouped in memory below) instead of one
+        // query per thread — the previous loop was an N+1 query pattern.
+        const threadIds = threads.map((thread) => thread.id);
+        const comments = await tx
+          .select()
+          .from(docComments)
+          .where(inArray(docComments.threadId, threadIds))
+          .orderBy(asc(docComments.createdAt));
+
+        const commentsByThread = new Map<string, DocCommentRecord[]>();
+        for (const comment of comments) {
+          const forThread = commentsByThread.get(comment.threadId);
+          if (forThread) forThread.push(comment);
+          else commentsByThread.set(comment.threadId, [comment]);
         }
-        return result;
+
+        return threads.map((thread) => ({ thread, comments: commentsByThread.get(thread.id) ?? [] }));
       }),
 
     findThread: (threadId) =>
