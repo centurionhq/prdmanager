@@ -17,8 +17,15 @@ export type DocumentKind = (typeof documentKind.enumValues)[number];
 
 const ID_PAD = 3;
 
-/** Same rendering as `@prdm/core`'s `nextId`/`ID_PATTERN`: `${kind}-${seq zero-padded to 3 digits}`, e.g. `PRD-012`. */
-function formatDocId(kind: DocumentKind, seq: number): string {
+/**
+ * Same rendering as `@prdm/core`'s `nextId`/`ID_PATTERN`: `${kind}-${seq zero-padded to 3 digits}`, e.g.
+ * `PRD-012`. Exported (WO-132) so `PgProjectEngine.scan()` can fold each kind's `id_counters.last_seq`
+ * into `ScanResult.ids` without duplicating the format, reserving an id even for a counter that has
+ * advanced past every id currently visible on a `documents` row (e.g. a row from a rolled-back
+ * transaction whose counter increment nonetheless stuck, per this module's own "gaps are fine, never
+ * reuse" doc comment).
+ */
+export function formatDocId(kind: DocumentKind, seq: number): string {
   return `${kind}-${String(seq).padStart(ID_PAD, '0')}`;
 }
 
