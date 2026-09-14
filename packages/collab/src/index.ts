@@ -6,3 +6,5 @@ export { decodeUpdateRanges } from './update-ranges.js';
 export type { DecodedUpdateRanges, DeleteRange, StructRange } from './update-ranges.js';
 export { checkUpdateAgainstBindings } from './anti-spoofing.js';
 export type { AntiSpoofCheckParams, AntiSpoofCheckResult } from './anti-spoofing.js';
+export { buildRangeIndex, computeBlame } from './blame.js';
+export type { BlameActorKind, BlameAttribution, BlameResult, FieldBlame, LineBlame, RangeIndex, RangeIndexRow } from './blame.js';
