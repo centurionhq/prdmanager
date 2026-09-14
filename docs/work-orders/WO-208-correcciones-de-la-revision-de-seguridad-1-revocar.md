@@ -2,12 +2,17 @@
 id: "WO-208"
 type: "WO"
 title: "Correcciones de la revisión de seguridad #1: revocar EXECUTE de PUBLIC en toda función SECURITY DEFINER (con test de catálogo que lo verifica por firma exacta) y reconciliar al arrancar el servidor cualquier membresía de organización que haya quedado en un superadmin por un fallo a mitad del flujo d"
-status: "pending"
+status: "done"
 created_at: "2026-09-14"
 implements: ["SDD-006"]
 impacts_paths: ["packages/contracts/src/**","packages/contracts/tests/**","packages/contracts/*.json","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/db/*.json","packages/db/*.config.ts","packages/server/src/**","packages/server/tests/**","packages/server/scripts/**","packages/server/*.json","packages/server/Docker[f]ile","packages/server/Dockerfile.dockerignor[e]","packages/app/src/**","packages/app/tests/**","packages/app/*.json","packages/app/*.config.ts","packages/app/index.htm[l]","packages/ui/src/**","packages/ui/tests/**","packages/ui/*.json","packages/web/src/**","packages/web/tests/**","packages/web/package.json","packages/web/tsconfig*.json","packages/web/vite.config.ts","packages/testkit/src/**","packages/testkit/package.json","docker/**","docker-compose.yml","package.json","package-lock.json","tsconfig.json","tsconfig.base.json","tsconfig.test.json","vitest.config.ts",".env.example",".gitignore","README.md",".github/workflows/prdm-sync.yml"]
 source_task: "a500d66f9846d6c6"
 tags: ["saas","tenancy","auth","rbac","dashboard"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-14T04:19:53.847Z"
+completed_at: "2026-09-14T04:20:25.033Z"
+resolved_by: ["99bb1fcc5c441e5ebf959a14aa587f4962d6f980"]
+blueprint_hashes: {"SDD-006":"91cccdb3cd90181cfcb9b66af72f0851afe979cb7abc5b1ec374b20658ff0ca4"}
 ---
 
 ## Objetivo
