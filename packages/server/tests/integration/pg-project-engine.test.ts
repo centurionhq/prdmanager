@@ -197,13 +197,13 @@ describe('PgProjectEngine (WO-132)', () => {
     expect(row.baseline.docs['FB-001']).toBeDefined();
   });
 
-  test('lastReport() and recover() are safe no-ops for this WO', async () => {
+  test('lastReport() is a safe no-op for this WO; recover() is a safe no-op when nothing is dirty', async () => {
     const { engine } = await makeEngine();
     expect(await engine.lastReport()).toBeNull();
     expect(await engine.recover()).toEqual({ recovered: false, warnings: [] });
   });
 
-  test('every write marks the project graph dirty and bumps graph_version (WO-133 will project it)', async () => {
+  test('a write bumps graph_version and self-heals graph_dirty back to false via the WO-133 outbox projection', async () => {
     const { engine, projectId } = await makeEngine();
     const before = await pg.ownerPool.query(`SELECT graph_version, graph_dirty FROM "projects" WHERE id = $1`, [projectId]).then((r) => r.rows[0]);
     expect(before.graph_dirty).toBe(false);
@@ -211,7 +211,9 @@ describe('PgProjectEngine (WO-132)', () => {
     await engine.transaction((ops) => ops.createDocument('docs/feedback/FB-001-first.md', FB_TEMPLATE('FB-001', 'First feedback')));
 
     const after = await pg.ownerPool.query(`SELECT graph_version, graph_dirty FROM "projects" WHERE id = $1`, [projectId]).then((r) => r.rows[0]);
-    expect(after.graph_dirty).toBe(true);
+    // The outbox projection (WO-133) already ran as part of transaction()'s own post-commit step, so
+    // by the time the promise resolves the graph is no longer owed a projection.
+    expect(after.graph_dirty).toBe(false);
     expect(Number(after.graph_version)).toBeGreaterThan(Number(before.graph_version));
   });
 });

@@ -20,10 +20,28 @@
  * form (no code-governance state yet: `governed` is always empty and `dirty` is always empty, since
  * PgProjectEngine has no local git working tree to read `dirty` from at all) — WO-134 replaces the
  * `governed`/`commits` wiring with real CI-verified code state and hash-based reconciliation without
- * changing this file's transaction/scan/write plumbing. Likewise, every write here only ever updates
- * `projects.graph_version`/`graph_dirty` (never calls `store.writeSnapshot`, per SDD-007's outbox
- * design) — WO-133 adds the actual post-commit projection step; until then `graph_dirty` simply stays
- * `true` after any write, which is safe (it only means "a projection is owed"), never incorrect.
+ * changing this file's transaction/scan/write plumbing.
+ *
+ * **Outbox projection (WO-133):** every write inside `withTx` only ever touches Postgres plus
+ * `projects.graph_version`/`graph_dirty` (SDD-007: "dentro de la transacción solo se escribe
+ * Postgres"). Once that transaction *commits*, `withTx` runs `projectIfDirty()` exactly once — this is
+ * what coalesces any number of internal `ops.refresh()`/write calls made inside one outer
+ * `transaction()` into a single post-commit projection, since `graph_dirty` is read fresh only after
+ * every internal write already happened: there is nothing to coalesce in-process, the single boolean
+ * column already *is* the coalescing. `projectIfDirty()` takes a **session-scoped**
+ * `pg_advisory_lock` (a different lock key than `withTx`'s own per-transaction
+ * `pg_advisory_xact_lock`, so new writers are never blocked behind an in-flight projection or vice
+ * versa), re-reads the current `graph_dirty`/`graph_version` under that lock (in case a concurrent
+ * projection from another process/instance already won the race while this one waited for the lock),
+ * builds exactly one `GraphSnapshot` from the now-committed Postgres state, calls
+ * `store.writeSnapshot()` once, then clears `graph_dirty` in a small follow-up transaction guarded by
+ * `WHERE graph_version = $version` — so a newer write that lands between reading the snapshot and
+ * clearing the flag is never incorrectly marked "already projected". `recover()` runs the exact same
+ * `projectIfDirty()` (SDD-007: "recover() ... re-proyectan si graph_dirty"), so it's safe and cheap to
+ * call on every read path — nothing to do when the project isn't dirty. A projection failure (e.g. the
+ * graph store being unreachable) is reported through `onProjectionError` but never fails the caller's
+ * already-committed Postgres write: `graph_dirty` simply stays `true` and the next `recover()` (or the
+ * next write's own post-commit step) retries it — eventual consistency, never a lost/rolled-back write.
  */
 import {
   acknowledge as acknowledgeDrift,
@@ -40,6 +58,7 @@ import {
   type DriftIssue,
   type EngineOps,
   type FieldValue,
+  type GraphSnapshot,
   type GraphStore,
   type ParsedDoc,
   type PrdmConfig,
@@ -60,6 +79,14 @@ import { saasProjectRoot } from './pg-project-settings.js';
 
 type DocumentRow = typeof schema.documents.$inferSelect;
 type DocumentKindValue = (typeof schema.documentKind.enumValues)[number];
+
+/** `pg_advisory_xact_lock`/`pg_advisory_lock`'s single-bigint overload share one lock keyspace; two
+ * different salts keep `withTx`'s per-transaction write lock and `projectIfDirty`'s session-scoped
+ * projection lock from ever contending with each other for the same project (SDD-007: "un lock
+ * distinto del transaccional" — a writer must never block behind an in-flight projection, or vice
+ * versa). */
+const WRITE_LOCK_SALT = 0;
+const PROJECTION_LOCK_SALT = 1;
 
 /** Extracts the numeric sequence out of a real `KIND-NNN` id (`FB-014` -> `14`); throws for anything
  * that isn't already a validated id, since every caller here only ever sees `ParsedDoc.node.id`. */
@@ -99,6 +126,14 @@ export interface PgProjectEngineOptions {
   projectId: string;
   settings: ProjectSettings;
   store: GraphStore;
+  /** Called when the post-commit outbox projection fails (SDD-007's outbox never fails the caller's
+   * already-committed write for this — see this module's doc comment); defaults to writing a single
+   * line to stderr so a failure is never silently swallowed even without a logger wired up. */
+  onProjectionError?: (err: unknown) => void;
+}
+
+function defaultProjectionErrorHandler(err: unknown): void {
+  process.stderr.write(`PgProjectEngine: graph projection failed, will retry on next write/recover(): ${(err as Error)?.message ?? String(err)}\n`);
 }
 
 async function loadScanState(tx: PgDatabase, projectId: string): Promise<ScanResult> {
@@ -147,6 +182,7 @@ export class PgProjectEngine implements ProjectEngine {
    * rather than narrowing `EngineOps.config`'s type so `authoring/service.ts` (explicitly "solo local"
    * per SDD-007, and typed against the concrete `Engine`) keeps compiling unchanged. */
   private readonly config: PrdmConfig;
+  private readonly onProjectionError: (err: unknown) => void;
 
   constructor(opts: PgProjectEngineOptions) {
     this.pool = opts.pool;
@@ -154,6 +190,7 @@ export class PgProjectEngine implements ProjectEngine {
     this.projectId = opts.projectId;
     this.settings = opts.settings;
     this.store = opts.store;
+    this.onProjectionError = opts.onProjectionError ?? defaultProjectionErrorHandler;
     this.config = {
       ...opts.settings,
       root: saasProjectRoot(opts.projectId),
@@ -172,13 +209,14 @@ export class PgProjectEngine implements ProjectEngine {
     return null;
   }
 
-  /** No local git working tree/journal to recover from a crash of the caller's *own* process; the only
-   * thing that could be left "pending" after a crash mid-transaction is a Postgres transaction that
-   * already rolled back on its own (nothing here can partially commit). `graph_dirty` staying `true`
-   * simply means "a projection is owed" and is safe to leave as-is until WO-133 wires the actual
-   * re-projection step here. */
+  /** No local git working tree/journal to recover from a crash of the caller's *own* process (nothing
+   * here can partially commit — a crashed transaction simply rolls back on its own); the only durable
+   * thing a crash can leave behind is `graph_dirty = true` with no projection having run yet, which is
+   * exactly what `projectIfDirty()` fixes. Cheap to call on every read path (SDD-007), since it's a
+   * no-op whenever the project isn't dirty. */
   async recover(): Promise<RecoverResult> {
-    return { recovered: false, warnings: [] };
+    const recovered = await this.projectIfDirty();
+    return { recovered, warnings: [] };
   }
 
   transaction<T>(fn: (ops: EngineOps) => Promise<T>, _options: TransactionOptions = {}): Promise<T> {
@@ -209,15 +247,74 @@ export class PgProjectEngine implements ProjectEngine {
   }
 
   private withTx<T>(fn: (tx: PgDatabase, ops: EngineOps) => Promise<T>): Promise<T> {
-    return enqueueForProject(this.projectId, () =>
-      withTenantTx(this.pool, this.orgId, async (tx) => {
+    return enqueueForProject(this.projectId, async () => {
+      const result = await withTenantTx(this.pool, this.orgId, async (tx) => {
         // Deterministic per-project lock key (SDD-007: "pg_advisory_xact_lock sobre el uuid del
         // proyecto"); hashtextextended never truncates a uuid string the way int4/int8 casts of its
-        // bytes could collide more easily, and the `0` salt just matches the two-arg overload.
-        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${this.projectId}::text, 0))`);
+        // bytes could collide more easily.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${this.projectId}::text, ${WRITE_LOCK_SALT}))`);
         return fn(tx, this.buildOps(tx));
-      }),
+      });
+      // Only after the transaction above has actually committed (SDD-007's outbox): any number of
+      // internal writes already collapsed into a single `graph_dirty = true`, so this is the one
+      // place per outer `transaction()`/`refresh()`/`acknowledge()` call that can ever trigger a
+      // projection — never once per internal `ops.refresh()`/write call.
+      try {
+        await this.projectIfDirty();
+      } catch (err) {
+        this.onProjectionError(err);
+      }
+      return result;
+    });
+  }
+
+  /** Projects the current committed Postgres state to the graph store exactly once if (and only if)
+   * `graph_dirty` is currently set, under a session-scoped advisory lock so two concurrent callers
+   * (different processes, or `recover()` racing a write's own post-commit step) never call
+   * `store.writeSnapshot` for the same project at the same time. Returns whether it actually projected
+   * anything. */
+  private async projectIfDirty(): Promise<boolean> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('select pg_advisory_lock(hashtextextended($1::text, $2))', [this.projectId, PROJECTION_LOCK_SALT]);
+      return await this.projectOnce();
+    } finally {
+      await client.query('select pg_advisory_unlock(hashtextextended($1::text, $2))', [this.projectId, PROJECTION_LOCK_SALT]);
+      client.release();
+    }
+  }
+
+  /** Must only be called while holding the session projection lock (see `projectIfDirty`). Re-checks
+   * `graph_dirty` under the lock (a concurrent projection may have already won the race while this
+   * call waited for the lock), builds one snapshot from the now-committed state, writes it once, then
+   * clears `graph_dirty` guarded by `graph_version = $version` so a write that lands after the
+   * snapshot was read is never incorrectly marked as already projected. */
+  private async projectOnce(): Promise<boolean> {
+    const state = await withTenantTx(this.pool, this.orgId, async (tx) => {
+      const [row] = await tx.select({ dirty: schema.projects.graphDirty, version: schema.projects.graphVersion }).from(schema.projects).where(eq(schema.projects.id, this.projectId));
+      if (!row) throw new Error(`project ${this.projectId} not found while checking graph_dirty`);
+      if (!row.dirty) return null;
+      const snapshot = await this.buildSnapshot(tx);
+      return { version: row.version, snapshot };
+    });
+    if (!state) return false;
+
+    await this.store.writeSnapshot(state.snapshot);
+
+    await withTenantTx(this.pool, this.orgId, (tx) =>
+      tx
+        .update(schema.projects)
+        .set({ graphDirty: false })
+        .where(and(eq(schema.projects.id, this.projectId), eq(schema.projects.graphVersion, state.version))),
     );
+    return true;
+  }
+
+  private async buildSnapshot(tx: PgDatabase): Promise<GraphSnapshot> {
+    const scan = await loadScanState(tx, this.projectId);
+    const input = await this.buildDriftInput(tx, scan);
+    const built = buildRefreshReport(input);
+    return { docs: scan.docs, governed: built.governed, reviewNeeded: built.reviewNeeded, commits: input.commits };
   }
 
   private buildOps(tx: PgDatabase): EngineOps {
