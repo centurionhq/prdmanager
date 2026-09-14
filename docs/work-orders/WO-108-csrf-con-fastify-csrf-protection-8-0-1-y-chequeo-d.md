@@ -2,12 +2,17 @@
 id: "WO-108"
 type: "WO"
 title: "CSRF con @fastify/csrf-protection 8.0.1 y chequeo de Origin y Sec-Fetch-Site en rutas mutantes, CSP con wss del host exacto y nonce de estilo, y HSTS en producción, con tests"
-status: "pending"
+status: "done"
 created_at: "2026-09-13"
 implements: ["SDD-006"]
 impacts_paths: ["packages/contracts/src/**","packages/contracts/tests/**","packages/contracts/*.json","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/db/*.json","packages/db/*.config.ts","packages/server/src/**","packages/server/tests/**","packages/server/scripts/**","packages/server/*.json","packages/server/Docker[f]ile","packages/server/Dockerfile.dockerignor[e]","packages/app/src/**","packages/app/tests/**","packages/app/*.json","packages/app/*.config.ts","packages/app/index.htm[l]","packages/ui/src/**","packages/ui/tests/**","packages/ui/*.json","packages/web/src/**","packages/web/tests/**","packages/web/package.json","packages/web/tsconfig*.json","packages/web/vite.config.ts","packages/testkit/src/**","packages/testkit/package.json","docker/**","docker-compose.yml","package.json","package-lock.json","tsconfig.json","tsconfig.base.json","tsconfig.test.json","vitest.config.ts",".env.example",".gitignore","README.md",".github/workflows/prdm-sync.yml"]
 source_task: "2f69a8b2d1095643"
 tags: ["saas","tenancy","auth","rbac","dashboard"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-14T02:56:22.198Z"
+completed_at: "2026-09-14T03:12:43.071Z"
+resolved_by: ["a4f1fcf556efd0b3bab4d2e0dfc84cf0f79b608f"]
+blueprint_hashes: {"SDD-006":"91cccdb3cd90181cfcb9b66af72f0851afe979cb7abc5b1ec374b20658ff0ca4"}
 ---
 
 ## Objetivo
