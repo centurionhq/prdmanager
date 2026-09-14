@@ -2,12 +2,17 @@
 id: "WO-210"
 type: "WO"
 title: "Correcciones de la revisión de UI/accesibilidad de la Fase 3: manejo de foco en cambios de paso o confirmación (2FA, reseteo de contraseña, aceptar invitación), aria-describedby en pistas y errores de formularios, envoltorio con scroll horizontal en tablas, y document.title por ruta, con tests"
-status: "pending"
+status: "done"
 created_at: "2026-09-14"
 implements: ["SDD-006"]
 impacts_paths: ["packages/contracts/src/**","packages/contracts/tests/**","packages/contracts/*.json","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/db/*.json","packages/db/*.config.ts","packages/server/src/**","packages/server/tests/**","packages/server/scripts/**","packages/server/*.json","packages/server/Docker[f]ile","packages/server/Dockerfile.dockerignor[e]","packages/app/src/**","packages/app/tests/**","packages/app/*.json","packages/app/*.config.ts","packages/app/index.htm[l]","packages/ui/src/**","packages/ui/tests/**","packages/ui/*.json","packages/web/src/**","packages/web/tests/**","packages/web/package.json","packages/web/tsconfig*.json","packages/web/vite.config.ts","packages/testkit/src/**","packages/testkit/package.json","docker/**","docker-compose.yml","package.json","package-lock.json","tsconfig.json","tsconfig.base.json","tsconfig.test.json","vitest.config.ts",".env.example",".gitignore","README.md",".github/workflows/prdm-sync.yml"]
 source_task: "2483af6871c29f61"
 tags: ["saas","tenancy","auth","rbac","dashboard"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-14T06:53:41.888Z"
+completed_at: "2026-09-14T06:54:08.546Z"
+resolved_by: ["f72e86dbb33b407f7441dd8e2ab42c471ac40f5d"]
+blueprint_hashes: {"SDD-006":"91cccdb3cd90181cfcb9b66af72f0851afe979cb7abc5b1ec374b20658ff0ca4"}
 ---
 
 ## Objetivo
