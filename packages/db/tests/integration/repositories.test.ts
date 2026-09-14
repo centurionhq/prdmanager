@@ -41,25 +41,45 @@ describe('createTenantDb(pool).forOrg(orgId) (WO-100)', () => {
     await expect(dbAsOrgB.projects.list()).resolves.toEqual([]);
   });
 
-  test('forProject(projectId).members: upsert, list and remove, scoped to that project', async () => {
+  test('forProject(projectId).members: upsert, list, findForUser and remove, scoped to that project', async () => {
     const org = await createOrganizationFixture(pg);
     const project = await createProjectFixture(pg, { orgId: org.id });
-    const user = await createUserFixture(pg);
+    const member = await createUserFixture(pg);
     const db = createTenantDb(pg.appPool).forOrg(org.id);
     const scope = db.forProject(project.id);
 
-    const upserted = await scope.members.upsert({ userId: user.id, role: 'editor' });
-    expect(upserted).toMatchObject({ projectId: project.id, orgId: org.id, userId: user.id, role: 'editor' });
+    const upserted = await scope.members.upsert({ userId: member.id, role: 'editor' });
+    expect(upserted).toMatchObject({ projectId: project.id, orgId: org.id, userId: member.id, role: 'editor' });
 
-    expect(await scope.members.list()).toEqual([upserted]);
-    expect(await db.members.listForUser(user.id)).toEqual([upserted]);
+    expect(await scope.members.list()).toEqual([
+      { projectId: project.id, orgId: org.id, userId: member.id, role: 'editor', email: member.email, name: member.email },
+    ]);
+    expect(await scope.members.findForUser(member.id)).toEqual(upserted);
+    expect(await scope.members.findForUser('nonexistent-user')).toBeNull();
+    expect(await db.members.listForUser(member.id)).toEqual([upserted]);
 
-    const promoted = await scope.members.upsert({ userId: user.id, role: 'admin' });
+    const promoted = await scope.members.upsert({ userId: member.id, role: 'admin' });
     expect(promoted.role).toBe('admin');
-    expect(await scope.members.list()).toEqual([promoted]);
+    expect(await scope.members.list()).toMatchObject([{ role: 'admin' }]);
 
-    await scope.members.remove(user.id);
+    await scope.members.remove(member.id);
     expect(await scope.members.list()).toEqual([]);
+  });
+
+  test('projects.listForUser only returns projects the user has a project_members row in', async () => {
+    const org = await createOrganizationFixture(pg);
+    const projectA = await createProjectFixture(pg, { orgId: org.id, slug: 'project-a' });
+    const projectB = await createProjectFixture(pg, { orgId: org.id, slug: 'project-b' });
+    const member = await createUserFixture(pg);
+    const db = createTenantDb(pg.appPool).forOrg(org.id);
+
+    expect(await db.projects.listForUser(member.id)).toEqual([]);
+
+    await db.forProject(projectA.id).members.upsert({ userId: member.id, role: 'viewer' });
+    const visible = await db.projects.listForUser(member.id);
+    expect(visible).toHaveLength(1);
+    expect(visible[0]).toMatchObject({ id: projectA.id, slug: projectA.slug });
+    expect(visible.some((p) => p.id === projectB.id)).toBe(false);
   });
 
   test("a member of another org's project never shows up in this org's scope", async () => {

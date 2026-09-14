@@ -10,10 +10,11 @@
  * built on top of this maps both to a 404 (SDD-006 §Arquitectura: "Cualquier recurso de otra
  * organización o proyecto responde 404, nunca 403").
  */
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { assertNoSecretsInAuditMetadata } from './audit-metadata.js';
 import { auditLog } from './schema/audit.js';
+import { user } from './schema/auth.js';
 import { projectMembers, projectRole, projects } from './schema/projects.js';
 import { withTenantTx } from './tenant.js';
 
@@ -21,6 +22,18 @@ export type ProjectRecord = typeof projects.$inferSelect;
 export type ProjectMemberRecord = typeof projectMembers.$inferSelect;
 export type ProjectRole = (typeof projectRole.enumValues)[number];
 export type AuditLogRecord = typeof auditLog.$inferSelect;
+
+/** A `project_members` row joined with the member's `user` row (SDD-006 §Modelo de datos: `user` is a
+ * global, no-RLS better-auth table, so this join is safe inside the same `withTenantTx` — RLS still
+ * scopes `project_members` itself). */
+export interface ProjectMemberWithUser {
+  projectId: string;
+  userId: string;
+  orgId: string;
+  role: ProjectRole;
+  email: string;
+  name: string;
+}
 
 export interface NewAuditLogEntryInput {
   projectId?: string;
@@ -49,10 +62,17 @@ export interface ProjectMemberInput {
 
 export interface ProjectsRepository {
   list(): Promise<ProjectRecord[]>;
+  /** Only the projects `userId` has a `project_members` row in (SDD-006 §Aislamiento entre proyectos:
+   * "por defecto nada. Un miembro de la organización sin fila en project_members no ve el proyecto") —
+   * callers with an inherited org admin/owner role should call {@link ProjectsRepository.list} instead. */
+  listForUser(userId: string): Promise<ProjectRecord[]>;
   findById(id: string): Promise<ProjectRecord | null>;
   findBySlug(slug: string): Promise<ProjectRecord | null>;
   findByGraphProjectId(graphProjectId: string): Promise<ProjectRecord | null>;
   create(input: NewProjectInput): Promise<ProjectRecord>;
+  /** Full replacement of the `settings` jsonb column (WO-107: the settings screen always submits the
+   * complete, validated settings object back, never a partial patch). */
+  updateSettings(id: string, settings: Record<string, unknown>): Promise<ProjectRecord>;
 }
 
 export interface MembersRepository {
@@ -67,7 +87,10 @@ export interface AuditLogRepository {
 }
 
 export interface ProjectMembersRepository {
-  list(): Promise<ProjectMemberRecord[]>;
+  list(): Promise<ProjectMemberWithUser[]>;
+  /** `null` when `userId` has no `project_members` row for this project — the "an org member without a
+   * row can't see the project" check (SDD-006 §Aislamiento entre proyectos) reads this directly. */
+  findForUser(userId: string): Promise<ProjectMemberRecord | null>;
   upsert(input: ProjectMemberInput): Promise<ProjectMemberRecord>;
   remove(userId: string): Promise<void>;
 }
@@ -105,6 +128,13 @@ export function createTenantDb(pool: Pool): TenantDb {
 function buildProjectsRepository(pool: Pool, orgId: string): ProjectsRepository {
   return {
     list: () => withTenantTx(pool, orgId, (tx) => tx.select().from(projects)),
+    listForUser: (userId) =>
+      withTenantTx(pool, orgId, async (tx) => {
+        const memberships = await tx.select({ projectId: projectMembers.projectId }).from(projectMembers).where(eq(projectMembers.userId, userId));
+        if (memberships.length === 0) return [];
+        const projectIds = memberships.map((m) => m.projectId);
+        return tx.select().from(projects).where(inArray(projects.id, projectIds));
+      }),
     findById: (id) =>
       withTenantTx(pool, orgId, async (tx) => (await tx.select().from(projects).where(eq(projects.id, id)))[0] ?? null),
     findBySlug: (slug) =>
@@ -122,6 +152,12 @@ function buildProjectsRepository(pool: Pool, orgId: string): ProjectsRepository 
           .values({ orgId, slug: input.slug, name: input.name, graphProjectId: input.graphProjectId, settings: input.settings ?? {} })
           .returning();
         return row!;
+      }),
+    updateSettings: (id, settings) =>
+      withTenantTx(pool, orgId, async (tx) => {
+        const [row] = await tx.update(projects).set({ settings }).where(eq(projects.id, id)).returning();
+        if (!row) throw new Error(`project ${id} not found while updating settings`);
+        return row;
       }),
   };
 }
@@ -168,7 +204,20 @@ function buildProjectScope(pool: Pool, orgId: string, projectId: string): Projec
       withTenantTx(pool, orgId, async (tx) => (await tx.select().from(projects).where(eq(projects.id, projectId)))[0] ?? null),
     members: {
       list: () =>
-        withTenantTx(pool, orgId, (tx) => tx.select().from(projectMembers).where(eq(projectMembers.projectId, projectId))),
+        withTenantTx(pool, orgId, (tx) =>
+          tx
+            .select({ projectId: projectMembers.projectId, userId: projectMembers.userId, orgId: projectMembers.orgId, role: projectMembers.role, email: user.email, name: user.name })
+            .from(projectMembers)
+            .innerJoin(user, eq(user.id, projectMembers.userId))
+            .where(eq(projectMembers.projectId, projectId)),
+        ),
+      findForUser: (userId) =>
+        withTenantTx(
+          pool,
+          orgId,
+          async (tx) =>
+            (await tx.select().from(projectMembers).where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId))))[0] ?? null,
+        ),
       upsert: (input) =>
         withTenantTx(pool, orgId, async (tx) => {
           const [row] = await tx

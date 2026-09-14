@@ -6,6 +6,7 @@ import { registerHealthRoute } from './api/health.js';
 import { registerInvitationAcceptRoute } from './api/invitation-accept.js';
 import { registerOrganizationInvitationRoutes } from './api/organization-invitations.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
+import { registerProjectRoutes } from './api/projects.js';
 import { buildAuth, type Auth } from './auth/build-auth.js';
 import { registerAuth } from './auth/register-auth.js';
 import { setErrorHandler, setNotFoundHandler } from './errors.js';
@@ -74,6 +75,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerOrganizationRoutes(app, { auth, pool, env });
       registerAdminOrganizationRoutes(app, { auth, pool, mailer, env });
       registerOrganizationInvitationRoutes(app, { auth, pool, mailer, env });
+      registerProjectRoutes(app, { auth, pool, env });
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
     });
   }
