@@ -1,0 +1,92 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  background: var(--color-bg-elevated-solid);
+}
+
+.ok {
+  color: var(--color-status-ok);
+  font-size: 0.85rem;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.groupTitleError,
+.groupTitleWarning {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.groupTitleError {
+  color: var(--color-status-error);
+}
+
+.groupTitleWarning {
+  color: var(--color-status-warning);
+}
+
+.issueList {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  color: var(--color-fg);
+}
+
+.issue {
+  margin: 0.1rem 0;
+}
+
+.field {
+  color: var(--color-fg-muted);
+  font-size: 0.75rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.actionWithHint {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.hint {
+  font-size: 0.7rem;
+  color: var(--color-status-error);
+}
+
+.primaryButton,
+.secondaryButton {
+  border-radius: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.primaryButton {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  border: none;
+}
+
+.primaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.secondaryButton {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-fg);
+}

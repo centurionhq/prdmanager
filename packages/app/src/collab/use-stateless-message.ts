@@ -8,28 +8,34 @@ import { useEffect, useRef } from 'react';
 import type { HocuspocusProvider } from '@hocuspocus/provider';
 
 interface StatelessEnvelope {
-  type?: unknown;
+  type: string;
+  [key: string]: unknown;
 }
 
-function parseStatelessType(payload: string): string | null {
+function parseStateless(payload: string): StatelessEnvelope | null {
   try {
-    const parsed: StatelessEnvelope = JSON.parse(payload);
-    return typeof parsed.type === 'string' ? parsed.type : null;
+    const parsed: unknown = JSON.parse(payload);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const envelope = parsed as { type?: unknown; [key: string]: unknown };
+    return typeof envelope.type === 'string' ? (envelope as StatelessEnvelope) : null;
   } catch {
     return null; // malformed/foreign payload — never crash the listener over it
   }
 }
 
-/** `onMessage` doesn't need to be memoized by the caller — the latest one is always used, without
- * re-subscribing to the provider on every render. */
-export function useStatelessMessage(provider: HocuspocusProvider | null, type: string, onMessage: () => void): void {
+/** `onMessage` receives the full parsed envelope (e.g. `validation:updated`'s own `issues` array) — a
+ * caller that only cares "did this fire" can just ignore the argument. Doesn't need to be memoized by the
+ * caller either way: the latest one is always used, without re-subscribing to the provider on every
+ * render. */
+export function useStatelessMessage<T extends { type: string } = StatelessEnvelope>(provider: HocuspocusProvider | null, type: string, onMessage: (payload: T) => void): void {
   const latestOnMessage = useRef(onMessage);
   latestOnMessage.current = onMessage;
 
   useEffect(() => {
     if (!provider) return;
     const handler = ({ payload }: { payload: string }) => {
-      if (parseStatelessType(payload) === type) latestOnMessage.current();
+      const envelope = parseStateless(payload);
+      if (envelope?.type === type) latestOnMessage.current(envelope as T);
     };
     provider.on('stateless', handler);
     return () => {

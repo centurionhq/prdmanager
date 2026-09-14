@@ -15,6 +15,7 @@ import { CloseFeatureAction } from './CloseFeatureAction.js';
 import { CollabEditor } from '../components/CollabEditor.js';
 import { CommentsPanel } from '../components/CommentsPanel.js';
 import { VersionsPanel } from '../components/VersionsPanel.js';
+import { ValidationPanel } from '../components/ValidationPanel.js';
 import { FrontmatterForm } from '../components/FrontmatterForm.js';
 import { CollabDocumentProvider } from '../collab/collab-document-context.js';
 import { formatCollabDocumentName } from '../collab/document-name.js';
@@ -148,20 +149,27 @@ export function DocumentDetail(): ReactElement {
       <FormError message={actionError} />
 
       <div className={formStyles.actions}>
-        {canRequestReview && (
-          <button type="button" className={formStyles.primaryButton} disabled={busy} onClick={() => void handleRequestReview()}>
-            Solicitar revisión
-          </button>
-        )}
-        {canPublish && (
-          <button type="button" className={formStyles.primaryButton} disabled={busy} onClick={() => void handlePublish()}>
-            Publicar
-          </button>
-        )}
-        {canArchive && (
-          <button type="button" className={formStyles.secondaryButton} disabled={busy} onClick={() => void handleArchive()}>
-            Archivar
-          </button>
+        {/* A collab-origin document's workflow-action buttons live in ValidationPanel instead (WO-164),
+            gated by the same can(subject, action) checks plus validation-aware disabling — never
+            duplicated here too. */}
+        {doc.origin !== 'collab' && (
+          <>
+            {canRequestReview && (
+              <button type="button" className={formStyles.primaryButton} disabled={busy} onClick={() => void handleRequestReview()}>
+                Solicitar revisión
+              </button>
+            )}
+            {canPublish && (
+              <button type="button" className={formStyles.primaryButton} disabled={busy} onClick={() => void handlePublish()}>
+                Publicar
+              </button>
+            )}
+            {canArchive && (
+              <button type="button" className={formStyles.secondaryButton} disabled={busy} onClick={() => void handleArchive()}>
+                Archivar
+              </button>
+            )}
+          </>
         )}
         {canCloseFeature && <CloseFeatureAction orgSlug={orgSlug} projectSlug={project} docId={id} onClosed={() => void reload()} />}
       </div>
@@ -184,6 +192,17 @@ export function DocumentDetail(): ReactElement {
           <CollabEditor />
           <CommentsPanel subject={subject} />
           <VersionsPanel subject={subject} />
+          <ValidationPanel
+            subject={subject}
+            initialIssues={doc.lastValidation}
+            canRequestReview={canRequestReview}
+            canPublish={canPublish}
+            canArchive={canArchive}
+            busy={busy}
+            onRequestReview={() => void handleRequestReview()}
+            onPublish={() => void handlePublish()}
+            onArchive={() => void handleArchive()}
+          />
         </CollabDocumentProvider>
       ) : (
         <pre className={formStyles.card}>{content || '(sin contenido)'}</pre>
