@@ -1,5 +1,9 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { connect, createPool, runMigrations, type PgDatabase } from '@prdm/db';
 import type { Pool } from 'pg';
+
+const ROOT_ENV_FILE = join(process.cwd(), '.env');
 
 export interface PgTestConfig {
   /** `prdm_owner` credentials: runs migrations and truncation (SDD-006 §Aislamiento — never `prdm_app`). */
@@ -14,6 +18,11 @@ export interface PgTestConfig {
  * same guard as `testConfig`/`openTestDb` in `db.ts` for Neo4j, since these tests truncate every table.
  */
 export function testPgConfig(): PgTestConfig {
+  // Local port overrides (PRDM_POSTGRES_TEST_PORT) live in the repo's .env; loadEnvFile never overrides variables
+  // already set in the real environment, so CI's service URLs still win.
+  if ((!process.env.DATABASE_TEST_MIGRATION_URL || !process.env.DATABASE_TEST_URL) && existsSync(ROOT_ENV_FILE)) {
+    process.loadEnvFile(ROOT_ENV_FILE);
+  }
   const migrationUrl = process.env.DATABASE_TEST_MIGRATION_URL;
   const appUrl = process.env.DATABASE_TEST_URL;
   if (!migrationUrl || !appUrl) {

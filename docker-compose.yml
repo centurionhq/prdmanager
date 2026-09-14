@@ -75,7 +75,7 @@ services:
     <<: *postgres-common
     container_name: prdmanager-postgres
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${PRDM_POSTGRES_PORT:-5432}:5432"
     volumes:
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
       # postgres:18+ stores PGDATA at a major-version-specific path (pg_ctlcluster layout: PGDATA defaults to
@@ -88,7 +88,7 @@ services:
     profiles: ["test"]
     restart: "no"
     ports:
-      - "127.0.0.1:5433:5432"
+      - "127.0.0.1:${PRDM_POSTGRES_TEST_PORT:-5433}:5432"
     volumes:
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     tmpfs:
@@ -98,8 +98,8 @@ services:
     image: axllent/mailpit:v1.31.1@sha256:98b916bd3c8d61f7633a52d3ea2f58d00620cb01ca57ab59edde68c347a95365
     container_name: prdmanager-mailpit
     ports:
-      - "127.0.0.1:1025:1025"
-      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:${PRDM_MAILPIT_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${PRDM_MAILPIT_UI_PORT:-8025}:8025"
     restart: unless-stopped
 
 networks:
