@@ -50,6 +50,13 @@
       "when": 1789371000000,
       "tag": "0006_harden_security_definer_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789372918625,
+      "tag": "0007_documents_and_code_state",
+      "breakpoints": true
     }
   ]
 }

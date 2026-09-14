@@ -10,3 +10,5 @@ export * from './schema/projects.js';
 export * from './schema/audit.js';
 export * from './schema/invitations.js';
 export * from './schema/tokens.js';
+export * from './schema/custom-types.js';
+export * from './schema/documents.js';
