@@ -16,12 +16,13 @@
  * going to be rejected for exceeding a limit never reaches the (more expensive) anti-spoofing DB lookup
  * or gets durably logged.
  */
-import * as Y from 'yjs';
+import type * as Y from 'yjs';
 import type { Pool } from 'pg';
 import { BODY_ROOT } from '@prdm/collab';
 import { assertNoSecretsInAuditMetadata, createTenantDb } from '@prdm/db';
 import type { CollabDocumentContext } from './authenticate.js';
 import { createRateWindowCounter } from './rate-window.js';
+import type { DocSizeTracker } from './doc-size-tracker.js';
 
 const SYNC_STEP_1 = 0;
 
@@ -73,6 +74,10 @@ export interface CollabLimitsDeps {
   pool: Pool;
   clock: () => Date;
   limits: CollabLimits;
+  /** WO-221: the encoded-state-size check below reads this incrementally-tracked counter instead of
+   * recomputing `Y.encodeStateAsUpdate(document).byteLength` on every call — see that module's own doc
+   * comment for why the O(total accumulated history) recompute was unacceptable here. */
+  sizeTracker: DocSizeTracker;
 }
 
 async function auditLimitEvent(pool: Pool, params: { orgId: string; projectId: string; documentId: string; userId: string; action: string; reason: string }): Promise<void> {
@@ -102,7 +107,7 @@ function countConnectionsForUser(instance: CollabLimitsInstanceLike, userId: str
 }
 
 export function createCollabLimitsExtension(deps: CollabLimitsDeps): CollabLimitsExtension {
-  const { pool, clock, limits } = deps;
+  const { pool, clock, limits, sizeTracker } = deps;
   const updateRate = createRateWindowCounter(clock);
 
   return {
@@ -134,7 +139,10 @@ export function createCollabLimitsExtension(deps: CollabLimitsDeps): CollabLimit
       const { userId, orgId, projectId, documentId } = data.context;
       if (!userId || !orgId || !projectId || !documentId) return;
 
-      const encodedSize = Y.encodeStateAsUpdate(data.document).byteLength;
+      // WO-221: read the incrementally-tracked counter (seeded once at load, incremented as each
+      // doc-update-writer.ts batch commits) instead of recomputing the full encoded state here — this
+      // hook runs on essentially every edit batch, unlike blame/validation which only run debounced.
+      const encodedSize = sizeTracker.get(documentId);
       if (encodedSize > limits.maxEncodedStateBytes) {
         // SDD-008: read-only with a notice, not a close — the update is simply never applied, and every
         // future beforeSync call for this document hits this same branch again until it's archived.

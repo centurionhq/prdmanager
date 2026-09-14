@@ -17,6 +17,7 @@ import type { Pool } from 'pg';
 import { schema, withTenantTx } from '@prdm/db';
 import type { DeleteRange, StructRange } from '@prdm/collab';
 import type { CollabBatchScheduler } from './batch-scheduler.js';
+import { createDocSizeTracker, type DocSizeTracker } from './doc-size-tracker.js';
 
 /** Distinct from `PgProjectEngine`'s own `WRITE_LOCK_SALT`/`PROJECTION_LOCK_SALT` (different keyspace
  * entirely: this locks on a *document* uuid, that on a *project* uuid) — an arbitrary constant, only
@@ -92,6 +93,11 @@ export interface DocUpdateBatcherDeps {
   pool: Pool;
   scheduler: CollabBatchScheduler;
   maxDelayMs?: number;
+  /** WO-221: incremented by the exact byte length of each batch's rows once it durably commits, so
+   * `limits.ts`'s encoded-state-size check never has to recompute `Y.encodeStateAsUpdate` itself. Defaults
+   * to a fresh, unshared tracker (harmless for callers — e.g. existing tests — that don't care about size
+   * tracking); `register-collab-route.ts` passes the one shared instance every other extension reads. */
+  sizeTracker?: DocSizeTracker;
 }
 
 export interface DocUpdateBatcher {
@@ -101,7 +107,7 @@ export interface DocUpdateBatcher {
 }
 
 export function createDocUpdateBatcher(deps: DocUpdateBatcherDeps): DocUpdateBatcher {
-  const { pool, scheduler, maxDelayMs = DEFAULT_MAX_DELAY_MS } = deps;
+  const { pool, scheduler, maxDelayMs = DEFAULT_MAX_DELAY_MS, sizeTracker = createDocSizeTracker() } = deps;
   const pendingByDocument = new Map<string, PendingBatch>();
   // Chains flushes for the same document strictly one-after-another (see module doc comment).
   let flushChain: Promise<void> = Promise.resolve();
@@ -114,7 +120,13 @@ export function createDocUpdateBatcher(deps: DocUpdateBatcherDeps): DocUpdateBat
     flushChain = flushChain.then(
       () =>
         writeDocUpdateBatch(pool, orgId, documentId, batch.rows).then(
-          () => batch.waiters.forEach((w) => w.resolve()),
+          () => {
+            // WO-221: the exact byte length of what was just durably written — cheaper than, and
+            // equivalent in effect to, re-encoding the whole document to find out its new size.
+            const totalBytes = batch.rows.reduce((sum, row) => sum + row.update.byteLength, 0);
+            sizeTracker.addBytes(documentId, totalBytes);
+            batch.waiters.forEach((w) => w.resolve());
+          },
           (error: unknown) => batch.waiters.forEach((w) => w.reject(error)),
         ),
       // A previous document's flush failing must never poison this one's turn in the chain.

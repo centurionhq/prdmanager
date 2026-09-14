@@ -32,6 +32,7 @@ import { createCollabAwarenessExtension } from './awareness.js';
 import { createBlameBroadcastExtension } from './blame.js';
 import { createLiveValidationExtension } from './live-validation.js';
 import { realCollabBatchScheduler, type CollabBatchScheduler } from './batch-scheduler.js';
+import { createDocSizeTracker } from './doc-size-tracker.js';
 import { createDocUpdateBatcher } from './doc-update-writer.js';
 import { createCollabLimitsExtension, type CollabLimits } from './limits.js';
 import { isTrustedCollabOrigin } from './origin-check.js';
@@ -89,10 +90,13 @@ export interface CollabExtensionsDeps {
 }
 
 export function buildCollabExtensions(deps: CollabExtensionsDeps): Extension[] {
-  const batcher = createDocUpdateBatcher({ pool: deps.pool, scheduler: deps.batchScheduler });
+  // WO-221: one instance, shared by persistence (seeds/evicts it on load/unload), the writer (increments
+  // it as each batch commits), and limits (reads it) — see `./doc-size-tracker.js`'s own doc comment.
+  const sizeTracker = createDocSizeTracker();
+  const batcher = createDocUpdateBatcher({ pool: deps.pool, scheduler: deps.batchScheduler, sizeTracker });
   return [
     createCollabAuthenticateExtension({ pool: deps.pool }) as unknown as Extension,
-    createCollabPersistenceExtension({ pool: deps.pool }) as unknown as Extension,
+    createCollabPersistenceExtension({ pool: deps.pool, sizeTracker }) as unknown as Extension,
     // These three all run their own onStoreDocument after persistence's — order among them never matters
     // for correctness (each one's job is either "tell clients to refetch" or "recompute and persist a
     // cached-for-later-reads column"), kept adjacent for readability.
@@ -103,7 +107,7 @@ export function buildCollabExtensions(deps: CollabExtensionsDeps): Extension[] {
     // same-named hook in array order, awaiting each before the next. Limits comes first so a
     // rate/size-limited update never reaches the (more expensive) anti-spoofing DB lookup, and
     // anti-spoofing comes before attribution so a rejected update is never durably logged.
-    createCollabLimitsExtension({ pool: deps.pool, clock: deps.clock, limits: deps.limits }) as unknown as Extension,
+    createCollabLimitsExtension({ pool: deps.pool, clock: deps.clock, limits: deps.limits, sizeTracker }) as unknown as Extension,
     createCollabAntiSpoofingExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabAttributionExtension({ batcher }) as unknown as Extension,
     createCollabAwarenessExtension({ pool: deps.pool }) as unknown as Extension,

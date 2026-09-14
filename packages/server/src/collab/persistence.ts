@@ -18,6 +18,7 @@ import * as Y from 'yjs';
 import { resolveDocumentById, schema, withTenantTx, type PgDatabase } from '@prdm/db';
 import { assertValidRoot, FRONTMATTER_ROOT, InvalidDocumentRootError, type FrontmatterValue } from '@prdm/collab';
 import { parseDocumentName } from './document-name.js';
+import { createDocSizeTracker, type DocSizeTracker } from './doc-size-tracker.js';
 
 /** Matches `@hocuspocus/server`'s own `Extension` interface structurally (never imported directly: this
  * module stays decoupled from the exact Hocuspocus version's exported type surface, same reasoning as
@@ -26,10 +27,17 @@ export interface CollabPersistenceExtension {
   extensionName: string;
   onLoadDocument(data: { documentName: string; document: Y.Doc }): Promise<void>;
   onStoreDocument(data: { documentName: string; document: Y.Doc }): Promise<void>;
+  afterUnloadDocument(data: { documentName: string }): Promise<void>;
 }
 
 export interface CollabPersistenceDeps {
   pool: Pool;
+  /** WO-221: seeded once per document load from the actual encoded size (so a server restart never
+   * silently resets a near-the-limit document's counter to zero), and evicted on `afterUnloadDocument`.
+   * Defaults to a fresh, unshared tracker (harmless for callers — e.g. existing tests — that don't care
+   * about size tracking); `register-collab-route.ts` passes the one shared instance every other extension
+   * reads. */
+  sizeTracker?: DocSizeTracker;
 }
 
 /** `system:engine` per SDD-008 §"Autoría por línea no falsificable": a server-attributed transaction,
@@ -71,7 +79,7 @@ async function replayTail(tx: PgDatabase, document: Y.Doc, documentId: string, s
 }
 
 export function createCollabPersistenceExtension(deps: CollabPersistenceDeps): CollabPersistenceExtension {
-  const { pool } = deps;
+  const { pool, sizeTracker = createDocSizeTracker() } = deps;
 
   return {
     extensionName: 'prdm-collab-persistence',
@@ -100,6 +108,17 @@ export function createCollabPersistenceExtension(deps: CollabPersistenceDeps): C
           await tx.update(schema.documents).set({ pendingEditablePatch: null }).where(eq(schema.documents.id, row.id));
         }
       });
+
+      // WO-221: seed the running byte counter from the document's real, fully-hydrated encoded size —
+      // computed once here (a normal document load, never on the `beforeSync` hot path) so a server
+      // restart never silently resets a near-the-limit document's counter back to zero.
+      sizeTracker.seed(parsed.documentId, Y.encodeStateAsUpdate(document).byteLength);
+    },
+
+    async afterUnloadDocument({ documentName }) {
+      const parsed = parseDocumentName(documentName);
+      if (!parsed) return;
+      sizeTracker.delete(parsed.documentId);
     },
 
     async onStoreDocument({ documentName, document }) {
