@@ -41,6 +41,11 @@ const ALLOWLISTED_TABLES = new Set([
   'retired_handles',
   // see the DEVIATION note in the module doc comment above
   'user_profile',
+  // SDD-009 §Seguridad y costo (WO-168/175): the cross-org daily token/request cutoff that protects the
+  // one shared DeepSeek key — see packages/db/src/schema/agent.ts's own module doc comment for why this
+  // is structurally a platform-level counter (no single org_id could own a cross-tenant total) rather
+  // than tenant data; it holds nothing but a date and two counts.
+  'llm_global_usage',
 ]);
 
 interface TableRow {

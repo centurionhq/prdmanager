@@ -20,6 +20,7 @@ import { withTenantTx } from './tenant.js';
 import { buildDocumentsRepository, type DocumentsRepository } from './documents-repository.js';
 import { buildDocUpdatesRepository, type DocUpdatesRepository } from './doc-updates-repository.js';
 import { buildDocCommentsRepository, type DocCommentsRepository } from './doc-comments-repository.js';
+import { buildAgentRepositories, type AgentRepositories } from './agent-repository.js';
 
 export type ProjectRecord = typeof projects.$inferSelect;
 export type ProjectMemberRecord = typeof projectMembers.$inferSelect;
@@ -111,6 +112,7 @@ export interface OrgRepositories {
   auditLog: AuditLogRepository;
   docUpdates: DocUpdatesRepository;
   docComments: DocCommentsRepository;
+  agent: AgentRepositories;
   forProject(projectId: string): ProjectScope;
 }
 
@@ -127,6 +129,7 @@ export function createTenantDb(pool: Pool): TenantDb {
         auditLog: buildAuditLogRepository(pool, orgId),
         docUpdates: buildDocUpdatesRepository(pool, orgId),
         docComments: buildDocCommentsRepository(pool, orgId),
+        agent: buildAgentRepositories(pool, orgId),
         forProject: (projectId: string) => buildProjectScope(pool, orgId, projectId),
       };
     },

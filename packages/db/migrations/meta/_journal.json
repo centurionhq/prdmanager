@@ -92,6 +92,13 @@
       "when": 1789410244306,
       "tag": "0012_drop_doc_updates_document_id_index",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789413581909,
+      "tag": "0013_agent_conversations",
+      "breakpoints": true
     }
   ]
 }
