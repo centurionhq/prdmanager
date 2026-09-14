@@ -23,6 +23,7 @@ describe('resolveServerEnv', () => {
       databaseUrl: 'postgres://prdm_app:secret@127.0.0.1:55433/prdm',
       trustedOrigins: ['https://app.example.test'],
       trustProxy: false,
+      collabMaxPayloadBytes: 1_048_576,
       smtp: { host: '127.0.0.1', port: 1025, secure: false, from: 'prdm <no-reply@example.test>' },
       deepseek: undefined,
       neo4j: { uri: 'neo4j://127.0.0.1:7687', username: 'neo4j', password: 'test-password', database: 'neo4j' },

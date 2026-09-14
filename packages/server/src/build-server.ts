@@ -11,6 +11,7 @@ import { registerHealthRoute } from './api/health.js';
 import { registerInvitationAcceptRoute } from './api/invitation-accept.js';
 import { registerOrganizationInvitationRoutes } from './api/organization-invitations.js';
 import { registerCloseFeatureRoutes } from './api/close-feature.js';
+import { registerCollabRoute, registerCollabWebsocketPlugin } from './collab/register-collab-route.js';
 import { registerDocumentRoutes } from './api/documents.js';
 import { registerDocumentPublishRoute } from './api/documents-publish.js';
 import { registerDriftRoutes } from './api/drift.js';
@@ -133,6 +134,8 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
     // `global: false`: no route is rate-limited unless it opts in explicitly (register-auth.ts does,
     // per-path, via the exported keyed helper) — this plugin only ever supplies `app.createRateLimit`.
     void app.register(rateLimitPlugin, { global: false, store: rateLimitStore });
+    // SDD-008: same fire-and-register-then-`app.after` sequencing as the two plugins below.
+    registerCollabWebsocketPlugin(app, env);
     // CSRF (WO-108): both plugins decorate `app`/`reply` via `fastify-plugin`, so registering them here
     // (unawaited, like the rate-limit plugin above) is enough for `app.after` below to see the
     // decorations.
@@ -154,6 +157,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerOrganizationInvitationRoutes(app, { auth, pool, mailer, env });
       registerProjectRoutes(app, { auth, pool, env });
       registerDocumentRoutes(app, { auth, pool, env });
+      registerCollabRoute(app, { auth, pool, env });
       registerDocumentPublishRoute(app, { auth, pool, env, neo4j });
       registerDriftRoutes(app, { auth, pool, env, neo4j });
       registerGraphRoutes(app, { auth, pool, env, neo4j });

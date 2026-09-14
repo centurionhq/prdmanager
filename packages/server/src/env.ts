@@ -56,6 +56,18 @@ const trustedOriginsSchema = z
     return origins;
   });
 
+function isPositiveInteger(value: string): boolean {
+  return /^\d+$/.test(value.trim()) && Number.parseInt(value, 10) > 0;
+}
+
+/** SDD-008 §"Servidor de tiempo real": `@fastify/websocket`'s own `maxPayload` (forwarded to `ws`,
+ * confirmed by `packages/server/tests/learning/hocuspocus-fastify.test.ts`) for the `/collab` upgrade —
+ * an oversized frame closes the raw socket with code 1009 before any Hocuspocus/Yjs framing runs. */
+const collabMaxPayloadBytesSchema = z
+  .string()
+  .default('1048576')
+  .refine(isPositiveInteger, { message: 'PRDM_COLLAB_MAX_PAYLOAD_BYTES must be a positive integer' });
+
 const trustProxySchema = z
   .enum(['0', '1'])
   .optional()
@@ -86,6 +98,7 @@ const rawServerEnvSchema = z.object({
   DATABASE_URL: databaseUrlSchema,
   PRDM_TRUSTED_ORIGINS: trustedOriginsSchema,
   PRDM_TRUST_PROXY: trustProxySchema,
+  PRDM_COLLAB_MAX_PAYLOAD_BYTES: collabMaxPayloadBytesSchema,
   SMTP_HOST: z.string().min(1, 'SMTP_HOST is required'),
   SMTP_PORT: z.string().regex(/^\d+$/, 'SMTP_PORT must be a numeric string').transform((value) => Number.parseInt(value, 10)),
   SMTP_USER: z.string().optional(),
@@ -133,6 +146,7 @@ export interface ServerEnv {
   databaseUrl: string;
   trustedOrigins: string[];
   trustProxy: boolean;
+  collabMaxPayloadBytes: number;
   smtp: SmtpEnv;
   deepseek?: DeepSeekEnv;
   neo4j: Neo4jEnv;
@@ -162,6 +176,7 @@ export function resolveServerEnv(env: NodeJS.ProcessEnv): ServerEnv {
     databaseUrl: data.DATABASE_URL,
     trustedOrigins: data.PRDM_TRUSTED_ORIGINS,
     trustProxy: data.PRDM_TRUST_PROXY,
+    collabMaxPayloadBytes: Number.parseInt(data.PRDM_COLLAB_MAX_PAYLOAD_BYTES, 10),
     smtp: {
       host: data.SMTP_HOST,
       port: data.SMTP_PORT,

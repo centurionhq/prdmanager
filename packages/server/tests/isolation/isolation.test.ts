@@ -16,12 +16,14 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
 import { FakeMailer } from '../../src/mailer.js';
 import { registerBaseIsolationRoutes } from './base-routes.js';
+import { registerCollabIsolationProbes } from './collab-route.js';
 import { buildIsolationFixtures, ISOLATION_AUTH_HOST, ISOLATION_TEST_ENV } from './fixtures.js';
 import { getIsolationProbe } from './registry.js';
 import { assertNoCanaryLeak, runIsolationProbe, type IsolationHttpMethod } from './run-probe.js';
 import type { BuiltApp, IsolationFixtures } from './types.js';
 
 registerBaseIsolationRoutes();
+registerCollabIsolationProbes();
 
 describe('isolation suite (SDD-006 §Aislamiento por capas, WO-111)', () => {
   let pg: PgTestDb;
