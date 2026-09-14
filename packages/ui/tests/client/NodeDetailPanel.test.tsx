@@ -3,13 +3,8 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { getNode } from '../../src/client/api/client';
-import { NodeDetailPanel } from '../../src/client/components/NodeDetailPanel';
-import { SelectionProvider, useSelection } from '../../src/client/state/selection';
-
-vi.mock('../../src/client/api/client', () => ({ getNode: vi.fn() }));
-
-const mockGetNode = vi.mocked(getNode);
+import { NodeDetailPanel } from '../../src/components/NodeDetailPanel';
+import { SelectionProvider, useSelection } from '../../src/state/selection';
 
 function detail(overrides: Partial<NodeDetail['node']> = {}, links: NodeDetail['links'] = []): NodeDetail {
   return {
@@ -40,22 +35,23 @@ function Selector({ id }: { id: string }): ReactElement {
 
 describe('NodeDetailPanel', () => {
   it('shows a placeholder before anything is selected', () => {
+    const fetchNode = vi.fn();
     render(
       <SelectionProvider>
-        <NodeDetailPanel />
+        <NodeDetailPanel fetchNode={fetchNode} />
       </SelectionProvider>,
     );
     expect(screen.getByText(/Seleccioná un nodo/)).toBeTruthy();
-    expect(mockGetNode).not.toHaveBeenCalled();
+    expect(fetchNode).not.toHaveBeenCalled();
   });
 
   it('fetches and renders the selected node once select() is called', async () => {
-    mockGetNode.mockResolvedValue(detail());
+    const fetchNode = vi.fn().mockResolvedValue(detail());
 
     render(
       <SelectionProvider>
         <Selector id="PRD-004" />
-        <NodeDetailPanel />
+        <NodeDetailPanel fetchNode={fetchNode} />
       </SelectionProvider>,
     );
 
@@ -64,18 +60,18 @@ describe('NodeDetailPanel', () => {
     await waitFor(() => expect(screen.getByText('PRD-004')).toBeTruthy());
     expect(screen.getByText('Explorador web del Feature Tree y del drift')).toBeTruthy();
     expect(screen.getByText('approved')).toBeTruthy();
-    expect(mockGetNode).toHaveBeenCalledWith('PRD-004');
+    expect(fetchNode).toHaveBeenCalledWith('PRD-004');
   });
 
   it('renders relation buttons and selecting one navigates to that node', async () => {
-    mockGetNode.mockImplementation(async (id: string) =>
+    const fetchNode = vi.fn(async (id: string) =>
       id === 'PRD-004' ? detail({}, [{ type: 'EVOLVES_FROM', direction: 'out', ref: 'PRD-002', title: 'x', props: {} }]) : detail({ id: 'PRD-002' }),
     );
 
     render(
       <SelectionProvider>
         <Selector id="PRD-004" />
-        <NodeDetailPanel />
+        <NodeDetailPanel fetchNode={fetchNode} />
       </SelectionProvider>,
     );
 
@@ -83,22 +79,22 @@ describe('NodeDetailPanel', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'PRD-002' })).toBeTruthy());
 
     await userEvent.click(screen.getByRole('button', { name: 'PRD-002' }));
-    await waitFor(() => expect(mockGetNode).toHaveBeenCalledWith('PRD-002'));
+    await waitFor(() => expect(fetchNode).toHaveBeenCalledWith('PRD-002'));
   });
 
   it('shows an error state with a working retry when the fetch fails', async () => {
-    mockGetNode.mockRejectedValueOnce(new Error('offline'));
+    const fetchNode = vi.fn().mockRejectedValueOnce(new Error('offline'));
 
     render(
       <SelectionProvider>
         <Selector id="PRD-004" />
-        <NodeDetailPanel />
+        <NodeDetailPanel fetchNode={fetchNode} />
       </SelectionProvider>,
     );
     await userEvent.click(screen.getByRole('button', { name: 'select PRD-004' }));
     await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
 
-    mockGetNode.mockResolvedValueOnce(detail());
+    fetchNode.mockResolvedValueOnce(detail());
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
     });

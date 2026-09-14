@@ -1,14 +1,19 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import * as prdmUi from '@prdm/ui';
 import { App } from '../../src/client/App';
 import * as apiClient from '../../src/client/api/client';
 
 // `GraphCanvas` needs a real `<canvas>` (jsdom has none — same reason `useCytoscape`'s and `GraphCanvas`'s own
 // tests inject a headless factory); a smoke test of `App`'s data wiring doesn't need the real canvas, so it's
 // stubbed to a plain marker instead of threading `createCytoscape`/`layout` overrides all the way through App.
-vi.mock('../../src/client/components/GraphCanvas', () => ({
-  GraphCanvas: () => <div data-testid="graph-canvas-stub" />,
-}));
+vi.mock('@prdm/ui', async () => {
+  const actual = await vi.importActual<typeof prdmUi>('@prdm/ui');
+  return {
+    ...actual,
+    GraphCanvas: () => <div data-testid="graph-canvas-stub" />,
+  };
+});
 
 vi.mock('../../src/client/api/client', async () => {
   const actual = await vi.importActual<typeof apiClient>('../../src/client/api/client');

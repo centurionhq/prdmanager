@@ -2,9 +2,9 @@ import type { RefreshReport, Subgraph } from '@prdm/core';
 import { render, screen, waitFor } from '@testing-library/react';
 import cytoscape from 'cytoscape';
 import { describe, expect, it, vi } from 'vitest';
-import { GraphCanvas } from '../../src/client/components/GraphCanvas';
-import type { CytoscapeFactory } from '@prdm/ui';
-import { SelectionProvider } from '../../src/client/state/selection';
+import { GraphCanvas } from '../../src/components/GraphCanvas';
+import type { CytoscapeFactory } from '../../src/hooks/useCytoscape';
+import { SelectionProvider } from '../../src/state/selection';
 
 /** jsdom has no `<canvas>` (SDD-005 "Tests") — headless mode skips the renderer entirely. */
 const headlessCytoscape: CytoscapeFactory = (options) => cytoscape({ ...options, headless: true });

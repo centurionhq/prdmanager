@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, type ReactElement } from 'react';
 import type { RefreshReport, Subgraph } from '@prdm/core';
-import { getDrift, getFullGraph, getProject, getTree, type TreeResponse, type WebProjectSummary } from './api/client';
-import { DriftBanner } from './components/DriftBanner';
-import { GraphCanvas } from './components/GraphCanvas';
-import { NodeDetailPanel } from './components/NodeDetailPanel';
+import {
+  DriftBanner,
+  ErrorState,
+  GraphCanvas,
+  LoadingState,
+  NodeDetailPanel,
+  SelectionProvider,
+  TreeView,
+  WorkOrderList,
+  collectDriftIds,
+  useGraphData,
+} from '@prdm/ui';
+import { getDrift, getFullGraph, getNode, getProject, getTree, listWorkOrders, type TreeResponse, type WebProjectSummary } from './api/client';
 import { SearchBar } from './components/SearchBar';
-import { ErrorState, LoadingState } from './components/StatusState';
-import { TreeView } from './components/TreeView';
-import { WorkOrderList } from './components/WorkOrderList';
-import { collectDriftIds } from '@prdm/ui';
-import { useGraphData } from './hooks/useGraphData';
-import { SelectionProvider } from './state/selection';
 import styles from './App.module.css';
 
 const EMPTY_GRAPH: Subgraph = { nodes: [], edges: [] };
@@ -89,10 +92,10 @@ function ExplorerShell(): ReactElement {
           <LoadingState label="Cargando grafo…" />
         )}
 
-        <NodeDetailPanel />
+        <NodeDetailPanel fetchNode={getNode} />
       </div>
 
-      <WorkOrderList />
+      <WorkOrderList fetchWorkOrders={listWorkOrders} />
     </div>
   );
 }

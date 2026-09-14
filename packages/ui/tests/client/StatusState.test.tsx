@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { EmptyState, ErrorState, LoadingState } from '../../src/client/components/StatusState';
+import { EmptyState, ErrorState, LoadingState } from '../../src/components/StatusState';
 
 describe('StatusState', () => {
   it('LoadingState announces the given label politely', () => {

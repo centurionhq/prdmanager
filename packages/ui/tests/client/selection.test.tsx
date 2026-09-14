@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
-import { SelectionProvider, useSelection } from '../../src/client/state/selection';
+import { SelectionProvider, useSelection } from '../../src/state/selection';
 
 function Probe(): ReactElement {
   const { selectedId, select } = useSelection();

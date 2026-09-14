@@ -1,6 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import type { WorkOrderStatus } from '@prdm/core';
-import { listWorkOrders } from '../api/client';
+import type { WorkOrderStatus, WorkOrderSummary } from '@prdm/core';
 import { useGraphData } from '../hooks/useGraphData';
 import { useSelection } from '../state/selection';
 import { EmptyState, ErrorState, LoadingState } from './StatusState';
@@ -21,14 +20,21 @@ function statusClass(status: string): string {
   return styles.status ?? '';
 }
 
+export interface WorkOrderListProps {
+  /** Injected rather than imported directly (SDD-006: packages/ui never talks to a concrete backend) — the
+   * consumer supplies its own `GET /api/work-orders`-equivalent call. `packages/web`'s `App.tsx` passes its own
+   * `api/client.ts`'s `listWorkOrders`. */
+  fetchWorkOrders: (filter: { status?: WorkOrderStatus }) => Promise<WorkOrderSummary[]>;
+}
+
 /**
  * `components/WorkOrderList.tsx` (SDD-005 "Frontend"): read-only — no claim/complete actions, that's CLI/MCP
  * territory. Filtering by status is client-driven per click, refetching `/api/work-orders` with the new query.
  */
-export function WorkOrderList(): ReactElement {
+export function WorkOrderList({ fetchWorkOrders }: WorkOrderListProps): ReactElement {
   const { select } = useSelection();
   const [status, setStatus] = useState<WorkOrderStatus | undefined>(undefined);
-  const { status: loadStatus, data, error, refetch } = useGraphData(() => listWorkOrders({ status }), [status]);
+  const { status: loadStatus, data, error, refetch } = useGraphData(() => fetchWorkOrders({ status }), [status]);
 
   return (
     <section className={styles.panel} aria-label="Work Orders">

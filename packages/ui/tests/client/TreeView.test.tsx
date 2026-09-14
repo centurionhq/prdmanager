@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
-import { TreeView } from '../../src/client/components/TreeView';
-import { SelectionProvider, useSelection } from '../../src/client/state/selection';
+import { TreeView } from '../../src/components/TreeView';
+import { SelectionProvider, useSelection } from '../../src/state/selection';
 
 function node(ref: string, label: string, children: TreeNode[] = []): TreeNode {
   return { ref, label, kind: label, title: `${ref} title`, status: 'approved', via: null, edgeStatus: null, reviewNeeded: false, repeated: false, children };

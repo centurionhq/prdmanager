@@ -1,23 +1,18 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { listWorkOrders } from '../../src/client/api/client';
-import { WorkOrderList } from '../../src/client/components/WorkOrderList';
-import { SelectionProvider, useSelection } from '../../src/client/state/selection';
-
-vi.mock('../../src/client/api/client', () => ({ listWorkOrders: vi.fn() }));
-
-const mockListWorkOrders = vi.mocked(listWorkOrders);
+import { WorkOrderList } from '../../src/components/WorkOrderList';
+import { SelectionProvider, useSelection } from '../../src/state/selection';
 
 describe('WorkOrderList', () => {
   it('renders every returned work order as a row', async () => {
-    mockListWorkOrders.mockResolvedValue([
+    const fetchWorkOrders = vi.fn().mockResolvedValue([
       { id: 'WO-070', title: 'Estados de carga', status: 'done', assignedTo: null, blueprints: ['SDD-005'], sourcePath: 'x' },
     ]);
 
     render(
       <SelectionProvider>
-        <WorkOrderList />
+        <WorkOrderList fetchWorkOrders={fetchWorkOrders} />
       </SelectionProvider>,
     );
 
@@ -26,10 +21,10 @@ describe('WorkOrderList', () => {
   });
 
   it('shows an empty state when the filter matches nothing', async () => {
-    mockListWorkOrders.mockResolvedValue([]);
+    const fetchWorkOrders = vi.fn().mockResolvedValue([]);
     render(
       <SelectionProvider>
-        <WorkOrderList />
+        <WorkOrderList fetchWorkOrders={fetchWorkOrders} />
       </SelectionProvider>,
     );
 
@@ -37,21 +32,21 @@ describe('WorkOrderList', () => {
   });
 
   it('clicking a status chip re-fetches with that status filter', async () => {
-    mockListWorkOrders.mockResolvedValue([]);
+    const fetchWorkOrders = vi.fn().mockResolvedValue([]);
     render(
       <SelectionProvider>
-        <WorkOrderList />
+        <WorkOrderList fetchWorkOrders={fetchWorkOrders} />
       </SelectionProvider>,
     );
-    await waitFor(() => expect(mockListWorkOrders).toHaveBeenCalledWith({ status: undefined }));
+    await waitFor(() => expect(fetchWorkOrders).toHaveBeenCalledWith({ status: undefined }));
 
     await userEvent.click(screen.getByRole('button', { name: 'out_of_sync' }));
 
-    await waitFor(() => expect(mockListWorkOrders).toHaveBeenCalledWith({ status: 'out_of_sync' }));
+    await waitFor(() => expect(fetchWorkOrders).toHaveBeenCalledWith({ status: 'out_of_sync' }));
   });
 
   it('a keyboard user can select a row with Enter (rows are focusable and have an accessible name)', async () => {
-    mockListWorkOrders.mockResolvedValue([
+    const fetchWorkOrders = vi.fn().mockResolvedValue([
       { id: 'WO-070', title: 'Estados de carga', status: 'done', assignedTo: null, blueprints: ['SDD-005'], sourcePath: 'x' },
     ]);
 
@@ -62,7 +57,7 @@ describe('WorkOrderList', () => {
 
     render(
       <SelectionProvider>
-        <WorkOrderList />
+        <WorkOrderList fetchWorkOrders={fetchWorkOrders} />
         <SelectedProbe />
       </SelectionProvider>,
     );
@@ -75,7 +70,7 @@ describe('WorkOrderList', () => {
   });
 
   it('clicking a row selects that work order', async () => {
-    mockListWorkOrders.mockResolvedValue([
+    const fetchWorkOrders = vi.fn().mockResolvedValue([
       { id: 'WO-070', title: 'Estados de carga', status: 'done', assignedTo: null, blueprints: ['SDD-005'], sourcePath: 'x' },
     ]);
 
@@ -86,7 +81,7 @@ describe('WorkOrderList', () => {
 
     render(
       <SelectionProvider>
-        <WorkOrderList />
+        <WorkOrderList fetchWorkOrders={fetchWorkOrders} />
         <SelectedProbe />
       </SelectionProvider>,
     );

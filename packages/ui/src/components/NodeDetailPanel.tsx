@@ -1,6 +1,5 @@
 import { Fragment, type ReactElement } from 'react';
 import type { NodeDetail } from '@prdm/core';
-import { getNode } from '../api/client';
 import { useGraphData } from '../hooks/useGraphData';
 import { useSelection } from '../state/selection';
 import { EmptyState, ErrorState, LoadingState } from './StatusState';
@@ -75,14 +74,21 @@ function NodeDetailContent({ detail }: { detail: NodeDetail }): ReactElement {
   );
 }
 
+export interface NodeDetailPanelProps {
+  /** Injected rather than imported directly (SDD-006: packages/ui never talks to a concrete backend) — the
+   * consumer supplies its own `GET /api/node/:id`-equivalent call. `packages/web`'s `App.tsx` passes its own
+   * `api/client.ts`'s `getNode`. */
+  fetchNode: (id: string) => Promise<NodeDetail>;
+}
+
 /**
  * `components/NodeDetailPanel.tsx` (SDD-005 "Frontend"): reads `useSelection()` directly instead of taking the
  * id as a prop, since it's always rendered once at a fixed position in `App.tsx`'s layout, not per-node.
  */
-export function NodeDetailPanel(): ReactElement {
+export function NodeDetailPanel({ fetchNode }: NodeDetailPanelProps): ReactElement {
   const { selectedId } = useSelection();
   const { status, data, error, refetch } = useGraphData<NodeDetail | null>(
-    () => (selectedId ? getNode(selectedId) : Promise.resolve(null)),
+    () => (selectedId ? fetchNode(selectedId) : Promise.resolve(null)),
     [selectedId],
   );
 

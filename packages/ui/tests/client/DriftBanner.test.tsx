@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
-import { DriftBanner } from '../../src/client/components/DriftBanner';
-import { SelectionProvider, useSelection } from '../../src/client/state/selection';
+import { DriftBanner } from '../../src/components/DriftBanner';
+import { SelectionProvider, useSelection } from '../../src/state/selection';
 
 function report(overrides: Partial<RefreshReport> = {}): RefreshReport {
   return { documents: 1, errors: [], issues: [], governed: [], workOrderUpdates: [], baselineWritten: false, hasBlockingIssues: false, ...overrides };
