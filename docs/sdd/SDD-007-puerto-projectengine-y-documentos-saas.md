@@ -85,6 +85,7 @@ Equivalencia `scanContents` ≡ `scanDocuments` y del report; **suite de contrat
 - [ ] Reducir la carga del test de estrés del lock en CI (menos workers e iteraciones bajo process.env.CI, stress completo sin cambios en local): ningún staleAfterMs finito puede ser inmune a una pausa de scheduler sin cota, y con 30s restaurado la violación de exclusión mutua volvió a reproducirse; no es un problema de calibración de márgenes sino riesgo residual, así que se reduce cuánto se lo expone en un runner real de 2 vCPU en vez de seguir adivinando números
 - [ ] Extraer scanContents puro de scanDocuments y buildRefreshReport de Engine sin cambio de comportamiento, con tests de equivalencia
 - [ ] Interfaz ProjectEngine con settings sin neo4j ni root, lastReport y scan, implementada por Engine y usada para tipar las funciones de dominio, con guardia de raíz absoluta en safe-fs
+- [ ] Corregir el fake GraphStore de project-engine.test.ts (WO-124), que usaba links en vez de edges en Subgraph y no tipaba contra la interfaz real, rompiendo el typecheck de CI
 - [ ] EngineOps.readCommit y ProjectEngine.scan reemplazando la lectura directa de git y de config.root en workorders/lifecycle.ts, lifecycle/close.ts y mcp tools-authoring.ts, con tests
 - [ ] PrdmDeps con engine ProjectEngine y authoring opcional, buildProjectSummary con ProjectEngine.scan y get_drift_report remoto sobre lastReport sin refresh, con tests
 - [ ] loadProjectSettings separado de loadConfig para no exigir NEO4J_PASSWORD en modo remoto y assertLocalNeo4j exportado, con tests
