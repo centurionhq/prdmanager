@@ -7,6 +7,11 @@
     "node": ">=24"
   },
   "exports": {
+    "./domain": {
+      "@prdm/source": "./src/domain/index.ts",
+      "types": "./dist/domain/index.d.ts",
+      "import": "./dist/domain/index.js"
+    },
     ".": {
       "@prdm/source": "./src/index.ts",
       "types": "./dist/index.d.ts",

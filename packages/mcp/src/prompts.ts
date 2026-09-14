@@ -9,13 +9,13 @@ import { jsonText } from './shared.js';
 const PROJECT_CONTEXT_CAP = 100;
 const FENCE_SUFFIX_BYTES = 4;
 
-/** Per-request random suffix so an attacker embedding a document/artifact body can never predict (and thus never close) the real fence tag. */
-function fenceTag(name: string): string {
+/** Per-request random suffix so an attacker embedding a document/artifact body can never predict (and thus never close) the real fence tag. Exported (WO-129) via `@prdm/mcp/lib` for reuse outside this module. */
+export function fenceTag(name: string): string {
   return `${name}_${randomBytes(FENCE_SUFFIX_BYTES).toString('hex')}`;
 }
 
-/** Untrusted content (titles, statuses, artifact/feedback bodies) can never forge or close a `<tag>`/`</tag>` fence once `<`/`>` are escaped. */
-function escapeFenceChars(text: string): string {
+/** Untrusted content (titles, statuses, artifact/feedback bodies) can never forge or close a `<tag>`/`</tag>` fence once `<`/`>` are escaped. Exported (WO-129) via `@prdm/mcp/lib` for reuse outside this module. */
+export function escapeFenceChars(text: string): string {
   return text.replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
 }
 

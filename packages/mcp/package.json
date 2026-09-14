@@ -10,6 +10,11 @@
     "prdm-graph": "dist/server.js"
   },
   "exports": {
+    "./lib": {
+      "@prdm/source": "./src/lib.ts",
+      "types": "./dist/lib.d.ts",
+      "import": "./dist/lib.js"
+    },
     ".": {
       "@prdm/source": "./src/server.ts",
       "types": "./dist/server.d.ts",

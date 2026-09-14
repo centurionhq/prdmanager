@@ -4,6 +4,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
+      // Subpath aliases MUST be listed before their bare-package alias below: vite's resolver does a prefix
+      // match in declaration order, so `@prdm/core` (a prefix of `@prdm/core/domain`) would otherwise win first
+      // and resolve `@prdm/core/domain` to the wrong file entirely (WO-129/SDD-007).
+      '@prdm/core/domain': resolve(import.meta.dirname, 'packages/core/src/domain/index.ts'),
+      '@prdm/mcp/lib': resolve(import.meta.dirname, 'packages/mcp/src/lib.ts'),
       '@prdm/core': resolve(import.meta.dirname, 'packages/core/src/index.ts'),
       '@prdm/contracts': resolve(import.meta.dirname, 'packages/contracts/src/index.ts'),
       '@prdm/db': resolve(import.meta.dirname, 'packages/db/src/index.ts'),
