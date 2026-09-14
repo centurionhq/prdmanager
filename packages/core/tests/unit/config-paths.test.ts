@@ -1,6 +1,6 @@
 import { realpathSync } from 'node:fs';
 import { afterEach, describe, expect, test } from 'vitest';
-import { loadConfig } from '../../src/config.js';
+import { assertLocalNeo4j, loadConfig, loadProjectSettings } from '../../src/config.js';
 import { DEFAULT_FOLDERS } from '../../src/project/types.js';
 import { resolveInside } from '../../src/util/paths.js';
 import { makeTmpDir, removeDir, writeFiles } from '@prdm/testkit';
@@ -110,5 +110,44 @@ describe('resolveInside', () => {
   test('rejects a non-absolute root (WO-124: a future saas:// pseudo-root must never reach a real fs call)', () => {
     expect(() => resolveInside('relative/root', 'a.md')).toThrow(/root must be an absolute path/);
     expect(() => resolveInside('saas://project/123', 'a.md')).toThrow(/root must be an absolute path/);
+  });
+});
+
+describe('loadProjectSettings (WO-127)', () => {
+  test('never requires NEO4J_PASSWORD or reads .env, unlike loadConfig', () => {
+    root = makeTmpDir();
+    writeFiles(root, { '.env': 'SOME_OTHER_VAR=1\n' });
+    // No throw, no env/dotenv argument at all: settings never depend on Neo4j.
+    expect(() => loadProjectSettings(root)).not.toThrow();
+    expect(() => loadConfig(root, {})).toThrow(/NEO4J_PASSWORD/);
+  });
+
+  test('produces every field of loadConfig except root and neo4j, from a legacy prdm.config.json', () => {
+    root = makeTmpDir();
+    writeFiles(root, { 'prdm.config.json': JSON.stringify({ docsDir: 'spec' }) });
+    const settings = loadProjectSettings(root);
+    const full = loadConfig(root, { NEO4J_PASSWORD: 'x' });
+    const { root: _root, neo4j: _neo4j, ...expected } = full;
+    expect(settings).toEqual(expected);
+  });
+
+  test('produces every field of loadConfig except root and neo4j, from a .prdm.yaml project file', () => {
+    root = makeTmpDir();
+    writeFiles(root, { '.prdm.yaml': 'version: 1\nproject:\n  id: prj_0123456789abcdef\n  name: yaml-project\n' });
+    const settings = loadProjectSettings(root);
+    const full = loadConfig(root, { NEO4J_PASSWORD: 'x' });
+    const { root: _root, neo4j: _neo4j, ...expected } = full;
+    expect(settings).toEqual(expected);
+  });
+});
+
+describe('assertLocalNeo4j (WO-127: now exported)', () => {
+  test('allows loopback hosts unconditionally', () => {
+    expect(() => assertLocalNeo4j('neo4j://127.0.0.1:7687', false, { uriFromRealEnv: true, passwordFromRealEnv: true })).not.toThrow();
+    expect(() => assertLocalNeo4j('bolt://localhost:7687', false, { uriFromRealEnv: true, passwordFromRealEnv: true })).not.toThrow();
+  });
+
+  test('refuses a non-local host without the opt-in', () => {
+    expect(() => assertLocalNeo4j('neo4j://attacker.example:7687', false, { uriFromRealEnv: true, passwordFromRealEnv: true })).toThrow(/non-local host/);
   });
 });
