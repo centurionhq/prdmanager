@@ -72,6 +72,13 @@ export interface AgentProposalsRepository {
   markAccepted(id: string, respondedBy: string): Promise<AgentProposalRecord | null>;
   markRejected(id: string, respondedBy: string): Promise<AgentProposalRecord | null>;
   markStale(id: string): Promise<AgentProposalRecord | null>;
+  /** Unconditional (no `WHERE status = 'pending'` guard) — only ever safe to call from the accept flow's
+   * own rollback branch, after it has already atomically claimed `id` via {@link markAccepted} (WO-174:
+   * a last-instant staleness check, done inside the direct-connection transaction, can still find the
+   * document changed out from under an already-claimed proposal; reverting needs no ownership guard since
+   * this caller already exclusively owns the row). Clears `respondedBy`/`respondedAt` back to unset —
+   * "stale" has no responder, unlike "accepted"/"rejected". */
+  forceStale(id: string): Promise<void>;
 }
 
 export interface LlmUsageRepository {
@@ -181,6 +188,10 @@ export function buildAgentRepositories(pool: Pool, orgId: string): AgentReposito
         withTenantTx(pool, orgId, async (tx) => {
           const [row] = await tx.update(agentProposals).set({ status: 'stale' }).where(and(eq(agentProposals.id, id), eq(agentProposals.status, 'pending'))).returning();
           return row ?? null;
+        }),
+      forceStale: (id) =>
+        withTenantTx(pool, orgId, async (tx) => {
+          await tx.update(agentProposals).set({ status: 'stale', respondedBy: null, respondedAt: null }).where(eq(agentProposals.id, id));
         }),
     },
 

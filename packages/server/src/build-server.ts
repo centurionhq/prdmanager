@@ -222,7 +222,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerDocumentBlameRoute(app, { auth, pool, env, blameCache: createBlameCache() });
       registerDocumentVersionRoutes(app, { auth, pool, env, hocuspocus });
       registerDocumentCommentRoutes(app, { auth, pool, env, hocuspocus, rateLimiter: buildCommentRateLimiter(app) });
-      if (llmClient) registerDocumentAgentRoutes(app, { auth, pool, env, neo4j, llmClient, model: env.deepseek?.model });
+      if (llmClient) registerDocumentAgentRoutes(app, { auth, pool, env, neo4j, llmClient, model: env.deepseek?.model, hocuspocus });
       registerDriftRoutes(app, { auth, pool, env, neo4j });
       registerGraphRoutes(app, { auth, pool, env, neo4j });
       registerCloseFeatureRoutes(app, { auth, pool, env, neo4j });

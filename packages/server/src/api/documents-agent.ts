@@ -20,8 +20,9 @@
  */
 import { can } from '@prdm/contracts';
 import { sendAgentMessageInputSchema } from '@prdm/contracts';
-import { createTenantDb, type AgentMessageRecord } from '@prdm/db';
+import { createTenantDb, type AgentMessageRecord, type AgentProposalRecord } from '@prdm/db';
 import type { Neo4jGraphDatabase } from '@prdm/core';
+import type { Hocuspocus } from '@hocuspocus/server';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
@@ -29,6 +30,8 @@ import { runAgentLoop, type AgentLoopEvent, type AgentTranscriptMessage } from '
 import { buildAgentSystemPrompt } from '../agent/system-prompt.js';
 import type { LlmClient, LlmMessage, LlmToolCall } from '../agent/llm-client.js';
 import { ALL_AGENT_TOOLS, type AgentToolContext } from '../agent/tools/index.js';
+import { acceptAgentProposal, ProposalNotFoundError as AcceptProposalNotFoundError, ProposalNotPendingError as AcceptProposalNotPendingError } from '../collab/accept-agent-proposal.js';
+import { rejectAgentProposal, ProposalNotFoundError as RejectProposalNotFoundError, ProposalNotPendingError as RejectProposalNotPendingError } from '../collab/reject-agent-proposal.js';
 import { requireNeo4j } from '../engine/resolve-pg-project-engine.js';
 import type { ServerEnv } from '../env.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
@@ -47,6 +50,29 @@ export interface RegisterDocumentAgentRoutesOptions {
   /** Stamped onto every assistant message for persistence (SDD-009 §Persistencia: `agent_messages.model`)
    * — `main.ts` passes `env.deepseek.model ?? DEFAULT_DEEPSEEK_MODEL`; tests pass whatever they like. */
   model?: string;
+  /** WO-174: accept applies a proposal as a direct-connection server transaction, same as `../collab/restore.js`. */
+  hocuspocus: Hocuspocus;
+}
+
+interface ProposalRouteParams extends DocumentRouteParams {
+  proposalId: string;
+}
+
+function toProposalSummary(proposal: AgentProposalRecord) {
+  return {
+    id: proposal.id,
+    conversationId: proposal.conversationId,
+    documentId: proposal.documentId,
+    status: proposal.status,
+    summary: proposal.summary,
+    edits: proposal.edits,
+    fieldsSet: proposal.fieldsSet,
+    fieldsUnset: proposal.fieldsUnset,
+    requestedBy: proposal.requestedBy,
+    respondedBy: proposal.respondedBy,
+    respondedAt: proposal.respondedAt?.toISOString() ?? null,
+    createdAt: proposal.createdAt.toISOString(),
+  };
 }
 
 interface DocumentRouteParams {
@@ -72,7 +98,7 @@ function sendSseEvent(raw: { write: (chunk: string) => void }, event: AgentLoopE
 }
 
 export function registerDocumentAgentRoutes(app: FastifyInstance, opts: RegisterDocumentAgentRoutesOptions): void {
-  const { auth, pool, env, neo4j, llmClient, model } = opts;
+  const { auth, pool, env, neo4j, llmClient, model, hocuspocus } = opts;
   const activeStreamUserIds = new Set<string>();
 
   app.post<{ Params: DocumentRouteParams; Body: unknown }>(
@@ -170,6 +196,60 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
         reply.raw.end();
       } finally {
         activeStreamUserIds.delete(userId);
+      }
+    },
+  );
+
+  app.post<{ Params: ProposalRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/agent/proposals/:proposalId/accept',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+      const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+      if (!can(subject, 'accept_agent_proposal')) throw new ForbiddenError();
+
+      const existing = await createTenantDb(pool).forOrg(org.id).forProject(project.id).documents.findByDocId(req.params.docId);
+      if (!existing) throw new NotFoundError();
+
+      try {
+        const result = await acceptAgentProposal(pool, hocuspocus, {
+          orgId: org.id,
+          projectId: project.id,
+          documentId: existing.document.id,
+          proposalId: req.params.proposalId,
+          acceptingUserId: session.user.id,
+        });
+        if (result.status === 'stale') return { status: 'stale' as const };
+        const proposal = await createTenantDb(pool).forOrg(org.id).agent.proposals.findById(req.params.proposalId);
+        return { status: 'accepted' as const, proposal: proposal ? toProposalSummary(proposal) : null, versionNo: result.version?.versionNo ?? null };
+      } catch (error: unknown) {
+        if (error instanceof AcceptProposalNotFoundError) throw new NotFoundError();
+        if (error instanceof AcceptProposalNotPendingError) throw new ConflictError('this proposal has already been decided');
+        throw error;
+      }
+    },
+  );
+
+  app.post<{ Params: ProposalRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/agent/proposals/:proposalId/reject',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+      const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+      if (!can(subject, 'accept_agent_proposal')) throw new ForbiddenError();
+
+      const existing = await createTenantDb(pool).forOrg(org.id).forProject(project.id).documents.findByDocId(req.params.docId);
+      if (!existing) throw new NotFoundError();
+
+      try {
+        const proposal = await rejectAgentProposal(pool, { orgId: org.id, documentId: existing.document.id, proposalId: req.params.proposalId, rejectingUserId: session.user.id });
+        return { status: 'rejected' as const, proposal: toProposalSummary(proposal) };
+      } catch (error: unknown) {
+        if (error instanceof RejectProposalNotFoundError) throw new NotFoundError();
+        if (error instanceof RejectProposalNotPendingError) throw new ConflictError('this proposal has already been decided');
+        throw error;
       }
     },
   );
