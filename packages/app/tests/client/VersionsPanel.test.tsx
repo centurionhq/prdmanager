@@ -6,6 +6,7 @@ import type { DocumentVersionSummary } from '@prdm/contracts';
 import { VersionsPanel } from '../../src/components/VersionsPanel.js';
 import * as collabContext from '../../src/collab/collab-document-context.js';
 import * as versionsApi from '../../src/api/versions.js';
+import type { ListDocumentVersionsPage } from '../../src/api/versions.js';
 
 function fakeVersion(overrides: Partial<DocumentVersionSummary> = {}): DocumentVersionSummary {
   return {
@@ -20,6 +21,11 @@ function fakeVersion(overrides: Partial<DocumentVersionSummary> = {}): DocumentV
     createdAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   };
+}
+
+/** WO-225: `listDocumentVersions` now resolves a paginated page, not a bare array. */
+function fakeVersionsPage(versions: DocumentVersionSummary[]): ListDocumentVersionsPage {
+  return { versions, total: versions.length, limit: 20, offset: 0 };
 }
 
 function mockContext() {
@@ -42,7 +48,7 @@ describe('VersionsPanel', () => {
 
   it('lists versions with label/reason/contributors', async () => {
     mockContext();
-    vi.spyOn(versionsApi, 'listDocumentVersions').mockResolvedValue([fakeVersion()]);
+    vi.spyOn(versionsApi, 'listDocumentVersions').mockResolvedValue(fakeVersionsPage([fakeVersion()]));
 
     render(<VersionsPanel subject={{ orgRole: 'member', projectRole: 'editor' }} />);
 
@@ -52,7 +58,7 @@ describe('VersionsPanel', () => {
 
   it('an editor can save a manual version with a label', async () => {
     mockContext();
-    vi.spyOn(versionsApi, 'listDocumentVersions').mockResolvedValue([]);
+    vi.spyOn(versionsApi, 'listDocumentVersions').mockResolvedValue(fakeVersionsPage([]));
     const save = vi.spyOn(versionsApi, 'saveDocumentVersion').mockResolvedValue(fakeVersion());
 
     render(<VersionsPanel subject={{ orgRole: 'member', projectRole: 'editor' }} />);
@@ -66,7 +72,7 @@ describe('VersionsPanel', () => {
 
   it('a viewer sees versions but no save form and no restore button', async () => {
     mockContext();
-    vi.spyOn(versionsApi, 'listDocumentVersions').mockResolvedValue([fakeVersion()]);
+    vi.spyOn(versionsApi, 'listDocumentVersions').mockResolvedValue(fakeVersionsPage([fakeVersion()]));
 
     render(<VersionsPanel subject={{ orgRole: 'member', projectRole: 'viewer' }} />);
     await screen.findByText(/v1 · First draft/);
@@ -77,7 +83,7 @@ describe('VersionsPanel', () => {
 
   it('selecting two versions and comparing shows the diff', async () => {
     mockContext();
-    vi.spyOn(versionsApi, 'listDocumentVersions').mockResolvedValue([fakeVersion({ id: 'v1', versionNo: 1 }), fakeVersion({ id: 'v2', versionNo: 2, label: 'Second' })]);
+    vi.spyOn(versionsApi, 'listDocumentVersions').mockResolvedValue(fakeVersionsPage([fakeVersion({ id: 'v1', versionNo: 1 }), fakeVersion({ id: 'v2', versionNo: 2, label: 'Second' })]));
     vi.spyOn(versionsApi, 'getDocumentVersionDiff').mockResolvedValue({
       from: fakeVersion({ versionNo: 1 }),
       to: fakeVersion({ versionNo: 2 }),
@@ -102,7 +108,7 @@ describe('VersionsPanel', () => {
 
   it('restoring a version requires confirmation before calling the API', async () => {
     mockContext();
-    vi.spyOn(versionsApi, 'listDocumentVersions').mockResolvedValue([fakeVersion()]);
+    vi.spyOn(versionsApi, 'listDocumentVersions').mockResolvedValue(fakeVersionsPage([fakeVersion()]));
     const restore = vi.spyOn(versionsApi, 'restoreDocumentVersion').mockResolvedValue(fakeVersion({ versionNo: 2, reason: 'restore' }));
 
     render(<VersionsPanel subject={{ orgRole: 'member', projectRole: 'editor' }} />);

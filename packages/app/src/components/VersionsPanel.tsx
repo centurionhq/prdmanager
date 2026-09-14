@@ -4,7 +4,7 @@
  * "Restaurar" button (editor+, `restore_version`) confirming then calling WO-157's endpoint.
  */
 import { useEffect, useState, type FormEvent, type ReactElement } from 'react';
-import { can, type DocumentVersionSummary, type PermissionSubject } from '@prdm/contracts';
+import { can, type DocumentVersionListItem, type PermissionSubject } from '@prdm/contracts';
 import { getDocumentVersionDiff, listDocumentVersions, restoreDocumentVersion, saveDocumentVersion, type DocumentVersionDiff } from '../api/versions.js';
 import { useCollabDocumentContext } from '../collab/collab-document-context.js';
 import { errorMessage } from '../api/error-message.js';
@@ -14,7 +14,7 @@ export interface VersionsPanelProps {
   subject: PermissionSubject;
 }
 
-const REASON_LABEL: Record<DocumentVersionSummary['reason'], string> = {
+const REASON_LABEL: Record<DocumentVersionListItem['reason'], string> = {
   manual: 'Manual',
   review_request: 'Solicitud de revisión',
   published: 'Publicación',
@@ -26,7 +26,7 @@ const REASON_LABEL: Record<DocumentVersionSummary['reason'], string> = {
 
 export function VersionsPanel({ subject }: VersionsPanelProps): ReactElement {
   const { orgSlug, projectSlug, docId } = useCollabDocumentContext();
-  const [versions, setVersions] = useState<DocumentVersionSummary[]>([]);
+  const [versions, setVersions] = useState<DocumentVersionListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [label, setLabel] = useState('');
   const [selected, setSelected] = useState<[number, number] | null>(null);
@@ -36,7 +36,7 @@ export function VersionsPanel({ subject }: VersionsPanelProps): ReactElement {
 
   function reload(): void {
     listDocumentVersions(orgSlug, projectSlug, docId)
-      .then(setVersions)
+      .then((page) => setVersions(page.versions))
       .catch((err: unknown) => setError(errorMessage(err)));
   }
 

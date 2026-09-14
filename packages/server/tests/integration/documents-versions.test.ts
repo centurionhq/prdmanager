@@ -162,13 +162,14 @@ describe('.../documents/:docId/versions* (WO-156)', () => {
     const editorCookie = await signIn(app, editor.email);
     const document = await createDocument(app, org, project, editorCookie);
 
-    const versionsBefore = await app.inject({
+    // WO-225: the list endpoint no longer includes `renderedMarkdown` (unused by the summary view) — the
+    // diff endpoint still does, so fetch version 1's content that way instead.
+    const version1Diff = await app.inject({
       method: 'GET',
-      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${document.docId}/versions`,
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${document.docId}/versions/1/diff?against=1`,
       headers: { ...AUTH_HOST, cookie: editorCookie },
     });
-    const version1 = versionsBefore.json().versions[0];
-    const { fields, body } = rawFrontmatterOf(version1.renderedMarkdown as string);
+    const { fields, body } = rawFrontmatterOf(version1Diff.json().to.renderedMarkdown as string);
     const { id: _id, type: _type, title: _title, ...restFields } = fields;
 
     // Simulate opening the live editor and saving again without changing anything: seed the Y.Doc's
@@ -255,7 +256,90 @@ describe('.../documents/:docId/versions* (WO-156)', () => {
     const versions = editedVersions.json().versions;
     expect(versions).toHaveLength(2);
     expect(versions[0].reason).toBe('review_request');
-    expect(versions[0].renderedMarkdown).toContain('Ready for review');
+    // WO-225: the list endpoint no longer includes `renderedMarkdown` — confirm the captured content via
+    // the diff endpoint instead (still full summaries there).
+    const editedDiff = await app.inject({
+      method: 'GET',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${edited.docId}/versions/${versions[0].versionNo}/diff?against=${versions[0].versionNo}`,
+      headers: { ...AUTH_HOST, cookie: editorCookie },
+    });
+    expect(editedDiff.json().to.renderedMarkdown).toContain('Ready for review');
+
+    await app.close();
+  });
+
+  // WO-225 (performance review, MEDIUM): the list endpoint used to `SELECT *`, pulling `yjs_state` (a full
+  // snapshot buffer) and `renderedMarkdown` even though the summary view never returns either.
+  test('the list endpoint never includes yjsState or renderedMarkdown, even for a version with a huge snapshot', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { editor, org, project } = await setupOrgAndProject();
+    const editorCookie = await signIn(app, editor.email);
+    const document = await createDocument(app, org, project, editorCookie);
+
+    // A version row is seeded directly (bypassing captureDocumentVersion) so its yjsState/renderedMarkdown
+    // can be made deliberately huge — proving the list query itself never selects those columns, not just
+    // that `toVersionSummary` happens to drop small ones.
+    const hugeMarkdown = 'x'.repeat(200_000);
+    const hugeYjsState = Buffer.alloc(200_000, 1);
+    await pg.ownerPool.query(
+      `INSERT INTO document_versions (org_id, document_id, version_no, reason, yjs_state, rendered_markdown, frontmatter, content_hash, contributors, created_by)
+       VALUES ($1, $2, 2, 'manual', $3, $4, '{}'::jsonb, 'hash', '{}', $5)`,
+      [org.id, document.id, hugeYjsState, hugeMarkdown, editor.id],
+    );
+
+    const list = await app.inject({
+      method: 'GET',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${document.docId}/versions`,
+      headers: { ...AUTH_HOST, cookie: editorCookie },
+    });
+    expect(list.statusCode).toBe(200);
+    const versionTwo = list.json().versions.find((v: { versionNo: number }) => v.versionNo === 2);
+    expect(versionTwo).toBeDefined();
+    expect(versionTwo).not.toHaveProperty('renderedMarkdown');
+    expect(versionTwo).not.toHaveProperty('yjsState');
+    // Cheap columns the summary view does use are still present.
+    expect(versionTwo.contentHash).toBe('hash');
+
+    await app.close();
+  });
+
+  test('the list endpoint paginates: requesting the next page never repeats an earlier version', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { editor, org, project } = await setupOrgAndProject();
+    const editorCookie = await signIn(app, editor.email);
+    const document = await createDocument(app, org, project, editorCookie);
+
+    // Version 1 already exists (draft creation); seed 4 more directly so there are 5 total.
+    for (let i = 2; i <= 5; i += 1) {
+      await pg.ownerPool.query(
+        `INSERT INTO document_versions (org_id, document_id, version_no, reason, rendered_markdown, frontmatter, content_hash, contributors, created_by)
+         VALUES ($1, $2, $3, 'manual', 'body', '{}'::jsonb, $4, '{}', $5)`,
+        [org.id, document.id, i, `hash-${i}`, editor.id],
+      );
+    }
+
+    async function listPage(limit: number, offset: number): Promise<{ versions: { versionNo: number }[]; total: number; limit: number; offset: number }> {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${document.docId}/versions?limit=${limit}&offset=${offset}`,
+        headers: { ...AUTH_HOST, cookie: editorCookie },
+      });
+      expect(res.statusCode).toBe(200);
+      return res.json();
+    }
+
+    const page1 = await listPage(2, 0);
+    expect(page1.versions.map((v) => v.versionNo)).toEqual([5, 4]);
+    expect(page1.total).toBe(5);
+
+    const page2 = await listPage(2, 2);
+    expect(page2.versions.map((v) => v.versionNo)).toEqual([3, 2]);
+
+    const page3 = await listPage(2, 4);
+    expect(page3.versions.map((v) => v.versionNo)).toEqual([1]);
+
+    const allVersionNos = [...page1.versions, ...page2.versions, ...page3.versions].map((v) => v.versionNo);
+    expect(new Set(allVersionNos).size).toBe(5); // no repeats across pages
 
     await app.close();
   });

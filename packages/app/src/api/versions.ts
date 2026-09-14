@@ -1,7 +1,7 @@
 /**
  * `.../documents/:docId/versions*` (SDD-008 §"Versiones", WO-156/157/163).
  */
-import type { DocumentVersionSummary } from '@prdm/contracts';
+import type { DocumentVersionListItem, DocumentVersionSummary } from '@prdm/contracts';
 import type { LineDiffOp } from '@prdm/collab';
 import { request } from './request.js';
 
@@ -9,8 +9,22 @@ function versionsBase(orgSlug: string, projectSlug: string, docId: string): stri
   return `/api/app/organizations/${encodeURIComponent(orgSlug)}/projects/${encodeURIComponent(projectSlug)}/documents/${encodeURIComponent(docId)}/versions`;
 }
 
-export function listDocumentVersions(orgSlug: string, projectSlug: string, docId: string): Promise<DocumentVersionSummary[]> {
-  return request<{ versions: DocumentVersionSummary[] }>(versionsBase(orgSlug, projectSlug, docId)).then((r) => r.versions);
+/** WO-225: paginated (`limit`/`offset`, matching the list endpoint's own querystring) — defaults to the
+ * server's own first-page defaults when omitted. List items never include `renderedMarkdown` (unused by
+ * every current list consumer); the diff endpoint below still returns it. */
+export interface ListDocumentVersionsPage {
+  versions: DocumentVersionListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export function listDocumentVersions(orgSlug: string, projectSlug: string, docId: string, page: { limit?: number; offset?: number } = {}): Promise<ListDocumentVersionsPage> {
+  const query = new URLSearchParams();
+  if (page.limit !== undefined) query.set('limit', String(page.limit));
+  if (page.offset !== undefined) query.set('offset', String(page.offset));
+  const suffix = query.size > 0 ? `?${query.toString()}` : '';
+  return request<ListDocumentVersionsPage>(`${versionsBase(orgSlug, projectSlug, docId)}${suffix}`);
 }
 
 export function saveDocumentVersion(orgSlug: string, projectSlug: string, docId: string, label: string): Promise<DocumentVersionSummary> {

@@ -62,6 +62,14 @@ export const documentVersionSummarySchema = z.object({
 });
 export type DocumentVersionSummary = z.infer<typeof documentVersionSummarySchema>;
 
+/** WO-225 (performance review, MEDIUM): the `GET .../versions` *list* endpoint's own shape — everything
+ * {@link documentVersionSummarySchema} has except `renderedMarkdown`, which no list consumer (e.g.
+ * `VersionsPanel`) reads and which the list query itself never selects from the database in the first
+ * place (a full rendered-markdown blob per row, over-fetched for every version just to list them). The
+ * diff/restore endpoints, which do need it, still return the full {@link DocumentVersionSummary}. */
+export const documentVersionListItemSchema = documentVersionSummarySchema.omit({ renderedMarkdown: true });
+export type DocumentVersionListItem = z.infer<typeof documentVersionListItemSchema>;
+
 /** `POST .../documents/:docId/versions` (SDD-008 §"Versiones", WO-156): a manual save-with-label — the
  * only field a caller supplies, everything else (content, contributors, hash) is captured server-side
  * from the live collaborative document. */

@@ -7,7 +7,7 @@
 import { can, createDocumentVersionInputSchema } from '@prdm/contracts';
 import { createTenantDb, schema, withTenantTx } from '@prdm/db';
 import { diffLines } from '@prdm/collab';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Hocuspocus } from '@hocuspocus/server';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
@@ -41,7 +41,35 @@ interface DiffQuery {
   against: string;
 }
 
-function toVersionSummary(version: typeof schema.documentVersions.$inferSelect) {
+interface ListVersionsQuery {
+  limit?: string;
+  offset?: string;
+}
+
+// WO-225: no pagination shape was already established anywhere else in this codebase (checked before
+// inventing one) — a plain limit/offset, capped well below "the whole table", matching the `meta: total,
+// page, limit`-shaped envelope this codebase's own API-response convention documents elsewhere.
+const DEFAULT_LIST_LIMIT = 20;
+const MAX_LIST_LIMIT = 100;
+
+function parseListLimit(raw: string | undefined): number {
+  const parsed = raw === undefined ? DEFAULT_LIST_LIMIT : Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) return DEFAULT_LIST_LIMIT;
+  return Math.min(parsed, MAX_LIST_LIMIT);
+}
+
+function parseListOffset(raw: string | undefined): number {
+  const parsed = raw === undefined ? 0 : Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < 0) return 0;
+  return parsed;
+}
+
+/** The columns every summary — list or diff — actually needs; deliberately never `yjsState` (WO-225: a
+ * full snapshot buffer no summary view has ever rendered — restore.ts fetches it explicitly, by id, only
+ * when it's actually about to restore from it). */
+type VersionSummaryColumns = Pick<typeof schema.documentVersions.$inferSelect, 'id' | 'versionNo' | 'label' | 'reason' | 'renderedMarkdown' | 'frontmatter' | 'contentHash' | 'contributors' | 'createdAt'>;
+
+function toVersionSummary(version: VersionSummaryColumns) {
   return {
     id: version.id,
     versionNo: version.versionNo,
@@ -55,10 +83,28 @@ function toVersionSummary(version: typeof schema.documentVersions.$inferSelect) 
   };
 }
 
+/** WO-225: the list (summary) view's own shape — everything `toVersionSummary` has except
+ * `renderedMarkdown`, which `VersionsPanel` (and every other list consumer) never reads; the list query
+ * itself never selects that column in the first place (see the route below). */
+type VersionListColumns = Omit<VersionSummaryColumns, 'renderedMarkdown'>;
+
+function toVersionListItem(version: VersionListColumns) {
+  return {
+    id: version.id,
+    versionNo: version.versionNo,
+    label: version.label,
+    reason: version.reason,
+    frontmatter: version.frontmatter as Record<string, unknown>,
+    contentHash: version.contentHash,
+    contributors: version.contributors,
+    createdAt: version.createdAt.toISOString(),
+  };
+}
+
 export function registerDocumentVersionRoutes(app: FastifyInstance, opts: RegisterDocumentVersionRoutesOptions): void {
   const { auth, pool, env, hocuspocus } = opts;
 
-  app.get<{ Params: DocumentRouteParams }>(
+  app.get<{ Params: DocumentRouteParams; Querystring: ListVersionsQuery }>(
     '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/versions',
     { config: { access: { kind: 'session' } } },
     async (req) => {
@@ -71,10 +117,36 @@ export function registerDocumentVersionRoutes(app: FastifyInstance, opts: Regist
       const existing = await scope.documents.findByDocId(req.params.docId);
       if (!existing) throw new NotFoundError();
 
-      const versions = await withTenantTx(pool, org.id, (tx) => tx.select().from(schema.documentVersions).where(eq(schema.documentVersions.documentId, existing.document.id)));
-      versions.sort((a, b) => b.versionNo - a.versionNo);
+      const limit = parseListLimit(req.query.limit);
+      const offset = parseListOffset(req.query.offset);
 
-      return { versions: versions.map(toVersionSummary) };
+      const { versions, total } = await withTenantTx(pool, org.id, async (tx) => {
+        const rows = await tx
+          .select({
+            id: schema.documentVersions.id,
+            versionNo: schema.documentVersions.versionNo,
+            label: schema.documentVersions.label,
+            reason: schema.documentVersions.reason,
+            frontmatter: schema.documentVersions.frontmatter,
+            contentHash: schema.documentVersions.contentHash,
+            contributors: schema.documentVersions.contributors,
+            createdAt: schema.documentVersions.createdAt,
+          })
+          .from(schema.documentVersions)
+          .where(eq(schema.documentVersions.documentId, existing.document.id))
+          .orderBy(desc(schema.documentVersions.versionNo))
+          .limit(limit)
+          .offset(offset);
+
+        const [totalRow] = await tx
+          .select({ count: sql<number>`count(*)::int` })
+          .from(schema.documentVersions)
+          .where(eq(schema.documentVersions.documentId, existing.document.id));
+
+        return { versions: rows, total: totalRow?.count ?? 0 };
+      });
+
+      return { versions: versions.map(toVersionListItem), total, limit, offset };
     },
   );
 
@@ -123,7 +195,24 @@ export function registerDocumentVersionRoutes(app: FastifyInstance, opts: Regist
       const againstVersionNo = Number.parseInt(req.query.against, 10);
       if (!Number.isInteger(versionNo) || !Number.isInteger(againstVersionNo)) throw new ValidationError('versionNo and against must be integers');
 
-      const rows = await withTenantTx(pool, org.id, (tx) => tx.select().from(schema.documentVersions).where(eq(schema.documentVersions.documentId, existing.document.id)));
+      // WO-225: fetch exactly the two versions being diffed, by versionNo, rather than every version this
+      // document has ever had — still never `yjsState` (the diff below only ever needs `renderedMarkdown`).
+      const rows = await withTenantTx(pool, org.id, (tx) =>
+        tx
+          .select({
+            id: schema.documentVersions.id,
+            versionNo: schema.documentVersions.versionNo,
+            label: schema.documentVersions.label,
+            reason: schema.documentVersions.reason,
+            renderedMarkdown: schema.documentVersions.renderedMarkdown,
+            frontmatter: schema.documentVersions.frontmatter,
+            contentHash: schema.documentVersions.contentHash,
+            contributors: schema.documentVersions.contributors,
+            createdAt: schema.documentVersions.createdAt,
+          })
+          .from(schema.documentVersions)
+          .where(and(eq(schema.documentVersions.documentId, existing.document.id), inArray(schema.documentVersions.versionNo, [versionNo, againstVersionNo]))),
+      );
       const from = rows.find((r) => r.versionNo === againstVersionNo);
       const to = rows.find((r) => r.versionNo === versionNo);
       if (!from || !to) throw new NotFoundError();
