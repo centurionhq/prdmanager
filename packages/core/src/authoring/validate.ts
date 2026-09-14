@@ -140,15 +140,16 @@ function lifecycleIssueKey(issue: DriftIssue): string {
 /**
  * Any lifecycle violation that appears only after overlaying the draft — on ANY document, not just the draft's
  * own — is collateral damage the draft would cause and must block it (WO-023 finding 7): e.g. an update that
- * drops a Feedback's `informs` link can retroactively unjustify a Feature that relied on it.
+ * drops a Feedback's `informs` link can retroactively unjustify a Feature that relied on it. Exported (WO-128)
+ * so `validateDocument` shares this exact diffing logic instead of duplicating it.
  */
-function newLifecycleIssues(before: readonly ParsedDoc[], after: readonly ParsedDoc[], grandfathered: readonly GrandfatheredDoc[]): DriftIssue[] {
+export function newLifecycleIssues(before: readonly ParsedDoc[], after: readonly ParsedDoc[], grandfathered: readonly GrandfatheredDoc[]): DriftIssue[] {
   const beforeKeys = new Set(checkLifecycle(before, { grandfathered }).map(lifecycleIssueKey));
   return checkLifecycle(after, { grandfathered }).filter((issue) => !beforeKeys.has(lifecycleIssueKey(issue)));
 }
 
-/** Collapses forbidden_field issues raised by both the pre-render and post-render (injection) checks for the same field into one. */
-function dedupeForbiddenFieldIssues(issues: ValidationIssue[]): ValidationIssue[] {
+/** Collapses forbidden_field issues raised by both the pre-render and post-render (injection) checks for the same field into one. Exported (WO-128) for `validateDocument`. */
+export function dedupeForbiddenFieldIssues(issues: ValidationIssue[]): ValidationIssue[] {
   const seen = new Set<string>();
   return issues.filter((issue) => {
     if (issue.code !== 'forbidden_field') return true;
