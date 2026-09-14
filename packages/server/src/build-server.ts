@@ -33,6 +33,7 @@ import { buildAgentRateLimiter } from './rate-limit/agent-rate-limits.js';
 import type { LlmClient } from './agent/llm-client.js';
 import { createBlameCache } from './collab/blame.js';
 import { registerDriftRoutes } from './api/drift.js';
+import { registerForcePushOverrideRoutes } from './api/force-push-overrides.js';
 import { registerGovernanceRoutes } from './api/governance.js';
 import { registerGraphRoutes } from './api/graph.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
@@ -261,6 +262,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
           clock,
         });
       registerDriftRoutes(app, { auth, pool, env, neo4j });
+      registerForcePushOverrideRoutes(app, { auth, pool, env });
       registerGraphRoutes(app, { auth, pool, env, neo4j });
       registerCloseFeatureRoutes(app, { auth, pool, env, neo4j });
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
@@ -268,7 +270,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerCiTokenRoutes(app, { auth, pool, env, clock });
       registerV1MeRoute(app, { pool });
       registerGovernanceRoutes(app, { pool });
-      registerCodeReportRoutes(app, { pool });
+      registerCodeReportRoutes(app, { pool, neo4j });
     });
   }
 

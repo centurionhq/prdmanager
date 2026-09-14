@@ -1,14 +1,17 @@
 /**
  * `POST /api/v1/projects/:graphProjectId/code-reports` (SDD-010 "Sync de developers y drift",
- * WO-180): the only way drift ever gets computed from a report the SaaS never reads a repo to produce
- * itself. Scope `reports:write`. Idempotent by `(project_id, token_id, Idempotency-Key)` — see
+ * WO-180/WO-181): the only way drift ever gets computed from a report the SaaS never reads a repo to
+ * produce itself. Scope `reports:write`. Idempotent by `(project_id, token_id, Idempotency-Key)` — see
  * `@prdm/db`'s `recordCodeReport`/`./schema/code-reports.ts` for why the whole result travels inside a
  * single `INSERT ... ON CONFLICT DO NOTHING` rather than a two-phase reserve-then-update.
  *
- * Every report defaults to **preview** (WO-181 replaces the hardcoded `mode` below with the real
- * baseline gate: CI scope + verified OIDC + non-regressing head + matching `hash_algo_version`) — a
- * pure `detectDrift` against the currently stored baseline, via the `codeReportToDriftInput` adapter;
- * nothing here ever calls `PgProjectEngine.refresh()` or writes `project_baselines`/`commits`.
+ * Mode is decided by `../engine/baseline-gate.js`'s `evaluateBaselineGate` (WO-181): almost every
+ * ineligibility reason falls silently to **preview** (a pure `detectDrift`, via the
+ * `codeReportToDriftInput` adapter, against the currently stored baseline — no writes at all); only a
+ * `head_sha` regression without an audited admin override is a loud, distinct `409
+ * force_push_requires_admin_override`. A **baseline** report additionally upserts `commits` (trust
+ * `baseline`), advances `project_code_state.latest_baseline_head_sha`/`impacts_hashes`, and runs
+ * `PgProjectEngine.refresh()` — official drift, WO updates, graph projection.
  *
  * A stale `docs_graph_version` (the client computed `governed[]` against an older `graph_version` than
  * the project's current one) is rejected with `409 docs_outdated` *before* touching the idempotency
@@ -17,14 +20,30 @@
  * not.
  */
 import { randomUUID } from 'node:crypto';
-import { codeReportRequestSchema, MAX_CODE_REPORT_BODY_BYTES, type CodeReportResponse } from '@prdm/contracts';
-import { detectDrift, emptyBaseline, scanContents, sha256, type Baseline } from '@prdm/core';
-import { createTenantDb, recordCodeReport, resolveProjectByGraphProjectId, schema, withTenantTx } from '@prdm/db';
+import { codeReportRequestSchema, MAX_CODE_REPORT_BODY_BYTES, projectSettingsSchema, type CodeReportResponse } from '@prdm/contracts';
+import { detectDrift, emptyBaseline, scanContents, sha256, type Baseline, type Neo4jGraphDatabase } from '@prdm/core';
+import {
+  consumeForcePushOverride,
+  createTenantDb,
+  getProjectCodeState,
+  recordBaselineHead,
+  recordCodeReport,
+  resolveProjectByGraphProjectId,
+  schema,
+  upsertReportedCommits,
+  withTenantTx,
+} from '@prdm/db';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { codeReportToDriftInput } from '../engine/code-report-adapter.js';
+import { evaluateBaselineGate } from '../engine/baseline-gate.js';
+import { requireNeo4j, resolvePgProjectEngine } from '../engine/resolve-pg-project-engine.js';
 import { NotFoundError, ValidationError } from '../errors.js';
+
+/** SDD-010 doesn't pin an exact header name for "the OIDC token is attached" — a judgment call for
+ * this WO, documented here so it's easy to find/revise. */
+const GITHUB_OIDC_TOKEN_HEADER = 'x-prdm-github-oidc-token';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -37,6 +56,7 @@ declare module 'fastify' {
 
 export interface RegisterCodeReportRoutesOptions {
   pool: Pool;
+  neo4j?: Neo4jGraphDatabase;
 }
 
 interface CodeReportRouteParams {
@@ -51,7 +71,7 @@ async function loadBaseline(pool: Pool, orgId: string, projectId: string): Promi
 }
 
 export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCodeReportRoutesOptions): void {
-  const { pool } = opts;
+  const { pool, neo4j } = opts;
 
   // Scoped registration (not the top-level `app`): the raw-body-capturing content-type parser below
   // must only ever apply to this one route, never to every other `application/json` route on the
@@ -95,6 +115,30 @@ export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCod
           return reply.code(409).send({ error: 'docs_outdated', currentGraphVersion: project.graphVersion.toString() });
         }
 
+        const settings = projectSettingsSchema.parse(project.settings);
+        const codeState = await getProjectCodeState(pool, resolved.orgId, resolved.projectId);
+        const oidcTokenHeader = req.headers[GITHUB_OIDC_TOKEN_HEADER];
+
+        const gate = await evaluateBaselineGate({
+          token: { kind: token.kind, scopes: token.scopes },
+          oidcToken: typeof oidcTokenHeader === 'string' ? oidcTokenHeader : undefined,
+          settings,
+          report,
+          registeredBaselineHeadSha: codeState?.latestBaselineHeadSha ?? null,
+          deps: {
+            githubOidcJwks: req.server.githubOidcJwks,
+            oidcJtiStore: req.server.oidcJtiStore,
+            now: req.server.clock,
+            publicUrl: req.server.env.publicUrl,
+            consumeForcePushOverride: (headSha) => consumeForcePushOverride(pool, resolved.orgId, resolved.projectId, headSha),
+          },
+        });
+
+        if (gate.mode === 'rejected') {
+          return reply.code(409).send({ error: gate.code });
+        }
+        const mode = gate.mode;
+
         const rawBody = req.rawBody ?? JSON.stringify(req.body);
         const bodySha256 = sha256(rawBody);
 
@@ -102,10 +146,6 @@ export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCod
         const scanned = scanContents(published.map((doc) => ({ path: doc.sourcePath, content: doc.publishedRaw })));
         const baseline = await loadBaseline(pool, resolved.orgId, resolved.projectId);
 
-        // WO-180 scope: always preview (a pure computation, no side effects) — WO-181 adds the real
-        // baseline gate (CI scope + verified OIDC + non-regressing head + hash_algo_version match)
-        // and, only when it passes, the actual `PgProjectEngine.refresh()`/`commits` write.
-        const mode = 'preview' as const;
         const input = codeReportToDriftInput(report, scanned.docs, baseline);
         const drift = detectDrift(input);
 
@@ -116,6 +156,25 @@ export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCod
           issues: drift.issues,
           hasBlockingIssues: drift.issues.some((issue) => issue.severity === 'error'),
         };
+
+        if (mode === 'baseline') {
+          await upsertReportedCommits(pool, {
+            projectId: resolved.projectId,
+            orgId: resolved.orgId,
+            tokenId: token.tokenId,
+            trust: 'baseline',
+            branch: report.branch,
+            commits: report.commits,
+          });
+          await recordBaselineHead(pool, {
+            projectId: resolved.projectId,
+            orgId: resolved.orgId,
+            headSha: report.head_sha,
+            impactsHashes: report.impacts_hashes,
+          });
+          const engine = resolvePgProjectEngine(pool, requireNeo4j(neo4j), resolved.orgId, project);
+          await engine.refresh();
+        }
 
         const outcome = await recordCodeReport(pool, {
           projectId: resolved.projectId,

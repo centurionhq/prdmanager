@@ -346,4 +346,10 @@ export function registerBaseIsolationRoutes(): void {
       params: { path: { graphProjectId: fixtures.projectA1.graphProjectId }, body: {} },
     }),
   });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/code-reports/force-push-overrides', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug }, body: { headSha: 'a'.repeat(40) } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug }, body: { headSha: 'a'.repeat(40) } })),
+  });
 }

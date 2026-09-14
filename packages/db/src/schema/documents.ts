@@ -214,6 +214,11 @@ export const projectCodeState = pgTable(
     latestBaselineReportId: uuid('latest_baseline_report_id'),
     /** Hash of each blueprint's `impacts_paths` as of the last report that reconciled it (SDD-007: "guarda el hash de impacts_paths de cada blueprint usado en el reporte"). */
     impactsHashes: jsonb('impacts_hashes'),
+    /** SDD-010 "Modo baseline de code-reports" (WO-181): the `head_sha` of the last report that
+     * actually earned baseline trust — what a later report's own `head_sha` must not regress behind
+     * (be an ancestor of) without an audited admin override (`force_push_overrides`). `null` until the
+     * project's first-ever CI-verified baseline report. */
+    latestBaselineHeadSha: text('latest_baseline_head_sha'),
   },
   (table) => [
     foreignKey({
