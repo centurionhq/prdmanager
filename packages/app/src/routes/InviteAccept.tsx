@@ -11,6 +11,8 @@ import { useNavigate, useParams } from 'react-router';
 import { acceptInvitation, getSession } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
+import { useDocumentTitle } from '../hooks/use-document-title.js';
+import { useFocusOnChange } from '../hooks/use-focus-on-change.js';
 import styles from '../styles/forms.module.css';
 
 const MIN_PASSWORD_LENGTH = 12;
@@ -42,6 +44,19 @@ export function InviteAccept(): ReactElement {
   const nameValid = isSignedIn ? true : name.trim().length > 0;
   const passwordValid = isSignedIn ? true : password.length >= MIN_PASSWORD_LENGTH;
 
+  const title =
+    secret === undefined || isSignedIn === undefined
+      ? 'Cargando…'
+      : !secret
+        ? 'Enlace inválido'
+        : accepted
+          ? 'Invitación aceptada'
+          : 'Aceptar invitación';
+  useDocumentTitle(title);
+  // See Login.tsx's TotpStep for why focus (not a live region) is the fix here — three of this screen's
+  // four states swap the entire form for a message with no other signal that anything changed.
+  const headingRef = useFocusOnChange<HTMLHeadingElement>(title);
+
   async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();
     setTouched(true);
@@ -72,7 +87,9 @@ export function InviteAccept(): ReactElement {
     return (
       <div className={styles.page}>
         <div className={styles.card}>
-          <h1 className={styles.title}>Enlace inválido</h1>
+          <h1 className={styles.title} ref={headingRef} tabIndex={-1}>
+            Enlace inválido
+          </h1>
           <p className={styles.subtitle}>Este enlace de invitación no es válido. Pedí que te reenvíen la invitación.</p>
         </div>
       </div>
@@ -83,7 +100,9 @@ export function InviteAccept(): ReactElement {
     return (
       <div className={styles.page}>
         <div className={styles.card}>
-          <h1 className={styles.title}>Invitación aceptada</h1>
+          <h1 className={styles.title} ref={headingRef} tabIndex={-1}>
+            Invitación aceptada
+          </h1>
           <p className={styles.subtitle}>Te estamos redirigiendo…</p>
         </div>
       </div>
@@ -98,8 +117,22 @@ export function InviteAccept(): ReactElement {
           <>
             <div className={styles.field}>
               <label htmlFor="invite-name">Nombre</label>
-              <input id="invite-name" name="name" type="text" required value={name} data-touched={touched} onChange={(e) => setName(e.target.value)} />
-              {touched && !nameValid && <span className={styles.hint}>Ingresá tu nombre.</span>}
+              <input
+                id="invite-name"
+                name="name"
+                type="text"
+                required
+                value={name}
+                data-touched={touched}
+                aria-describedby={touched && !nameValid ? 'invite-name-hint' : undefined}
+                aria-invalid={touched && !nameValid}
+                onChange={(e) => setName(e.target.value)}
+              />
+              {touched && !nameValid && (
+                <span id="invite-name-hint" className={styles.hint}>
+                  Ingresá tu nombre.
+                </span>
+              )}
             </div>
             <div className={styles.field}>
               <label htmlFor="invite-password">Contraseña</label>
@@ -111,9 +144,15 @@ export function InviteAccept(): ReactElement {
                 autoComplete="new-password"
                 value={password}
                 data-touched={touched}
+                aria-describedby={touched && !passwordValid ? 'invite-password-hint' : undefined}
+                aria-invalid={touched && !passwordValid}
                 onChange={(e) => setPassword(e.target.value)}
               />
-              {touched && !passwordValid && <span className={styles.hint}>Mínimo {MIN_PASSWORD_LENGTH} caracteres.</span>}
+              {touched && !passwordValid && (
+                <span id="invite-password-hint" className={styles.hint}>
+                  Mínimo {MIN_PASSWORD_LENGTH} caracteres.
+                </span>
+              )}
             </div>
           </>
         )}

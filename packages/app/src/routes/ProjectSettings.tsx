@@ -10,6 +10,7 @@ import { LoadingState } from '@prdm/ui';
 import { getProject, getSession, listOrganizationMembers, listProjectMembers } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
+import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { CiTokensSection } from './CiTokensSection.js';
 import { useOrgShellContext } from './OrgShell.js';
 import { ProjectMembersSection } from './ProjectMembersSection.js';
@@ -27,6 +28,7 @@ export function ProjectSettings(): ReactElement {
   const { projectSlug } = useParams<{ projectSlug: string }>();
   const [data, setData] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useDocumentTitle(data ? data.project.name : 'Proyecto');
 
   async function reload(): Promise<void> {
     if (!projectSlug) return;

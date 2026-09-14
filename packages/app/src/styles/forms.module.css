@@ -116,8 +116,15 @@
   text-align: left;
 }
 
+/* UI/a11y review (Phase 3 gate): tables have no other place to shrink at narrow viewports, so the table
+   itself scrolls horizontally in its own box rather than forcing the whole page to. */
+.tableWrap {
+  overflow-x: auto;
+}
+
 .table {
   width: 100%;
+  min-width: max-content;
   border-collapse: collapse;
   font-size: var(--font-size-sm);
 }

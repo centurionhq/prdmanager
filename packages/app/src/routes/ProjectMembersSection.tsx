@@ -76,48 +76,50 @@ export function ProjectMembersSection({
     <div>
       <h2 className={styles.title}>Miembros del proyecto</h2>
       <FormError message={rowError} />
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Email</th>
-            <th>Nombre</th>
-            <th>Rol</th>
-            {canManage && <th>Acciones</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((member) => (
-            <tr key={member.userId}>
-              <td>{member.email}</td>
-              <td>{member.name}</td>
-              <td>
-                {canManage ? (
-                  <select
-                    aria-label={`Rol de ${member.email}`}
-                    value={member.role}
-                    onChange={(e) => void handleRoleChange(member.userId, e.target.value as ProjectRole)}
-                  >
-                    {PROJECT_ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  member.role
-                )}
-              </td>
-              {canManage && (
-                <td>
-                  <button type="button" className={styles.secondaryButton} onClick={() => void handleRemove(member.userId)}>
-                    Quitar
-                  </button>
-                </td>
-              )}
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Nombre</th>
+              <th>Rol</th>
+              {canManage && <th>Acciones</th>}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {members.map((member) => (
+              <tr key={member.userId}>
+                <td>{member.email}</td>
+                <td>{member.name}</td>
+                <td>
+                  {canManage ? (
+                    <select
+                      aria-label={`Rol de ${member.email}`}
+                      value={member.role}
+                      onChange={(e) => void handleRoleChange(member.userId, e.target.value as ProjectRole)}
+                    >
+                      {PROJECT_ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    member.role
+                  )}
+                </td>
+                {canManage && (
+                  <td>
+                    <button type="button" className={styles.secondaryButton} onClick={() => void handleRemove(member.userId)}>
+                      Quitar
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {canManage && candidates.length > 0 && (
         <form className={styles.card} onSubmit={handleAdd} noValidate>

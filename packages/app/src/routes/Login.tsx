@@ -11,6 +11,8 @@ import { Link, useNavigate } from 'react-router';
 import { signInWithPassword, verifyTotpCode } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
+import { useDocumentTitle } from '../hooks/use-document-title.js';
+import { useFocusOnChange } from '../hooks/use-focus-on-change.js';
 import styles from '../styles/forms.module.css';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -67,34 +69,10 @@ export function Login(): ReactElement {
     }
   }
 
+  useDocumentTitle(step.kind === 'totp' ? 'Verificación en dos pasos' : 'Iniciar sesión');
+
   if (step.kind === 'totp') {
-    return (
-      <div className={styles.page}>
-        <form className={styles.card} onSubmit={handleTotpSubmit} noValidate>
-          <h1 className={styles.title}>Verificación en dos pasos</h1>
-          <p className={styles.subtitle}>Ingresá el código de tu aplicación de autenticación.</p>
-          <div className={styles.field}>
-            <label htmlFor="totp-code">Código</label>
-            <input
-              id="totp-code"
-              name="code"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <FormError message={error} />
-          <div className={styles.actions}>
-            <button type="submit" className={styles.primaryButton} disabled={submitting}>
-              Verificar
-            </button>
-          </div>
-        </form>
-      </div>
-    );
+    return <TotpStep code={code} onCodeChange={setCode} onSubmit={handleTotpSubmit} error={error} submitting={submitting} />;
   }
 
   return (
@@ -111,9 +89,15 @@ export function Login(): ReactElement {
             autoComplete="email"
             value={email}
             data-touched={touched}
+            aria-describedby={touched && !emailValid ? 'login-email-hint' : undefined}
+            aria-invalid={touched && !emailValid}
             onChange={(e) => setEmail(e.target.value)}
           />
-          {touched && !emailValid && <span className={styles.hint}>Ingresá un email válido.</span>}
+          {touched && !emailValid && (
+            <span id="login-email-hint" className={styles.hint}>
+              Ingresá un email válido.
+            </span>
+          )}
         </div>
         <div className={styles.field}>
           <label htmlFor="login-password">Contraseña</label>
@@ -137,6 +121,48 @@ export function Login(): ReactElement {
         <div className={styles.actions}>
           <button type="submit" className={styles.primaryButton} disabled={submitting}>
             Ingresar
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+interface TotpStepProps {
+  code: string;
+  onCodeChange: (value: string) => void;
+  onSubmit: (event: FormEvent) => void;
+  error: string | null;
+  submitting: boolean;
+}
+
+function TotpStep({ code, onCodeChange, onSubmit, error, submitting }: TotpStepProps): ReactElement {
+  // Moves focus to this step's own heading so a screen-reader user is told the form changed instead of
+  // silently landing in a code input with no context (Phase 3 UI/a11y review, HIGH finding).
+  const headingRef = useFocusOnChange<HTMLHeadingElement>('totp');
+  return (
+    <div className={styles.page}>
+      <form className={styles.card} onSubmit={onSubmit} noValidate>
+        <h1 className={styles.title} ref={headingRef} tabIndex={-1}>
+          Verificación en dos pasos
+        </h1>
+        <p className={styles.subtitle}>Ingresá el código de tu aplicación de autenticación.</p>
+        <div className={styles.field}>
+          <label htmlFor="totp-code">Código</label>
+          <input
+            id="totp-code"
+            name="code"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            value={code}
+            onChange={(e) => onCodeChange(e.target.value)}
+          />
+        </div>
+        <FormError message={error} />
+        <div className={styles.actions}>
+          <button type="submit" className={styles.primaryButton} disabled={submitting}>
+            Verificar
           </button>
         </div>
       </form>

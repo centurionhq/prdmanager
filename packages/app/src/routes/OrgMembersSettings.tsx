@@ -20,6 +20,7 @@ import {
 import { errorMessage } from '../api/error-message.js';
 import { isOrgAdmin } from '../auth/org-role.js';
 import { FormError } from '../components/FormError.js';
+import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { InviteMemberForm } from './InviteMemberForm.js';
 import { useOrgShellContext } from './OrgShell.js';
 import formStyles from '../styles/forms.module.css';
@@ -36,6 +37,7 @@ export function OrgMembersSettings(): ReactElement {
   const [data, setData] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
+  useDocumentTitle(`Miembros de ${currentOrg.name}`);
 
   async function reload(): Promise<void> {
     try {
@@ -94,76 +96,80 @@ export function OrgMembersSettings(): ReactElement {
     <div>
       <h1 className={formStyles.title}>Miembros de {currentOrg.name}</h1>
       <FormError message={rowError} />
-      <table className={formStyles.table}>
-        <thead>
-          <tr>
-            <th>Email</th>
-            <th>Nombre</th>
-            <th>Rol</th>
-            {canManage && <th>Acciones</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {data.members.map((member) => (
-            <tr key={member.userId}>
-              <td>{member.email}</td>
-              <td>{member.name}</td>
-              <td>
-                {canManage ? (
-                  <select aria-label={`Rol de ${member.email}`} value={member.role} onChange={(e) => void handleRoleChange(member.userId, e.target.value as OrgRole)}>
-                    {ORG_ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  member.role
-                )}
-              </td>
-              {canManage && (
-                <td>
-                  <button type="button" className={formStyles.secondaryButton} onClick={() => void handleRemove(member.userId)}>
-                    Quitar
-                  </button>
-                </td>
-              )}
+      <div className={formStyles.tableWrap}>
+        <table className={formStyles.table}>
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Nombre</th>
+              <th>Rol</th>
+              {canManage && <th>Acciones</th>}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {data.members.map((member) => (
+              <tr key={member.userId}>
+                <td>{member.email}</td>
+                <td>{member.name}</td>
+                <td>
+                  {canManage ? (
+                    <select aria-label={`Rol de ${member.email}`} value={member.role} onChange={(e) => void handleRoleChange(member.userId, e.target.value as OrgRole)}>
+                      {ORG_ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    member.role
+                  )}
+                </td>
+                {canManage && (
+                  <td>
+                    <button type="button" className={formStyles.secondaryButton} onClick={() => void handleRemove(member.userId)}>
+                      Quitar
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {canManage && (
         <>
           <h2 className={formStyles.title}>Invitaciones pendientes</h2>
           {data.invitations.length === 0 && <p className={formStyles.hint}>No hay invitaciones pendientes.</p>}
           {data.invitations.length > 0 && (
-            <table className={formStyles.table}>
-              <thead>
-                <tr>
-                  <th>Email</th>
-                  <th>Rol</th>
-                  <th>Estado</th>
-                  <th>Vence</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.invitations.map((invitation) => (
-                  <tr key={invitation.id}>
-                    <td>{invitation.email}</td>
-                    <td>{invitation.role}</td>
-                    <td>{invitation.status}</td>
-                    <td>{invitation.expiresAt}</td>
-                    <td>
-                      <button type="button" className={formStyles.secondaryButton} onClick={() => void handleRevoke(invitation.id)}>
-                        Revocar
-                      </button>
-                    </td>
+            <div className={formStyles.tableWrap}>
+              <table className={formStyles.table}>
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Rol</th>
+                    <th>Estado</th>
+                    <th>Vence</th>
+                    <th>Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.invitations.map((invitation) => (
+                    <tr key={invitation.id}>
+                      <td>{invitation.email}</td>
+                      <td>{invitation.role}</td>
+                      <td>{invitation.status}</td>
+                      <td>{invitation.expiresAt}</td>
+                      <td>
+                        <button type="button" className={formStyles.secondaryButton} onClick={() => void handleRevoke(invitation.id)}>
+                          Revocar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
           <InviteMemberForm orgSlug={orgSlug} projects={data.projects} canInviteOwner={currentOrg.role === 'owner'} onInvited={() => void reload()} />

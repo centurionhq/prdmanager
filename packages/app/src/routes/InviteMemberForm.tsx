@@ -78,8 +78,21 @@ export function InviteMemberForm({
       <h2 className={styles.title}>Invitar miembro</h2>
       <div className={styles.field}>
         <label htmlFor="invite-email">Email</label>
-        <input id="invite-email" type="email" required value={email} data-touched={touched} onChange={(e) => setEmail(e.target.value)} />
-        {touched && !emailValid && <span className={styles.hint}>Ingresá un email válido.</span>}
+        <input
+          id="invite-email"
+          type="email"
+          required
+          value={email}
+          data-touched={touched}
+          aria-describedby={touched && !emailValid ? 'invite-email-hint' : undefined}
+          aria-invalid={touched && !emailValid}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        {touched && !emailValid && (
+          <span id="invite-email-hint" className={styles.hint}>
+            Ingresá un email válido.
+          </span>
+        )}
       </div>
       <div className={styles.field}>
         <label htmlFor="invite-role">Rol en la organización</label>

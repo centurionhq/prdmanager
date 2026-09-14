@@ -11,6 +11,7 @@ import { createPersonalToken, listOrganizations, listPersonalTokens, revokePerso
 import { errorMessage } from '../api/error-message.js';
 import { PERSONAL_TOKEN_SCOPES } from '../auth/token-scopes.js';
 import { FormError } from '../components/FormError.js';
+import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { TokenCreateForm } from '../components/TokenCreateForm.js';
 import { TokenSecretPanel } from '../components/TokenSecretPanel.js';
 import { TokenTable } from '../components/TokenTable.js';
@@ -23,6 +24,7 @@ export function PersonalTokensSettings(): ReactElement {
   const [tokens, setTokens] = useState<TokenSummaryDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [justCreated, setJustCreated] = useState<CreatedTokenResponse | null>(null);
+  useDocumentTitle('Tokens personales');
 
   useEffect(() => {
     listOrganizations()

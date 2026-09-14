@@ -15,6 +15,7 @@ import { LoadingState } from '@prdm/ui';
 import { createOrganizationAsSuperadmin, listAllOrganizationsAsSuperadmin, type AdminOrganizationSummary } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
+import { useDocumentTitle } from '../hooks/use-document-title.js';
 import dashboardStyles from '../styles/dashboard.module.css';
 import styles from '../styles/forms.module.css';
 
@@ -67,13 +68,39 @@ function CreateOrganizationForm({ onCreated }: { onCreated: (org: AdminOrganizat
       <h2 className={styles.title}>Nueva organización</h2>
       <div className={styles.field}>
         <label htmlFor="admin-org-name">Nombre</label>
-        <input id="admin-org-name" type="text" required value={name} data-touched={touched} onChange={(e) => setName(e.target.value)} />
-        {touched && !nameValid && <span className={styles.hint}>Ingresá un nombre.</span>}
+        <input
+          id="admin-org-name"
+          type="text"
+          required
+          value={name}
+          data-touched={touched}
+          aria-describedby={touched && !nameValid ? 'admin-org-name-hint' : undefined}
+          aria-invalid={touched && !nameValid}
+          onChange={(e) => setName(e.target.value)}
+        />
+        {touched && !nameValid && (
+          <span id="admin-org-name-hint" className={styles.hint}>
+            Ingresá un nombre.
+          </span>
+        )}
       </div>
       <div className={styles.field}>
         <label htmlFor="admin-org-slug">Slug</label>
-        <input id="admin-org-slug" type="text" required value={slug} data-touched={touched} onChange={(e) => setSlug(e.target.value)} />
-        {touched && !slugValid && <span className={styles.hint}>Minúsculas, números y guiones simples (coincide con {PROJECT_SLUG_PATTERN.source}).</span>}
+        <input
+          id="admin-org-slug"
+          type="text"
+          required
+          value={slug}
+          data-touched={touched}
+          aria-describedby={touched && !slugValid ? 'admin-org-slug-hint' : undefined}
+          aria-invalid={touched && !slugValid}
+          onChange={(e) => setSlug(e.target.value)}
+        />
+        {touched && !slugValid && (
+          <span id="admin-org-slug-hint" className={styles.hint}>
+            Minúsculas, números y guiones simples (coincide con {PROJECT_SLUG_PATTERN.source}).
+          </span>
+        )}
       </div>
       <div className={styles.field}>
         <label htmlFor="admin-org-owner-email">Email del owner</label>
@@ -83,9 +110,15 @@ function CreateOrganizationForm({ onCreated }: { onCreated: (org: AdminOrganizat
           required
           value={ownerEmail}
           data-touched={touched}
+          aria-describedby={touched && !emailValid ? 'admin-org-owner-email-hint' : undefined}
+          aria-invalid={touched && !emailValid}
           onChange={(e) => setOwnerEmail(e.target.value)}
         />
-        {touched && !emailValid && <span className={styles.hint}>Ingresá un email válido.</span>}
+        {touched && !emailValid && (
+          <span id="admin-org-owner-email-hint" className={styles.hint}>
+            Ingresá un email válido.
+          </span>
+        )}
       </div>
       <FormError message={error} />
       {notice && <p className={styles.success}>{notice}</p>}
@@ -101,6 +134,7 @@ function CreateOrganizationForm({ onCreated }: { onCreated: (org: AdminOrganizat
 export function AdminOrganizations(): ReactElement {
   const [organizations, setOrganizations] = useState<AdminOrganizationSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useDocumentTitle('Organizaciones');
 
   useEffect(() => {
     listAllOrganizationsAsSuperadmin()
@@ -114,27 +148,29 @@ export function AdminOrganizations(): ReactElement {
       <FormError message={error} />
       {!organizations && !error && <LoadingState label="Cargando organizaciones…" />}
       {organizations && (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Slug</th>
-            </tr>
-          </thead>
-          <tbody>
-            {organizations.map((org) => (
-              <tr key={org.id}>
-                <td>{org.name}</td>
-                <td>{org.slug}</td>
-              </tr>
-            ))}
-            {organizations.length === 0 && (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
               <tr>
-                <td colSpan={2}>Todavía no se creó ninguna organización.</td>
+                <th>Nombre</th>
+                <th>Slug</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {organizations.map((org) => (
+                <tr key={org.id}>
+                  <td>{org.name}</td>
+                  <td>{org.slug}</td>
+                </tr>
+              ))}
+              {organizations.length === 0 && (
+                <tr>
+                  <td colSpan={2}>Todavía no se creó ninguna organización.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
       <CreateOrganizationForm onCreated={(org) => setOrganizations((prev) => [...(prev ?? []), org])} />
     </div>

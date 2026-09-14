@@ -70,17 +70,34 @@ export function TokenCreateForm({
       <h3 className={styles.title}>Nuevo token</h3>
       <div className={styles.field}>
         <label htmlFor="token-name">Nombre</label>
-        <input id="token-name" type="text" required value={name} data-touched={touched} onChange={(e) => setName(e.target.value)} />
-        {touched && !nameValid && <span className={styles.hint}>Ingresá un nombre.</span>}
+        <input
+          id="token-name"
+          type="text"
+          required
+          value={name}
+          data-touched={touched}
+          aria-describedby={touched && !nameValid ? 'token-name-hint' : undefined}
+          aria-invalid={touched && !nameValid}
+          onChange={(e) => setName(e.target.value)}
+        />
+        {touched && !nameValid && (
+          <span id="token-name-hint" className={styles.hint}>
+            Ingresá un nombre.
+          </span>
+        )}
       </div>
-      <fieldset className={styles.field}>
+      <fieldset className={styles.field} aria-describedby={touched && !scopesValid ? 'token-scopes-hint' : undefined}>
         <legend>Scopes</legend>
         {availableScopes.map((scope) => (
           <label key={scope}>
             <input type="checkbox" checked={scopes.has(scope)} onChange={() => toggleScope(scope)} /> {scope}
           </label>
         ))}
-        {touched && !scopesValid && <span className={styles.hint}>Elegí al menos un scope.</span>}
+        {touched && !scopesValid && (
+          <span id="token-scopes-hint" className={styles.hint}>
+            Elegí al menos un scope.
+          </span>
+        )}
       </fieldset>
       <div className={styles.field}>
         <label htmlFor="token-expiry">Vence</label>
@@ -90,9 +107,12 @@ export function TokenCreateForm({
           required
           max={defaultExpiryDate()}
           value={expiryDate}
+          aria-describedby="token-expiry-hint"
           onChange={(e) => setExpiryDate(e.target.value)}
         />
-        <span className={styles.hint}>Máximo {MAX_TOKEN_TTL_DAYS} días.</span>
+        <span id="token-expiry-hint" className={styles.hint}>
+          Máximo {MAX_TOKEN_TTL_DAYS} días.
+        </span>
       </div>
       <FormError message={error} />
       <div className={styles.actions}>

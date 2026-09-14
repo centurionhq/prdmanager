@@ -9,6 +9,8 @@ import { Link, useSearchParams } from 'react-router';
 import { completePasswordReset, requestPasswordReset } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
+import { useDocumentTitle } from '../hooks/use-document-title.js';
+import { useFocusOnChange } from '../hooks/use-focus-on-change.js';
 import styles from '../styles/forms.module.css';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -22,6 +24,9 @@ function RequestResetForm(): ReactElement {
   const [sent, setSent] = useState(false);
 
   const emailValid = EMAIL_PATTERN.test(email);
+  useDocumentTitle(sent ? 'Revisá tu email' : 'Restablecer contraseña');
+  // See Login.tsx's TotpStep for why focus (not a live region) is the fix here.
+  const confirmationRef = useFocusOnChange<HTMLHeadingElement>(sent);
 
   async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -47,7 +52,9 @@ function RequestResetForm(): ReactElement {
     return (
       <div className={styles.page}>
         <div className={styles.card}>
-          <h1 className={styles.title}>Revisá tu email</h1>
+          <h1 className={styles.title} ref={confirmationRef} tabIndex={-1}>
+            Revisá tu email
+          </h1>
           <p className={styles.subtitle}>Si ese email existe en el sistema, vas a recibir un enlace para restablecer tu contraseña.</p>
         </div>
       </div>
@@ -68,9 +75,15 @@ function RequestResetForm(): ReactElement {
             autoComplete="email"
             value={email}
             data-touched={touched}
+            aria-describedby={touched && !emailValid ? 'reset-email-hint' : undefined}
+            aria-invalid={touched && !emailValid}
             onChange={(e) => setEmail(e.target.value)}
           />
-          {touched && !emailValid && <span className={styles.hint}>Ingresá un email válido.</span>}
+          {touched && !emailValid && (
+            <span id="reset-email-hint" className={styles.hint}>
+              Ingresá un email válido.
+            </span>
+          )}
         </div>
         <FormError message={error} />
         <div className={styles.actions}>
@@ -98,6 +111,8 @@ function CompleteResetForm({ token }: { token: string }): ReactElement {
 
   const passwordValid = password.length >= MIN_PASSWORD_LENGTH;
   const confirmValid = confirmPassword === password;
+  useDocumentTitle(done ? 'Contraseña actualizada' : 'Elegí una nueva contraseña');
+  const confirmationRef = useFocusOnChange<HTMLHeadingElement>(done);
 
   async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -120,7 +135,9 @@ function CompleteResetForm({ token }: { token: string }): ReactElement {
     return (
       <div className={styles.page}>
         <div className={styles.card}>
-          <h1 className={styles.title}>Contraseña actualizada</h1>
+          <h1 className={styles.title} ref={confirmationRef} tabIndex={-1}>
+            Contraseña actualizada
+          </h1>
           <p className={styles.subtitle}>Ya podés iniciar sesión con tu nueva contraseña.</p>
           <div className={styles.actions}>
             <Link to="/login" className={styles.primaryButton}>
@@ -146,9 +163,15 @@ function CompleteResetForm({ token }: { token: string }): ReactElement {
             autoComplete="new-password"
             value={password}
             data-touched={touched}
+            aria-describedby={touched && !passwordValid ? 'new-password-hint' : undefined}
+            aria-invalid={touched && !passwordValid}
             onChange={(e) => setPassword(e.target.value)}
           />
-          {touched && !passwordValid && <span className={styles.hint}>Mínimo {MIN_PASSWORD_LENGTH} caracteres.</span>}
+          {touched && !passwordValid && (
+            <span id="new-password-hint" className={styles.hint}>
+              Mínimo {MIN_PASSWORD_LENGTH} caracteres.
+            </span>
+          )}
         </div>
         <div className={styles.field}>
           <label htmlFor="confirm-password">Confirmar contraseña</label>
@@ -160,9 +183,15 @@ function CompleteResetForm({ token }: { token: string }): ReactElement {
             autoComplete="new-password"
             value={confirmPassword}
             data-touched={touched}
+            aria-describedby={touched && !confirmValid ? 'confirm-password-hint' : undefined}
+            aria-invalid={touched && !confirmValid}
             onChange={(e) => setConfirmPassword(e.target.value)}
           />
-          {touched && !confirmValid && <span className={styles.hint}>Las contraseñas no coinciden.</span>}
+          {touched && !confirmValid && (
+            <span id="confirm-password-hint" className={styles.hint}>
+              Las contraseñas no coinciden.
+            </span>
+          )}
         </div>
         <FormError message={error} />
         <div className={styles.actions}>

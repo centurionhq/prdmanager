@@ -19,39 +19,41 @@ export function TokenTable({ tokens, onRevoke }: { tokens: TokenSummaryDto[]; on
   }
 
   return (
-    <table className={styles.table}>
-      <thead>
-        <tr>
-          <th>Nombre</th>
-          <th>Prefijo</th>
-          <th>Scopes</th>
-          <th>Vence</th>
-          <th>Último uso</th>
-          <th>Estado</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        {tokens.map((token) => (
-          <tr key={token.id}>
-            <td>{token.name}</td>
-            <td>
-              <code>{token.prefix}</code>
-            </td>
-            <td>{token.scopes.join(', ')}</td>
-            <td>{token.expiresAt}</td>
-            <td>{token.lastUsedAt ?? '—'}</td>
-            <td>{statusOf(token)}</td>
-            <td>
-              {!token.revokedAt && (
-                <button type="button" className={styles.secondaryButton} onClick={() => onRevoke(token.id)}>
-                  Revocar
-                </button>
-              )}
-            </td>
+    <div className={styles.tableWrap}>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Prefijo</th>
+            <th>Scopes</th>
+            <th>Vence</th>
+            <th>Último uso</th>
+            <th>Estado</th>
+            <th>Acciones</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {tokens.map((token) => (
+            <tr key={token.id}>
+              <td>{token.name}</td>
+              <td>
+                <code>{token.prefix}</code>
+              </td>
+              <td>{token.scopes.join(', ')}</td>
+              <td>{token.expiresAt}</td>
+              <td>{token.lastUsedAt ?? '—'}</td>
+              <td>{statusOf(token)}</td>
+              <td>
+                {!token.revokedAt && (
+                  <button type="button" className={styles.secondaryButton} onClick={() => onRevoke(token.id)}>
+                    Revocar
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

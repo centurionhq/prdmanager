@@ -11,6 +11,7 @@ import { createProject, listProjects } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { isOrgAdmin } from '../auth/org-role.js';
 import { FormError } from '../components/FormError.js';
+import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { useOrgShellContext } from './OrgShell.js';
 import formStyles from '../styles/forms.module.css';
 import styles from '../styles/dashboard.module.css';
@@ -60,14 +61,38 @@ function NewProjectForm({ orgSlug, onCreated }: { orgSlug: string; onCreated: (p
       <h2 className={formStyles.title}>Nuevo proyecto</h2>
       <div className={formStyles.field}>
         <label htmlFor="project-name">Nombre</label>
-        <input id="project-name" type="text" required value={name} data-touched={touched} onChange={(e) => setName(e.target.value)} />
-        {touched && !nameValid && <span className={formStyles.hint}>Ingresá un nombre (máx. 100 caracteres).</span>}
+        <input
+          id="project-name"
+          type="text"
+          required
+          value={name}
+          data-touched={touched}
+          aria-describedby={touched && !nameValid ? 'project-name-hint' : undefined}
+          aria-invalid={touched && !nameValid}
+          onChange={(e) => setName(e.target.value)}
+        />
+        {touched && !nameValid && (
+          <span id="project-name-hint" className={formStyles.hint}>
+            Ingresá un nombre (máx. 100 caracteres).
+          </span>
+        )}
       </div>
       <div className={formStyles.field}>
         <label htmlFor="project-slug">Slug</label>
-        <input id="project-slug" type="text" required value={slug} data-touched={touched} onChange={(e) => setSlug(e.target.value)} />
+        <input
+          id="project-slug"
+          type="text"
+          required
+          value={slug}
+          data-touched={touched}
+          aria-describedby={touched && !slugValid ? 'project-slug-hint' : undefined}
+          aria-invalid={touched && !slugValid}
+          onChange={(e) => setSlug(e.target.value)}
+        />
         {touched && !slugValid && (
-          <span className={formStyles.hint}>Minúsculas, números y guiones simples (coincide con {PROJECT_SLUG_PATTERN.source}).</span>
+          <span id="project-slug-hint" className={formStyles.hint}>
+            Minúsculas, números y guiones simples (coincide con {PROJECT_SLUG_PATTERN.source}).
+          </span>
         )}
       </div>
       <FormError message={error} />
@@ -87,6 +112,7 @@ export function ProjectsDashboard(): ReactElement {
   const { orgSlug, currentOrg } = useOrgShellContext();
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useDocumentTitle(`Proyectos de ${currentOrg.name}`);
 
   useEffect(() => {
     let cancelled = false;
