@@ -18,6 +18,8 @@ function renderWithLocalDoc(ydoc: Y.Doc, scope: 'read-write' | 'readonly' = 'rea
     orgSlug: 'acme',
     projectSlug: 'web',
     docId: 'PRD-001',
+    editorView: null,
+    setEditorView: () => {},
   });
 }
 

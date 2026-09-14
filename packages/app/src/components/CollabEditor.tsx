@@ -24,7 +24,7 @@ const STATUS_LABEL: Record<string, string> = {
  * `HocuspocusProvider`, so it always shares the exact same connection/awareness identity as the
  * frontmatter form and every other panel on the same document page. */
 export function CollabEditor(): ReactElement {
-  const { provider, state, orgSlug, projectSlug, docId } = useCollabDocumentContext();
+  const { provider, state, orgSlug, projectSlug, docId, setEditorView } = useCollabDocumentContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [editorReady, setEditorReady] = useState(false);
@@ -39,10 +39,12 @@ export function CollabEditor(): ReactElement {
       parent: containerRef.current,
     });
     viewRef.current = view;
+    setEditorView(view);
     setEditorReady(true);
     return () => {
       view.destroy();
       viewRef.current = null;
+      setEditorView(null);
       setEditorReady(false);
     };
     // `readOnly` intentionally excluded: it's re-derived from `state.scope`, which never changes after

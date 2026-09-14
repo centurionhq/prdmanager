@@ -2,12 +2,14 @@
 id: "WO-162"
 type: "WO"
 title: "Panel de comentarios en el editor, con tests"
-status: "pending"
+status: "in_progress"
 created_at: "2026-09-13"
 implements: ["SDD-008"]
 impacts_paths: ["packages/collab/src/**","packages/collab/tests/**","packages/collab/*.json","packages/contracts/src/**","packages/contracts/tests/**","packages/server/src/**","packages/server/tests/**","packages/server/*.json","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/app/src/**","packages/app/tests/**","packages/app/*.json","packages/app/*.config.ts","package.json","package-lock.json","tsconfig.json","tsconfig.test.json","vitest.config.ts",".env.example","README.md"]
 source_task: "4634e0c992e1bb71"
 tags: ["saas","realtime","yjs","blame","comments","versions"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-14T15:18:50.858Z"
 ---
 
 ## Objetivo

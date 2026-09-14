@@ -13,6 +13,7 @@ import { archiveDocument, generateWorkOrders, getDocument, getProject, getSessio
 import { errorMessage } from '../api/error-message.js';
 import { CloseFeatureAction } from './CloseFeatureAction.js';
 import { CollabEditor } from '../components/CollabEditor.js';
+import { CommentsPanel } from '../components/CommentsPanel.js';
 import { FrontmatterForm } from '../components/FrontmatterForm.js';
 import { CollabDocumentProvider } from '../collab/collab-document-context.js';
 import { formatCollabDocumentName } from '../collab/document-name.js';
@@ -180,6 +181,7 @@ export function DocumentDetail(): ReactElement {
         <CollabDocumentProvider documentName={formatCollabDocumentName(projectId, doc.id)} orgSlug={orgSlug} projectSlug={project} docId={doc.docId}>
           <FrontmatterForm kind={doc.kind} />
           <CollabEditor />
+          <CommentsPanel subject={subject} />
         </CollabDocumentProvider>
       ) : (
         <pre className={formStyles.card}>{content || '(sin contenido)'}</pre>

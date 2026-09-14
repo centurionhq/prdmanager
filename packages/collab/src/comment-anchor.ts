@@ -22,6 +22,10 @@ export interface ResolvedCommentAnchor {
    * was deleted (SDD-008: "Si el texto anclado desaparece, el hilo queda 'sin ancla' pero visible" —
    * callers show this as "texto eliminado", never a crash). */
   quotedText: string | null;
+  /** The current absolute `[from, to)` character range the anchor resolves to — `null` under the exact
+   * same conditions as `quotedText`. `packages/app`'s WO-162 in-editor highlight/jump-to-anchor is the
+   * only consumer that needs this; the server (WO-158) only ever reads `quotedText`. */
+  range: { from: number; to: number } | null;
 }
 
 /** Builds an anchor from a live `[startIndex, endIndex)` character range in `ydoc`'s `body` — the offsets
@@ -41,6 +45,6 @@ export function resolveCommentAnchor(ydoc: Y.Doc, anchor: EncodedCommentAnchor):
   const relEnd = Y.decodeRelativePosition(anchor.end);
   const absStart = Y.createAbsolutePositionFromRelativePosition(relStart, ydoc);
   const absEnd = Y.createAbsolutePositionFromRelativePosition(relEnd, ydoc);
-  if (!absStart || !absEnd || absEnd.index <= absStart.index) return { quotedText: null };
-  return { quotedText: body.toString().slice(absStart.index, absEnd.index) };
+  if (!absStart || !absEnd || absEnd.index <= absStart.index) return { quotedText: null, range: null };
+  return { quotedText: body.toString().slice(absStart.index, absEnd.index), range: { from: absStart.index, to: absEnd.index } };
 }

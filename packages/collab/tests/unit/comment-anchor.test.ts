@@ -16,6 +16,15 @@ describe('createCommentAnchor / resolveCommentAnchor', () => {
     expect(resolveCommentAnchor(ydoc, anchor).quotedText).toBe('world');
   });
 
+  test('also resolves the current absolute [from, to) range (WO-162: in-editor highlight/jump-to-anchor)', () => {
+    const ydoc = newDoc('hello world');
+    const anchor = createCommentAnchor(ydoc, 6, 11);
+    expect(resolveCommentAnchor(ydoc, anchor).range).toEqual({ from: 6, to: 11 });
+
+    ydoc.getText(BODY_ROOT).insert(0, 'PREFIX: ');
+    expect(resolveCommentAnchor(ydoc, anchor).range).toEqual({ from: 14, to: 19 });
+  });
+
   test('survives a concurrent edit elsewhere in the document (before the anchor)', () => {
     const ydoc = newDoc('hello world');
     const anchor = createCommentAnchor(ydoc, 6, 11);

@@ -11,7 +11,7 @@ export const DOC_COMMENT_BODY_MAX_LENGTH = 10 * 1024;
 
 /** Same character classes the database CHECK constraint rejects (see `@prdm/db`'s
  * `doc-comments.ts`) — C0 control characters and DEL, but not `\t`/`\n`/`\r`. */
-const CONTROL_CHAR_PATTERN = /[--]/;
+const CONTROL_CHAR_PATTERN = /[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 
 export const commentBodySchema = z
   .string()
@@ -49,6 +49,11 @@ export const commentThreadSummarySchema = z.object({
   /** Recomputed live from the current anchor position on every read (server-side) — `null` means the
    * anchored text no longer exists ("sin ancla"), never a crash or a stale copy. */
   quotedText: z.string().nullable(),
+  /** Base64-encoded `Y.RelativePosition` bytes (`@prdm/collab`'s `EncodedCommentAnchor`) — so the client
+   * can resolve the *live* absolute position itself (jump-to-anchor scrolling, WO-162's in-editor
+   * highlight decorations), rather than only ever seeing the server's last-fetched `quotedText` snapshot. */
+  anchorStart: z.string(),
+  anchorEnd: z.string(),
   status: z.enum(['open', 'resolved']),
   createdBy: z.string(),
   resolvedBy: z.string().nullable(),

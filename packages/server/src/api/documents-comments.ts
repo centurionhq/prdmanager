@@ -63,6 +63,8 @@ function toThreadSummary(thread: DocCommentThreadRecord, comments: DocCommentRec
     id: thread.id,
     documentId: thread.documentId,
     quotedText,
+    anchorStart: thread.anchorStart.toString('base64'),
+    anchorEnd: thread.anchorEnd.toString('base64'),
     status: thread.status,
     createdBy: thread.createdBy,
     resolvedBy: thread.resolvedBy,

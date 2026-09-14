@@ -10,7 +10,8 @@
  * `/api/app/...` calls, and threading them as a prop through every panel component individually would
  * just be this same context reinvented per panel.
  */
-import { createContext, useContext, type ReactElement, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactElement, type ReactNode } from 'react';
+import type { EditorView } from '@codemirror/view';
 import { useCollabProvider, type UseCollabProviderResult } from './use-collab-provider.js';
 
 export interface CollabDocumentIdentity {
@@ -22,7 +23,15 @@ export interface CollabDocumentIdentity {
   docId: string;
 }
 
-export type CollabDocumentContextValue = UseCollabProviderResult & CollabDocumentIdentity;
+export interface EditorViewHandle {
+  /** `null` until `CollabEditor` has actually mounted its `EditorView` (and again once it unmounts) —
+   * every consumer (WO-162's comments panel dispatching highlight decorations/scrolling to an anchor)
+   * must check for `null` rather than assume the editor is always present. */
+  editorView: EditorView | null;
+  setEditorView: (view: EditorView | null) => void;
+}
+
+export type CollabDocumentContextValue = UseCollabProviderResult & CollabDocumentIdentity & EditorViewHandle;
 
 const CollabDocumentReactContext = createContext<CollabDocumentContextValue | null>(null);
 
@@ -33,7 +42,8 @@ export interface CollabDocumentProviderProps extends CollabDocumentIdentity {
 
 export function CollabDocumentProvider({ documentName, children, ...identity }: CollabDocumentProviderProps): ReactElement {
   const connection = useCollabProvider(documentName);
-  return <CollabDocumentReactContext.Provider value={{ ...connection, ...identity }}>{children}</CollabDocumentReactContext.Provider>;
+  const [editorView, setEditorView] = useState<EditorView | null>(null);
+  return <CollabDocumentReactContext.Provider value={{ ...connection, ...identity, editorView, setEditorView }}>{children}</CollabDocumentReactContext.Provider>;
 }
 
 /** Throws outside a `CollabDocumentProvider` — every consumer is only ever rendered inside one, same
