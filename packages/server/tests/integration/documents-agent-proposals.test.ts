@@ -364,4 +364,55 @@ describe('.../documents/:docId/agent/proposals/:proposalId/{accept,reject} (WO-1
 
     await app.close();
   });
+
+  test('two real concurrent accept requests for the same pending proposal: exactly one wins, the other conflicts, the edit applies exactly once (WO-229)', async () => {
+    const llmClient = proposeEditScript('quick brown fox', 'swift brown fox');
+    const app = buildApp(llmClient);
+    const { proposer, accepter, org, project } = await setupOrgAndProject();
+    const proposerCookie = await signIn(app, proposer.email);
+    const accepterCookie = await signIn(app, accepter.email);
+    const document = await createDocument(app, org, project, proposerCookie);
+    await seedLiveBody(org.id, document.id, INITIAL_BODY);
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${document.docId}/agent/messages`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), proposerCookie),
+      payload: { message: 'please improve the wording' },
+    });
+    const { rows } = await pg.ownerPool.query(`SELECT id FROM agent_proposals WHERE document_id = $1`, [document.id]);
+    const proposalId = rows[0].id as string;
+
+    // Each concurrent request gets its own independent CSRF handshake (as two real distinct HTTP clients
+    // would), then both accept requests are fired together via Promise.all so they race against the real
+    // Postgres test database — proving `markAccepted`'s atomic `WHERE status = 'pending'` compare-and-swap
+    // (packages/db/src/agent-repository.ts) actually holds under real concurrency, not just sequentially.
+    const [headersA, headersB] = await Promise.all([
+      mutationHeaders(app, AUTH_HOST(), ORIGIN(), accepterCookie),
+      mutationHeaders(app, AUTH_HOST(), ORIGIN(), accepterCookie),
+    ]);
+    const acceptUrl = `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${document.docId}/agent/proposals/${proposalId}/accept`;
+    const [resA, resB] = await Promise.all([
+      app.inject({ method: 'POST', url: acceptUrl, headers: headersA }),
+      app.inject({ method: 'POST', url: acceptUrl, headers: headersB }),
+    ]);
+
+    const statusCodes = [resA.statusCode, resB.statusCode].sort();
+    expect(statusCodes).toEqual([200, 409]);
+    const winner = resA.statusCode === 200 ? resA : resB;
+    expect(winner.json().status).toBe('accepted');
+
+    const { rows: after } = await pg.ownerPool.query(`SELECT status FROM agent_proposals WHERE id = $1`, [proposalId]);
+    expect(after).toHaveLength(1);
+    expect(after[0].status).toBe('accepted');
+
+    // The edit was applied exactly once — never double-applied, never corrupted.
+    const { reconstructLiveYDoc } = await import('../../src/collab/reconstruct-ydoc.js');
+    const { ydoc } = await reconstructLiveYDoc(pg.appPool, org.id, document.id);
+    const body = ydoc.getText('body').toString();
+    expect(body).toBe(INITIAL_BODY.replace('quick brown fox', 'swift brown fox'));
+    expect(body.split('swift brown fox')).toHaveLength(2); // exactly one occurrence
+
+    await app.close();
+  });
 });
