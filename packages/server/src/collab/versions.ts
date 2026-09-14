@@ -61,7 +61,11 @@ export async function captureDocumentVersion(pool: Pool, orgId: string, input: C
   if (!hasLiveHistory) return null;
   const projection = projectDoc(ydoc);
   const { id: _id, type: _type, title: _title, ...restFields } = projection.fields;
-  const cleanFields: Record<string, FieldValue> = { ...restFields, id: documentRow.docId, type: documentRow.kind, title: projection.title || documentRow.title };
+  // WO-217: `id`/`type`/`title` first, matching every template's (and every other `renderDocument` call
+  // site's) field order — putting them last here made a snapshot's frontmatter block come out in a
+  // different line order than version 1's, which `diffLines` (a line differ, not a field-aware one)
+  // reported as spurious `removed`+`added` pairs for every field even when no value actually changed.
+  const cleanFields: Record<string, FieldValue> = { id: documentRow.docId, type: documentRow.kind, title: projection.title || documentRow.title, ...restFields };
   const renderedMarkdown = renderDocument(cleanFields, projection.body);
   const contentHash = sha256(renderedMarkdown);
   const yjsState = Buffer.from(Y.encodeSnapshot(Y.snapshot(ydoc)));

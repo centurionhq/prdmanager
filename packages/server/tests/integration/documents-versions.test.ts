@@ -4,6 +4,7 @@
  * same way `documents-blame.test.ts` (WO-154) simulates "the editor was actually opened and edited".
  */
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, openTestPg, truncateAll, type PgTestDb } from '@prdm/testkit';
+import type { FrontmatterValue } from '@prdm/collab';
 import * as Y from 'yjs';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
@@ -76,6 +77,25 @@ describe('.../documents/:docId/versions* (WO-156)', () => {
     return { id: body.document.id, docId: body.document.docId };
   }
 
+  /** Mechanically reads back exactly the fields/body a rendered markdown document already has, with no
+   * schema validation and no defaults filled in (unlike `@prdm/core`'s `parseDocument`) — used only to
+   * simulate "the live editor was opened and the exact same content it already had got written back",
+   * never a real client's behavior. */
+  function rawFrontmatterOf(markdown: string): { fields: Record<string, FrontmatterValue>; body: string } {
+    const match = /^---\n([\s\S]*?)\n---\n\n?([\s\S]*)$/.exec(markdown);
+    if (!match) throw new Error('no frontmatter block found');
+    const [, block = '', body = ''] = match;
+    const fields: Record<string, FrontmatterValue> = {};
+    for (const line of block.split('\n')) {
+      const kv = /^([a-z][a-z0-9_]*): (.*)$/.exec(line);
+      if (!kv) continue;
+      const key = kv[1] ?? '';
+      const rawValue = kv[2] ?? '';
+      fields[key] = rawValue.startsWith('"') || rawValue.startsWith('[') ? (JSON.parse(rawValue) as FrontmatterValue) : rawValue;
+    }
+    return { fields, body };
+  }
+
   test('manual save-with-label captures the live Y.Doc as a new labeled version (editor+); viewer is forbidden', async () => {
     const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
     const { editor, viewer, org, project } = await setupOrgAndProject();
@@ -126,6 +146,57 @@ describe('.../documents/:docId/versions* (WO-156)', () => {
     expect(diff.statusCode).toBe(200);
     const diffBody = diff.json();
     expect(diffBody.diff.some((op: { type: string; line: string }) => op.type === 'added' && op.line.includes('Captured body content'))).toBe(true);
+
+    await app.close();
+  });
+
+  // WO-217: version 1 (from `templateFor(kind)`, WO-136's draft creation) and every later
+  // `captureDocumentVersion` snapshot must use the exact same frontmatter serialization convention.
+  // Before the fix, the draft template's unquoted `type: PRD` survived untouched into version 1 while
+  // `captureDocumentVersion` always re-quoted every field (`renderDocument`'s `JSON.stringify`), so
+  // opening the editor and saving again with *no real edit* still produced a spurious `type: PRD` /
+  // `type: "PRD"` diff line — pure serialization noise, not a real content change.
+  test('a version captured with no actual field/body change produces a zero-line diff against the previous version', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { editor, org, project } = await setupOrgAndProject();
+    const editorCookie = await signIn(app, editor.email);
+    const document = await createDocument(app, org, project, editorCookie);
+
+    const versionsBefore = await app.inject({
+      method: 'GET',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${document.docId}/versions`,
+      headers: { ...AUTH_HOST, cookie: editorCookie },
+    });
+    const version1 = versionsBefore.json().versions[0];
+    const { fields, body } = rawFrontmatterOf(version1.renderedMarkdown as string);
+    const { id: _id, type: _type, title: _title, ...restFields } = fields;
+
+    // Simulate opening the live editor and saving again without changing anything: seed the Y.Doc's
+    // fm/body with exactly the values version 1 already has.
+    await seedLiveEdit(org.id, document.id, editor.id, (doc) => {
+      const fm = doc.getMap<FrontmatterValue>('fm');
+      for (const [key, value] of Object.entries(restFields)) fm.set(key, value);
+      fm.set('title', fields.title as string);
+      doc.getText('body').insert(0, body);
+    });
+
+    const saved = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${document.docId}/versions`,
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, editorCookie),
+      payload: { label: 'No-op save' },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().version.versionNo).toBe(2);
+
+    const diff = await app.inject({
+      method: 'GET',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${document.docId}/versions/2/diff?against=1`,
+      headers: { ...AUTH_HOST, cookie: editorCookie },
+    });
+    expect(diff.statusCode).toBe(200);
+    const ops: { type: string; line: string }[] = diff.json().diff;
+    expect(ops.every((op) => op.type === 'equal')).toBe(true);
 
     await app.close();
   });

@@ -135,7 +135,17 @@ export function registerDocumentRoutes(app: FastifyInstance, opts: RegisterDocum
         title,
         createdBy: session.user.id,
         buildContent: (docId) => {
-          const renderedMarkdown = setFrontmatterFields(templateFor(kind), { id: docId, title, status: 'draft', created_at: todayIso() });
+          // WO-217: `type` is substituted here too (previously left untouched from the static template,
+          // which hand-writes it unquoted, e.g. `type: PRD`), so `setFrontmatterFields`'s own
+          // `JSON.stringify`-based rewrite quotes it exactly like it already does for `id`/`title`/
+          // `status`/`created_at` — matching the quoting convention every later version snapshot
+          // (`captureDocumentVersion`'s `renderDocument` call) already uses for the very same field.
+          // Before this, opening the editor and saving again with *no real edit* produced a spurious
+          // `type: PRD` / `type: "PRD"` diff line on the very first save. `setFrontmatterFields` only
+          // rewrites the keys it's given and leaves every other template line untouched, so this can't
+          // regress SDD/ADR's placeholder-only `architects: []` the way a full schema-validating re-parse
+          // of the template would.
+          const renderedMarkdown = setFrontmatterFields(templateFor(kind), { id: docId, type: kind, title, status: 'draft', created_at: todayIso() });
           return { sourcePath: `${folder}/${docId}-${slugify(title)}.md`, renderedMarkdown, contentHash: sha256(renderedMarkdown) };
         },
       });
