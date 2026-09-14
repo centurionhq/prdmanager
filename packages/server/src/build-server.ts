@@ -14,6 +14,7 @@ import { registerCloseFeatureRoutes } from './api/close-feature.js';
 import { registerCollabRoute, registerCollabWebsocketPlugin } from './collab/register-collab-route.js';
 import { createCollabRevocationHub, type CollabRevocationHub } from './collab/revocation.js';
 import { realCollabScheduler, type CollabScheduler } from './collab/scheduler.js';
+import { realCollabBatchScheduler, type CollabBatchScheduler } from './collab/batch-scheduler.js';
 import { registerDocumentRoutes } from './api/documents.js';
 import { registerDocumentPublishRoute } from './api/documents-publish.js';
 import { registerDriftRoutes } from './api/drift.js';
@@ -69,6 +70,11 @@ export interface BuildServerDeps {
   /** Test-only: a manually-advanced `CollabScheduler` (`./collab/scheduler.js`) so a WO-148 revalidation
    * test never waits out a real 60-second interval. Production leaves this unset (the real `setInterval`). */
   collabScheduler?: CollabScheduler;
+  /** Test-only: a manually-flushed `CollabBatchScheduler` (`./collab/batch-scheduler.js`) so a WO-149
+   * doc_updates batching test never waits out a real ≤50ms window. */
+  collabBatchScheduler?: CollabBatchScheduler;
+  /** Test-only: see `./collab/register-collab-route.js`'s own `persistDebounce` doc comment. */
+  collabPersistDebounce?: { debounce: number; maxDebounce: number };
 }
 
 /**
@@ -78,7 +84,19 @@ export interface BuildServerDeps {
  * its allowlist on `/api/auth/*` — `graph`, `llm` and `oidc` land with the SDD-006 tasks that need them.
  */
 export function buildServer(deps: BuildServerDeps): FastifyInstance {
-  const { env, logger = true, clock = () => new Date(), pool, mailer, rateLimitStore, staticDir, neo4j, collabScheduler = realCollabScheduler } = deps;
+  const {
+    env,
+    logger = true,
+    clock = () => new Date(),
+    pool,
+    mailer,
+    rateLimitStore,
+    staticDir,
+    neo4j,
+    collabScheduler = realCollabScheduler,
+    collabBatchScheduler = realCollabBatchScheduler,
+    collabPersistDebounce,
+  } = deps;
   // Fastify only derives `request.ip`/`request.hostname` from X-Forwarded-* headers when this is
   // set (SDD-006 §Autenticación): same PRDM_TRUST_PROXY gate as the /api/auth/* Host guard and,
   // later, @fastify/rate-limit's IP source (WO-095) — one flag, one trust decision, everywhere.
@@ -163,7 +181,15 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       const collabRevocationHub: CollabRevocationHub = createCollabRevocationHub();
       registerProjectRoutes(app, { auth, pool, env, collabRevocationHub });
       registerDocumentRoutes(app, { auth, pool, env, collabRevocationHub });
-      registerCollabRoute(app, { auth, pool, env, revocationHub: collabRevocationHub, scheduler: collabScheduler });
+      registerCollabRoute(app, {
+        auth,
+        pool,
+        env,
+        revocationHub: collabRevocationHub,
+        scheduler: collabScheduler,
+        batchScheduler: collabBatchScheduler,
+        persistDebounce: collabPersistDebounce,
+      });
       registerDocumentPublishRoute(app, { auth, pool, env, neo4j });
       registerDriftRoutes(app, { auth, pool, env, neo4j });
       registerGraphRoutes(app, { auth, pool, env, neo4j });

@@ -24,7 +24,10 @@ import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
 import type { ServerEnv } from '../env.js';
 import { requireAppSession } from '../api/app-session.js';
+import { createCollabAttributionExtension } from './attribution.js';
 import { createCollabAuthenticateExtension, type CollabAuthContext } from './authenticate.js';
+import { realCollabBatchScheduler, type CollabBatchScheduler } from './batch-scheduler.js';
+import { createDocUpdateBatcher } from './doc-update-writer.js';
 import { isTrustedCollabOrigin } from './origin-check.js';
 import { createCollabPersistenceExtension } from './persistence.js';
 import { createCollabRevalidateExtension } from './revalidate.js';
@@ -51,22 +54,34 @@ export interface RegisterCollabRouteOptions {
   revocationHub?: CollabRevocationHub;
   /** Injected so tests never wait out a real 60-second interval (WO-148, `./scheduler.js`). */
   scheduler?: CollabScheduler;
+  /** Injected so tests never wait out a real ≤50ms batch window (WO-149, `./batch-scheduler.js`). */
+  batchScheduler?: CollabBatchScheduler;
+  /** Test-only: forwarded to `Hocuspocus`'s own `debounce`/`maxDebounce` (the `onStoreDocument`
+   * snapshot, unrelated to WO-149's own ≤50ms `doc_updates` batching window). Left unset in production
+   * (Hocuspocus's own defaults apply); a test that closes its server shortly after an edit sets both to
+   * `0` so the debounced store fires — and finishes — before the test's own pool closes, instead of on
+   * a real timer that could otherwise still be pending afterward (caught and merely logged by
+   * Hocuspocus itself, never a thrown error, but avoided here rather than tolerated). */
+  persistDebounce?: { debounce: number; maxDebounce: number };
 }
 
-/** Extra extensions a later WO composes in (WO-149 attribution, WO-150 anti-spoofing, WO-151 awareness/
- * stateless, WO-152 limits) — kept as an explicit seam so this route registration never has to change
- * shape again, only the array passed here. */
+/** Extra extensions a later WO composes in (WO-150 anti-spoofing, WO-151 awareness/stateless, WO-152
+ * limits) — kept as an explicit seam so this route registration never has to change shape again, only
+ * the array passed here. */
 export interface CollabExtensionsDeps {
   auth: Auth;
   pool: Pool;
   scheduler: CollabScheduler;
+  batchScheduler: CollabBatchScheduler;
 }
 
 export function buildCollabExtensions(deps: CollabExtensionsDeps): Extension[] {
+  const batcher = createDocUpdateBatcher({ pool: deps.pool, scheduler: deps.batchScheduler });
   return [
     createCollabAuthenticateExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabPersistenceExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabRevalidateExtension({ auth: deps.auth, pool: deps.pool, scheduler: deps.scheduler }) as unknown as Extension,
+    createCollabAttributionExtension({ batcher }) as unknown as Extension,
   ];
 }
 
@@ -85,11 +100,12 @@ export function registerCollabWebsocketPlugin(app: FastifyInstance, env: ServerE
  * finished registering (see that function's own doc comment), i.e. inside the same `app.after` callback
  * every other `auth`/`pool`-dependent route is registered from. */
 export function registerCollabRoute(app: FastifyInstance, opts: RegisterCollabRouteOptions): void {
-  const { auth, pool, env, revocationHub = createCollabRevocationHub(), scheduler = realCollabScheduler } = opts;
+  const { auth, pool, env, revocationHub = createCollabRevocationHub(), scheduler = realCollabScheduler, batchScheduler = realCollabBatchScheduler, persistDebounce } = opts;
 
   const hocuspocus = new Hocuspocus({
     yDocOptions: { gc: false, gcFilter: () => true },
-    extensions: buildCollabExtensions({ auth, pool, scheduler }),
+    ...persistDebounce,
+    extensions: buildCollabExtensions({ auth, pool, scheduler, batchScheduler }),
   });
   revocationHub.attach(hocuspocus);
 

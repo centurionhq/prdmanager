@@ -2,3 +2,5 @@ export { assertValidRoot, createDocumentYDoc, BODY_ROOT, FRONTMATTER_ROOT, Inval
 export type { FrontmatterPrimitive, FrontmatterValue } from './schema.js';
 export { applyProjection, projectDoc } from './projection.js';
 export type { DocProjection } from './projection.js';
+export { decodeUpdateRanges } from './update-ranges.js';
+export type { DecodedUpdateRanges, DeleteRange, StructRange } from './update-ranges.js';

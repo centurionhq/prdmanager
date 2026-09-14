@@ -6,27 +6,19 @@
  * timer.
  */
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, openTestPg, type PgTestDb } from '@prdm/testkit';
-import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
-import { buildServer, type BuildServerDeps } from '../../src/build-server.js';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
+import { buildServer } from '../../src/build-server.js';
 import { createFakeCollabScheduler, type FakeCollabScheduler } from '../../src/collab/scheduler.js';
-import { FakeMailer } from '../../src/mailer.js';
 import { mutationHeaders } from '../helpers/csrf.js';
 import { seedUser } from '../helpers/seed-auth.js';
 import { ISOLATION_AUTH_HOST, ISOLATION_ORIGIN, ISOLATION_TEST_ENV, signIn } from '../isolation/fixtures.js';
 import { insertCollabDocumentFixture } from './document-fixture.js';
-import { makeCollabProvider, onceSynced } from './ws-test-helpers.js';
+import { makeCollabProvider, onceSynced, onceUnsyncedChangesSettled, startCollabApp } from './ws-test-helpers.js';
 
 type BuiltApp = ReturnType<typeof buildServer>;
 type Provider = ReturnType<typeof makeCollabProvider>;
 
-async function startApp(deps: Partial<BuildServerDeps>): Promise<{ app: BuiltApp; url: string }> {
-  const app = buildServer({ env: ISOLATION_TEST_ENV, mailer: new FakeMailer(), logger: false, ...deps });
-  await app.ready();
-  await app.listen({ port: 0, host: '127.0.0.1' });
-  const address = app.server.address();
-  if (address === null || typeof address === 'string') throw new Error('expected a bound TCP address');
-  return { app, url: `ws://127.0.0.1:${address.port}/collab` };
-}
+const startApp = startCollabApp;
 
 function onceClosed(provider: Provider): Promise<void> {
   return new Promise((resolve) => {
@@ -40,9 +32,6 @@ function onceClosed(provider: Provider): Promise<void> {
 
 describe('/collab live revocation and periodic revalidation (SDD-008, WO-148)', () => {
   let pg: PgTestDb;
-  let app: BuiltApp;
-  let url: string;
-  let scheduler: FakeCollabScheduler;
   let org: { id: string; slug: string };
   let project: { id: string; slug: string };
   let ownerCookie: string;
@@ -50,46 +39,61 @@ describe('/collab live revocation and periodic revalidation (SDD-008, WO-148)', 
   let editorDowngraded: { id: string; cookie: string };
   let editorRevalidatedRemoval: { id: string; cookie: string };
   let editorRevalidatedArchive: { id: string; cookie: string };
+
+  // Each test gets its own fresh app + scheduler (rather than one shared across the whole file): the
+  // "interval disposed on close" test asserts absolute `scheduler.size` deltas, which a scheduler
+  // shared across tests would make racy against a *previous* test's own connection still finishing its
+  // asynchronous server-side close/cleanup when the next test starts.
+  let app: BuiltApp;
+  let url: string;
+  let scheduler: FakeCollabScheduler;
   const providers: Provider[] = [];
 
   // better-auth's own /sign-in/email rate limit is 5 per 15 minutes *per IP* (WO-095) — every
   // app.inject() call from this file shares one IP, so every user this suite ever signs in as is
   // created once here rather than per test (5 sign-ins total: the owner plus one editor per test that
-  // needs its own project membership to mutate).
-  async function createSignedInEditor(role: 'editor'): Promise<{ id: string; cookie: string }> {
+  // needs its own project membership to mutate). Signing in only needs *some* running app instance, not
+  // necessarily the one the test itself later runs against (sessions are rows in the shared Postgres
+  // `session` table, not tied to any particular Hocuspocus/Fastify instance).
+  async function createSignedInEditor(signInApp: BuiltApp, role: 'editor'): Promise<{ id: string; cookie: string }> {
     const editor = await seedUser(ISOLATION_TEST_ENV, pg.appPool);
     await createMemberFixture(pg, { organizationId: org.id, userId: editor.id, role: 'member' });
     await pg.ownerPool.query(`INSERT INTO "project_members" (project_id, user_id, org_id, role) VALUES ($1, $2, $3, $4)`, [project.id, editor.id, org.id, role]);
-    const cookie = await signIn(app, editor.email);
+    const cookie = await signIn(signInApp, editor.email);
     return { id: editor.id, cookie };
   }
 
   beforeAll(async () => {
     pg = await openTestPg();
+    org = await createOrganizationFixture(pg);
+    project = await createProjectFixture(pg, { orgId: org.id });
+
+    const bootstrap = await startApp({ pool: pg.appPool });
+    const owner = await seedUser(ISOLATION_TEST_ENV, pg.appPool);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    ownerCookie = await signIn(bootstrap.app, owner.email);
+
+    editorRemoved = await createSignedInEditor(bootstrap.app, 'editor');
+    editorDowngraded = await createSignedInEditor(bootstrap.app, 'editor');
+    editorRevalidatedRemoval = await createSignedInEditor(bootstrap.app, 'editor');
+    editorRevalidatedArchive = await createSignedInEditor(bootstrap.app, 'editor');
+    await bootstrap.app.close();
+  });
+
+  afterAll(async () => {
+    await pg.close();
+  });
+
+  beforeEach(async () => {
     scheduler = createFakeCollabScheduler();
     const started = await startApp({ pool: pg.appPool, collabScheduler: scheduler });
     app = started.app;
     url = started.url;
-
-    org = await createOrganizationFixture(pg);
-    project = await createProjectFixture(pg, { orgId: org.id });
-    const owner = await seedUser(ISOLATION_TEST_ENV, pg.appPool);
-    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
-    ownerCookie = await signIn(app, owner.email);
-
-    editorRemoved = await createSignedInEditor('editor');
-    editorDowngraded = await createSignedInEditor('editor');
-    editorRevalidatedRemoval = await createSignedInEditor('editor');
-    editorRevalidatedArchive = await createSignedInEditor('editor');
   });
 
-  afterAll(async () => {
-    await app.close();
-    await pg.close();
-  });
-
-  afterEach(() => {
+  afterEach(async () => {
     for (const provider of providers.splice(0)) provider.destroy();
+    await app.close();
   });
 
   test('removing a member closes their open /collab connection to that project', async () => {
@@ -173,6 +177,10 @@ describe('/collab live revocation and periodic revalidation (SDD-008, WO-148)', 
     await onceSynced(provider);
 
     provider.document.getText('body').insert(0, 'before archive');
+    // Wait for the server to have fully applied+acked the edit (see attribution.ts/WO-149: the durable
+    // write now happens in `beforeSync`, strictly before the update is applied) before archiving —
+    // otherwise archiving+revalidating could race an edit still in flight.
+    await onceUnsyncedChangesSettled(provider);
     await pg.ownerPool.query(`UPDATE documents SET workflow_state = 'archived' WHERE id = $1`, [doc]);
     await scheduler.triggerAll();
 

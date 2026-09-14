@@ -7,24 +7,16 @@ import { HocuspocusProvider } from '@hocuspocus/provider';
 import { createOrganizationFixture, createProjectFixture, createMemberFixture, openTestPg, type PgTestDb } from '@prdm/testkit';
 import WebSocket from 'ws';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
-import { buildServer, type BuildServerDeps } from '../../src/build-server.js';
+import { buildServer } from '../../src/build-server.js';
 import { FakeMailer } from '../../src/mailer.js';
 import { ISOLATION_ORIGIN, ISOLATION_TEST_ENV, signIn } from '../isolation/fixtures.js';
 import { seedUser } from '../helpers/seed-auth.js';
 import { insertCollabDocumentFixture } from './document-fixture.js';
-import { makeCollabProvider, onceAuthenticationFailed, onceSynced } from './ws-test-helpers.js';
+import { makeCollabProvider, onceAuthenticationFailed, onceSynced, startCollabApp } from './ws-test-helpers.js';
 
 type BuiltApp = ReturnType<typeof buildServer>;
 
-async function startApp(deps: Partial<BuildServerDeps> = {}): Promise<{ app: BuiltApp; url: string }> {
-  const app = buildServer({ env: ISOLATION_TEST_ENV, mailer: new FakeMailer(), logger: false, ...deps });
-  await app.ready();
-  await app.listen({ port: 0, host: '127.0.0.1' });
-  const address = app.server.address();
-  if (address === null || typeof address === 'string') throw new Error('expected a bound TCP address');
-  return { app, url: `ws://127.0.0.1:${address.port}/collab` };
-}
-
+const startApp = startCollabApp;
 const makeProvider = makeCollabProvider;
 const insertDocument = insertCollabDocumentFixture;
 
