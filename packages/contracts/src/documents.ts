@@ -60,11 +60,25 @@ export const documentVersionSummarySchema = z.object({
 });
 export type DocumentVersionSummary = z.infer<typeof documentVersionSummarySchema>;
 
+/** Mirrors `@prdm/core`'s `ValidationIssue` by hand (same SDD-006 §Arquitectura reasoning as
+ * `DOCUMENT_KINDS` above: `packages/contracts` never depends on `@prdm/core`). */
+export const validationIssueSchema = z.object({
+  severity: z.enum(['error', 'warning']),
+  code: z.string(),
+  field: z.string().optional(),
+  message: z.string(),
+});
+export type ValidationIssueSummary = z.infer<typeof validationIssueSchema>;
+
 export const documentDetailSchema = documentSummarySchema.extend({
   latestVersion: documentVersionSummarySchema.nullable(),
   publishedVersionId: z.string().nullable(),
   publishedRaw: z.string().nullable(),
   publishedContentHash: z.string().nullable(),
+  /** SDD-008 §"Validación en vivo": the result of the last `validateDocument` run in `edit` mode after a
+   * collab store, `null` for a document that has never gone through a live-collab store (e.g. still just
+   * a freshly created draft, or a `generated`-origin document with no working copy at all). */
+  lastValidation: z.array(validationIssueSchema).nullable(),
 });
 export type DocumentDetail = z.infer<typeof documentDetailSchema>;
 

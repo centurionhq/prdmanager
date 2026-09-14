@@ -192,6 +192,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
         batchScheduler: collabBatchScheduler,
         persistDebounce: collabPersistDebounce,
         clock,
+        neo4j,
       });
       registerDocumentPublishRoute(app, { auth, pool, env, neo4j });
       registerDocumentBlameRoute(app, { auth, pool, env, blameCache: createBlameCache() });

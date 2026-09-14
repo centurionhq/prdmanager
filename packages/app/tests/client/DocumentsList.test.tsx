@@ -57,6 +57,7 @@ describe('DocumentsList', () => {
       publishedVersionId: null,
       publishedRaw: null,
       publishedContentHash: null,
+      lastValidation: null,
     });
 
     await userEvent.click(screen.getByRole('button', { name: 'Nuevo documento' }));

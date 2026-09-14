@@ -19,6 +19,7 @@
  */
 import fastifyWebsocket from '@fastify/websocket';
 import { Hocuspocus, type Extension } from '@hocuspocus/server';
+import type { Neo4jGraphDatabase } from '@prdm/core';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
@@ -29,6 +30,7 @@ import { createCollabAttributionExtension } from './attribution.js';
 import { createCollabAuthenticateExtension, type CollabAuthContext } from './authenticate.js';
 import { createCollabAwarenessExtension } from './awareness.js';
 import { createBlameBroadcastExtension } from './blame.js';
+import { createLiveValidationExtension } from './live-validation.js';
 import { realCollabBatchScheduler, type CollabBatchScheduler } from './batch-scheduler.js';
 import { createDocUpdateBatcher } from './doc-update-writer.js';
 import { createCollabLimitsExtension, type CollabLimits } from './limits.js';
@@ -70,6 +72,10 @@ export interface RegisterCollabRouteOptions {
   /** Injected so tests never need to send real traffic for a full wall-clock second to exercise the
    * WO-152 update-rate limits. Defaults to the real clock this server already threads everywhere else. */
   clock?: () => Date;
+  /** SDD-008 §"Validación en vivo" (WO-155): omitted entirely (rather than throwing) when this server
+   * instance has no graph store configured, same `requireNeo4j`-adjacent reasoning as the publish route —
+   * live validation degrades to "not run" rather than ever blocking a collab store on it being absent. */
+  neo4j?: Neo4jGraphDatabase;
 }
 
 export interface CollabExtensionsDeps {
@@ -79,6 +85,7 @@ export interface CollabExtensionsDeps {
   batchScheduler: CollabBatchScheduler;
   clock: () => Date;
   limits: CollabLimits;
+  neo4j?: Neo4jGraphDatabase;
 }
 
 export function buildCollabExtensions(deps: CollabExtensionsDeps): Extension[] {
@@ -86,10 +93,11 @@ export function buildCollabExtensions(deps: CollabExtensionsDeps): Extension[] {
   return [
     createCollabAuthenticateExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabPersistenceExtension({ pool: deps.pool }) as unknown as Extension,
-    // Runs its own onStoreDocument after persistence's — order between the two never matters for
-    // correctness (a stale-blame notice just tells clients to refetch WO-154's endpoint, which always
-    // reads whatever is durably committed at the moment it's called), kept adjacent for readability.
+    // These three all run their own onStoreDocument after persistence's — order among them never matters
+    // for correctness (each one's job is either "tell clients to refetch" or "recompute and persist a
+    // cached-for-later-reads column"), kept adjacent for readability.
     createBlameBroadcastExtension() as unknown as Extension,
+    ...(deps.neo4j ? [createLiveValidationExtension({ pool: deps.pool, neo4j: deps.neo4j }) as unknown as Extension] : []),
     createCollabRevalidateExtension({ auth: deps.auth, pool: deps.pool, scheduler: deps.scheduler }) as unknown as Extension,
     // Order matters among these `beforeSync`/`connected` extensions: Hocuspocus runs each extension's
     // same-named hook in array order, awaiting each before the next. Limits comes first so a
@@ -126,12 +134,13 @@ export function registerCollabRoute(app: FastifyInstance, opts: RegisterCollabRo
     batchScheduler = realCollabBatchScheduler,
     persistDebounce,
     clock = () => new Date(),
+    neo4j,
   } = opts;
 
   const hocuspocus = new Hocuspocus({
     yDocOptions: { gc: false, gcFilter: () => true },
     ...persistDebounce,
-    extensions: buildCollabExtensions({ auth, pool, scheduler, batchScheduler, clock, limits: env.collabLimits }),
+    extensions: buildCollabExtensions({ auth, pool, scheduler, batchScheduler, clock, limits: env.collabLimits, neo4j }),
   });
   revocationHub.attach(hocuspocus);
 

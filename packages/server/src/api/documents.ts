@@ -79,6 +79,7 @@ function toDetail(document: DocumentRecord, latestVersion: DocumentVersionRecord
     publishedVersionId: document.publishedVersionId,
     publishedRaw: document.publishedRaw,
     publishedContentHash: document.publishedContentHash,
+    lastValidation: (document.lastValidation as DocumentDetail['lastValidation']) ?? null,
   };
 }
 

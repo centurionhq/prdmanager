@@ -21,6 +21,7 @@ function baseDoc(overrides: Partial<DocumentDetailDto> = {}): DocumentDetailDto 
     publishedVersionId: null,
     publishedRaw: null,
     publishedContentHash: null,
+    lastValidation: null,
     ...overrides,
   };
 }

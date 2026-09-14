@@ -77,6 +77,20 @@ export function onceUnsyncedChangesSettled(provider: HocuspocusProvider): Promis
   });
 }
 
+/** Resolves with the first stateless message matching `predicate` (defaults to "any"), same reasoning as
+ * every other `once*` helper here — real events, never a timer, so a WO-154/155-style broadcast that
+ * races other stateless traffic on the same connection is still deterministically observable. */
+export function onceStateless(provider: HocuspocusProvider, predicate: (payload: string) => boolean = () => true): Promise<{ payload: string }> {
+  return new Promise((resolve) => {
+    const handler = (data: { payload: string }) => {
+      if (!predicate(data.payload)) return;
+      provider.off('stateless', handler);
+      resolve(data);
+    };
+    provider.on('stateless', handler);
+  });
+}
+
 export function onceAuthenticationFailed(provider: HocuspocusProvider): Promise<{ reason: string }> {
   return new Promise((resolve) => {
     const handler = (data: { reason: string }) => {
