@@ -33,7 +33,8 @@ import { createBlameBroadcastExtension } from './blame.js';
 import { createLiveValidationExtension } from './live-validation.js';
 import { realCollabBatchScheduler, type CollabBatchScheduler } from './batch-scheduler.js';
 import { createDocSizeTracker } from './doc-size-tracker.js';
-import { createDocUpdateBatcher } from './doc-update-writer.js';
+import { createDocUpdateBatcher, type DocUpdateBatcher } from './doc-update-writer.js';
+import { parseDocumentName } from './document-name.js';
 import { createCollabLimitsExtension, type CollabLimits } from './limits.js';
 import { isTrustedCollabOrigin } from './origin-check.js';
 import { createCollabPersistenceExtension } from './persistence.js';
@@ -89,6 +90,20 @@ export interface CollabExtensionsDeps {
   neo4j?: Neo4jGraphDatabase;
 }
 
+/** WO-222: evicts a document from `DocUpdateBatcher`'s per-document flush-chain map once Hocuspocus has
+ * fully unloaded it (no connections left, final store already committed) — mirrors how `persistence.ts`'s
+ * own `afterUnloadDocument` evicts WO-221's `DocSizeTracker` entry, so neither map grows unbounded across
+ * every document ever edited in this process's lifetime. */
+function createDocUpdateWriterCleanupExtension(batcher: DocUpdateBatcher): Extension {
+  return {
+    extensionName: 'prdm-collab-writer-cleanup',
+    async afterUnloadDocument({ documentName }: { documentName: string }) {
+      const parsed = parseDocumentName(documentName);
+      if (parsed) batcher.evictDocument(parsed.documentId);
+    },
+  } as unknown as Extension;
+}
+
 export function buildCollabExtensions(deps: CollabExtensionsDeps): Extension[] {
   // WO-221: one instance, shared by persistence (seeds/evicts it on load/unload), the writer (increments
   // it as each batch commits), and limits (reads it) — see `./doc-size-tracker.js`'s own doc comment.
@@ -97,6 +112,7 @@ export function buildCollabExtensions(deps: CollabExtensionsDeps): Extension[] {
   return [
     createCollabAuthenticateExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabPersistenceExtension({ pool: deps.pool, sizeTracker }) as unknown as Extension,
+    createDocUpdateWriterCleanupExtension(batcher),
     // These three all run their own onStoreDocument after persistence's — order among them never matters
     // for correctness (each one's job is either "tell clients to refetch" or "recompute and persist a
     // cached-for-later-reads column"), kept adjacent for readability.

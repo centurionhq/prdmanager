@@ -7,10 +7,18 @@
  * before broadcast without needing a Redis/pub-sub layer of its own (SDD-008 "una sola instancia").
  *
  * Exactly one batch (and one pending flush) is ever in flight per document at a time: `enqueue` chains
- * onto the previous flush's promise for that document rather than starting a second one concurrently,
- * so `seq` allocation (`SELECT MAX(seq)+1`, guarded by a `pg_advisory_xact_lock` for defense in depth —
- * same pattern as `PgProjectEngine`'s own per-project write lock) can never race with itself even if a
- * batch window closes while the previous one's transaction is still committing.
+ * onto the previous flush's promise for that *same* document rather than starting a second one
+ * concurrently, so `seq` allocation (`SELECT MAX(seq)+1`, guarded by a `pg_advisory_xact_lock` for defense
+ * in depth — same pattern as `PgProjectEngine`'s own per-project write lock) can never race with itself
+ * even if a batch window closes while the previous one's transaction is still committing.
+ *
+ * WO-222 (performance review, HIGH): that chain is keyed *per `documentId`* (a `Map<string, Promise<void>>`)
+ * rather than one single server-wide promise — the advisory lock above already provides all the
+ * per-document correctness this queue needs, so chaining every document's flush onto one shared promise
+ * only ever added latency (document A's slow write queuing behind document B's, C's, ...) with no
+ * correctness benefit. `evictDocument` (called from `afterUnloadDocument` once a document is no longer
+ * open in Hocuspocus — see `register-collab-route.ts`) drops that document's map entry so it doesn't
+ * linger forever across every document ever edited in this process's lifetime.
  */
 import { desc, eq, sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
@@ -39,7 +47,7 @@ export interface PendingDocUpdateRow {
 
 const DEFAULT_MAX_DELAY_MS = 50;
 
-async function writeDocUpdateBatch(pool: Pool, orgId: string, documentId: string, rows: readonly PendingDocUpdateRow[]): Promise<void> {
+export async function writeDocUpdateBatch(pool: Pool, orgId: string, documentId: string, rows: readonly PendingDocUpdateRow[]): Promise<void> {
   await withTenantTx(pool, orgId, async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${documentId}::text, ${DOC_UPDATES_LOCK_SALT}))`);
 
@@ -98,28 +106,42 @@ export interface DocUpdateBatcherDeps {
    * to a fresh, unshared tracker (harmless for callers — e.g. existing tests — that don't care about size
    * tracking); `register-collab-route.ts` passes the one shared instance every other extension reads. */
   sizeTracker?: DocSizeTracker;
+  /** Test seam only (WO-222, same reasoning as `scheduler`/`clock` injection elsewhere in this package):
+   * defaults to the real {@link writeDocUpdateBatch}. Lets a test hold one document's write open with a
+   * manually-resolved gate, without ever waiting out a real timer, to prove a second document's write
+   * isn't blocked behind it. */
+  writeBatch?: typeof writeDocUpdateBatch;
 }
 
 export interface DocUpdateBatcher {
   /** Resolves once `row` is durably committed (as part of whatever batch it ended up in). Rejects if
    * that batch's transaction fails — the caller (`onChange`) treats that as its own failure. */
   enqueue(orgId: string, documentId: string, row: PendingDocUpdateRow): Promise<void>;
+  /** WO-222: drops `documentId`'s entry from the per-document flush chain map — called once a document is
+   * no longer open in Hocuspocus (`afterUnloadDocument`, wired in `register-collab-route.ts`) so the map
+   * never grows unbounded across every document ever edited in this process's lifetime. Safe even if a
+   * write for `documentId` is still in flight: the next `enqueue` for it simply starts a fresh chain from
+   * `Promise.resolve()`, and the DB-level `pg_advisory_xact_lock` (keyed by `documentId`) still guarantees
+   * correctness against any write that chain raced with. */
+  evictDocument(documentId: string): void;
 }
 
 export function createDocUpdateBatcher(deps: DocUpdateBatcherDeps): DocUpdateBatcher {
-  const { pool, scheduler, maxDelayMs = DEFAULT_MAX_DELAY_MS, sizeTracker = createDocSizeTracker() } = deps;
+  const { pool, scheduler, maxDelayMs = DEFAULT_MAX_DELAY_MS, sizeTracker = createDocSizeTracker(), writeBatch = writeDocUpdateBatch } = deps;
   const pendingByDocument = new Map<string, PendingBatch>();
-  // Chains flushes for the same document strictly one-after-another (see module doc comment).
-  let flushChain: Promise<void> = Promise.resolve();
+  // Chains flushes for the same document strictly one-after-another (see module doc comment) — keyed
+  // per `documentId` (WO-222) so one document's slow write never queues behind another's.
+  const flushChains = new Map<string, Promise<void>>();
 
   function flush(documentId: string, orgId: string): void {
     const batch = pendingByDocument.get(documentId);
     if (!batch) return;
     pendingByDocument.delete(documentId);
 
-    flushChain = flushChain.then(
+    const priorFlush = flushChains.get(documentId) ?? Promise.resolve();
+    const thisFlush = priorFlush.then(
       () =>
-        writeDocUpdateBatch(pool, orgId, documentId, batch.rows).then(
+        writeBatch(pool, orgId, documentId, batch.rows).then(
           () => {
             // WO-221: the exact byte length of what was just durably written — cheaper than, and
             // equivalent in effect to, re-encoding the whole document to find out its new size.
@@ -129,9 +151,12 @@ export function createDocUpdateBatcher(deps: DocUpdateBatcherDeps): DocUpdateBat
           },
           (error: unknown) => batch.waiters.forEach((w) => w.reject(error)),
         ),
-      // A previous document's flush failing must never poison this one's turn in the chain.
+      // A previous flush for this same document failing must never poison this one's turn in the chain.
       () => undefined,
     );
+    // Swallow rejection at the map-storage level too — only ever used to sequence the *next* flush for
+    // this document, never awaited by anything that cares whether this particular one failed.
+    flushChains.set(documentId, thisFlush.then(() => undefined, () => undefined));
   }
 
   return {
@@ -146,6 +171,10 @@ export function createDocUpdateBatcher(deps: DocUpdateBatcherDeps): DocUpdateBat
         batch.rows.push(row);
         batch.waiters.push({ resolve, reject });
       });
+    },
+
+    evictDocument(documentId) {
+      flushChains.delete(documentId);
     },
   };
 }
