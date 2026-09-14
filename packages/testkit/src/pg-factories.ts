@@ -30,6 +30,13 @@ export interface ProjectFixture {
   graphProjectId: string;
 }
 
+export interface MemberFixture {
+  id: string;
+  organizationId: string;
+  userId: string;
+  role: 'owner' | 'admin' | 'member';
+}
+
 export async function createOrganizationFixture(pg: PgTestDb, overrides: Partial<OrganizationFixture> = {}): Promise<OrganizationFixture> {
   const suffix = randomUUID();
   const fixture: OrganizationFixture = {
@@ -76,6 +83,26 @@ export async function createProjectFixture(
   await pg.ownerPool.query(
     `INSERT INTO "projects" (id, org_id, slug, name, graph_project_id) VALUES ($1, $2, $3, $4, $5)`,
     [fixture.id, fixture.orgId, fixture.slug, fixture.name, fixture.graphProjectId],
+  );
+  return fixture;
+}
+
+/** Inserts a row directly into better-auth's own `member` table (global, no RLS — SDD-006 §Modelo de
+ * datos), bypassing the organization plugin entirely; both `organizationId` and `userId` are required
+ * since a membership without either is meaningless. */
+export async function createMemberFixture(
+  pg: PgTestDb,
+  overrides: Partial<MemberFixture> & { organizationId: string; userId: string },
+): Promise<MemberFixture> {
+  const fixture: MemberFixture = {
+    id: overrides.id ?? `member_${randomUUID()}`,
+    organizationId: overrides.organizationId,
+    userId: overrides.userId,
+    role: overrides.role ?? 'member',
+  };
+  await pg.ownerPool.query(
+    `INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES ($1, $2, $3, $4, now())`,
+    [fixture.id, fixture.organizationId, fixture.userId, fixture.role],
   );
   return fixture;
 }
