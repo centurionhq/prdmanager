@@ -29,7 +29,7 @@ export default defineConfig({
         test: {
           name: 'jsdom',
           environment: 'jsdom',
-          include: ['packages/web/tests/client/**/*.test.tsx'],
+          include: ['packages/web/tests/client/**/*.test.tsx', 'packages/app/tests/client/**/*.test.tsx'],
           // Testing Library's cleanup() doesn't auto-run under Vitest (only under a Jest-like global test
           // framework), so it's wired in explicitly here; see packages/web/tests/client/setup.ts.
           setupFiles: ['packages/web/tests/client/setup.ts'],
@@ -45,7 +45,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['packages/*/src/**/*.{ts,tsx}'],
-      exclude: ['packages/cli/src/index.ts', 'packages/mcp/src/server.ts', 'packages/web/src/server.ts', 'packages/web/src/client/**'],
+      exclude: ['packages/cli/src/index.ts', 'packages/mcp/src/server.ts', 'packages/web/src/server.ts', 'packages/web/src/client/**', 'packages/app/src/**'],
       reporter: ['text-summary', 'text'],
       thresholds: { lines: 80, functions: 80, statements: 80, branches: 70 },
     },

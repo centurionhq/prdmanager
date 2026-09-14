@@ -2,12 +2,14 @@
 id: "WO-112"
 type: "WO"
 title: "Scaffold de packages/app (Vite 8.3.0, React 19.3.0, react-router 8.3.1 en modo data) con proxy de /api, /collab y /mcp, y bundle servido por el servidor con fallback SPA"
-status: "pending"
+status: "in_progress"
 created_at: "2026-09-13"
 implements: ["SDD-006"]
 impacts_paths: ["packages/contracts/src/**","packages/contracts/tests/**","packages/contracts/*.json","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/db/*.json","packages/db/*.config.ts","packages/server/src/**","packages/server/tests/**","packages/server/scripts/**","packages/server/*.json","packages/server/Docker[f]ile","packages/server/Dockerfile.dockerignor[e]","packages/app/src/**","packages/app/tests/**","packages/app/*.json","packages/app/*.config.ts","packages/app/index.htm[l]","packages/ui/src/**","packages/ui/tests/**","packages/ui/*.json","packages/web/src/**","packages/web/tests/**","packages/web/package.json","packages/web/tsconfig*.json","packages/web/vite.config.ts","packages/testkit/src/**","packages/testkit/package.json","docker/**","docker-compose.yml","package.json","package-lock.json","tsconfig.json","tsconfig.base.json","tsconfig.test.json","vitest.config.ts",".env.example",".gitignore","README.md",".github/workflows/prdm-sync.yml"]
 source_task: "462c996a703fb088"
 tags: ["saas","tenancy","auth","rbac","dashboard"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-14T04:30:23.464Z"
 ---
 
 ## Objetivo

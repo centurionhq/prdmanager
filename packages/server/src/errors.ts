@@ -1,4 +1,5 @@
 import { errorEnvelope, type ErrorCode } from '@prdm/contracts';
+import type {} from '@fastify/static'; // module augmentation: adds `reply.sendFile` to FastifyReply's type.
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 const STATUS_BY_CODE: Record<ErrorCode, number> = {
@@ -97,9 +98,26 @@ export function setErrorHandler(app: FastifyInstance): void {
   });
 }
 
-/** Every unmatched route is a JSON 404 with the shared envelope; there is no SPA/static fallback in packages/server. */
-export function setNotFoundHandler(app: FastifyInstance): void {
-  app.setNotFoundHandler((_request: FastifyRequest, reply: FastifyReply) => {
+export interface NotFoundHandlerOptions {
+  /** Whether `@fastify/static` was registered against a `staticDir` (SDD-006 "Local y despliegue": packages/app's
+   * built bundle). */
+  hasStatic: boolean;
+}
+
+/**
+ * Every unmatched `/api/*` (and, defensively, `/collab`/`/mcp` — SDD-008/SDD-010 haven't wired their own routes
+ * yet, but a request that reaches this handler for either prefix must still get the shared JSON envelope, never
+ * the SPA shell) is a JSON 404. Everything else falls back to `packages/app`'s `index.html` once `staticDir` was
+ * given to `buildServer` (client-side routing, mirrors `packages/web/src/errors.ts`'s own `setNotFoundHandler`);
+ * with no `staticDir` this degrades to the same JSON 404 instead of crashing.
+ */
+export function setNotFoundHandler(app: FastifyInstance, options: NotFoundHandlerOptions = { hasStatic: false }): void {
+  app.setNotFoundHandler((request: FastifyRequest, reply: FastifyReply) => {
+    const isPlatformRoute = request.url.startsWith('/api/') || request.url.startsWith('/collab') || request.url.startsWith('/mcp');
+    if (!isPlatformRoute && options.hasStatic) {
+      void reply.type('text/html').sendFile('index.html');
+      return;
+    }
     sendError(reply, 'not_found', 'route not found');
   });
 }

@@ -1,4 +1,5 @@
 import rateLimitPlugin, { type FastifyRateLimitStoreCtor } from '@fastify/rate-limit';
+import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { Pool } from 'pg';
 import { installBearerAccessPreHandler } from './access/bearer-access-prehandler.js';
@@ -49,6 +50,9 @@ export interface BuildServerDeps {
   /** Test-only: a `@fastify/rate-limit` store backed by a fake clock (`./rate-limit/clock-store.js`)
    * so rate-limit window tests never `sleep`. Production leaves this unset (real wall-clock `LocalStore`). */
   rateLimitStore?: FastifyRateLimitStoreCtor;
+  /** `packages/app`'s built bundle (`dist/`), or a temp dir in tests; static serving — and the SPA fallback in
+   * `setNotFoundHandler` — is skipped entirely when omitted (SDD-006 "Local y despliegue"). */
+  staticDir?: string;
 }
 
 /**
@@ -58,7 +62,7 @@ export interface BuildServerDeps {
  * its allowlist on `/api/auth/*` — `graph`, `llm` and `oidc` land with the SDD-006 tasks that need them.
  */
 export function buildServer(deps: BuildServerDeps): FastifyInstance {
-  const { env, logger = true, clock = () => new Date(), pool, mailer, rateLimitStore } = deps;
+  const { env, logger = true, clock = () => new Date(), pool, mailer, rateLimitStore, staticDir } = deps;
   // Fastify only derives `request.ip`/`request.hostname` from X-Forwarded-* headers when this is
   // set (SDD-006 §Autenticación): same PRDM_TRUST_PROXY gate as the /api/auth/* Host guard and,
   // later, @fastify/rate-limit's IP source (WO-095) — one flag, one trust decision, everywhere.
@@ -77,6 +81,41 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
   registerSecurityHeaders(app, env);
 
   registerHealthRoute(app);
+
+  if (staticDir) {
+    // `serve: false`: this plugin would otherwise auto-register its own route(s) (a single `GET /*` by default,
+    // or one route per file under `wildcard: false`) with no `config.access`, which `installRouteAccessRegistry`
+    // above throws on for *every* route regardless of who registers it. `serve: false` skips all of that route
+    // registration while still decorating `reply.sendFile()` (`decorateReply` defaults to `true` independently of
+    // `serve` — verified against the plugin's own source), so the single explicit wildcard route below — public,
+    // since the built SPA bundle carries no secrets — is the only route this registration ever adds.
+    void app.register(fastifyStatic, { root: staticDir, serve: false });
+    // Deliberately not `async`: `reply.sendFile()` doesn't return the promise it kicks off internally, so an
+    // `async` handler here would resolve (with `undefined`) before the file is actually streamed — Fastify then
+    // finalizes the response itself, racing the real one (verified empirically: an `async` version of this
+    // handler sent an empty 200 body every time). A plain sync handler keeps the reply open until
+    // `reply.send()` fires further down inside `sendFile`, exactly like `@fastify/static`'s own README example
+    // and this same package's `setNotFoundHandler` below.
+    app.get('/*', { config: { access: { public: true } } }, (request, reply) => {
+      const rawUrl = request.raw.url ?? '/';
+      const questionMark = rawUrl.indexOf('?');
+      const rawPathname = questionMark === -1 ? rawUrl : rawUrl.slice(0, questionMark);
+      let pathname: string;
+      try {
+        // `decodeURI` (not Fastify's own `request.params['*']`, which fully `decodeURIComponent`s): it
+        // deliberately leaves `%2f`/`%5c` encoded, matching `@fastify/static`'s own `getPathnameForSend`. The
+        // traversal guards inside `reply.sendFile` only recognize a `..` segment bounded by a *real* `/` — fully
+        // decoding `%2f` to `/` first would let `/assets/..%2f..%2f../etc/passwd` slip right past them
+        // (verified empirically: an earlier version of this handler used `request.params['*']` for exactly that
+        // reason and leaked a 500 instead of falling through to the SPA shell).
+        pathname = decodeURI(rawPathname);
+      } catch {
+        void reply.code(400).send();
+        return;
+      }
+      void reply.sendFile(pathname === '/' ? '/index.html' : pathname);
+    });
+  }
 
   if (pool && mailer) {
     const auth = buildAuth({ env, pool, mailer, clock });
@@ -112,7 +151,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
   }
 
   setErrorHandler(app);
-  setNotFoundHandler(app);
+  setNotFoundHandler(app, { hasStatic: Boolean(staticDir) });
 
   return app;
 }
