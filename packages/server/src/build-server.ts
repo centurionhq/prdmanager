@@ -10,6 +10,7 @@ import { registerCiTokenRoutes } from './api/ci-tokens.js';
 import { registerHealthRoute } from './api/health.js';
 import { registerInvitationAcceptRoute } from './api/invitation-accept.js';
 import { registerOrganizationInvitationRoutes } from './api/organization-invitations.js';
+import { registerCloseFeatureRoutes } from './api/close-feature.js';
 import { registerDocumentRoutes } from './api/documents.js';
 import { registerDocumentPublishRoute } from './api/documents-publish.js';
 import { registerDriftRoutes } from './api/drift.js';
@@ -156,6 +157,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerDocumentPublishRoute(app, { auth, pool, env, neo4j });
       registerDriftRoutes(app, { auth, pool, env, neo4j });
       registerGraphRoutes(app, { auth, pool, env, neo4j });
+      registerCloseFeatureRoutes(app, { auth, pool, env, neo4j });
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
       registerTokenRoutes(app, { auth, pool, env, clock });
       registerCiTokenRoutes(app, { auth, pool, env, clock });

@@ -10,6 +10,7 @@ import type {
   DocumentWorkflowState,
   PublishDocumentInput,
 } from '@prdm/contracts';
+import type { ClosureReadiness } from '@prdm/core';
 import { request } from './request.js';
 
 function documentsBase(orgSlug: string, projectSlug: string): string {
@@ -61,4 +62,21 @@ export function generateWorkOrders(orgSlug: string, projectSlug: string, docId: 
   return request<{ workOrders: { generated: boolean; created: number; error?: string } }>(`${documentBase(orgSlug, projectSlug, docId)}/generate-work-orders`, {
     method: 'POST',
   }).then((r) => r.workOrders);
+}
+
+/** `GET .../closure-readiness` (WO-143): read-only, never mutates. */
+export function getClosureReadiness(orgSlug: string, projectSlug: string, docId: string): Promise<ClosureReadiness> {
+  return request<{ readiness: ClosureReadiness }>(`${documentBase(orgSlug, projectSlug, docId)}/closure-readiness`).then((r) => r.readiness);
+}
+
+export interface CloseFeatureResult {
+  featureId: string;
+  closedAt: string;
+  closedBy: string;
+}
+
+/** `POST .../close` (WO-143): admin-only server-side. `pendingEditablePatch: true` always — the status
+ * flip is queued for a future SDD-008 Yjs transaction (WO-139), never written immediately. */
+export function closeFeature(orgSlug: string, projectSlug: string, docId: string): Promise<{ result: CloseFeatureResult; pendingEditablePatch: boolean }> {
+  return request(`${documentBase(orgSlug, projectSlug, docId)}/close`, { method: 'POST' });
 }

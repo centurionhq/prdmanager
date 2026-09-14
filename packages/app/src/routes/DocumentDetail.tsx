@@ -11,10 +11,13 @@ import { can, type DocumentDetail as DocumentDetailDto, type PermissionSubject }
 import { LoadingState } from '@prdm/ui';
 import { archiveDocument, generateWorkOrders, getDocument, getSession, listProjectMembers, publishDocument, requestDocumentReview } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
+import { CloseFeatureAction } from './CloseFeatureAction.js';
 import { FormError } from '../components/FormError.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { useOrgShellContext } from './OrgShell.js';
 import formStyles from '../styles/forms.module.css';
+
+const FEATURE_KINDS = new Set(['MRD', 'PRD', 'FR']);
 
 type WorkOrdersOutcome = { generated: boolean; created: number; error?: string };
 
@@ -114,6 +117,8 @@ export function DocumentDetail(): ReactElement {
   const canArchive = doc.workflowState === 'published' && can(subject, 'archive');
   const isBlueprint = doc.kind === 'SDD' || doc.kind === 'ADR';
   const content = doc.publishedRaw ?? latestVersion?.renderedMarkdown ?? '';
+  const isApprovedFeature = FEATURE_KINDS.has(doc.kind) && doc.workflowState === 'published' && latestVersion?.frontmatter.status === 'approved';
+  const canCloseFeature = isApprovedFeature && can(subject, 'close_feature');
 
   return (
     <div>
@@ -145,6 +150,7 @@ export function DocumentDetail(): ReactElement {
             Archivar
           </button>
         )}
+        {canCloseFeature && <CloseFeatureAction orgSlug={orgSlug} projectSlug={project} docId={id} onClosed={() => void reload()} />}
       </div>
 
       {isBlueprint && doc.workflowState === 'published' && workOrders && !workOrders.generated && (

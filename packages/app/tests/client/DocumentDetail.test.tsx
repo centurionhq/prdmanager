@@ -98,6 +98,71 @@ describe('DocumentDetail', () => {
     expect(screen.getByRole('button', { name: 'Reintentar generación de work orders' })).toBeTruthy();
   });
 
+  it('hides "Cerrar feature" for a non-approved published feature and for a non-admin', async () => {
+    const approved = baseDoc({
+      workflowState: 'published',
+      publishedRaw: 'content',
+      latestVersion: { id: 'v1', versionNo: 2, reason: 'published', renderedMarkdown: 'content', frontmatter: { status: 'approved' }, contentHash: 'hash2', createdAt: '2026-01-01T00:00:00.000Z' },
+    });
+    renderPage(approved, 'editor');
+    await screen.findByRole('heading', { name: 'Feature A' });
+    expect(screen.queryByRole('button', { name: 'Cerrar feature' })).toBeNull();
+
+    const draftStatus = baseDoc({
+      workflowState: 'published',
+      publishedRaw: 'content',
+      latestVersion: { id: 'v1', versionNo: 2, reason: 'published', renderedMarkdown: 'content', frontmatter: { status: 'draft' }, contentHash: 'hash2', createdAt: '2026-01-01T00:00:00.000Z' },
+    });
+    renderPage(draftStatus, 'admin');
+    await screen.findAllByRole('heading', { name: 'Feature A' });
+    expect(screen.queryByRole('button', { name: 'Cerrar feature' })).toBeNull();
+  });
+
+  it('an admin closes an approved feature after reviewing readiness checks', async () => {
+    const approved = baseDoc({
+      workflowState: 'published',
+      publishedRaw: 'content',
+      latestVersion: { id: 'v1', versionNo: 2, reason: 'published', renderedMarkdown: 'content', frontmatter: { status: 'approved' }, contentHash: 'hash2', createdAt: '2026-01-01T00:00:00.000Z' },
+    });
+    renderPage(approved, 'admin');
+    await screen.findByRole('heading', { name: 'Feature A' });
+
+    const readiness = vi.spyOn(client, 'getClosureReadiness').mockResolvedValue({
+      featureId: 'PRD-001',
+      ready: true,
+      checks: [{ name: 'feature_approved', ok: true, detail: 'PRD-001 is approved' }],
+    });
+    const close = vi.spyOn(client, 'closeFeature').mockResolvedValue({ result: { featureId: 'PRD-001', closedAt: '2026-01-02T00:00:00.000Z', closedBy: 'dev:u1' }, pendingEditablePatch: true });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cerrar feature' }));
+    await waitFor(() => expect(readiness).toHaveBeenCalledWith('acme', 'web', 'PRD-001'));
+    expect(await screen.findByText(/PRD-001 is approved/)).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar cierre' }));
+    await waitFor(() => expect(close).toHaveBeenCalledWith('acme', 'web', 'PRD-001'));
+    expect(await screen.findByText(/Feature cerrada/)).toBeTruthy();
+  });
+
+  it('disables confirmation when the feature is not actually ready', async () => {
+    const approved = baseDoc({
+      workflowState: 'published',
+      publishedRaw: 'content',
+      latestVersion: { id: 'v1', versionNo: 2, reason: 'published', renderedMarkdown: 'content', frontmatter: { status: 'approved' }, contentHash: 'hash2', createdAt: '2026-01-01T00:00:00.000Z' },
+    });
+    renderPage(approved, 'admin');
+    await screen.findByRole('heading', { name: 'Feature A' });
+
+    vi.spyOn(client, 'getClosureReadiness').mockResolvedValue({
+      featureId: 'PRD-001',
+      ready: false,
+      checks: [{ name: 'work_orders_done', ok: false, detail: 'pending work order(s): WO-002' }],
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cerrar feature' }));
+    expect(await screen.findByText(/pending work order/)).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Confirmar cierre' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('an admin can archive a published document', async () => {
     renderPage(baseDoc({ workflowState: 'published', publishedRaw: 'content here' }), 'admin');
     await screen.findByRole('heading', { name: 'Feature A' });

@@ -194,6 +194,17 @@ export function registerBaseIsolationRoutes(): void {
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
   });
 
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/closure-readiness', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/close', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' } })),
+  });
+
   registerIsolationProbe('POST', '/api/app/invitations/:id/accept', {
     skip: 'public (SDD-006: authenticated by the invitation\'s own one-time secret, not by org/project membership)',
   });
