@@ -3,11 +3,10 @@
 // or call `.listen()` — everything else takes its dependencies injected (see build-server.ts).
 import process from 'node:process';
 import { buildServer } from './build-server.js';
-import { DEFAULT_SERVER_HOST, resolveServerEnv, resolveServerPort } from './env.js';
+import { DEFAULT_SERVER_HOST, resolveServerEnv } from './env.js';
 
 async function main(): Promise<void> {
   const env = resolveServerEnv(process.env);
-  const port = resolveServerPort(process.env);
   const app = buildServer({ env });
 
   let closing = false;
@@ -19,7 +18,7 @@ async function main(): Promise<void> {
   process.once('SIGINT', () => void shutdown());
   process.once('SIGTERM', () => void shutdown());
 
-  await app.listen({ host: DEFAULT_SERVER_HOST, port });
+  await app.listen({ host: DEFAULT_SERVER_HOST, port: env.serverPort });
 }
 
 main().catch((err: unknown) => {

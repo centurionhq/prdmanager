@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
-import type { ServerEnv } from '../../src/env.js';
+import { buildTestServerEnv } from '../helpers/test-env.js';
 
-const TEST_ENV: ServerEnv = { nodeEnv: 'test' };
+const TEST_ENV = buildTestServerEnv();
 
 describe('buildServer', () => {
   test('GET /api/health returns {status: "ok"} without listening', async () => {
