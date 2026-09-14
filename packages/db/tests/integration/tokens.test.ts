@@ -143,6 +143,43 @@ describe('api_tokens (WO-109)', () => {
     ).rejects.toThrow(ProjectNotInOrgError);
   });
 
+  test('createPersonalToken accepts an optional project_ids scope, validated to belong to the org (SDD-010, WO-185)', async () => {
+    const org = await createOrganizationFixture(pg);
+    const user = await createUserFixture(pg);
+    const project = await createProjectFixture(pg, { orgId: org.id });
+
+    const created = await createPersonalToken(pg.appPool, {
+      orgId: org.id,
+      userId: user.id,
+      name: 'scoped mcp token',
+      scopes: ['mcp:read'],
+      expiresAt: new Date(Date.now() + DAY_MS),
+      projectIds: [project.id],
+    });
+    expect(created.record.projectIds).toEqual([project.id]);
+
+    const resolved = await resolveTokenBySecret(pg.appPool, created.token.split('.')[1]!);
+    expect(resolved?.projectIds).toEqual([project.id]);
+  });
+
+  test('createPersonalToken rejects a project id from another organization', async () => {
+    const orgA = await createOrganizationFixture(pg);
+    const orgB = await createOrganizationFixture(pg);
+    const user = await createUserFixture(pg);
+    const projectB = await createProjectFixture(pg, { orgId: orgB.id });
+
+    await expect(
+      createPersonalToken(pg.appPool, {
+        orgId: orgA.id,
+        userId: user.id,
+        name: 'scoped',
+        scopes: ['mcp:read'],
+        expiresAt: new Date(Date.now() + DAY_MS),
+        projectIds: [projectB.id],
+      }),
+    ).rejects.toThrow(ProjectNotInOrgError);
+  });
+
   test('listPersonalTokens/listCiTokensForProject never include secret_hash and revokeToken is idempotent', async () => {
     const org = await createOrganizationFixture(pg);
     const user = await createUserFixture(pg);

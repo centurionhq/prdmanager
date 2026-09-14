@@ -107,6 +107,15 @@ export async function buildIsolationFixtures(app: BuiltApp, pg: PgTestDb): Promi
   const orgAOutsiderSessionCookie = await signIn(app, orgAOutsider.email);
   const orgBOwnerSessionCookie = await signIn(app, orgBOwner.email);
 
+  const orgAScopedToken = await createPersonalToken(pg.appPool, {
+    orgId: orgA.id,
+    userId: orgAOwner.id,
+    name: `scoped mcp token ${canary}`,
+    scopes: ['mcp:read', 'mcp:write'],
+    projectIds: [projectA2.id],
+    expiresAt: new Date(Date.now() + 30 * DAY_MS),
+  });
+
   const orgBToken = await createPersonalToken(pg.appPool, {
     orgId: orgB.id,
     userId: orgBOwner.id,
@@ -133,6 +142,7 @@ export async function buildIsolationFixtures(app: BuiltApp, pg: PgTestDb): Promi
     orgAOwnerSessionCookie,
     orgBOwnerSessionCookie,
     orgBOwnerBearerSecret: orgBToken.token,
+    orgAScopedToProjectA2BearerSecret: orgAScopedToken.token,
   };
 }
 

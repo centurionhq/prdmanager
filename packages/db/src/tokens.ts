@@ -167,6 +167,10 @@ export interface CreatePersonalTokenInput {
   name: string;
   scopes: readonly TokenScope[];
   expiresAt: Date;
+  /** Optional (SDD-010 "MCP remoto", WO-185: "prdm link sugiere tokens acotados con project_ids") — a
+   * personal token unscoped by default (`null`, every project the user can already see), or restricted
+   * to a fixed set of this org's own projects. Validated the same way a CI token's is. */
+  projectIds?: readonly string[];
   now?: Date;
 }
 
@@ -182,13 +186,14 @@ export async function createPersonalToken(pool: Pool, input: CreatePersonalToken
   assertTtlWithinMax(now, input.expiresAt);
   const generated = generateToken('personal');
   const record = await withTenantTx(pool, input.orgId, async (tx) => {
+    if (input.projectIds && input.projectIds.length > 0) await assertProjectIdsBelongToOrg(tx, input.projectIds);
     const [row] = await tx
       .insert(apiTokens)
       .values({
         orgId: input.orgId,
         kind: 'personal',
         userId: input.userId,
-        projectIds: null,
+        projectIds: input.projectIds && input.projectIds.length > 0 ? [...input.projectIds] : null,
         name: input.name,
         prefix: generated.prefix,
         secretHash: generated.secretHash,

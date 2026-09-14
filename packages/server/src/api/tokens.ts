@@ -13,7 +13,7 @@
  * `api_tokens`.
  */
 import { createPersonalTokenInputSchema } from '@prdm/contracts';
-import { createPersonalToken, createTenantDb, findTokenById, InvalidScopeError, listPersonalTokens, revokeToken, TokenTtlTooLongError, type TokenRecord } from '@prdm/db';
+import { createPersonalToken, createTenantDb, findTokenById, InvalidScopeError, listPersonalTokens, ProjectNotInOrgError, revokeToken, TokenTtlTooLongError, type TokenRecord } from '@prdm/db';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
@@ -44,6 +44,7 @@ function toTokenSummary(record: TokenRecord) {
     name: record.name,
     prefix: record.prefix,
     scopes: record.scopes,
+    projectIds: record.projectIds ?? [],
     expiresAt: record.expiresAt.toISOString(),
     lastUsedAt: record.lastUsedAt ? record.lastUsedAt.toISOString() : null,
     revokedAt: record.revokedAt ? record.revokedAt.toISOString() : null,
@@ -88,10 +89,11 @@ export function registerTokenRoutes(app: FastifyInstance, opts: RegisterTokenRou
         name: parsed.data.name,
         scopes: parsed.data.scopes,
         expiresAt: new Date(parsed.data.expiresAt),
+        projectIds: parsed.data.projectIds,
         now,
       });
     } catch (err) {
-      if (err instanceof InvalidScopeError || err instanceof TokenTtlTooLongError) throw new ValidationError(err.message);
+      if (err instanceof InvalidScopeError || err instanceof TokenTtlTooLongError || err instanceof ProjectNotInOrgError) throw new ValidationError(err.message);
       throw err;
     }
 

@@ -61,4 +61,9 @@ export interface IsolationFixtures {
   /** Owner of an entirely unrelated organization — the "org B" caller. */
   orgBOwnerSessionCookie: string;
   orgBOwnerBearerSecret: string;
+  /** A personal `mcp:read`/`mcp:write` token owned by org A's owner, but restricted via `project_ids`
+   * to `projectA2` only (SDD-010, WO-185: "token scoped to project_ids: [X] attempting project Y
+   * within the same org") — same caller, same org, same role; the only difference is the token's own
+   * `project_ids`. */
+  orgAScopedToProjectA2BearerSecret: string;
 }

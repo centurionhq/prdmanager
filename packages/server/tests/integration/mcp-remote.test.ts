@@ -220,4 +220,35 @@ describe('remote MCP endpoint (SDD-010, WO-184)', () => {
     await client.close();
     await app.close();
   });
+
+  test('a personal token restricted to a different project_ids set gets 404 for this project, with no canary leak (WO-185)', async () => {
+    const { app, baseUrl } = await startApp();
+    const canary = `CANARY-${Math.random().toString(36).slice(2)}`;
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    const org = await createOrganizationFixture(pg);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    const targetProject = await createProjectFixture(pg, { orgId: org.id, name: `Target ${canary}` });
+    const otherProject = await createProjectFixture(pg, { orgId: org.id });
+    const store = neo4j.forProject({ id: targetProject.graphProjectId, name: targetProject.name, root: `saas://project/${targetProject.id}` });
+    await store.clear();
+    const cookie = await signIn(app, owner.email);
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), cookie),
+      payload: { orgSlug: org.slug, name: 'scoped', scopes: ['mcp:read'], projectIds: [otherProject.id], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    const scopedSecret = created.json().secret as string;
+
+    const res = await fetch(`${baseUrl}/mcp/${targetProject.graphProjectId}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${scopedSecret}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+    });
+    expect(res.status).toBe(404);
+    expect(await res.text()).not.toContain(canary);
+
+    await app.close();
+  });
 });

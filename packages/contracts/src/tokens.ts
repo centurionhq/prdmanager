@@ -19,6 +19,10 @@ export const createPersonalTokenInputSchema = z.object({
   /** ISO 8601; validated server-side against "now + 90 days" with the server's own clock, never the
    * client's (SDD-006: "expiración obligatoria de hasta 90 días"). */
   expiresAt: z.iso.datetime(),
+  /** Optional (SDD-010 "MCP remoto": "prdm link sugiere tokens acotados con project_ids") — omitted
+   * means unscoped (every project the creating user can already see); server-validated to belong to
+   * the same organization, same as a CI token's. */
+  projectIds: z.array(z.string()).optional(),
 });
 export type CreatePersonalTokenInput = z.infer<typeof createPersonalTokenInputSchema>;
 

@@ -337,6 +337,12 @@ export function registerBaseIsolationRoutes(): void {
       credential: { kind: 'bearer', secret: fixtures.orgBOwnerBearerSecret },
       params: { path: { graphProjectId: fixtures.projectA1.graphProjectId }, body: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} } },
     }),
+    // A personal token restricted via `project_ids` to `projectA2` attempting `projectA1` — same org,
+    // same caller, same role; only the token's own `project_ids` differs (SDD-010, WO-185).
+    sameOrgOtherProject: (fixtures) => ({
+      credential: { kind: 'bearer', secret: fixtures.orgAScopedToProjectA2BearerSecret },
+      params: { path: { graphProjectId: fixtures.projectA1.graphProjectId }, body: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} } },
+    }),
   });
   registerIsolationProbe('GET', '/mcp/:graphProjectId', {
     skip: 'always answers 405 by hand before any tenant resolution runs — no 404 signal to probe',
