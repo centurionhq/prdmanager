@@ -17,6 +17,9 @@
   "files": [
     "dist"
   ],
+  "scripts": {
+    "bootstrap-superadmin": "tsx --conditions=@prdm/source src/cli/run-bootstrap-superadmin.ts"
+  },
   "dependencies": {
     "@fastify/rate-limit": "11.2.0",
     "@fastify/websocket": "11.3.0",

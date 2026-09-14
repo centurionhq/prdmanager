@@ -1,6 +1,7 @@
 import rateLimitPlugin, { type FastifyRateLimitStoreCtor } from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { Pool } from 'pg';
+import { registerAdminOrganizationRoutes } from './api/admin-organizations.js';
 import { registerHealthRoute } from './api/health.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
 import { buildAuth, type Auth } from './auth/build-auth.js';
@@ -68,6 +69,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       const rateLimiters = buildAuthRateLimiters(app);
       registerAuth(app, { auth, env, rateLimiters });
       registerOrganizationRoutes(app, { auth, pool, env });
+      registerAdminOrganizationRoutes(app, { auth, pool, mailer, env });
     });
   }
 

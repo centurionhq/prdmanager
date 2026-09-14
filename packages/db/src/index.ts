@@ -1,6 +1,7 @@
 export * from './audit-metadata.js';
 export * from './migrate.js';
 export * from './organizations.js';
+export * from './platform-admins.js';
 export * from './platform-audit.js';
 export * from './pool.js';
 export * from './repositories.js';
