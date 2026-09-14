@@ -1,9 +1,10 @@
 /**
- * `POST /api/app/admin/organizations` (SDD-006 §Autenticación, WO-101): superadmin-only, creates an
- * organization and invites its owner by email. Never gives the superadmin performing this any
- * membership in the new organization ("No tienen acceso implícito al contenido").
+ * `/api/app/admin/organizations` (SDD-006 §Autenticación, WO-101): superadmin-only. `POST` creates an
+ * organization and invites its owner by email, never giving the superadmin performing this any
+ * membership in the new organization ("No tienen acceso implícito al contenido"). `GET` (WO-120
+ * addition, for the `/admin` dashboard panel) lists every organization's id/slug/name only.
  */
-import { recordPlatformAuditLog } from '@prdm/db';
+import { listAllOrganizations, recordPlatformAuditLog } from '@prdm/db';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { z } from 'zod';
@@ -41,6 +42,15 @@ async function stripCreatorMembership(pool: Pool, organizationId: string, userId
 
 export function registerAdminOrganizationRoutes(app: FastifyInstance, opts: RegisterAdminOrganizationRoutesOptions): void {
   const { auth, pool, mailer, env } = opts;
+
+  // WO-120 addition: the `/admin` dashboard panel needs to list organizations it already created (name,
+  // slug, id only — never membership or project content, see `listAllOrganizations`'s own doc comment).
+  // Superadmin + 2FA gated exactly like the POST route below.
+  app.get('/api/app/admin/organizations', { config: { access: { kind: 'session' } } }, async (req) => {
+    await requireSuperadminSession(auth, pool, req, env.publicUrl);
+    const organizations = await listAllOrganizations(pool);
+    return { organizations };
+  });
 
   app.post('/api/app/admin/organizations', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireSuperadminSession(auth, pool, req, env.publicUrl);

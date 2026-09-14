@@ -69,6 +69,18 @@ export async function listOrganizationsForUser(pool: Pool, userId: string): Prom
   return rows.map((row) => ({ ...row, role: row.role as OrgRole }));
 }
 
+/** WO-120 addition: every organization's basic metadata (id/slug/name only — never membership or
+ * project content), for the superadmin `/admin` panel's organization list. Reads the `organization`
+ * table directly, exactly like `findOrganizationBySlug`/`findOrganizationById` already do — it's a
+ * better-auth table, "globales (sin RLS)" (SDD-006 §Modelo de datos), so this leaks nothing an RLS policy
+ * would otherwise gate. Superadmins have no implicit access to organization *content* (SDD-006
+ * §Autenticación); this is metadata about which organizations exist, the same shape the superadmin
+ * itself supplied when creating each one. */
+export async function listAllOrganizations(pool: Pool): Promise<OrganizationRecord[]> {
+  const db = connect(pool);
+  return db.select({ id: organization.id, slug: organization.slug, name: organization.name }).from(organization).orderBy(organization.name);
+}
+
 export async function findOrganizationBySlug(pool: Pool, slug: string): Promise<OrganizationRecord | null> {
   const db = connect(pool);
   const rows = await db.select({ id: organization.id, slug: organization.slug, name: organization.name }).from(organization).where(eq(organization.slug, slug));

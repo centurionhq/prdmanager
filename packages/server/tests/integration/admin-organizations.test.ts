@@ -199,4 +199,36 @@ describe('POST /api/app/admin/organizations (WO-101/WO-102)', () => {
 
     await app.close();
   });
+
+  test('GET lists organizations (id/slug/name only) and is gated the same as POST (WO-120)', async () => {
+    const mailer = new FakeMailer();
+    const app = buildServer({ env, pool: pg.appPool, mailer, logger: false });
+
+    const unauthenticated = await app.inject({ method: 'GET', url: '/api/app/admin/organizations', headers: AUTH_HOST });
+    expect(unauthenticated.statusCode).toBe(401);
+
+    const admin = await bootstrapAndSignInSuperadmin(app, 'root3@example.test');
+    const nonAdmin = await seedUser(env, pg.appPool, PASSWORD);
+    const nonAdminCookie = await signIn(app, nonAdmin.email);
+    const forbidden = await app.inject({ method: 'GET', url: '/api/app/admin/organizations', headers: { ...AUTH_HOST, cookie: nonAdminCookie } });
+    expect(forbidden.statusCode).toBe(403);
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/app/admin/organizations',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, admin.cookie),
+      payload: { name: 'Listed Org', slug: 'listed-org', ownerEmail: 'owner@example.test' },
+    });
+
+    const res = await app.inject({ method: 'GET', url: '/api/app/admin/organizations', headers: { ...AUTH_HOST, cookie: admin.cookie } });
+    expect(res.statusCode).toBe(200);
+    const { organizations } = res.json() as { organizations: Array<{ id: string; slug: string; name: string }> };
+    expect(organizations.some((org) => org.slug === 'listed-org' && org.name === 'Listed Org')).toBe(true);
+    for (const org of organizations) {
+      expect(org).not.toHaveProperty('members');
+      expect(org).not.toHaveProperty('role');
+    }
+
+    await app.close();
+  });
 });

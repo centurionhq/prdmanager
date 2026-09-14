@@ -54,6 +54,10 @@ export function registerBaseIsolationRoutes(): void {
     skip: 'creates a brand-new organization (superadmin-only) — not an existing tenant\'s resource',
   });
 
+  registerIsolationProbe('GET', '/api/app/admin/organizations', {
+    skip: 'superadmin-only, lists id/slug/name of every organization by design (WO-120) — not scoped to a caller\'s own tenant, so there is no "other org" to cross-tenant-probe',
+  });
+
   registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/invitations', {
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug } })),
   });
