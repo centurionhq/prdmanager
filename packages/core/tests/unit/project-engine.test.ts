@@ -12,12 +12,12 @@ function fakeStore(): GraphStore {
     },
     getNode: async () => null,
     search: async () => [],
-    branch: async () => ({ nodes: [], links: [] }),
-    fullGraph: async () => ({ nodes: [], links: [] }),
+    branch: async () => ({ nodes: [], edges: [] }),
+    fullGraph: async () => ({ nodes: [], edges: [] }),
     listWorkOrders: async () => [],
     workOrderContext: async () => null,
     metricsRaw: async () => ({ docs: [], workOrders: [] }) as never,
-  } as GraphStore;
+  };
 }
 
 let root = '';
