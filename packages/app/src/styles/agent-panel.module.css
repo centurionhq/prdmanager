@@ -1,0 +1,229 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  background: var(--color-bg-elevated-solid);
+}
+
+.error {
+  color: var(--color-status-error);
+  font-size: 0.85rem;
+}
+
+.thread {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 24rem;
+  overflow-y: auto;
+}
+
+.userBubble,
+.assistantBubble {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+.userBubble {
+  align-self: flex-end;
+  background: var(--color-bg-inset);
+}
+
+.assistantBubble {
+  align-self: flex-start;
+  background: var(--color-bg);
+}
+
+/* Explicit, non-impersonating attribution on every assistant message — the same honesty this app's
+   blame gutter already applies ("Agente (aceptado por X)") carried into the chat bubbles themselves. */
+.agentBadge {
+  align-self: flex-start;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.bubbleContent {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--color-fg);
+}
+
+.toolCall {
+  font-size: 0.75rem;
+  color: var(--color-fg-subtle);
+}
+
+.caret {
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--color-accent);
+  animation: agent-caret-blink 1s steps(1) infinite;
+}
+
+@keyframes agent-caret-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Belt-and-suspenders on top of @prdm/ui's own global `prefers-reduced-motion` rule (which already zeroes
+   every animation-duration): pins the caret fully visible instead of leaving it mid-blink-cycle. */
+@media (prefers-reduced-motion: reduce) {
+  .caret {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+.empty {
+  color: var(--color-fg-subtle);
+  font-size: 0.85rem;
+}
+
+.composer {
+  display: flex;
+  gap: 0.35rem;
+  align-items: flex-end;
+}
+
+.input {
+  flex: 1;
+  min-height: 2.5rem;
+  resize: vertical;
+  background: var(--color-bg-inset);
+  border: 1px solid var(--color-border);
+  border-radius: 0.3rem;
+  color: var(--color-fg);
+  padding: 0.4rem 0.5rem;
+  font: inherit;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.smallButton {
+  border: 1px solid var(--color-border);
+  border-radius: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  background: none;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.proposalCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.4rem;
+  padding: 0.5rem;
+  background: var(--color-bg);
+}
+
+.proposalHeader {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-fg);
+}
+
+.proposalStatus {
+  font-size: 0.75rem;
+  color: var(--color-fg-subtle);
+}
+
+.proposalDiff {
+  background: var(--color-bg-inset);
+  border: 1px solid var(--color-border);
+  border-radius: 0.35rem;
+  padding: 0.4rem;
+  font-size: 0.8rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.diffAdded {
+  color: var(--color-status-ok);
+}
+
+.diffRemoved {
+  color: var(--color-status-error);
+}
+
+.fieldsChange {
+  font-size: 0.8rem;
+  color: var(--color-fg-subtle);
+}
+
+.proposalActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* WCAG 2.5.5-friendly touch targets (44x44px minimum) on the two decisions that actually change
+   document state — every other button in this panel stays compact by this codebase's own convention. */
+.acceptButton,
+.rejectButton {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 0.35rem;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.acceptButton {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  border: none;
+}
+
+.acceptButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Quiet secondary action, deliberately never a destructive/red style — rejecting an AI suggestion is a
+   normal, low-stakes action (nothing is destroyed; the proposal stays visible, attributed and reversible
+   by simply asking again), not data loss. */
+.rejectButton {
+  background: transparent;
+  color: var(--color-fg);
+  border: 1px solid var(--color-border-strong);
+}
+
+.proposalApplied {
+  color: var(--color-status-ok);
+  font-size: 0.85rem;
+}

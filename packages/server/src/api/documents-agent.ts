@@ -64,6 +64,19 @@ interface ProposalRouteParams extends DocumentRouteParams {
   proposalId: string;
 }
 
+function toMessageSummary(message: AgentMessageRecord) {
+  return {
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    toolCalls: (message.toolCalls as LlmToolCall[] | null) ?? null,
+    toolCallId: message.toolCallId,
+    toolName: message.toolName,
+    model: message.model,
+    createdAt: message.createdAt.toISOString(),
+  };
+}
+
 function toProposalSummary(proposal: AgentProposalRecord) {
   return {
     id: proposal.id,
@@ -106,6 +119,34 @@ function sendSseEvent(raw: { write: (chunk: string) => void }, event: AgentLoopE
 export function registerDocumentAgentRoutes(app: FastifyInstance, opts: RegisterDocumentAgentRoutesOptions): void {
   const { auth, pool, env, neo4j, llmClient, model, hocuspocus, rateLimiter, clock = () => new Date() } = opts;
   const activeStreamUserIds = new Set<string>();
+
+  // WO-176: lets the chat panel restore the caller's own conversation (transcript + proposals) on mount,
+  // rather than losing it on every page refresh — same "private per document+owner" scope as the POST
+  // below, and the same use_agent gate (viewing your own agent conversation needs the same permission as
+  // starting one).
+  app.get<{ Params: DocumentRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/agent/conversation',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+      const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+      if (!can(subject, 'use_agent')) throw new ForbiddenError();
+
+      const tenantDb = createTenantDb(pool).forOrg(org.id);
+      const existing = await tenantDb.forProject(project.id).documents.findByDocId(req.params.docId);
+      if (!existing) throw new NotFoundError();
+
+      const conversation = await tenantDb.agent.conversations.findForDocumentAndOwner(existing.document.id, session.user.id);
+      if (!conversation) return { conversationId: null, messages: [], proposals: [] };
+
+      const [messages, proposals] = await Promise.all([
+        tenantDb.agent.messages.listForConversation(conversation.id),
+        tenantDb.agent.proposals.listForConversation(conversation.id),
+      ]);
+      return { conversationId: conversation.id, messages: messages.map(toMessageSummary), proposals: proposals.map(toProposalSummary) };
+    },
+  );
 
   app.post<{ Params: DocumentRouteParams; Body: unknown }>(
     '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/agent/messages',

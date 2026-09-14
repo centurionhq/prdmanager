@@ -145,6 +145,35 @@ describe('.../documents/:docId/agent/messages (WO-172)', () => {
     await app.close();
   });
 
+  test('GET .../agent/conversation restores the caller’s own transcript, and is empty before any message is sent', async () => {
+    const llmClient = createFakeLlmClient([[{ type: 'token', text: 'Hello, how can I help?' }, { type: 'done', finishReason: 'stop' }]]);
+    const app = buildApp(llmClient);
+    const { org, project, docId, editorACookie } = await setupOrgProjectAndDocument(app);
+
+    const before = await app.inject({ method: 'GET', url: sseUrl(org, project, docId).replace('/messages', '/conversation'), headers: { ...AUTH_HOST(), cookie: editorACookie } });
+    expect(before.statusCode).toBe(200);
+    expect(before.json()).toEqual({ conversationId: null, messages: [], proposals: [] });
+
+    await app.inject({
+      method: 'POST',
+      url: sseUrl(org, project, docId),
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), editorACookie),
+      payload: { message: 'hi there' },
+    });
+
+    const after = await app.inject({ method: 'GET', url: sseUrl(org, project, docId).replace('/messages', '/conversation'), headers: { ...AUTH_HOST(), cookie: editorACookie } });
+    expect(after.statusCode).toBe(200);
+    const body = after.json();
+    expect(body.conversationId).not.toBeNull();
+    expect(body.messages.map((m: { role: string; content: string }) => [m.role, m.content])).toEqual([
+      ['user', 'hi there'],
+      ['assistant', 'Hello, how can I help?'],
+    ]);
+    expect(body.proposals).toEqual([]);
+
+    await app.close();
+  });
+
   test('two different editors each get their own private conversation for the same document', async () => {
     const llmClient = createFakeLlmClient([
       [{ type: 'token', text: 'reply to A' }, { type: 'done', finishReason: 'stop' }],

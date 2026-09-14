@@ -77,7 +77,9 @@ function isMutating(method: string): boolean {
   return MUTATING_METHODS.has(method);
 }
 
-async function buildFetchInit(path: string, options: RequestOptions, includeCsrf: boolean): Promise<RequestInit> {
+/** Exported for `./agent.ts`'s streaming `fetch` call (WO-176), which can't go through {@link request}
+ * itself since that always reads the *whole* body as JSON — an SSE response is read incrementally. */
+export async function buildFetchInit(path: string, options: RequestOptions, includeCsrf: boolean): Promise<RequestInit> {
   const method = options.method ?? 'GET';
   const headers: Record<string, string> = { Accept: 'application/json' };
   let requestBody: string | undefined;

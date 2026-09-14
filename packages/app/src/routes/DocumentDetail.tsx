@@ -12,6 +12,7 @@ import { LoadingState } from '@prdm/ui';
 import { archiveDocument, generateWorkOrders, getDocument, getProject, getSession, listProjectMembers, publishDocument, requestDocumentReview } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { CloseFeatureAction } from './CloseFeatureAction.js';
+import { AgentPanel } from '../components/AgentPanel.js';
 import { CollabEditor } from '../components/CollabEditor.js';
 import { CommentsPanel } from '../components/CommentsPanel.js';
 import { VersionsPanel } from '../components/VersionsPanel.js';
@@ -190,6 +191,7 @@ export function DocumentDetail(): ReactElement {
         <CollabDocumentProvider documentName={formatCollabDocumentName(projectId, doc.id)} orgSlug={orgSlug} projectSlug={project} docId={doc.docId}>
           <FrontmatterForm kind={doc.kind} />
           <CollabEditor subject={subject} />
+          <AgentPanel subject={subject} />
           <CommentsPanel subject={subject} />
           <VersionsPanel subject={subject} />
           <ValidationPanel
