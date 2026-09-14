@@ -6,6 +6,7 @@ export * from './documents-repository.js';
 export * from './id-counters.js';
 export * from './invitations.js';
 export * from './migrate.js';
+export * from './oidc-jti-store.js';
 export * from './organizations.js';
 export * from './platform-admins.js';
 export * from './platform-audit.js';

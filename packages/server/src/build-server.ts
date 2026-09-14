@@ -3,8 +3,11 @@ import { join } from 'node:path';
 import rateLimitPlugin, { type FastifyRateLimitStoreCtor } from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import type { Neo4jGraphDatabase } from '@prdm/core';
+import { buildPgOidcJtiStore, type OidcJtiStore } from '@prdm/db';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import type { JWTVerifyGetKey } from 'jose';
 import type { Pool } from 'pg';
+import { createInMemoryOidcJtiStore, githubOidcRemoteJwks } from './auth/github-oidc.js';
 import { injectCspNonce } from './spa-html.js';
 import { installBearerAccessPreHandler } from './access/bearer-access-prehandler.js';
 import { installRouteAccessRegistry, type RouteRegistry } from './access/route-registry.js';
@@ -53,6 +56,11 @@ declare module 'fastify' {
     clock: () => Date;
     auth?: Auth;
     routeAccessRegistry: RouteRegistry;
+    /** GitHub Actions OIDC verification deps (SDD-010, WO-179): a real, network-backed JWKS resolver
+     * in production, a `createLocalJWKSet` built from a throwaway keypair in tests — see
+     * `./auth/github-oidc.js`'s module doc comment. Consumed by the code-reports baseline gate. */
+    githubOidcJwks: JWTVerifyGetKey;
+    oidcJtiStore: OidcJtiStore;
   }
 }
 
@@ -87,6 +95,14 @@ export interface BuildServerDeps {
   collabBatchScheduler?: CollabBatchScheduler;
   /** Test-only: see `./collab/register-collab-route.js`'s own `persistDebounce` doc comment. */
   collabPersistDebounce?: { debounce: number; maxDebounce: number };
+  /** Test-only: a `createLocalJWKSet` built from a throwaway keypair (SDD-010, WO-179) so a GitHub
+   * OIDC verification test never depends on the real network. Production leaves this unset (the real,
+   * network-backed `githubOidcRemoteJwks()`). */
+  githubOidcJwks?: JWTVerifyGetKey;
+  /** Test-only: an in-memory `OidcJtiStore` instead of `pool`-backed `buildPgOidcJtiStore` — only
+   * meaningful when `pool` is also omitted (a real `pool` always gets the real, persistent store, so a
+   * `jti` replay is actually caught the way SDD-010 requires in production and every DB-backed test). */
+  oidcJtiStore?: OidcJtiStore;
   /** SDD-009: the conversational agent's `/agent/messages` route (WO-172) is only ever registered when
    * this is provided — `main.ts` builds a real `DeepSeekClient` when `env.deepseek` is configured;
    * omitted (the default), the agent is entirely absent from the server, same as today. Every test that
@@ -114,6 +130,8 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
     collabBatchScheduler = realCollabBatchScheduler,
     collabPersistDebounce,
     llmClient,
+    githubOidcJwks = githubOidcRemoteJwks(),
+    oidcJtiStore,
   } = deps;
   // Fastify only derives `request.ip`/`request.hostname` from X-Forwarded-* headers when this is
   // set (SDD-006 §Autenticación): same PRDM_TRUST_PROXY gate as the /api/auth/* Host guard and,
@@ -122,6 +140,11 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
 
   app.decorate('env', env);
   app.decorate('clock', clock);
+  app.decorate('githubOidcJwks', githubOidcJwks);
+  // A real `pool` always gets the real, persistent store (SDD-010: a `jti` replay must be caught
+  // across process restarts and server instances) unless a test explicitly overrides it; no `pool`
+  // falls back to the in-process-only store purely so constructing a default never crashes.
+  app.decorate('oidcJtiStore', oidcJtiStore ?? (pool ? buildPgOidcJtiStore(pool) : createInMemoryOidcJtiStore()));
 
   // Installed before any route is registered (WO-110): `onRoute` only ever sees routes added *after*
   // it, so every single route on this instance — health check, /api/auth/* passthrough, every
