@@ -39,13 +39,16 @@ describe('propose_edit tool (SDD-009 §Diseño, WO-173)', () => {
     await pg.close();
   });
 
-  async function insertDocumentFixture(pool: Pool, overrides: { orgId: string; projectId: string }): Promise<{ id: string; docId: string }> {
+  async function insertDocumentFixture(
+    pool: Pool,
+    overrides: { orgId: string; projectId: string; origin?: string; workflowState?: string },
+  ): Promise<{ id: string; docId: string }> {
     const id = randomUUID();
     const docId = `PRD-${id.slice(0, 8)}`;
     await pool.query(
       `INSERT INTO "documents" (id, org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state)
-       VALUES ($1, $2, $3, $4, 'PRD', 'Test doc', 'docs/prd/PRD-001-test.md', 'collab', 'draft')`,
-      [id, overrides.orgId, overrides.projectId, docId],
+       VALUES ($1, $2, $3, $4, 'PRD', 'Test doc', 'docs/prd/PRD-001-test.md', $5, $6)`,
+      [id, overrides.orgId, overrides.projectId, docId, overrides.origin ?? 'collab', overrides.workflowState ?? 'draft'],
     );
     return { id, docId };
   }
@@ -63,10 +66,10 @@ describe('propose_edit tool (SDD-009 §Diseño, WO-173)', () => {
     );
   }
 
-  async function setup(body: string, fields: Record<string, string> = {}) {
+  async function setup(body: string, fields: Record<string, string> = {}, documentOverrides: { origin?: string; workflowState?: string } = {}) {
     const org = await createOrganizationFixture(pg);
     const project = await createProjectFixture(pg, { orgId: org.id });
-    const { id: documentId, docId } = await insertDocumentFixture(pg.ownerPool, { orgId: org.id, projectId: project.id });
+    const { id: documentId, docId } = await insertDocumentFixture(pg.ownerPool, { orgId: org.id, projectId: project.id, ...documentOverrides });
     await seedLiveDocument(org.id, documentId, body, fields);
     const user = await createUserFixture(pg);
     const projectRecord = await createTenantDb(pg.appPool).forOrg(org.id).projects.findById(project.id);
@@ -200,6 +203,29 @@ describe('propose_edit tool (SDD-009 §Diseño, WO-173)', () => {
     await expect(
       proposeEditTool.execute({ ...ctx, loadSubject: async () => ({}) }, { summary: 'x', edits: [{ expectedText: 'body text', replacement: 'y' }] }),
     ).rejects.toBeInstanceOf(AgentToolPermissionError);
+  });
+
+  test('still allows proposing an edit against an ordinary in_review document (WO-228 happy path)', async () => {
+    const { ctx } = await setup('body text', {}, { workflowState: 'in_review' });
+    const result = (await proposeEditTool.execute(ctx, {
+      summary: 'x',
+      edits: [{ expectedText: 'body text', replacement: 'y' }],
+    })) as { editCount: number };
+    expect(result.editCount).toBe(1);
+  });
+
+  test('rejects proposing an edit against an archived document (WO-228)', async () => {
+    const { ctx } = await setup('body text', {}, { workflowState: 'archived' });
+    await expect(
+      proposeEditTool.execute(ctx, { summary: 'x', edits: [{ expectedText: 'body text', replacement: 'y' }] }),
+    ).rejects.toMatchObject({ code: 'document_read_only' });
+  });
+
+  test('rejects proposing an edit against a generated-origin document (WO-228)', async () => {
+    const { ctx } = await setup('body text', {}, { origin: 'generated' });
+    await expect(
+      proposeEditTool.execute(ctx, { summary: 'x', edits: [{ expectedText: 'body text', replacement: 'y' }] }),
+    ).rejects.toMatchObject({ code: 'document_read_only' });
   });
 
   test('AgentToolError instances carry their own machine-readable code', async () => {

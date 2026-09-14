@@ -20,6 +20,12 @@
  * Frontmatter forbidden-field checks are re-run too, against the document's *current* fields, for the same
  * reason (a field could have become lifecycle-managed since the proposal was created).
  *
+ * WO-228 (security review #3, HIGH): the document's own forced-read-only freeze (archived, or `origin:
+ * 'generated'` — the exact same `isDocumentForcedReadOnly` predicate `authorizeCollabDocument` uses for
+ * human live editing, and `propose_edit`, WO-228, uses at creation time) is re-checked here too, at both
+ * points `findStaleReason` runs — a document that became archived/generated *after* the proposal was
+ * created but before it's accepted is treated exactly like a stale proposal: marked stale, never applied.
+ *
  * Applied in descending start-offset order within the scratch transaction so an earlier (in the array,
  * later in the text) edit's delete+insert never shifts the still-to-be-applied absolute offsets of an
  * edit earlier in the text — resolving every anchor's absolute position *before* mutating anything, then
@@ -41,6 +47,7 @@ import {
 import { forbiddenFieldInjectionIssues, type FieldValue } from '@prdm/core';
 import { createTenantDb, schema, withTenantTx, type AgentProposalRecord, type DocumentVersionRecord } from '@prdm/db';
 import type { ResolvedProposalEdit } from '../agent/tools/propose-edit.js';
+import { isDocumentForcedReadOnly, type ForcedReadOnlyDocumentFields } from './authorize-document.js';
 import { formatDocumentName } from './document-name.js';
 import { reconstructLiveYDoc } from './reconstruct-ydoc.js';
 import { captureDocumentVersion } from './versions.js';
@@ -70,9 +77,31 @@ function toAnchor(startBase64: string, endBase64: string): EncodedCommentAnchor 
   return { start: Buffer.from(startBase64, 'base64'), end: Buffer.from(endBase64, 'base64') };
 }
 
+/** WO-228: fetches just the two fields `isDocumentForcedReadOnly` needs, straight from the committed
+ * `documents` row (never derived from the Y.Doc — `origin`/`workflow_state` live in Postgres, not in the
+ * collaborative document itself) — `null` if the document row can't be found (an edge case outside this
+ * WO's scope; callers treat that the same as "not forced read-only" and let the rest of staleness
+ * validation run as before). Called twice, same as every other part of `findStaleReason`. */
+async function loadDocumentReadOnlyFlags(pool: Pool, orgId: string, documentId: string): Promise<ForcedReadOnlyDocumentFields | null> {
+  return withTenantTx(pool, orgId, async (tx) => {
+    const [row] = await tx.select({ origin: schema.documents.origin, workflowState: schema.documents.workflowState }).from(schema.documents).where(eq(schema.documents.id, documentId));
+    return row ?? null;
+  });
+}
+
 /** `null` (never throws) when re-validation finds nothing wrong — the one shared check between the
  * "should we mark stale" decision and the final safety net right before writing. */
-function findStaleReason(edits: readonly ResolvedProposalEdit[], currentFields: Record<string, FrontmatterValue>, proposal: AgentProposalRecord, liveDoc: Y.Doc): string | null {
+function findStaleReason(
+  edits: readonly ResolvedProposalEdit[],
+  currentFields: Record<string, FrontmatterValue>,
+  proposal: AgentProposalRecord,
+  liveDoc: Y.Doc,
+  documentFlags: ForcedReadOnlyDocumentFields | null,
+): string | null {
+  if (documentFlags && isDocumentForcedReadOnly(documentFlags)) {
+    return 'the document is now archived or generated and can no longer accept agent proposals';
+  }
+
   for (const edit of edits) {
     const { quotedText } = resolveCommentAnchor(liveDoc, toAnchor(edit.anchorStart, edit.anchorEnd));
     if (quotedText !== edit.expectedText) return `anchor for ${JSON.stringify(edit.expectedText)} no longer matches the current document`;
@@ -104,7 +133,8 @@ export async function acceptAgentProposal(pool: Pool, hocuspocus: Hocuspocus, in
     currentFields[key] = value;
   });
 
-  if (findStaleReason(edits, currentFields, proposal, liveDocSnapshot) !== null) {
+  const documentFlags = await loadDocumentReadOnlyFlags(pool, orgId, documentId);
+  if (findStaleReason(edits, currentFields, proposal, liveDocSnapshot, documentFlags) !== null) {
     await tenantDb.agent.proposals.markStale(proposalId);
     return { status: 'stale' };
   }
@@ -135,7 +165,8 @@ export async function acceptAgentProposal(pool: Pool, hocuspocus: Hocuspocus, in
     scratch.getMap<FrontmatterValue>(FRONTMATTER_ROOT).forEach((value, key) => {
       lastInstantFields[key] = value;
     });
-    const staleReason = findStaleReason(edits, lastInstantFields, proposal, scratch);
+    const lastInstantDocumentFlags = await loadDocumentReadOnlyFlags(pool, orgId, documentId);
+    const staleReason = findStaleReason(edits, lastInstantFields, proposal, scratch, lastInstantDocumentFlags);
     if (staleReason !== null) {
       scratch.destroy();
       // Already claimed above — revert rather than markStale (which would no-op: status is no longer

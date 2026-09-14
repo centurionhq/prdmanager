@@ -23,6 +23,21 @@ export interface CollabAuthorizationResult {
   readOnly: boolean;
 }
 
+export interface ForcedReadOnlyDocumentFields {
+  origin: string;
+  workflowState: string;
+}
+
+/** The single predicate for "this document is frozen against direct edits regardless of the caller's own
+ * permissions" — `origin: 'generated'` documents are produced by another process (never hand-edited) and
+ * `workflow_state: 'archived'` documents are past their editable lifecycle. Exported so every other
+ * enforcement point that must agree with human live-editing's own freeze (the agent's `propose_edit`,
+ * WO-173/WO-228, and proposal acceptance, WO-174/WO-228) reuses this exact condition instead of each
+ * re-deriving its own copy that could silently drift out of sync. */
+export function isDocumentForcedReadOnly(document: ForcedReadOnlyDocumentFields): boolean {
+  return document.origin === 'generated' || document.workflowState === 'archived';
+}
+
 /** `null` means "not allowed at all" (no `view` permission, or the document row itself can't be found
  * inside this org/project) — the caller maps that to whatever rejection its own hook produces. */
 export async function authorizeCollabDocument(pool: Pool, params: CollabAuthorizationParams): Promise<CollabAuthorizationResult | null> {
@@ -38,6 +53,5 @@ export async function authorizeCollabDocument(pool: Pool, params: CollabAuthoriz
   });
   if (!documentRow) return null;
 
-  const forcedReadOnly = documentRow.origin === 'generated' || documentRow.workflowState === 'archived';
-  return { readOnly: forcedReadOnly || !can(subject, 'edit_document') };
+  return { readOnly: isDocumentForcedReadOnly(documentRow) || !can(subject, 'edit_document') };
 }

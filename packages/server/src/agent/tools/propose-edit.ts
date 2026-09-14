@@ -6,12 +6,17 @@
  * overlapping edits and forbidden frontmatter changes, and stores everything as a `pending`
  * `agent_proposals` row for a human to accept or reject later (WO-174). The anchors are what let the
  * proposal survive concurrent edits elsewhere in the document until then.
+ *
+ * WO-228: also refuses to create a proposal at all against a document that's frozen against direct human
+ * editing too (archived, or `origin: 'generated'`) — see `../../collab/authorize-document.js`'s
+ * `isDocumentForcedReadOnly`, the single predicate shared with that enforcement point.
  */
 import { z } from 'zod';
 import { can } from '@prdm/contracts';
 import { assertValidFieldKeys, forbiddenFieldInjectionIssues, type FieldValue } from '@prdm/core';
 import { createCommentAnchor, projectDoc } from '@prdm/collab';
 import { createTenantDb } from '@prdm/db';
+import { isDocumentForcedReadOnly } from '../../collab/authorize-document.js';
 import { reconstructLiveYDoc } from '../../collab/reconstruct-ydoc.js';
 import { AgentToolError, AgentToolPermissionError, type AgentToolContext } from './context.js';
 import type { AgentTool } from './tool.js';
@@ -79,6 +84,14 @@ export const proposeEditTool: AgentTool<z.infer<typeof inputSchema>> = {
   async execute(ctx: AgentToolContext, input) {
     const subject = await ctx.loadSubject();
     if (!can(subject, 'use_agent')) throw new AgentToolPermissionError();
+
+    // WO-228 (security review #3, HIGH): mirrors `authorizeCollabDocument`'s own forced-read-only freeze
+    // for human live editing — a document a human can't touch directly (archived, or agent-generated
+    // `origin`) can't receive a proposal either. Reuses the exact same predicate so the two enforcement
+    // points can never drift apart.
+    if (isDocumentForcedReadOnly(ctx.document)) {
+      throw new AgentToolError('document_read_only', 'this document is archived or generated and cannot receive proposed edits');
+    }
 
     const { ydoc } = await reconstructLiveYDoc(ctx.pool, ctx.orgId, ctx.document.id);
     const projection = projectDoc(ydoc);

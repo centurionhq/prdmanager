@@ -245,6 +245,48 @@ describe('.../documents/:docId/agent/proposals/:proposalId/{accept,reject} (WO-1
     await app.close();
   });
 
+  test('accepting a proposal whose document became archived after it was created is rejected as stale, never applying (WO-228)', async () => {
+    const llmClient = proposeEditScript('quick brown fox', 'swift brown fox');
+    const app = buildApp(llmClient);
+    const { proposer, accepter, org, project } = await setupOrgAndProject();
+    const proposerCookie = await signIn(app, proposer.email);
+    const accepterCookie = await signIn(app, accepter.email);
+    const document = await createDocument(app, org, project, proposerCookie);
+    await seedLiveBody(org.id, document.id, INITIAL_BODY);
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${document.docId}/agent/messages`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), proposerCookie),
+      payload: { message: 'please improve the wording' },
+    });
+    const { rows } = await pg.ownerPool.query(`SELECT id FROM agent_proposals WHERE document_id = $1`, [document.id]);
+    const proposalId = rows[0].id as string;
+
+    // The document is archived after the proposal was created but before it's ever accepted — same freeze
+    // that already blocks a human from editing it directly (`authorize-document.ts`), and blocks
+    // `propose_edit` from creating a new proposal at all.
+    await pg.ownerPool.query(`UPDATE documents SET workflow_state = 'archived' WHERE id = $1`, [document.id]);
+
+    const acceptRes = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${document.docId}/agent/proposals/${proposalId}/accept`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), accepterCookie),
+    });
+    expect(acceptRes.statusCode).toBe(200);
+    expect(acceptRes.json().status).toBe('stale');
+
+    const { rows: after } = await pg.ownerPool.query(`SELECT status FROM agent_proposals WHERE id = $1`, [proposalId]);
+    expect(after[0].status).toBe('stale');
+
+    const { reconstructLiveYDoc } = await import('../../src/collab/reconstruct-ydoc.js');
+    const { ydoc } = await reconstructLiveYDoc(pg.appPool, org.id, document.id);
+    expect(ydoc.getText('body').toString()).toBe(INITIAL_BODY);
+    expect(ydoc.getText('body').toString()).not.toContain('swift brown fox');
+
+    await app.close();
+  });
+
   test('rejecting records who and when without ever touching the document', async () => {
     const llmClient = proposeEditScript('quick brown fox', 'swift brown fox');
     const app = buildApp(llmClient);
