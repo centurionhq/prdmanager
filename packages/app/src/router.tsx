@@ -4,6 +4,8 @@
 // separate `react-router-dom` dependency in this package.
 import { createBrowserRouter, type RouteObject } from 'react-router';
 import { AdminOrganizations } from './routes/AdminOrganizations.js';
+import { DocumentDetail } from './routes/DocumentDetail.js';
+import { DocumentsList } from './routes/DocumentsList.js';
 import { InviteAccept } from './routes/InviteAccept.js';
 import { Login } from './routes/Login.js';
 import { OrgMembersSettings } from './routes/OrgMembersSettings.js';
@@ -28,6 +30,8 @@ export const routes: RouteObject[] = [
       { index: true, element: <ProjectsDashboard /> },
       { path: 'settings/members', element: <OrgMembersSettings /> },
       { path: 'p/:projectSlug/settings', element: <ProjectSettings /> },
+      { path: 'p/:projectSlug/documents', element: <DocumentsList /> },
+      { path: 'p/:projectSlug/documents/:docId', element: <DocumentDetail /> },
     ],
   },
 ];

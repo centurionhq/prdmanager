@@ -4,7 +4,7 @@
  * organización heredan admin de proyecto") gates both the members section and the CI-tokens section.
  */
 import { useEffect, useState, type ReactElement } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { can, type OrganizationMember, type PermissionSubject, type ProjectMemberDto, type ProjectSummary } from '@prdm/contracts';
 import { LoadingState } from '@prdm/ui';
 import { getProject, getSession, listOrganizationMembers, listProjectMembers } from '../api/client.js';
@@ -63,6 +63,11 @@ export function ProjectSettings(): ReactElement {
     <div>
       <h1 className={formStyles.title}>{data.project.name}</h1>
       <p className={formStyles.subtitle}>{data.project.slug}</p>
+      <p>
+        <Link className={formStyles.link} to={`/o/${orgSlug}/p/${projectSlug}/documents`}>
+          Documentos
+        </Link>
+      </p>
       <ProjectMembersSection
         orgSlug={orgSlug}
         projectSlug={projectSlug}

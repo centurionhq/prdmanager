@@ -9,5 +9,6 @@ export * from './auth.js';
 export * from './organizations.js';
 export * from './invitations.js';
 export * from './projects.js';
+export * from './documents.js';
 export * from './tokens.js';
 export * from './admin.js';
