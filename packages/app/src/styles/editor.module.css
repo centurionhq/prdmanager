@@ -109,10 +109,9 @@
   outline-offset: 1px;
 }
 
+/* WO-216: positioning (fixed vs. absolute, top/left) is computed and applied inline by CodeMirror's
+   `showTooltip` mechanism (see collab/blame-gutter.ts) — this rule only supplies the visual chrome. */
 .editorContainer :global(.cm-blame-tooltip) {
-  position: absolute;
-  left: 100%;
-  top: 0;
   z-index: 10;
   background: var(--color-bg-elevated-solid);
   border: 1px solid var(--color-border-strong);

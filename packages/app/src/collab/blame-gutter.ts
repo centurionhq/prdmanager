@@ -8,8 +8,17 @@
  * Space both fire `click` on a `<button>` per the HTML spec, no custom key handling needed) with an
  * `aria-label` carrying the exact same information the visual tooltip shows, not just a `title` attribute
  * a screen reader would silently skip on focus.
+ *
+ * WO-216: the popup tooltip is rendered through CodeMirror's own `showTooltip` facet rather than a
+ * hand-rolled `position: absolute` span appended inside the marker button. The gutter lives inside
+ * `.cm-scroller` (a scrolling ancestor), and a tooltip absolutely positioned relative to the marker
+ * ended up with its `getBoundingClientRect()` hundreds of pixels away from the marker's actual on-screen
+ * position once the editor was scrolled. `showTooltip` mounts its DOM directly on `.cm-editor` with
+ * `position: fixed` (recomputed from the anchor's live coordinates on every scroll/resize), which sidesteps
+ * that class of bug entirely instead of patching the positioning math by hand.
  */
-import { EditorView, GutterMarker, gutter } from '@codemirror/view';
+import { EditorView, GutterMarker, gutter, showTooltip } from '@codemirror/view';
+import type { Tooltip } from '@codemirror/view';
 import { StateEffect, StateField } from '@codemirror/state';
 import type { BlameResult } from '@prdm/collab';
 
@@ -21,6 +30,38 @@ export const blameField = StateField.define<BlameResult | null>({
     for (const effect of tr.effects) if (effect.is(setBlame)) return effect.value;
     return value;
   },
+});
+
+/** WO-216: `null` closes the tooltip; a line number (0-indexed, matching `BlameResult`) opens it for
+ * that line. Dispatched by the marker's click handler, never by anything outside this module. */
+export const setBlameTooltip = StateEffect.define<number | null>();
+
+export const blameTooltipField = StateField.define<Tooltip | null>({
+  create: () => null,
+  update(tooltip, tr) {
+    for (const effect of tr.effects) {
+      if (!effect.is(setBlameTooltip)) continue;
+      if (effect.value === null) return null;
+      const blame = tr.state.field(blameField);
+      const attribution = blame?.lines[effect.value]?.attribution;
+      if (!attribution) return null;
+      const { full } = describeAttribution(attribution);
+      return {
+        pos: tr.state.doc.line(effect.value + 1).from,
+        above: false,
+        create: () => {
+          const dom = document.createElement('div');
+          dom.className = 'cm-blame-tooltip';
+          dom.setAttribute('role', 'tooltip');
+          dom.textContent = full;
+          return { dom };
+        },
+      };
+    }
+    if (tooltip && tr.docChanged) return { ...tooltip, pos: tr.changes.mapPos(tooltip.pos) };
+    return tooltip;
+  },
+  provide: (field) => showTooltip.from(field),
 });
 
 export function initial(name: string): string {
@@ -61,6 +102,8 @@ export function describeAttribution(attribution: NonNullable<BlameResult['lines'
 
 class BlameMarker extends GutterMarker {
   constructor(
+    private readonly view: EditorView,
+    private readonly lineNumber: number,
     private readonly short: string,
     private readonly full: string,
   ) {
@@ -68,7 +111,7 @@ class BlameMarker extends GutterMarker {
   }
 
   override eq(other: GutterMarker): boolean {
-    return other instanceof BlameMarker && other.short === this.short && other.full === this.full;
+    return other instanceof BlameMarker && other.lineNumber === this.lineNumber && other.short === this.short && other.full === this.full;
   }
 
   override toDOM(): Node {
@@ -80,16 +123,10 @@ class BlameMarker extends GutterMarker {
     button.title = this.full;
     button.addEventListener('click', (event) => {
       event.preventDefault();
-      const existing = button.querySelector('[role="tooltip"]');
-      if (existing) {
-        existing.remove();
-        return;
-      }
-      const tooltip = document.createElement('span');
-      tooltip.setAttribute('role', 'tooltip');
-      tooltip.className = 'cm-blame-tooltip';
-      tooltip.textContent = this.full;
-      button.appendChild(tooltip);
+      const current = this.view.state.field(blameTooltipField);
+      const linePos = this.view.state.doc.line(this.lineNumber + 1).from;
+      const isOpenForThisLine = current !== null && current.pos === linePos;
+      this.view.dispatch({ effects: setBlameTooltip.of(isOpenForThisLine ? null : this.lineNumber) });
     });
     return button;
   }
@@ -104,9 +141,14 @@ export const blameGutter = gutter({
     const attribution = blame.lines[lineNumber]?.attribution;
     if (!attribution) return null;
     const { short, full } = describeAttribution(attribution);
-    return new BlameMarker(short, full);
+    return new BlameMarker(view, lineNumber, short, full);
   },
   lineMarkerChange: (update) => update.state.field(blameField) !== update.startState.field(blameField),
 });
 
-export const blameGutterExtension = [blameField, blameGutter, EditorView.baseTheme({ '.cm-blame-marker': { cursor: 'pointer' } })];
+export const blameGutterExtension = [
+  blameField,
+  blameTooltipField,
+  blameGutter,
+  EditorView.baseTheme({ '.cm-blame-marker': { cursor: 'pointer' } }),
+];
