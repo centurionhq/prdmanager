@@ -5,8 +5,10 @@
 import { createBrowserRouter, type RouteObject } from 'react-router';
 import { InviteAccept } from './routes/InviteAccept.js';
 import { Login } from './routes/Login.js';
+import { OrgMembersSettings } from './routes/OrgMembersSettings.js';
 import { OrgShell } from './routes/OrgShell.js';
 import { ProjectsDashboard } from './routes/ProjectsDashboard.js';
+import { ProjectSettings } from './routes/ProjectSettings.js';
 import { ResetPassword } from './routes/ResetPassword.js';
 import { RootRedirect } from './routes/RootRedirect.js';
 
@@ -18,8 +20,11 @@ export const routes: RouteObject[] = [
   {
     path: '/o/:orgSlug',
     element: <OrgShell />,
-    // WO-118 adds "settings/members" and "p/:projectSlug/settings" as further children here.
-    children: [{ index: true, element: <ProjectsDashboard /> }],
+    children: [
+      { index: true, element: <ProjectsDashboard /> },
+      { path: 'settings/members', element: <OrgMembersSettings /> },
+      { path: 'p/:projectSlug/settings', element: <ProjectSettings /> },
+    ],
   },
 ];
 
