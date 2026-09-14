@@ -61,7 +61,9 @@ export function registerCsrfPlugins(app: FastifyInstance, env: ServerEnv): void 
  * guaranteed to exist by then.
  */
 export function registerCsrfEnforcement(app: FastifyInstance, env: ServerEnv): void {
-  app.get(CSRF_TOKEN_ROUTE, async (_req, reply) => ({ token: reply.generateCsrf() }));
+  // WO-110: issuing a CSRF token requires no session of its own (a signed-out visitor needs one before
+  // they can even sign in) — `public: true`.
+  app.get(CSRF_TOKEN_ROUTE, { config: { access: { public: true } } }, async (_req, reply) => ({ token: reply.generateCsrf() }));
 
   app.addHook('onRequest', async (req, reply) => {
     if (!isMutatingAppRequest(req)) return;

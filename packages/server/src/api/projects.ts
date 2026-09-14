@@ -95,7 +95,7 @@ export async function resolveVisibleProject(
 export function registerProjectRoutes(app: FastifyInstance, opts: RegisterProjectRoutesOptions): void {
   const { auth, pool, env } = opts;
 
-  app.get<{ Params: OrgRouteParams }>('/api/app/organizations/:orgSlug/projects', async (req) => {
+  app.get<{ Params: OrgRouteParams }>('/api/app/organizations/:orgSlug/projects', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     const tenantDb = createTenantDb(pool).forOrg(org.id);
@@ -105,7 +105,7 @@ export function registerProjectRoutes(app: FastifyInstance, opts: RegisterProjec
     return { projects: projects.map(toProjectSummary) };
   });
 
-  app.post<{ Params: OrgRouteParams }>('/api/app/organizations/:orgSlug/projects', async (req) => {
+  app.post<{ Params: OrgRouteParams }>('/api/app/organizations/:orgSlug/projects', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     // Creating a project is an org-wide action (there is no project yet to hold a project_members row
@@ -141,14 +141,14 @@ export function registerProjectRoutes(app: FastifyInstance, opts: RegisterProjec
     return { project: toProjectSummary(project) };
   });
 
-  app.get<{ Params: ProjectRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug', async (req) => {
+  app.get<{ Params: ProjectRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     const { project } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
     return { project: toProjectSummary(project) };
   });
 
-  app.patch<{ Params: ProjectRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/settings', async (req) => {
+  app.patch<{ Params: ProjectRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/settings', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
@@ -179,7 +179,7 @@ export function registerProjectRoutes(app: FastifyInstance, opts: RegisterProjec
     return { project: toProjectSummary(updated) };
   });
 
-  app.get<{ Params: ProjectRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/members', async (req) => {
+  app.get<{ Params: ProjectRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/members', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     const { project } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
@@ -188,7 +188,7 @@ export function registerProjectRoutes(app: FastifyInstance, opts: RegisterProjec
     return { members: members.map((m) => ({ userId: m.userId, email: m.email, name: m.name, role: m.role })) };
   });
 
-  app.post<{ Params: ProjectRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/members', async (req) => {
+  app.post<{ Params: ProjectRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/members', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
@@ -216,7 +216,7 @@ export function registerProjectRoutes(app: FastifyInstance, opts: RegisterProjec
     return { userId: member.userId, role: member.role };
   });
 
-  app.patch<{ Params: ProjectMemberRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/members/:userId', async (req) => {
+  app.patch<{ Params: ProjectMemberRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/members/:userId', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
@@ -247,7 +247,7 @@ export function registerProjectRoutes(app: FastifyInstance, opts: RegisterProjec
     return { userId: member.userId, role: member.role };
   });
 
-  app.delete<{ Params: ProjectMemberRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/members/:userId', async (req) => {
+  app.delete<{ Params: ProjectMemberRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/members/:userId', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);

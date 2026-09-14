@@ -54,7 +54,10 @@ function userAgentOf(req: FastifyRequest): string | undefined {
 export function registerCiTokenRoutes(app: FastifyInstance, opts: RegisterCiTokenRoutesOptions): void {
   const { auth, pool, env, clock } = opts;
 
-  app.get<{ Params: ProjectRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/ci-tokens', async (req) => {
+  app.get<{ Params: ProjectRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/ci-tokens',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
@@ -62,10 +65,12 @@ export function registerCiTokenRoutes(app: FastifyInstance, opts: RegisterCiToke
 
     const tokens = await listCiTokensForProject(pool, org.id, project.id);
     return { tokens: tokens.map(toTokenSummary) };
-  });
+    },
+  );
 
   app.post<{ Params: ProjectRouteParams; Body: Record<string, unknown> }>(
     '/api/app/organizations/:orgSlug/projects/:projectSlug/ci-tokens',
+    { config: { access: { kind: 'session' } } },
     async (req) => {
       const session = await requireAppSession(auth, req, env.publicUrl);
       const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
@@ -112,7 +117,10 @@ export function registerCiTokenRoutes(app: FastifyInstance, opts: RegisterCiToke
     },
   );
 
-  app.post<{ Params: CiTokenRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/ci-tokens/:tokenId/revoke', async (req) => {
+  app.post<{ Params: CiTokenRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/ci-tokens/:tokenId/revoke',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
@@ -136,5 +144,6 @@ export function registerCiTokenRoutes(app: FastifyInstance, opts: RegisterCiToke
       });
 
     return { tokenId: req.params.tokenId };
-  });
+    },
+  );
 }

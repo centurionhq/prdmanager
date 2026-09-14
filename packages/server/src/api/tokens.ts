@@ -63,7 +63,7 @@ function userAgentOf(req: FastifyRequest): string | undefined {
 export function registerTokenRoutes(app: FastifyInstance, opts: RegisterTokenRoutesOptions): void {
   const { auth, pool, env, clock } = opts;
 
-  app.get<{ Querystring: OrgSlugQuery }>('/api/app/tokens', async (req) => {
+  app.get<{ Querystring: OrgSlugQuery }>('/api/app/tokens', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, requireOrgSlug(req.query.orgSlug), session.user.id);
 
@@ -71,7 +71,7 @@ export function registerTokenRoutes(app: FastifyInstance, opts: RegisterTokenRou
     return { tokens: tokens.map(toTokenSummary) };
   });
 
-  app.post<{ Body: { orgSlug?: string } & Record<string, unknown> }>('/api/app/tokens', async (req) => {
+  app.post<{ Body: { orgSlug?: string } & Record<string, unknown> }>('/api/app/tokens', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const body = req.body ?? {};
     const org = await requireMemberOrg(pool, requireOrgSlug(body.orgSlug), session.user.id);
@@ -110,7 +110,10 @@ export function registerTokenRoutes(app: FastifyInstance, opts: RegisterTokenRou
     return { token: toTokenSummary(created.record), secret: created.token };
   });
 
-  app.post<{ Params: RevokeTokenParams; Querystring: OrgSlugQuery; Body: OrgSlugQuery }>('/api/app/tokens/:tokenId/revoke', async (req) => {
+  app.post<{ Params: RevokeTokenParams; Querystring: OrgSlugQuery; Body: OrgSlugQuery }>(
+    '/api/app/tokens/:tokenId/revoke',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const orgSlug = req.query.orgSlug ?? req.body?.orgSlug;
     const org = await requireMemberOrg(pool, requireOrgSlug(orgSlug), session.user.id);
@@ -132,5 +135,6 @@ export function registerTokenRoutes(app: FastifyInstance, opts: RegisterTokenRou
       });
 
     return { tokenId: req.params.tokenId };
-  });
+    },
+  );
 }

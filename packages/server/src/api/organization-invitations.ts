@@ -33,7 +33,7 @@ interface OrgInvitationRouteParams extends OrgRouteParams {
 export function registerOrganizationInvitationRoutes(app: FastifyInstance, opts: RegisterOrganizationInvitationRoutesOptions): void {
   const { auth, pool, mailer, env } = opts;
 
-  app.get<{ Params: OrgRouteParams }>('/api/app/organizations/:orgSlug/invitations', async (req) => {
+  app.get<{ Params: OrgRouteParams }>('/api/app/organizations/:orgSlug/invitations', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     if (org.role === 'member') throw new ForbiddenError();
@@ -48,7 +48,7 @@ export function registerOrganizationInvitationRoutes(app: FastifyInstance, opts:
     return { invitations: invitations.map((invitation) => ({ ...invitation, expiresAt: invitation.expiresAt.toISOString() })) };
   });
 
-  app.post<{ Params: OrgRouteParams }>('/api/app/organizations/:orgSlug/invitations', async (req) => {
+  app.post<{ Params: OrgRouteParams }>('/api/app/organizations/:orgSlug/invitations', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     if (org.role === 'member') throw new ForbiddenError();
@@ -89,7 +89,10 @@ export function registerOrganizationInvitationRoutes(app: FastifyInstance, opts:
     return { invitationId };
   });
 
-  app.post<{ Params: OrgInvitationRouteParams }>('/api/app/organizations/:orgSlug/invitations/:invitationId/revoke', async (req) => {
+  app.post<{ Params: OrgInvitationRouteParams }>(
+    '/api/app/organizations/:orgSlug/invitations/:invitationId/revoke',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     if (org.role === 'member') throw new ForbiddenError();
@@ -108,5 +111,6 @@ export function registerOrganizationInvitationRoutes(app: FastifyInstance, opts:
       });
 
     return { invitationId: req.params.invitationId };
-  });
+    },
+  );
 }

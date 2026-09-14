@@ -37,7 +37,8 @@ describe('buildServer', () => {
 
   test('maps an unexpected thrown error to a fixed 500, never leaking the real message', async () => {
     const app = buildServer({ env: TEST_ENV, logger: false });
-    app.get('/api/boom', async () => {
+    // WO-110: every route must declare config.access, test-only ones included.
+    app.get('/api/boom', { config: { access: { public: true } } }, async () => {
       throw new Error('postgres://prdm_app:secret@127.0.0.1:5432/prdm is unreachable');
     });
     const res = await app.inject({ method: 'GET', url: '/api/boom' });

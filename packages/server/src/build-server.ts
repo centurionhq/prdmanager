@@ -1,6 +1,8 @@
 import rateLimitPlugin, { type FastifyRateLimitStoreCtor } from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { Pool } from 'pg';
+import { installBearerAccessPreHandler } from './access/bearer-access-prehandler.js';
+import { installRouteAccessRegistry, type RouteRegistry } from './access/route-registry.js';
 import { registerAdminOrganizationRoutes } from './api/admin-organizations.js';
 import { registerCiTokenRoutes } from './api/ci-tokens.js';
 import { registerHealthRoute } from './api/health.js';
@@ -27,6 +29,7 @@ declare module 'fastify' {
     env: ServerEnv;
     clock: () => Date;
     auth?: Auth;
+    routeAccessRegistry: RouteRegistry;
   }
 }
 
@@ -64,6 +67,11 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
   app.decorate('env', env);
   app.decorate('clock', clock);
 
+  // Installed before any route is registered (WO-110): `onRoute` only ever sees routes added *after*
+  // it, so every single route on this instance — health check, /api/auth/* passthrough, every
+  // /api/app/* and /api/v1/* route alike — must declare `config.access` or registration itself throws.
+  app.decorate('routeAccessRegistry', installRouteAccessRegistry(app));
+
   // Unconditional (not gated behind `pool && mailer`): every response — health check, a bare 404,
   // /api/app/* alike — carries these (SDD-006 §Cabeceras).
   registerSecurityHeaders(app, env);
@@ -85,6 +93,10 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
     // and /api/auth/* route) until that's guaranteed.
     app.after((err) => {
       if (err) throw err;
+      // WO-110: one global preHandler enforces every `{ kind: 'bearer', scope }` route's scope (and the
+      // SDD-006 §Permisos token-kind table) — individual Bearer route handlers never call
+      // `requireBearerToken` themselves.
+      installBearerAccessPreHandler(app, { pool, clock, rateLimiter: buildBearerAuthRateLimiter(app) });
       const rateLimiters = buildAuthRateLimiters(app);
       registerAuth(app, { auth, env, rateLimiters });
       registerCsrfEnforcement(app, env);
@@ -95,7 +107,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
       registerTokenRoutes(app, { auth, pool, env, clock });
       registerCiTokenRoutes(app, { auth, pool, env, clock });
-      registerV1MeRoute(app, { pool, bearer: { pool, clock, rateLimiter: buildBearerAuthRateLimiter(app) } });
+      registerV1MeRoute(app, { pool });
     });
   }
 

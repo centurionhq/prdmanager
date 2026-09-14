@@ -42,7 +42,7 @@ async function stripCreatorMembership(pool: Pool, organizationId: string, userId
 export function registerAdminOrganizationRoutes(app: FastifyInstance, opts: RegisterAdminOrganizationRoutesOptions): void {
   const { auth, pool, mailer, env } = opts;
 
-  app.post('/api/app/admin/organizations', async (req) => {
+  app.post('/api/app/admin/organizations', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireSuperadminSession(auth, pool, req, env.publicUrl);
     const parsed = createOrganizationBodySchema.safeParse(req.body);
     if (!parsed.success) throw new ValidationError('invalid body');

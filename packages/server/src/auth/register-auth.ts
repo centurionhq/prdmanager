@@ -32,7 +32,9 @@ export function registerAuth(app: FastifyInstance, opts: RegisterAuthOptions): v
 
   app.all(
     `${AUTH_PREFIX}/*`,
-    { onRequest: createHostGuardHook(env) },
+    // WO-110: better-auth manages its own per-endpoint auth internally (the allowlist above is the
+    // only gate this server adds), so the whole catch-all is `public` from this registry's point of view.
+    { onRequest: createHostGuardHook(env), config: { access: { public: true } } },
     async (req, reply) => {
       const pathname = stripAuthPrefix(req.url);
       if (!isAllowedAuthPath(pathname)) {

@@ -47,13 +47,13 @@ function forwardSetCookie(reply: FastifyReply, headers: Headers): void {
 export function registerOrganizationRoutes(app: FastifyInstance, opts: RegisterOrganizationRoutesOptions): void {
   const { auth, pool, env } = opts;
 
-  app.get('/api/app/organizations', async (req) => {
+  app.get('/api/app/organizations', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const organizations = await listOrganizationsForUser(pool, session.user.id);
     return { organizations };
   });
 
-  app.post('/api/app/organizations/active', async (req, reply) => {
+  app.post('/api/app/organizations/active', { config: { access: { kind: 'session' } } }, async (req, reply) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const parsed = setActiveOrganizationInputSchema.safeParse(req.body);
     if (!parsed.success) throw new ValidationError('invalid body');
@@ -70,14 +70,14 @@ export function registerOrganizationRoutes(app: FastifyInstance, opts: RegisterO
     return { organizationId: parsed.data.organizationId };
   });
 
-  app.get<{ Params: OrgRouteParams }>('/api/app/organizations/:orgSlug/members', async (req) => {
+  app.get<{ Params: OrgRouteParams }>('/api/app/organizations/:orgSlug/members', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     const members = await listOrganizationMembers(pool, org.id);
     return { members };
   });
 
-  app.patch<{ Params: OrgMemberRouteParams }>('/api/app/organizations/:orgSlug/members/:userId', async (req) => {
+  app.patch<{ Params: OrgMemberRouteParams }>('/api/app/organizations/:orgSlug/members/:userId', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     if (org.role === 'member') throw new ForbiddenError();
@@ -108,7 +108,7 @@ export function registerOrganizationRoutes(app: FastifyInstance, opts: RegisterO
     return { userId: req.params.userId, role: parsed.data.role };
   });
 
-  app.delete<{ Params: OrgMemberRouteParams }>('/api/app/organizations/:orgSlug/members/:userId', async (req) => {
+  app.delete<{ Params: OrgMemberRouteParams }>('/api/app/organizations/:orgSlug/members/:userId', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     if (org.role === 'member') throw new ForbiddenError();

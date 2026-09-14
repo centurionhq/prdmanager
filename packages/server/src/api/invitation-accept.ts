@@ -40,7 +40,12 @@ interface AcceptInvitationParams {
 export function registerInvitationAcceptRoute(app: FastifyInstance, opts: RegisterInvitationAcceptRouteOptions): void {
   const { auth, pool, env, rateLimiter } = opts;
 
-  app.post<{ Params: AcceptInvitationParams }>('/api/app/invitations/:id/accept', async (req, reply) => {
+  app.post<{ Params: AcceptInvitationParams }>(
+    '/api/app/invitations/:id/accept',
+    // WO-110: authenticated by the invitation's own one-time secret (or an existing session, checked
+    // inside the handler), not by `requireAppSession` up front — `public` from this registry's point of view.
+    { config: { access: { public: true } } },
+    async (req, reply) => {
     const parsed = acceptInvitationInputSchema.safeParse(req.body);
     if (!parsed.success) throw new ValidationError('invalid body');
 
@@ -97,7 +102,8 @@ export function registerInvitationAcceptRoute(app: FastifyInstance, opts: Regist
       if (err instanceof InvitationNotFoundError) throw new NotFoundError();
       throw err;
     }
-  });
+    },
+  );
 }
 
 interface ResolvedInvitationLike {
