@@ -23,6 +23,7 @@ import { registerDocumentBlameRoute } from './api/documents-blame.js';
 import { registerDocumentPublishRoute } from './api/documents-publish.js';
 import { registerDocumentVersionRoutes } from './api/documents-versions.js';
 import { registerDocumentCommentRoutes } from './api/documents-comments.js';
+import { buildCommentRateLimiter } from './rate-limit/comment-rate-limits.js';
 import { createBlameCache } from './collab/blame.js';
 import { registerDriftRoutes } from './api/drift.js';
 import { registerGraphRoutes } from './api/graph.js';
@@ -209,7 +210,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerDocumentPublishRoute(app, { auth, pool, env, neo4j });
       registerDocumentBlameRoute(app, { auth, pool, env, blameCache: createBlameCache() });
       registerDocumentVersionRoutes(app, { auth, pool, env, hocuspocus });
-      registerDocumentCommentRoutes(app, { auth, pool, env, hocuspocus });
+      registerDocumentCommentRoutes(app, { auth, pool, env, hocuspocus, rateLimiter: buildCommentRateLimiter(app) });
       registerDriftRoutes(app, { auth, pool, env, neo4j });
       registerGraphRoutes(app, { auth, pool, env, neo4j });
       registerCloseFeatureRoutes(app, { auth, pool, env, neo4j });
