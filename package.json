@@ -20,6 +20,7 @@
     "server": "tsx --conditions=@prdm/source packages/server/src/main.ts",
     "web": "node packages/web/dist/server/server.js",
     "dev": "node packages/server/scripts/dev.mjs",
+    "db:migrate": "npm run db:migrate --workspace=@prdm/db",
     "test": "vitest run",
     "test:unit": "vitest run packages/core/tests/unit packages/cli/tests/unit packages/web/tests/unit packages/contracts/tests/unit packages/db/tests/unit packages/server/tests/unit packages/testkit/tests/unit packages/app/tests/unit packages/ui/tests/unit",
     "coverage": "vitest run --coverage"

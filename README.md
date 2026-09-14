@@ -392,6 +392,12 @@ npm run dev                                  # servidor + app en paralelo, un so
 
 Requiere `docker compose up -d postgres mailpit` y las variables de `.env` (`PRDM_PUBLIC_URL`, `BETTER_AUTH_SECRET`, `DATABASE_URL`, etc. — ver Variables de Entorno) ya exportadas en el entorno.
 
+En un Postgres nuevo (o tras cada migración agregada), aplicá el esquema una sola vez antes del primer `npm run dev` — el servidor no migra por sí solo, solo los harnesses de test lo hacen automáticamente:
+
+```bash
+npm run db:migrate                           # drizzle-kit migrate contra DATABASE_MIGRATION_URL
+```
+
 ## Skills (Claude Code)
 
 Plugin **`neo4j-skills@neo4j-skills-marketplace`** v1.0.1 (declarado en `.claude/settings.json`):
