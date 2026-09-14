@@ -20,6 +20,7 @@
     "packages/server/src/**/*.ts",
     "packages/server/tests/**/*.ts",
     "packages/testkit/src/**/*.ts",
+    "packages/testkit/tests/**/*.ts",
     "packages/web/src/**/*.ts",
     "packages/web/tests/unit/**/*.ts",
     "packages/web/tests/integration/**/*.ts",

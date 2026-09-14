@@ -20,7 +20,7 @@
     "server": "tsx --conditions=@prdm/source packages/server/src/main.ts",
     "web": "node packages/web/dist/server/server.js",
     "test": "vitest run",
-    "test:unit": "vitest run packages/core/tests/unit packages/cli/tests/unit packages/web/tests/unit packages/contracts/tests/unit packages/db/tests/unit packages/server/tests/unit",
+    "test:unit": "vitest run packages/core/tests/unit packages/cli/tests/unit packages/web/tests/unit packages/contracts/tests/unit packages/db/tests/unit packages/server/tests/unit packages/testkit/tests/unit",
     "coverage": "vitest run --coverage"
   },
   "devDependencies": {
