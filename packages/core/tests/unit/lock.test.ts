@@ -127,4 +127,15 @@ describe('withRepoLock', () => {
     );
     expect(new Set(seen).size).toBeGreaterThan(1);
   });
+
+  test('a heartbeat still in flight at release never resurrects the lock file (WO-207)', async () => {
+    root = makeTmpDir();
+    // A 1ms heartbeat against 0-2ms critical sections makes an in-flight heartbeat at release time near-certain
+    // across 300 sequential acquisitions; before the fix one of them renamed the lock back after release, so the
+    // next acquisition in this same process timed out on an orphaned lock owned by a live pid.
+    for (let i = 0; i < 300; i += 1) {
+      await withRepoLock(root, () => sleep(i % 3), { heartbeatMs: 1, staleAfterMs: 30_000, timeoutMs: 2_000 });
+      expect(existsSync(join(root, LOCK_PATH))).toBe(false);
+    }
+  });
 });

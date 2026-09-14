@@ -157,14 +157,20 @@ export async function withRepoLock<T>(root: string, fn: () => Promise<T>, option
     if (Date.now() > deadline) throw new Error(`another prdm process holds ${LOCK_PATH}; retry later or remove the lock if no prdm process is running`);
     await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
   }
+  // Heartbeats are chained and awaited before release: clearInterval does not cancel one already running, and an
+  // in-flight read-compare-replace finishing after release would rename our lock back over the next owner's.
+  let stopped = false;
+  let pendingHeartbeat: Promise<void> = Promise.resolve();
   const timer = setInterval(() => {
-    heartbeat(root, token).catch(() => undefined);
+    pendingHeartbeat = pendingHeartbeat.then(() => (stopped ? undefined : heartbeat(root, token))).catch(() => undefined);
   }, options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS);
   timer.unref();
   try {
     return await fn();
   } finally {
+    stopped = true;
     clearInterval(timer);
+    await pendingHeartbeat;
     await release(root, token);
   }
 }
