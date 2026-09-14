@@ -11,6 +11,7 @@ import { Login } from './routes/Login.js';
 import { OrgMembersSettings } from './routes/OrgMembersSettings.js';
 import { OrgShell } from './routes/OrgShell.js';
 import { PersonalTokensSettings } from './routes/PersonalTokensSettings.js';
+import { ProjectGraph } from './routes/ProjectGraph.js';
 import { ProjectsDashboard } from './routes/ProjectsDashboard.js';
 import { ProjectSettings } from './routes/ProjectSettings.js';
 import { ResetPassword } from './routes/ResetPassword.js';
@@ -32,6 +33,7 @@ export const routes: RouteObject[] = [
       { path: 'p/:projectSlug/settings', element: <ProjectSettings /> },
       { path: 'p/:projectSlug/documents', element: <DocumentsList /> },
       { path: 'p/:projectSlug/documents/:docId', element: <DocumentDetail /> },
+      { path: 'p/:projectSlug/graph', element: <ProjectGraph /> },
     ],
   },
 ];

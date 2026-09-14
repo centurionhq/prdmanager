@@ -13,6 +13,7 @@ import { registerOrganizationInvitationRoutes } from './api/organization-invitat
 import { registerDocumentRoutes } from './api/documents.js';
 import { registerDocumentPublishRoute } from './api/documents-publish.js';
 import { registerDriftRoutes } from './api/drift.js';
+import { registerGraphRoutes } from './api/graph.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
 import { registerProjectRoutes } from './api/projects.js';
 import { registerTokenRoutes } from './api/tokens.js';
@@ -154,6 +155,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerDocumentRoutes(app, { auth, pool, env });
       registerDocumentPublishRoute(app, { auth, pool, env, neo4j });
       registerDriftRoutes(app, { auth, pool, env, neo4j });
+      registerGraphRoutes(app, { auth, pool, env, neo4j });
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
       registerTokenRoutes(app, { auth, pool, env, clock });
       registerCiTokenRoutes(app, { auth, pool, env, clock });

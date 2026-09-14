@@ -67,6 +67,10 @@ export function ProjectSettings(): ReactElement {
         <Link className={formStyles.link} to={`/o/${orgSlug}/p/${projectSlug}/documents`}>
           Documentos
         </Link>
+        {' · '}
+        <Link className={formStyles.link} to={`/o/${orgSlug}/p/${projectSlug}/graph`}>
+          Grafo
+        </Link>
       </p>
       <ProjectMembersSection
         orgSlug={orgSlug}

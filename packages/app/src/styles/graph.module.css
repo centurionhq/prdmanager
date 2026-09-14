@@ -1,0 +1,31 @@
+/* Graph/drift view layout (SDD-007 "PgProjectEngine", WO-142) — same grid shape as
+   packages/web/src/client/App.module.css's ExplorerShell, built from @prdm/ui's tokens.css. */
+
+.shell {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 300px;
+  gap: var(--space-sm);
+  min-height: 480px;
+}
+
+@media (max-width: 980px) {
+  .grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: min(60vh, 480px);
+  }
+}
+
+.ackForm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.ackForm input {
+  min-width: 12rem;
+}

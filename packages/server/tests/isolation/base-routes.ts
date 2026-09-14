@@ -169,6 +169,31 @@ export function registerBaseIsolationRoutes(): void {
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug }, body: { target: 'all' } })),
   });
 
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/graph/full', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+  });
+
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/graph/tree', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+  });
+
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/graph/node/:nodeId', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, nodeId: 'PRD-001' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, nodeId: 'PRD-001' } })),
+  });
+
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/graph/work-orders', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+  });
+
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/drift', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+  });
+
   registerIsolationProbe('POST', '/api/app/invitations/:id/accept', {
     skip: 'public (SDD-006: authenticated by the invitation\'s own one-time secret, not by org/project membership)',
   });
