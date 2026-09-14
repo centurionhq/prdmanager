@@ -10,6 +10,7 @@ import { organization } from 'better-auth/plugins/organization';
 import { twoFactor } from 'better-auth/plugins/two-factor';
 import { connect, schema } from '@prdm/db';
 import type { Pool } from 'pg';
+import type { CollabRevocationHub } from '../collab/revocation.js';
 import { buildResetPasswordEmail } from '../email/reset-password-email.js';
 import type { ServerEnv } from '../env.js';
 import type { Mailer } from '../mailer.js';
@@ -32,6 +33,11 @@ export interface BuildAuthDeps {
   mailer: Mailer;
   /** Reserved for session/verification fixed-clock testing in a later WO; unused by better-auth's own API today. */
   clock?: () => Date;
+  /** Security review #2 (MEDIUM, WO-220): wired to `databaseHooks.session.delete.after` below so a
+   * `/collab` connection closes the instant its session is revoked — not just at the 60s
+   * `./collab/revalidate.js` safety-net poll. Optional so every existing test that builds an `Auth`
+   * without caring about `/collab` (most of `auth-mount.test.ts`, etc.) keeps working unchanged. */
+  collabRevocationHub?: CollabRevocationHub;
 }
 
 /** `/change-password`'s own `revokeOtherSessions` flag is client-controlled and optional; SDD-006
@@ -75,7 +81,7 @@ function hostPrefixedCookies(): Record<string, { name: string; attributes: Recor
 }
 
 export function buildAuth(deps: BuildAuthDeps) {
-  const { env, pool, mailer } = deps;
+  const { env, pool, mailer, collabRevocationHub } = deps;
   const db = connect(pool);
   const database = drizzleAdapter(db, {
     provider: 'pg',
@@ -125,6 +131,28 @@ export function buildAuth(deps: BuildAuthDeps) {
     },
     plugins: [organization(ORG_OPTIONS), twoFactor()],
     hooks: { before: beforeHook },
+    // Security review #2 (MEDIUM, WO-220): confirmed against the installed better-auth 1.7.4 source
+    // (`db/internal-adapter.mjs`/`db/with-hooks.mjs`) that every session-ending path this server cares
+    // about — `/sign-out`, `/revoke-session`, `/revoke-other-sessions`, and `/change-password` (which
+    // calls `deleteUserSessions` because this module's own `beforeHook` forces `revokeOtherSessions:
+    // true`) — funnels through `internalAdapter.deleteSession`/`deleteSessions`/`deleteUserSessions`,
+    // each of which runs `deleteWithHooks`/`deleteManyWithHooks` and therefore fires this exact
+    // `databaseHooks.session.delete.after` hook once per deleted row, after the delete has committed.
+    // One hook this way covers both SDD-008 triggers ("revocar sesión" and "cambiar la contraseña") with
+    // the same call the instant-revocation call sites in `../api/projects.js`/`../api/documents.js`
+    // already use — `revokeUser` closes every `/collab` connection this user holds anywhere, matching
+    // this hub method's own doc comment, which already anticipated exactly this wiring.
+    databaseHooks: collabRevocationHub
+      ? {
+          session: {
+            delete: {
+              after: async (session) => {
+                collabRevocationHub.revokeUser(session.userId);
+              },
+            },
+          },
+        }
+      : undefined,
     advanced: env.nodeEnv === 'production' ? { useSecureCookies: false, cookies: hostPrefixedCookies() } : {},
     logger: { disabled: env.nodeEnv === 'test' },
   });

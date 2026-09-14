@@ -167,7 +167,11 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
   }
 
   if (pool && mailer) {
-    const auth = buildAuth({ env, pool, mailer, clock });
+    // Created before `buildAuth` (WO-220) so its `databaseHooks.session.delete.after` hook can call
+    // `revokeUser` the instant better-auth deletes a session row — `attach()` (giving it the live
+    // `Hocuspocus` instance) still happens later, once `registerCollabRoute` constructs one.
+    const collabRevocationHub: CollabRevocationHub = createCollabRevocationHub();
+    const auth = buildAuth({ env, pool, mailer, clock, collabRevocationHub });
     app.decorate('auth', auth);
     // `global: false`: no route is rate-limited unless it opts in explicitly (register-auth.ts does,
     // per-path, via the exported keyed helper) — this plugin only ever supplies `app.createRateLimit`.
@@ -193,7 +197,6 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerOrganizationRoutes(app, { auth, pool, env });
       registerAdminOrganizationRoutes(app, { auth, pool, mailer, env });
       registerOrganizationInvitationRoutes(app, { auth, pool, mailer, env });
-      const collabRevocationHub: CollabRevocationHub = createCollabRevocationHub();
       registerProjectRoutes(app, { auth, pool, env, collabRevocationHub });
       registerDocumentRoutes(app, { auth, pool, env, collabRevocationHub });
       const hocuspocus = registerCollabRoute(app, {
