@@ -3,22 +3,24 @@
 // against `node_modules/react-router`'s own `dist/production/index.d.ts` rather than assumed) — there is no
 // separate `react-router-dom` dependency in this package.
 import { createBrowserRouter, type RouteObject } from 'react-router';
-import type { ReactElement } from 'react';
 import { InviteAccept } from './routes/InviteAccept.js';
 import { Login } from './routes/Login.js';
+import { OrgShell } from './routes/OrgShell.js';
+import { ProjectsDashboard } from './routes/ProjectsDashboard.js';
 import { ResetPassword } from './routes/ResetPassword.js';
-
-/** Placeholder for `/` — WO-117 replaces this with the org switcher / projects dashboard (SDD-006
- * "Dashboard (shell)"). */
-function Root(): ReactElement {
-  return <p>prdm</p>;
-}
+import { RootRedirect } from './routes/RootRedirect.js';
 
 export const routes: RouteObject[] = [
-  { path: '/', element: <Root /> },
+  { path: '/', element: <RootRedirect /> },
   { path: '/login', element: <Login /> },
   { path: '/reset-password', element: <ResetPassword /> },
   { path: '/invite/:id', element: <InviteAccept /> },
+  {
+    path: '/o/:orgSlug',
+    element: <OrgShell />,
+    // WO-118 adds "settings/members" and "p/:projectSlug/settings" as further children here.
+    children: [{ index: true, element: <ProjectsDashboard /> }],
+  },
 ];
 
 export const router = createBrowserRouter(routes);

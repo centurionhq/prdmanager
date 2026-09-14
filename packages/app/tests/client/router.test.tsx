@@ -1,15 +1,23 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
-import { RouterProvider, createMemoryRouter } from 'react-router';
+import { createMemoryRouter, RouterProvider } from 'react-router';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as client from '../../src/api/client.js';
 import { routes } from '../../src/router';
 
-/** WO-112 smoke test: the placeholder `/` route renders "prdm" — real screens land in WO-116+. Uses
- * `createMemoryRouter` (not the real `createBrowserRouter` the app boots with) so this never touches `window.history`. */
+/** WO-117: "/" no longer renders a static placeholder — it's `RootRedirect`, which sends a signed-out
+ * visitor to `/login` (this repo's actual entry point once a session exists is `/o/:orgSlug`, exercised by
+ * `RootRedirect.test.tsx` and `OrgShell.test.tsx`). This smoke test only proves the route tree itself wires
+ * up and reaches a real screen. */
 describe('app router', () => {
-  it('renders the "prdm" placeholder at "/"', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('redirects "/" to "/login" for a signed-out visitor', async () => {
+    vi.spyOn(client, 'getSession').mockResolvedValue(null);
     const router = createMemoryRouter(routes, { initialEntries: ['/'] });
     render(<RouterProvider router={router} />);
 
-    expect(screen.getByText('prdm')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeTruthy();
   });
 });

@@ -2,12 +2,14 @@
 id: "WO-117"
 type: "WO"
 title: "Selector de organización y dashboard de proyectos con aviso de procesamiento por DeepSeek al crear la organización, con tests"
-status: "pending"
+status: "in_progress"
 created_at: "2026-09-13"
 implements: ["SDD-006"]
 impacts_paths: ["packages/contracts/src/**","packages/contracts/tests/**","packages/contracts/*.json","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/db/*.json","packages/db/*.config.ts","packages/server/src/**","packages/server/tests/**","packages/server/scripts/**","packages/server/*.json","packages/server/Docker[f]ile","packages/server/Dockerfile.dockerignor[e]","packages/app/src/**","packages/app/tests/**","packages/app/*.json","packages/app/*.config.ts","packages/app/index.htm[l]","packages/ui/src/**","packages/ui/tests/**","packages/ui/*.json","packages/web/src/**","packages/web/tests/**","packages/web/package.json","packages/web/tsconfig*.json","packages/web/vite.config.ts","packages/testkit/src/**","packages/testkit/package.json","docker/**","docker-compose.yml","package.json","package-lock.json","tsconfig.json","tsconfig.base.json","tsconfig.test.json","vitest.config.ts",".env.example",".gitignore","README.md",".github/workflows/prdm-sync.yml"]
 source_task: "7728db1f45ec4f69"
 tags: ["saas","tenancy","auth","rbac","dashboard"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-14T05:32:09.594Z"
 ---
 
 ## Objetivo
