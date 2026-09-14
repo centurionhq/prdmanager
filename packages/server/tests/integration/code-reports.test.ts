@@ -50,7 +50,7 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports (WO-180)', () => {
       payload: { name: 'ci-pipeline', scopes: ['reports:write'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
     });
     const secret = created.json().secret as string;
-    return { org, project, secret };
+    return { org, project, secret, ownerCookie: cookie };
   }
 
   function baseReport(overrides: Record<string, unknown> = {}) {
@@ -177,6 +177,37 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports (WO-180)', () => {
 
     const { rows } = await pg.ownerPool.query(`SELECT count(*)::int AS count FROM "code_reports" WHERE idempotency_key = 'race-key'`);
     expect(rows[0].count).toBe(1);
+
+    await app.close();
+  });
+
+  test('a preview report records its commits with trust preview; a personal (non-CI) token can never make one trust baseline (WO-182)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { org, project, ownerCookie } = await seedOwnerAndCiToken(app);
+
+    // A personal token (never eligible for reports:baseline at all — see ALLOWED_SCOPES_BY_KIND) is
+    // enough on its own to prove the point: even a well-formed report from it can only ever be preview.
+    const personalToken = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, ownerCookie),
+      payload: { orgSlug: org.slug, name: 'dev token', scopes: ['reports:write'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    const personalSecret = personalToken.json().secret as string;
+    const sha = 'f'.repeat(40);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${personalSecret}`, 'idempotency-key': 'personal-key' },
+      payload: baseReport({ commits: [{ sha, author: 'Mallory', date: '2026-09-14T00:00:00.000Z', subject: 'claims to be official', refs: [], files: [] }] }),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().mode).toBe('preview');
+
+    const { rows } = await pg.ownerPool.query(`SELECT trust FROM "commits" WHERE project_id = $1 AND sha = $2`, [project.id, sha]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].trust).toBe('preview');
 
     await app.close();
   });

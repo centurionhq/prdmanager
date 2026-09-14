@@ -7,11 +7,14 @@
  *
  * Mode is decided by `../engine/baseline-gate.js`'s `evaluateBaselineGate` (WO-181): almost every
  * ineligibility reason falls silently to **preview** (a pure `detectDrift`, via the
- * `codeReportToDriftInput` adapter, against the currently stored baseline — no writes at all); only a
- * `head_sha` regression without an audited admin override is a loud, distinct `409
- * force_push_requires_admin_override`. A **baseline** report additionally upserts `commits` (trust
- * `baseline`), advances `project_code_state.latest_baseline_head_sha`/`impacts_hashes`, and runs
- * `PgProjectEngine.refresh()` — official drift, WO updates, graph projection.
+ * `codeReportToDriftInput` adapter, against the currently stored baseline — no baseline/WO/graph writes
+ * at all); only a `head_sha` regression without an audited admin override is a loud, distinct `409
+ * force_push_requires_admin_override`. Every report, preview or baseline, upserts its `commits[]` into
+ * the shared ledger (WO-182) with `trust` set to its own `mode` — never from anything the request body
+ * claims — so WO-183's policy-docs endpoint can evaluate policy at a commit's `first_seen_at` even
+ * before it's ever part of an official baseline. Only a **baseline** report additionally advances
+ * `project_code_state.latest_baseline_head_sha`/`impacts_hashes` and runs `PgProjectEngine.refresh()` —
+ * official drift, WO updates, graph projection.
  *
  * A stale `docs_graph_version` (the client computed `governed[]` against an older `graph_version` than
  * the project's current one) is rejected with `409 docs_outdated` *before* touching the idempotency
@@ -157,15 +160,23 @@ export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCod
           hasBlockingIssues: drift.issues.some((issue) => issue.severity === 'error'),
         };
 
+        // Every report — preview or baseline — records the commits it names into the shared `commits`
+        // ledger (WO-182): `trust` always comes from `mode`, which this route alone computed from the
+        // caller's already-verified scope+OIDC decision above, never from anything the request body
+        // itself claims. This is what lets WO-183's policy-docs endpoint evaluate a sha's first_seen_at
+        // even for a commit that was only ever reported as a preview. `upsertReportedCommits`'s own
+        // `trust: 'preview'` write path can never downgrade or overwrite an already-baseline row (see
+        // its module doc comment) — the "commit falsificado por un developer" case SDD-010 calls out.
+        await upsertReportedCommits(pool, {
+          projectId: resolved.projectId,
+          orgId: resolved.orgId,
+          tokenId: token.tokenId,
+          trust: mode,
+          branch: report.branch,
+          commits: report.commits,
+        });
+
         if (mode === 'baseline') {
-          await upsertReportedCommits(pool, {
-            projectId: resolved.projectId,
-            orgId: resolved.orgId,
-            tokenId: token.tokenId,
-            trust: 'baseline',
-            branch: report.branch,
-            commits: report.commits,
-          });
           await recordBaselineHead(pool, {
             projectId: resolved.projectId,
             orgId: resolved.orgId,
