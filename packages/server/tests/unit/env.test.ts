@@ -34,8 +34,22 @@ describe('resolveServerEnv', () => {
       },
       smtp: { host: '127.0.0.1', port: 1025, secure: false, from: 'prdm <no-reply@example.test>' },
       deepseek: undefined,
+      agentQuotas: { dailyTokensPerOrg: 200_000, dailyTokensGlobal: 2_000_000, rpmPerUser: 10 },
       neo4j: { uri: 'neo4j://127.0.0.1:7687', username: 'neo4j', password: 'test-password', database: 'neo4j' },
     });
+  });
+
+  test('agent quotas are configurable and default to the SDD-009 §Seguridad y costo values', () => {
+    expect(resolveServerEnv(VALID_RAW_ENV).agentQuotas).toEqual({ dailyTokensPerOrg: 200_000, dailyTokensGlobal: 2_000_000, rpmPerUser: 10 });
+    expect(
+      resolveServerEnv({
+        ...VALID_RAW_ENV,
+        PRDM_AGENT_DAILY_TOKENS_PER_ORG: '1000',
+        PRDM_AGENT_DAILY_TOKENS_GLOBAL: '5000',
+        PRDM_AGENT_RPM_PER_USER: '3',
+      }).agentQuotas,
+    ).toEqual({ dailyTokensPerOrg: 1000, dailyTokensGlobal: 5000, rpmPerUser: 3 });
+    expect(() => resolveServerEnv({ ...VALID_RAW_ENV, PRDM_AGENT_RPM_PER_USER: '0' })).toThrow(/PRDM_AGENT_RPM_PER_USER/);
   });
 
   test('passes through NODE_ENV production and test, defaulting anything else to development', () => {
@@ -104,7 +118,11 @@ describe('resolveServerEnv', () => {
     expect(resolveServerEnv({ ...VALID_RAW_ENV, DEEPSEEK_API_KEY: 'sk-test' }).deepseek).toEqual({
       apiKey: 'sk-test',
       baseUrl: undefined,
+      model: undefined,
     });
+    expect(resolveServerEnv({ ...VALID_RAW_ENV, DEEPSEEK_API_KEY: 'sk-test', DEEPSEEK_MODEL: 'deepseek-v4-flash' }).deepseek?.model).toBe(
+      'deepseek-v4-flash',
+    );
   });
 
   test('collects every failing field into a single ServerEnvError message', () => {

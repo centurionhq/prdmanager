@@ -129,6 +129,13 @@ const rawServerEnvSchema = z.object({
   SMTP_SECURE: z.enum(['0', '1']).optional().default('0').transform((value) => value === '1'),
   DEEPSEEK_API_KEY: z.string().min(1).optional(),
   DEEPSEEK_BASE_URL: z.string().url().optional(),
+  DEEPSEEK_MODEL: z.string().min(1).optional(),
+  // SDD-009 §Seguridad y costo: per-organization/global daily token quotas and per-user rate limit for
+  // the agent (WO-175) — all optional with SDD-documented-shape defaults so existing deployments/tests
+  // that never configure the agent keep working unchanged.
+  PRDM_AGENT_DAILY_TOKENS_PER_ORG: positiveIntegerSchema(200_000, 'PRDM_AGENT_DAILY_TOKENS_PER_ORG'),
+  PRDM_AGENT_DAILY_TOKENS_GLOBAL: positiveIntegerSchema(2_000_000, 'PRDM_AGENT_DAILY_TOKENS_GLOBAL'),
+  PRDM_AGENT_RPM_PER_USER: positiveIntegerSchema(10, 'PRDM_AGENT_RPM_PER_USER'),
   // SDD-007 "PgProjectEngine" (WO-137): the graph store every project's outbox projection writes to.
   // Unlike the CLI's `loadConfig` (`assertLocalNeo4j`), the server has no "accidentally overwrote my
   // local dev graph" risk to guard against — it is always expected to reach a real, possibly remote,
@@ -151,6 +158,15 @@ export interface SmtpEnv {
 export interface DeepSeekEnv {
   apiKey: string;
   baseUrl?: string;
+  model?: string;
+}
+
+/** SDD-009 §Seguridad y costo (WO-175): quotas/rate limit, always present (SDD-documented defaults apply
+ * even when the agent itself is disabled — `deepseek` being unset already gates whether it can ever run). */
+export interface AgentQuotaEnv {
+  dailyTokensPerOrg: number;
+  dailyTokensGlobal: number;
+  rpmPerUser: number;
 }
 
 export interface Neo4jEnv {
@@ -183,6 +199,7 @@ export interface ServerEnv {
   collabLimits: CollabLimitsEnv;
   smtp: SmtpEnv;
   deepseek?: DeepSeekEnv;
+  agentQuotas: AgentQuotaEnv;
   neo4j: Neo4jEnv;
 }
 
@@ -201,7 +218,9 @@ export function resolveServerEnv(env: NodeJS.ProcessEnv): ServerEnv {
     throw new ServerEnvError(parsed.error.issues);
   }
   const data = parsed.data;
-  const deepseek: DeepSeekEnv | undefined = data.DEEPSEEK_API_KEY ? { apiKey: data.DEEPSEEK_API_KEY, baseUrl: data.DEEPSEEK_BASE_URL } : undefined;
+  const deepseek: DeepSeekEnv | undefined = data.DEEPSEEK_API_KEY
+    ? { apiKey: data.DEEPSEEK_API_KEY, baseUrl: data.DEEPSEEK_BASE_URL, model: data.DEEPSEEK_MODEL }
+    : undefined;
   return {
     nodeEnv: resolveNodeEnv(data.NODE_ENV),
     serverPort: Number.parseInt(data.PRDM_SERVER_PORT, 10),
@@ -228,6 +247,11 @@ export function resolveServerEnv(env: NodeJS.ProcessEnv): ServerEnv {
       from: data.SMTP_FROM,
     },
     deepseek,
+    agentQuotas: {
+      dailyTokensPerOrg: Number.parseInt(data.PRDM_AGENT_DAILY_TOKENS_PER_ORG, 10),
+      dailyTokensGlobal: Number.parseInt(data.PRDM_AGENT_DAILY_TOKENS_GLOBAL, 10),
+      rpmPerUser: Number.parseInt(data.PRDM_AGENT_RPM_PER_USER, 10),
+    },
     neo4j: { uri: data.NEO4J_URI, username: data.NEO4J_USERNAME, password: data.NEO4J_PASSWORD, database: data.NEO4J_DATABASE },
   };
 }

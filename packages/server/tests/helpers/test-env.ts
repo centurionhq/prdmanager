@@ -20,6 +20,7 @@ export function buildTestServerEnv(overrides: Partial<ServerEnv> = {}): ServerEn
       maxUpdatesPerSecPerDocument: 100,
     },
     smtp: { host: '127.0.0.1', port: 1025, secure: false, from: 'prdm <no-reply@example.test>' },
+    agentQuotas: { dailyTokensPerOrg: 200_000, dailyTokensGlobal: 2_000_000, rpmPerUser: 10 },
     neo4j: { uri: 'neo4j://127.0.0.1:0', username: 'neo4j', password: 'unused-in-tests-that-never-touch-neo4j', database: 'neo4j' },
     ...overrides,
   };
