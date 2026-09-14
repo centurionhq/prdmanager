@@ -322,4 +322,16 @@ export function registerBaseIsolationRoutes(): void {
   registerIsolationProbe('GET', '/api/v1/me', {
     skip: 'scoped to the caller\'s own token, any valid token — no org/project id in the path to probe',
   });
+
+  // SDD-010 (WO-178): resolved through `resolveProjectByGraphProjectId` before `app.org_id` is ever
+  // set, so an org-B bearer token targeting org A's `graphProjectId` must 404 exactly like a
+  // nonexistent project id would — no `sameOrgOtherProject` case: an unscoped org-A token is allowed
+  // to read any project in its own org (SDD-010 never adds a per-user role check to this route, only
+  // token-scope + org-ownership + optional `project_ids`).
+  registerIsolationProbe('GET', '/api/v1/projects/:graphProjectId/governance', {
+    crossOrg: (fixtures) => ({
+      credential: { kind: 'bearer', secret: fixtures.orgBOwnerBearerSecret },
+      params: { path: { graphProjectId: fixtures.projectA1.graphProjectId } },
+    }),
+  });
 }

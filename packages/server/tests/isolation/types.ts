@@ -48,7 +48,7 @@ export interface IsolationFixtures {
   canary: string;
   orgA: { id: string; slug: string; name: string };
   orgB: { id: string; slug: string; name: string };
-  projectA1: { id: string; slug: string; name: string };
+  projectA1: { id: string; slug: string; name: string; graphProjectId: string };
   projectA2: { id: string; slug: string; name: string };
   invitationA: { id: string; email: string };
   personalTokenA: { id: string };

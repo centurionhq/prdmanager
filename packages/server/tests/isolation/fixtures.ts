@@ -119,7 +119,7 @@ export async function buildIsolationFixtures(app: BuiltApp, pg: PgTestDb): Promi
     canary,
     orgA: { id: orgA.id, slug: orgA.slug, name: orgA.name },
     orgB: { id: orgB.id, slug: orgB.slug, name: orgB.name },
-    projectA1: { id: projectA1.id, slug: projectA1.slug, name: projectA1.name },
+    projectA1: { id: projectA1.id, slug: projectA1.slug, name: projectA1.name, graphProjectId: projectA1.graphProjectId },
     projectA2: { id: projectA2.id, slug: projectA2.slug, name: projectA2.name },
     invitationA,
     personalTokenA: { id: personalToken.record.id },

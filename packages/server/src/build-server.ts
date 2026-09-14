@@ -29,6 +29,7 @@ import { buildAgentRateLimiter } from './rate-limit/agent-rate-limits.js';
 import type { LlmClient } from './agent/llm-client.js';
 import { createBlameCache } from './collab/blame.js';
 import { registerDriftRoutes } from './api/drift.js';
+import { registerGovernanceRoutes } from './api/governance.js';
 import { registerGraphRoutes } from './api/graph.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
 import { registerProjectRoutes } from './api/projects.js';
@@ -242,6 +243,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerTokenRoutes(app, { auth, pool, env, clock });
       registerCiTokenRoutes(app, { auth, pool, env, clock });
       registerV1MeRoute(app, { pool });
+      registerGovernanceRoutes(app, { pool });
     });
   }
 
