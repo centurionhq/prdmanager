@@ -19,6 +19,23 @@ x-neo4j-common: &neo4j-common
     start_period: 20s
   restart: unless-stopped
 
+x-postgres-common: &postgres-common
+  image: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
+  environment:
+    # docker-entrypoint-initdb.d scripts run as this bootstrap superuser (SDD-006 §Aislamiento): it *is* prdm_owner,
+    # never a separate throwaway "postgres" account. docker/postgres/init/01-roles.sh creates prdm_app from it.
+    POSTGRES_USER: prdm_owner
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    POSTGRES_DB: prdm
+    POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD must be set in .env}
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U prdm_owner -d prdm"]
+    interval: 5s
+    timeout: 5s
+    retries: 30
+    start_period: 10s
+  restart: unless-stopped
+
 services:
   neo4j:
     <<: *neo4j-common
@@ -54,6 +71,37 @@ services:
     tmpfs:
       - /data
 
+  postgres:
+    <<: *postgres-common
+    container_name: prdmanager-postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+      # postgres:18+ stores PGDATA at a major-version-specific path (pg_ctlcluster layout: PGDATA defaults to
+      # /var/lib/postgresql/18/docker), so the mount point is the parent directory, not .../data.
+      - postgres-data:/var/lib/postgresql
+
+  postgres-test:
+    <<: *postgres-common
+    container_name: prdmanager-postgres-test
+    profiles: ["test"]
+    restart: "no"
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    tmpfs:
+      - /var/lib/postgresql
+
+  mailpit:
+    image: axllent/mailpit:v1.31.1@sha256:98b916bd3c8d61f7633a52d3ea2f58d00620cb01ca57ab59edde68c347a95365
+    container_name: prdmanager-mailpit
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    restart: unless-stopped
+
 networks:
   neo4j-internal:
     internal: true
@@ -63,3 +111,4 @@ volumes:
   neo4j-data:
   neo4j-logs:
   neo4j-plugins:
+  postgres-data:
