@@ -153,3 +153,4 @@ Nota general: toda tarea que agregue dependencias incluye `package-lock.json` en
 - [ ] Panel de superadmin de organizaciones, con tests
 - [ ] Dockerfile multi-etapa del servidor con node 24.21.0 slim fijado por digest, usuario no root, healthcheck, contexto en la raíz y Dockerfile.dockerignore
 - [ ] npm run dev con script Node sin dependencias en packages/server/scripts
+- [ ] Script raíz `npm run db:migrate` (drizzle-kit contra `DATABASE_MIGRATION_URL`) y nota en el README de que es un paso manual requerido antes del primer `npm run dev` en un Postgres nuevo, con test de que el script existe y apunta al binario correcto

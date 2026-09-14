@@ -83,3 +83,4 @@ Unitarios de proyección, blame (tablas con inserciones, borrados, unión de lí
 - [ ] Panel de validación con acciones de estado según permisos, con tests
 - [ ] Vista previa markdown con react-markdown sin HTML crudo ni imágenes remotas y test con payloads XSS
 - [ ] Tests de convergencia multi-cliente con ediciones concurrentes, reconexión offline, reinicio del servidor y blame correcto, esperando eventos y sin aserciones de tiempo de reloj
+- [ ] Trigger para crear un hilo de comentario desde una selección de texto en el editor CodeMirror, llamando al endpoint de creación ya existente y refrescando el panel de comentarios, con tests
