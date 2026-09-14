@@ -68,6 +68,22 @@ const collabMaxPayloadBytesSchema = z
   .default('1048576')
   .refine(isPositiveInteger, { message: 'PRDM_COLLAB_MAX_PAYLOAD_BYTES must be a positive integer' });
 
+/** SDD-008 §"Servidor de tiempo real": the six numeric limits, all configurable, all defaulting to the
+ * SDD's own documented values (WO-152). */
+function positiveIntegerSchema(defaultValue: number, envName: string) {
+  return z
+    .string()
+    .default(String(defaultValue))
+    .refine(isPositiveInteger, { message: `${envName} must be a positive integer` });
+}
+
+const collabMaxRenderedBytesSchema = positiveIntegerSchema(512 * 1024, 'PRDM_COLLAB_MAX_RENDERED_BYTES');
+const collabMaxEncodedStateBytesSchema = positiveIntegerSchema(20 * 1024 * 1024, 'PRDM_COLLAB_MAX_ENCODED_STATE_BYTES');
+const collabMaxConnectionsPerUserSchema = positiveIntegerSchema(20, 'PRDM_COLLAB_MAX_CONNECTIONS_PER_USER');
+const collabMaxConnectionsPerDocumentSchema = positiveIntegerSchema(50, 'PRDM_COLLAB_MAX_CONNECTIONS_PER_DOCUMENT');
+const collabMaxUpdatesPerSecPerUserSchema = positiveIntegerSchema(30, 'PRDM_COLLAB_MAX_UPDATES_PER_SEC_PER_USER');
+const collabMaxUpdatesPerSecPerDocumentSchema = positiveIntegerSchema(100, 'PRDM_COLLAB_MAX_UPDATES_PER_SEC_PER_DOCUMENT');
+
 const trustProxySchema = z
   .enum(['0', '1'])
   .optional()
@@ -99,6 +115,12 @@ const rawServerEnvSchema = z.object({
   PRDM_TRUSTED_ORIGINS: trustedOriginsSchema,
   PRDM_TRUST_PROXY: trustProxySchema,
   PRDM_COLLAB_MAX_PAYLOAD_BYTES: collabMaxPayloadBytesSchema,
+  PRDM_COLLAB_MAX_RENDERED_BYTES: collabMaxRenderedBytesSchema,
+  PRDM_COLLAB_MAX_ENCODED_STATE_BYTES: collabMaxEncodedStateBytesSchema,
+  PRDM_COLLAB_MAX_CONNECTIONS_PER_USER: collabMaxConnectionsPerUserSchema,
+  PRDM_COLLAB_MAX_CONNECTIONS_PER_DOCUMENT: collabMaxConnectionsPerDocumentSchema,
+  PRDM_COLLAB_MAX_UPDATES_PER_SEC_PER_USER: collabMaxUpdatesPerSecPerUserSchema,
+  PRDM_COLLAB_MAX_UPDATES_PER_SEC_PER_DOCUMENT: collabMaxUpdatesPerSecPerDocumentSchema,
   SMTP_HOST: z.string().min(1, 'SMTP_HOST is required'),
   SMTP_PORT: z.string().regex(/^\d+$/, 'SMTP_PORT must be a numeric string').transform((value) => Number.parseInt(value, 10)),
   SMTP_USER: z.string().optional(),
@@ -138,6 +160,17 @@ export interface Neo4jEnv {
   database: string;
 }
 
+/** SDD-008 §"Servidor de tiempo real" (WO-152): the six numeric limits, one struct so callers never
+ * have to thread six separate scalars through. */
+export interface CollabLimitsEnv {
+  maxRenderedBytes: number;
+  maxEncodedStateBytes: number;
+  maxConnectionsPerUser: number;
+  maxConnectionsPerDocument: number;
+  maxUpdatesPerSecPerUser: number;
+  maxUpdatesPerSecPerDocument: number;
+}
+
 export interface ServerEnv {
   nodeEnv: NodeEnv;
   serverPort: number;
@@ -147,6 +180,7 @@ export interface ServerEnv {
   trustedOrigins: string[];
   trustProxy: boolean;
   collabMaxPayloadBytes: number;
+  collabLimits: CollabLimitsEnv;
   smtp: SmtpEnv;
   deepseek?: DeepSeekEnv;
   neo4j: Neo4jEnv;
@@ -177,6 +211,14 @@ export function resolveServerEnv(env: NodeJS.ProcessEnv): ServerEnv {
     trustedOrigins: data.PRDM_TRUSTED_ORIGINS,
     trustProxy: data.PRDM_TRUST_PROXY,
     collabMaxPayloadBytes: Number.parseInt(data.PRDM_COLLAB_MAX_PAYLOAD_BYTES, 10),
+    collabLimits: {
+      maxRenderedBytes: Number.parseInt(data.PRDM_COLLAB_MAX_RENDERED_BYTES, 10),
+      maxEncodedStateBytes: Number.parseInt(data.PRDM_COLLAB_MAX_ENCODED_STATE_BYTES, 10),
+      maxConnectionsPerUser: Number.parseInt(data.PRDM_COLLAB_MAX_CONNECTIONS_PER_USER, 10),
+      maxConnectionsPerDocument: Number.parseInt(data.PRDM_COLLAB_MAX_CONNECTIONS_PER_DOCUMENT, 10),
+      maxUpdatesPerSecPerUser: Number.parseInt(data.PRDM_COLLAB_MAX_UPDATES_PER_SEC_PER_USER, 10),
+      maxUpdatesPerSecPerDocument: Number.parseInt(data.PRDM_COLLAB_MAX_UPDATES_PER_SEC_PER_DOCUMENT, 10),
+    },
     smtp: {
       host: data.SMTP_HOST,
       port: data.SMTP_PORT,

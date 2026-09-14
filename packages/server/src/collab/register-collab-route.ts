@@ -30,6 +30,7 @@ import { createCollabAuthenticateExtension, type CollabAuthContext } from './aut
 import { createCollabAwarenessExtension } from './awareness.js';
 import { realCollabBatchScheduler, type CollabBatchScheduler } from './batch-scheduler.js';
 import { createDocUpdateBatcher } from './doc-update-writer.js';
+import { createCollabLimitsExtension, type CollabLimits } from './limits.js';
 import { isTrustedCollabOrigin } from './origin-check.js';
 import { createCollabPersistenceExtension } from './persistence.js';
 import { createCollabRevalidateExtension } from './revalidate.js';
@@ -65,16 +66,18 @@ export interface RegisterCollabRouteOptions {
    * a real timer that could otherwise still be pending afterward (caught and merely logged by
    * Hocuspocus itself, never a thrown error, but avoided here rather than tolerated). */
   persistDebounce?: { debounce: number; maxDebounce: number };
+  /** Injected so tests never need to send real traffic for a full wall-clock second to exercise the
+   * WO-152 update-rate limits. Defaults to the real clock this server already threads everywhere else. */
+  clock?: () => Date;
 }
 
-/** Extra extensions a later WO composes in (WO-150 anti-spoofing, WO-151 awareness/stateless, WO-152
- * limits) — kept as an explicit seam so this route registration never has to change shape again, only
- * the array passed here. */
 export interface CollabExtensionsDeps {
   auth: Auth;
   pool: Pool;
   scheduler: CollabScheduler;
   batchScheduler: CollabBatchScheduler;
+  clock: () => Date;
+  limits: CollabLimits;
 }
 
 export function buildCollabExtensions(deps: CollabExtensionsDeps): Extension[] {
@@ -83,9 +86,11 @@ export function buildCollabExtensions(deps: CollabExtensionsDeps): Extension[] {
     createCollabAuthenticateExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabPersistenceExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabRevalidateExtension({ auth: deps.auth, pool: deps.pool, scheduler: deps.scheduler }) as unknown as Extension,
-    // Order matters for the two `beforeSync` extensions below: Hocuspocus runs each extension's
-    // `beforeSync` in array order, awaiting each before the next — anti-spoofing must reject (throw)
-    // *before* attribution ever durably logs the update, so it comes first.
+    // Order matters among these `beforeSync`/`connected` extensions: Hocuspocus runs each extension's
+    // same-named hook in array order, awaiting each before the next. Limits comes first so a
+    // rate/size-limited update never reaches the (more expensive) anti-spoofing DB lookup, and
+    // anti-spoofing comes before attribution so a rejected update is never durably logged.
+    createCollabLimitsExtension({ pool: deps.pool, clock: deps.clock, limits: deps.limits }) as unknown as Extension,
     createCollabAntiSpoofingExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabAttributionExtension({ batcher }) as unknown as Extension,
     createCollabAwarenessExtension({ pool: deps.pool }) as unknown as Extension,
@@ -107,12 +112,21 @@ export function registerCollabWebsocketPlugin(app: FastifyInstance, env: ServerE
  * finished registering (see that function's own doc comment), i.e. inside the same `app.after` callback
  * every other `auth`/`pool`-dependent route is registered from. */
 export function registerCollabRoute(app: FastifyInstance, opts: RegisterCollabRouteOptions): void {
-  const { auth, pool, env, revocationHub = createCollabRevocationHub(), scheduler = realCollabScheduler, batchScheduler = realCollabBatchScheduler, persistDebounce } = opts;
+  const {
+    auth,
+    pool,
+    env,
+    revocationHub = createCollabRevocationHub(),
+    scheduler = realCollabScheduler,
+    batchScheduler = realCollabBatchScheduler,
+    persistDebounce,
+    clock = () => new Date(),
+  } = opts;
 
   const hocuspocus = new Hocuspocus({
     yDocOptions: { gc: false, gcFilter: () => true },
     ...persistDebounce,
-    extensions: buildCollabExtensions({ auth, pool, scheduler, batchScheduler }),
+    extensions: buildCollabExtensions({ auth, pool, scheduler, batchScheduler, clock, limits: env.collabLimits }),
   });
   revocationHub.attach(hocuspocus);
 
