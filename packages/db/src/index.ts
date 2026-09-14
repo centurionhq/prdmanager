@@ -1,4 +1,6 @@
+export * from './audit-metadata.js';
 export * from './migrate.js';
+export * from './platform-audit.js';
 export * from './pool.js';
 export * from './repositories.js';
 export * from './tenant.js';

@@ -10,14 +10,29 @@
  * built on top of this maps both to a 404 (SDD-006 §Arquitectura: "Cualquier recurso de otra
  * organización o proyecto responde 404, nunca 403").
  */
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
+import { assertNoSecretsInAuditMetadata } from './audit-metadata.js';
+import { auditLog } from './schema/audit.js';
 import { projectMembers, projectRole, projects } from './schema/projects.js';
 import { withTenantTx } from './tenant.js';
 
 export type ProjectRecord = typeof projects.$inferSelect;
 export type ProjectMemberRecord = typeof projectMembers.$inferSelect;
 export type ProjectRole = (typeof projectRole.enumValues)[number];
+export type AuditLogRecord = typeof auditLog.$inferSelect;
+
+export interface NewAuditLogEntryInput {
+  projectId?: string;
+  actorType: 'user' | 'token';
+  actorId: string;
+  action: string;
+  target: string;
+  /** Rejected up front by `assertNoSecretsInAuditMetadata` (SDD-006 §Modelo de datos). */
+  metadata?: Record<string, unknown>;
+  ip?: string;
+  userAgent?: string;
+}
 
 export interface NewProjectInput {
   slug: string;
@@ -45,6 +60,12 @@ export interface MembersRepository {
   listForUser(userId: string): Promise<ProjectMemberRecord[]>;
 }
 
+export interface AuditLogRepository {
+  /** Append-only (enforced at the database grant level too — `prdm_app` has no UPDATE/DELETE here). */
+  record(entry: NewAuditLogEntryInput): Promise<AuditLogRecord>;
+  list(): Promise<AuditLogRecord[]>;
+}
+
 export interface ProjectMembersRepository {
   list(): Promise<ProjectMemberRecord[]>;
   upsert(input: ProjectMemberInput): Promise<ProjectMemberRecord>;
@@ -60,6 +81,7 @@ export interface ProjectScope {
 export interface OrgRepositories {
   projects: ProjectsRepository;
   members: MembersRepository;
+  auditLog: AuditLogRepository;
   forProject(projectId: string): ProjectScope;
 }
 
@@ -73,6 +95,7 @@ export function createTenantDb(pool: Pool): TenantDb {
       return {
         projects: buildProjectsRepository(pool, orgId),
         members: buildMembersRepository(pool, orgId),
+        auditLog: buildAuditLogRepository(pool, orgId),
         forProject: (projectId: string) => buildProjectScope(pool, orgId, projectId),
       };
     },
@@ -107,6 +130,35 @@ function buildMembersRepository(pool: Pool, orgId: string): MembersRepository {
   return {
     listForUser: (userId) =>
       withTenantTx(pool, orgId, (tx) => tx.select().from(projectMembers).where(eq(projectMembers.userId, userId))),
+  };
+}
+
+function buildAuditLogRepository(pool: Pool, orgId: string): AuditLogRepository {
+  return {
+    // `async` (rather than a plain arrow returning `withTenantTx(...)`) matters here: it turns the
+    // synchronous throw from `assertNoSecretsInAuditMetadata` into a rejected promise instead of an
+    // exception thrown at call time, so `record(...)` is always safe to treat as a promise.
+    record: async (entry) => {
+      assertNoSecretsInAuditMetadata(entry.metadata ?? {});
+      return withTenantTx(pool, orgId, async (tx) => {
+        const [row] = await tx
+          .insert(auditLog)
+          .values({
+            orgId,
+            projectId: entry.projectId,
+            actorType: entry.actorType,
+            actorId: entry.actorId,
+            action: entry.action,
+            target: entry.target,
+            metadata: entry.metadata ?? {},
+            ip: entry.ip,
+            userAgent: entry.userAgent,
+          })
+          .returning();
+        return row!;
+      });
+    },
+    list: () => withTenantTx(pool, orgId, (tx) => tx.select().from(auditLog).orderBy(desc(auditLog.createdAt))),
   };
 }
 
