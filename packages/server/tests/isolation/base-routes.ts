@@ -347,6 +347,14 @@ export function registerBaseIsolationRoutes(): void {
     }),
   });
 
+  registerIsolationProbe('POST', '/api/v1/projects/:graphProjectId/policy-docs', {
+    mutating: true,
+    crossOrg: (fixtures) => ({
+      credential: { kind: 'bearer', secret: fixtures.orgBOwnerBearerSecret },
+      params: { path: { graphProjectId: fixtures.projectA1.graphProjectId }, body: { shas: ['a'.repeat(40)] } },
+    }),
+  });
+
   registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/code-reports/force-push-overrides', {
     mutating: true,
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug }, body: { headSha: 'a'.repeat(40) } })),

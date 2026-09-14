@@ -37,6 +37,7 @@ import { registerForcePushOverrideRoutes } from './api/force-push-overrides.js';
 import { registerGovernanceRoutes } from './api/governance.js';
 import { registerGraphRoutes } from './api/graph.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
+import { registerPolicyDocsRoutes } from './api/policy-docs.js';
 import { registerProjectRoutes } from './api/projects.js';
 import { registerTokenRoutes } from './api/tokens.js';
 import { registerV1MeRoute } from './api/v1-me.js';
@@ -271,6 +272,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerV1MeRoute(app, { pool });
       registerGovernanceRoutes(app, { pool });
       registerCodeReportRoutes(app, { pool, neo4j });
+      registerPolicyDocsRoutes(app, { pool });
     });
   }
 
