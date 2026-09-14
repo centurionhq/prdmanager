@@ -1,4 +1,5 @@
 export * from './audit-metadata.js';
+export * from './invitations.js';
 export * from './migrate.js';
 export * from './organizations.js';
 export * from './platform-admins.js';

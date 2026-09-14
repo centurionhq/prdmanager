@@ -10,12 +10,10 @@ import {
   OrgRoleRuleError,
   createTenantDb,
   findMembership,
-  findOrganizationBySlug,
   listOrganizationMembers,
   listOrganizationsForUser,
   removeOrganizationMember,
   setMemberRole,
-  type OrgRole,
 } from '@prdm/db';
 import { setActiveOrganizationInputSchema, updateOrgMemberRoleInputSchema } from '@prdm/contracts';
 import type { FastifyInstance, FastifyReply } from 'fastify';
@@ -24,6 +22,7 @@ import type { Auth } from '../auth/build-auth.js';
 import type { ServerEnv } from '../env.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { requireAppSession } from './app-session.js';
+import { requireMemberOrg } from './require-member-org.js';
 
 export interface RegisterOrganizationRoutesOptions {
   auth: Auth;
@@ -37,14 +36,6 @@ interface OrgRouteParams {
 
 interface OrgMemberRouteParams extends OrgRouteParams {
   userId: string;
-}
-
-async function requireMemberOrg(pool: Pool, orgSlug: string, userId: string): Promise<{ id: string; slug: string; name: string; role: OrgRole }> {
-  const org = await findOrganizationBySlug(pool, orgSlug);
-  if (!org) throw new NotFoundError();
-  const membership = await findMembership(pool, org.id, userId);
-  if (!membership) throw new NotFoundError();
-  return { ...org, role: membership.role };
 }
 
 function forwardSetCookie(reply: FastifyReply, headers: Headers): void {

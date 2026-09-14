@@ -14,7 +14,7 @@
  * `prdm_owner`; `prdm_app` gets exactly the DML better-auth's Kysely-less drizzle adapter issues
  * against them (SELECT/INSERT/UPDATE/DELETE, granted in the migration SQL, never DDL).
  */
-import { boolean, index, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -123,7 +123,14 @@ export const invitation = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
   },
-  (table) => [index('invitation_organizationId_idx').on(table.organizationId), index('invitation_email_idx').on(table.email)],
+  (table) => [
+    index('invitation_organizationId_idx').on(table.organizationId),
+    index('invitation_email_idx').on(table.email),
+    // WO-105: target of invitation_secrets' composite FK (packages/db/src/schema/invitations.ts) —
+    // `id` alone is already unique (it's the primary key), but a composite FK's target must itself be a
+    // unique key on exactly those two columns, same as `projects_id_org_id_key` for `projects`.
+    unique('invitation_id_organization_id_key').on(table.id, table.organizationId),
+  ],
 );
 
 export const twoFactor = pgTable(

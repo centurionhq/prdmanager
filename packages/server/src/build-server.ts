@@ -3,6 +3,8 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 import type { Pool } from 'pg';
 import { registerAdminOrganizationRoutes } from './api/admin-organizations.js';
 import { registerHealthRoute } from './api/health.js';
+import { registerInvitationAcceptRoute } from './api/invitation-accept.js';
+import { registerOrganizationInvitationRoutes } from './api/organization-invitations.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
 import { buildAuth, type Auth } from './auth/build-auth.js';
 import { registerAuth } from './auth/register-auth.js';
@@ -11,6 +13,7 @@ import type { ServerEnv } from './env.js';
 import { resolveLoggerOption } from './logging.js';
 import type { Mailer } from './mailer.js';
 import { buildAuthRateLimiters } from './rate-limit/auth-rate-limits.js';
+import { buildInvitationAcceptRateLimiter } from './rate-limit/invitation-rate-limits.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -70,6 +73,8 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerAuth(app, { auth, env, rateLimiters });
       registerOrganizationRoutes(app, { auth, pool, env });
       registerAdminOrganizationRoutes(app, { auth, pool, mailer, env });
+      registerOrganizationInvitationRoutes(app, { auth, pool, mailer, env });
+      registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
     });
   }
 
