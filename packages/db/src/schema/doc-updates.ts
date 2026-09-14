@@ -69,6 +69,10 @@ export const docUpdates = pgTable(
       name: 'doc_updates_document_org_fk',
     }),
     index('doc_updates_org_id_idx').on(table.orgId),
-    index('doc_updates_document_id_idx').on(table.documentId),
+    // WO-226 (performance review, LOW): no standalone `document_id` index — the unique constraint above,
+    // `doc_updates_document_id_seq_key` on `(document_id, seq)`, already provides a leading-column btree
+    // index that satisfies every query in this codebase filtering by `document_id` alone (`listForDocument`,
+    // `listSinceSeq`, `maxSeqForDocument`), so a second, standalone index on just `document_id` was pure
+    // write overhead (one more index to maintain on every insert) with no query benefit.
   ],
 );
