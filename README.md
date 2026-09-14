@@ -382,6 +382,16 @@ npm run test:e2e --workspace=@prdm/web
 
 `PRDM_WEB_PORT` (por defecto `4600`) y `PRDM_WEB_HOST` (por defecto `127.0.0.1`; un valor no-loopback requiere `PRDM_WEB_ALLOW_REMOTE=1`) — ver Variables de Entorno.
 
+## SaaS local (`@prdm/server` + `@prdm/app`, PRD-005)
+
+`npm run dev` en la raíz levanta el servidor Fastify (`tsx watch`, con recarga en cada cambio) y Vite (proxy de `/api`, `/collab` y `/mcp` a `PRDM_SERVER_PORT`) como procesos hermanos, vía `packages/server/scripts/dev.mjs` — un script Node sin dependencias (SDD-006 "Local y despliegue"): no hacen falta dos terminales. Un solo `Ctrl-C` detiene ambos procesos; si alguno muere solo, el otro se detiene también con código de salida distinto de cero.
+
+```bash
+npm run dev                                  # servidor + app en paralelo, un solo Ctrl-C los detiene
+```
+
+Requiere `docker compose up -d postgres mailpit` y las variables de `.env` (`PRDM_PUBLIC_URL`, `BETTER_AUTH_SECRET`, `DATABASE_URL`, etc. — ver Variables de Entorno) ya exportadas en el entorno.
+
 ## Skills (Claude Code)
 
 Plugin **`neo4j-skills@neo4j-skills-marketplace`** v1.0.1 (declarado en `.claude/settings.json`):
