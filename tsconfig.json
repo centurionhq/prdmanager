@@ -8,6 +8,7 @@
     { "path": "packages/contracts" },
     { "path": "packages/db" },
     { "path": "packages/server" },
-    { "path": "packages/app" }
+    { "path": "packages/app" },
+    { "path": "packages/ui" }
   ]
 }

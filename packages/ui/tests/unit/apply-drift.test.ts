@@ -1,7 +1,7 @@
 import type { RefreshReport } from '@prdm/core';
 import type { EdgeDefinition, NodeDefinition } from 'cytoscape';
 import { describe, expect, it } from 'vitest';
-import { applyDrift } from '../../src/client/graph/apply-drift';
+import { applyDrift } from '../../src/graph/apply-drift';
 
 function makeReport(overrides: Partial<RefreshReport> = {}): RefreshReport {
   return {

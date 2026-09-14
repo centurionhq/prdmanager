@@ -1,7 +1,7 @@
 import cytoscape from 'cytoscape';
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { useCytoscape, type CytoscapeFactory } from '../../src/client/hooks/useCytoscape';
+import { useCytoscape, type CytoscapeFactory } from '../../src/hooks/useCytoscape';
 
 /**
  * jsdom has no `<canvas>`, so `useCytoscape`'s injected factory always runs the real `cytoscape()` with

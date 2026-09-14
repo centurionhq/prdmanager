@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import cytoscape from 'cytoscape';
 import { describe, expect, it, vi } from 'vitest';
 import { GraphCanvas } from '../../src/client/components/GraphCanvas';
-import type { CytoscapeFactory } from '../../src/client/hooks/useCytoscape';
+import type { CytoscapeFactory } from '@prdm/ui';
 import { SelectionProvider } from '../../src/client/state/selection';
 
 /** jsdom has no `<canvas>` (SDD-005 "Tests") — headless mode skips the renderer entirely. */

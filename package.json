@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "build": "tsc -b",
-    "typecheck": "tsc -b && tsc -p tsconfig.test.json --noEmit && tsc -p packages/web/tsconfig.test-client.json --noEmit && tsc -p packages/app/tsconfig.test.json --noEmit",
+    "typecheck": "tsc -b && tsc -p tsconfig.test.json --noEmit && tsc -p packages/web/tsconfig.test-client.json --noEmit && tsc -p packages/app/tsconfig.test.json --noEmit && tsc -p packages/ui/tsconfig.test.json --noEmit",
     "prdm": "tsx --conditions=@prdm/source packages/cli/src/index.ts",
     "mcp": "tsx --conditions=@prdm/source packages/mcp/src/server.ts",
     "mcp:dist": "node packages/mcp/dist/server.js",
@@ -21,7 +21,7 @@
     "web": "node packages/web/dist/server/server.js",
     "dev": "npm run dev --workspace=@prdm/app",
     "test": "vitest run",
-    "test:unit": "vitest run packages/core/tests/unit packages/cli/tests/unit packages/web/tests/unit packages/contracts/tests/unit packages/db/tests/unit packages/server/tests/unit packages/testkit/tests/unit packages/app/tests/unit",
+    "test:unit": "vitest run packages/core/tests/unit packages/cli/tests/unit packages/web/tests/unit packages/contracts/tests/unit packages/db/tests/unit packages/server/tests/unit packages/testkit/tests/unit packages/app/tests/unit packages/ui/tests/unit",
     "coverage": "vitest run --coverage"
   },
   "devDependencies": {

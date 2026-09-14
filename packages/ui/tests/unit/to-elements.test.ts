@@ -1,6 +1,6 @@
 import type { Subgraph } from '@prdm/core';
 import { describe, expect, it } from 'vitest';
-import { toElements } from '../../src/client/graph/to-elements';
+import { toElements } from '../../src/graph/to-elements';
 
 describe('toElements', () => {
   it('maps subgraph nodes to cytoscape node elements', () => {

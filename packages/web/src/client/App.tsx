@@ -8,7 +8,7 @@ import { SearchBar } from './components/SearchBar';
 import { ErrorState, LoadingState } from './components/StatusState';
 import { TreeView } from './components/TreeView';
 import { WorkOrderList } from './components/WorkOrderList';
-import { collectDriftIds } from './graph/apply-drift';
+import { collectDriftIds } from '@prdm/ui';
 import { useGraphData } from './hooks/useGraphData';
 import { SelectionProvider } from './state/selection';
 import styles from './App.module.css';
