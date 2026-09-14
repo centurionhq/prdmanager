@@ -116,6 +116,19 @@ function sendSseEvent(raw: { write: (chunk: string) => void }, event: AgentLoopE
   raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
 }
 
+/** Node's default `server.requestTimeout` is 5 minutes — verified against the real DeepSeek API (never
+ * in CI) to be too short: this account's model runs in "thinking mode" and can take several minutes to
+ * produce even a trivial completion's first token. Disables the timeout for this one hijacked SSE
+ * response only (never globally), so every other route keeps its slowloris protection.
+ *
+ * Always passes an explicit no-op callback: Node's real `OutgoingMessage.setTimeout` tolerates omitting
+ * it, but Fastify's test-injection mock (`light-my-request`'s `Response.setTimeout`) unconditionally does
+ * `this.on('timeout', callback)`, which throws on `undefined` — passing a callback keeps this safe under
+ * both a real server and `.inject()`-based tests. */
+export function disableRequestTimeout(raw: { setTimeout?: (msecs: number, callback: () => void) => unknown }): void {
+  raw.setTimeout?.(0, () => {});
+}
+
 export function registerDocumentAgentRoutes(app: FastifyInstance, opts: RegisterDocumentAgentRoutesOptions): void {
   const { auth, pool, env, neo4j, llmClient, model, hocuspocus, rateLimiter, clock = () => new Date() } = opts;
   const activeStreamUserIds = new Set<string>();
@@ -220,6 +233,7 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
         req.raw.on('close', () => controller.abort());
 
         reply.hijack();
+        disableRequestTimeout(reply.raw);
         reply.raw.writeHead(200, {
           'content-type': 'text/event-stream',
           'cache-control': 'no-cache, no-transform',
