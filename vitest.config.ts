@@ -3,6 +3,13 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   resolve: {
+    // SDD-008 §"Editor": Yjs is notoriously broken by even two "equivalent" copies of its own module ever
+    // loading side-by-side (its own instanceof-based struct/type checks silently stop matching) — the
+    // same reason ADR-006 requires `resolve.dedupe: ['yjs']` in packages/app's own vite.config.ts for the
+    // browser build. Vitest resolves modules through Vite's own graph too (not plain Node `require`), so
+    // the same defense-in-depth applies here for every package that imports yjs directly (collab, server,
+    // app, and this config's own two-`HocuspocusProvider` tests, WO-159/166).
+    dedupe: ['yjs'],
     alias: {
       // Subpath aliases MUST be listed before their bare-package alias below: vite's resolver does a prefix
       // match in declaration order, so `@prdm/core` (a prefix of `@prdm/core/domain`) would otherwise win first

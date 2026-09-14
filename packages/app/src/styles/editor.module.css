@@ -1,0 +1,88 @@
+.editorShell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--color-bg-inset);
+}
+
+.statusBar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg-elevated-solid);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.85rem;
+  color: var(--color-fg-muted);
+}
+
+.statusDot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-status-neutral);
+}
+
+.statusDot[data-status='connected'] {
+  background: var(--color-status-ok);
+  box-shadow: 0 0 6px var(--color-status-ok-glow);
+}
+
+.statusDot[data-status='connecting'] {
+  background: var(--color-status-warning);
+}
+
+.statusDot[data-status='disconnected'] {
+  background: var(--color-status-error);
+  box-shadow: 0 0 6px var(--color-status-error-glow);
+}
+
+.synced {
+  color: var(--color-fg-subtle);
+}
+
+.readOnlyBadge {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-status-warning-glow);
+  color: var(--color-status-warning);
+  font-weight: 600;
+}
+
+.presence {
+  display: flex;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.presenceChip {
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.editorContainer {
+  min-height: 20rem;
+}
+
+.editorContainer :global(.cm-editor) {
+  height: 100%;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.95rem;
+  color: var(--color-fg);
+  background: transparent;
+}
+
+.editorContainer :global(.cm-scroller) {
+  overflow: auto;
+}
+
+.loading {
+  padding: 0.75rem;
+  color: var(--color-fg-muted);
+}

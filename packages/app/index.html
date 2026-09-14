@@ -3,6 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- SDD-008 §"Editor": packages/server's spa-html.ts replaces this placeholder's content with a
+         fresh per-request CSP style nonce before serving this file; CodeMirror's editor.tsx reads it via
+         document.querySelector('meta[name="csp-nonce"]') and passes it to EditorView.cspNonce. Left
+         empty in the built bundle itself -- the server-side replace is what actually sets a real value. -->
+    <meta name="csp-nonce" content="" />
     <title>prdm</title>
   </head>
   <body>

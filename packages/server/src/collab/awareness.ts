@@ -145,7 +145,11 @@ export function createCollabAwarenessExtension(deps: CollabAwarenessDeps): Colla
         data.states.delete(ownClientId);
         return;
       }
-      data.states.set(ownClientId, { ...filtered, name: identity.name, color: identity.color });
+      // `user: {name, color}` (WO-159): y-codemirror.next's own `yRemoteSelections` extension reads
+      // exactly this nested shape to label/color a remote cursor (confirmed by reading its installed
+      // 0.3.6 source — it never looks at flat `name`/`color` keys). Both are set here, additively; the
+      // flat fields stay for any other consumer already reading them directly.
+      data.states.set(ownClientId, { ...filtered, name: identity.name, color: identity.color, user: { name: identity.name, color: identity.color } });
     },
 
     async onStateless(data) {

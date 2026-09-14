@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { errorEnvelope, type ErrorCode } from '@prdm/contracts';
 import type {} from '@fastify/static'; // module augmentation: adds `reply.sendFile` to FastifyReply's type.
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { injectCspNonce } from './spa-html.js';
 
 const STATUS_BY_CODE: Record<ErrorCode, number> = {
   validation_error: 400,
@@ -99,9 +102,11 @@ export function setErrorHandler(app: FastifyInstance): void {
 }
 
 export interface NotFoundHandlerOptions {
-  /** Whether `@fastify/static` was registered against a `staticDir` (SDD-006 "Local y despliegue": packages/app's
-   * built bundle). */
-  hasStatic: boolean;
+  /** `@fastify/static`'s registered root (SDD-006 "Local y despliegue": packages/app's built bundle) —
+   * `undefined` when no static bundle was ever configured. Kept as the real path (not just a boolean)
+   * so this handler can read `index.html` itself and inject the per-request CSP nonce (SDD-008 §"Editor")
+   * rather than streaming the file byte-for-byte unchanged via `reply.sendFile`. */
+  staticDir?: string;
 }
 
 /**
@@ -111,11 +116,12 @@ export interface NotFoundHandlerOptions {
  * given to `buildServer` (client-side routing, mirrors `packages/web/src/errors.ts`'s own `setNotFoundHandler`);
  * with no `staticDir` this degrades to the same JSON 404 instead of crashing.
  */
-export function setNotFoundHandler(app: FastifyInstance, options: NotFoundHandlerOptions = { hasStatic: false }): void {
+export function setNotFoundHandler(app: FastifyInstance, options: NotFoundHandlerOptions = {}): void {
   app.setNotFoundHandler((request: FastifyRequest, reply: FastifyReply) => {
     const isPlatformRoute = request.url.startsWith('/api/') || request.url.startsWith('/collab') || request.url.startsWith('/mcp');
-    if (!isPlatformRoute && options.hasStatic) {
-      void reply.type('text/html').sendFile('index.html');
+    if (!isPlatformRoute && options.staticDir) {
+      const html = readFileSync(join(options.staticDir, 'index.html'), 'utf8');
+      void reply.type('text/html').send(injectCspNonce(html, request.cspNonce));
       return;
     }
     sendError(reply, 'not_found', 'route not found');

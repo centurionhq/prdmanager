@@ -9,9 +9,10 @@ import { useEffect, useState, type ReactElement } from 'react';
 import { Link, useParams } from 'react-router';
 import { can, type DocumentDetail as DocumentDetailDto, type PermissionSubject } from '@prdm/contracts';
 import { LoadingState } from '@prdm/ui';
-import { archiveDocument, generateWorkOrders, getDocument, getSession, listProjectMembers, publishDocument, requestDocumentReview } from '../api/client.js';
+import { archiveDocument, generateWorkOrders, getDocument, getProject, getSession, listProjectMembers, publishDocument, requestDocumentReview } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { CloseFeatureAction } from './CloseFeatureAction.js';
+import { CollabEditor } from '../components/CollabEditor.js';
 import { FormError } from '../components/FormError.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { useOrgShellContext } from './OrgShell.js';
@@ -26,6 +27,7 @@ export function DocumentDetail(): ReactElement {
   const { projectSlug, docId } = useParams<{ projectSlug: string; docId: string }>();
   const [doc, setDoc] = useState<DocumentDetailDto | null>(null);
   const [subject, setSubject] = useState<PermissionSubject | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -35,10 +37,16 @@ export function DocumentDetail(): ReactElement {
   async function reload(): Promise<void> {
     if (!projectSlug || !docId) return;
     try {
-      const [session, members, fetchedDoc] = await Promise.all([getSession(), listProjectMembers(orgSlug, projectSlug), getDocument(orgSlug, projectSlug, docId)]);
+      const [session, members, fetchedDoc, project] = await Promise.all([
+        getSession(),
+        listProjectMembers(orgSlug, projectSlug),
+        getDocument(orgSlug, projectSlug, docId),
+        getProject(orgSlug, projectSlug),
+      ]);
       const own = session ? members.find((m) => m.userId === session.user.id) : undefined;
       setSubject({ orgRole: currentOrg.role, projectRole: own?.role });
       setDoc(fetchedDoc);
+      setProjectId(project.id);
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -165,7 +173,11 @@ export function DocumentDetail(): ReactElement {
         <p className={formStyles.success}>Work orders generados: {workOrders.created}</p>
       )}
 
-      <pre className={formStyles.card}>{content || '(sin contenido)'}</pre>
+      {doc.origin === 'collab' && projectId ? (
+        <CollabEditor projectId={projectId} documentId={doc.id} />
+      ) : (
+        <pre className={formStyles.card}>{content || '(sin contenido)'}</pre>
+      )}
     </div>
   );
 }

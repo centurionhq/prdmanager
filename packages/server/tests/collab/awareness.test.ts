@@ -102,7 +102,14 @@ describe('createCollabAwarenessExtension.beforeHandleAwareness (SDD-008, WO-151)
     const connection = fakeConnection(userId);
     const states = new Map<number, Record<string, unknown>>([[1, { cursor: { line: 3 }, selection: { from: 0, to: 1 }, name: 'attacker', color: '#000000' }]]);
     await ext.beforeHandleAwareness({ states, context: connection.context, connection });
-    expect(states.get(1)).toEqual({ cursor: { line: 3 }, selection: { from: 0, to: 1 }, name: userName, color: expect.stringMatching(/^hsl\(/) });
+    expect(states.get(1)).toEqual({
+      cursor: { line: 3 },
+      selection: { from: 0, to: 1 },
+      name: userName,
+      color: expect.stringMatching(/^hsl\(/),
+      // WO-159: y-codemirror.next's yRemoteSelections reads this nested shape, not the flat fields above.
+      user: { name: userName, color: expect.stringMatching(/^hsl\(/) },
+    });
   });
 
   test('drops an oversized state entirely', async () => {

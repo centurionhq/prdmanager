@@ -1,8 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import rateLimitPlugin, { type FastifyRateLimitStoreCtor } from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import type { Neo4jGraphDatabase } from '@prdm/core';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { Pool } from 'pg';
+import { injectCspNonce } from './spa-html.js';
 import { installBearerAccessPreHandler } from './access/bearer-access-prehandler.js';
 import { installRouteAccessRegistry, type RouteRegistry } from './access/route-registry.js';
 import { registerAdminOrganizationRoutes } from './api/admin-organizations.js';
@@ -151,7 +154,14 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
         void reply.code(400).send();
         return;
       }
-      void reply.sendFile(pathname === '/' ? '/index.html' : pathname);
+      if (pathname === '/') {
+        // Read + inject rather than `reply.sendFile('/index.html')`: the CSP nonce (SDD-008 §"Editor")
+        // is per-request, and `sendFile` streams the static bytes unchanged.
+        const html = readFileSync(join(staticDir, 'index.html'), 'utf8');
+        void reply.type('text/html').send(injectCspNonce(html, request.cspNonce));
+        return;
+      }
+      void reply.sendFile(pathname);
     });
   }
 
@@ -211,7 +221,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
   }
 
   setErrorHandler(app);
-  setNotFoundHandler(app, { hasStatic: Boolean(staticDir) });
+  setNotFoundHandler(app, { staticDir });
 
   return app;
 }

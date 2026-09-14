@@ -13,7 +13,10 @@ function baseDoc(overrides: Partial<DocumentDetailDto> = {}): DocumentDetailDto 
     docId: 'PRD-001',
     kind: 'PRD',
     title: 'Feature A',
-    origin: 'collab',
+    // Not 'collab': these tests exercise workflow-action gating against the static read-only body view,
+    // orthogonal to WO-159's live editor — a dedicated test below covers a 'collab'-origin document
+    // rendering the real CollabEditor instead.
+    origin: 'generated',
     workflowState: 'draft',
     sourcePath: 'docs/prd/PRD-001.md',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -32,6 +35,7 @@ function renderPage(doc: DocumentDetailDto, projectRole: 'admin' | 'editor' | 'v
   vi.spyOn(client, 'getSession').mockResolvedValue({ user: { id: 'u1', email: 'me@example.test', name: 'Me' } });
   vi.spyOn(client, 'listProjectMembers').mockResolvedValue([{ userId: 'u1', email: 'me@example.test', name: 'Me', role: projectRole }]);
   vi.spyOn(client, 'getDocument').mockResolvedValue(doc);
+  vi.spyOn(client, 'getProject').mockResolvedValue({ id: 'proj1', slug: 'web', name: 'Web', graphProjectId: 'prj_abc', settings: {} as never, archivedAt: null });
 
   const router = createMemoryRouter(
     [{ path: '/o/:orgSlug', element: <OrgShell />, children: [{ path: 'p/:projectSlug/documents/:docId', element: <DocumentDetail /> }] }],
@@ -182,5 +186,16 @@ describe('DocumentDetail', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Archivar' }));
 
     await waitFor(() => expect(archive).toHaveBeenCalledWith('acme', 'web', 'PRD-001'));
+  });
+
+  it('a collab-origin document renders the live CollabEditor instead of the static body view', async () => {
+    renderPage(baseDoc({ origin: 'collab' }), 'editor');
+    await screen.findByRole('heading', { name: 'Feature A' });
+
+    // The editor mounts (and immediately starts — then fails, since nothing is listening — a real
+    // WebSocket connection attempt in jsdom); asserting on the container's presence and the status bar
+    // is enough here, never waiting for an actual sync no test server exists to provide.
+    expect(await screen.findByTestId('collab-editor-container')).toBeTruthy();
+    expect(screen.getByRole('status')).toBeTruthy();
   });
 });

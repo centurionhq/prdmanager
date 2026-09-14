@@ -29,6 +29,7 @@
     "packages/web/tests/e2e/**/*.ts",
     "packages/web/playwright.config.ts",
     "packages/app/tests/unit/**/*.ts",
+    "packages/app/tests/collab/**/*.ts",
     "packages/db/drizzle.config.ts",
     "vitest.config.ts"
   ],
