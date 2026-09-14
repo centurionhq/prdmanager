@@ -27,6 +27,7 @@ import { requireAppSession } from '../api/app-session.js';
 import { createCollabAntiSpoofingExtension } from './anti-spoofing.js';
 import { createCollabAttributionExtension } from './attribution.js';
 import { createCollabAuthenticateExtension, type CollabAuthContext } from './authenticate.js';
+import { createCollabAwarenessExtension } from './awareness.js';
 import { realCollabBatchScheduler, type CollabBatchScheduler } from './batch-scheduler.js';
 import { createDocUpdateBatcher } from './doc-update-writer.js';
 import { isTrustedCollabOrigin } from './origin-check.js';
@@ -87,6 +88,7 @@ export function buildCollabExtensions(deps: CollabExtensionsDeps): Extension[] {
     // *before* attribution ever durably logs the update, so it comes first.
     createCollabAntiSpoofingExtension({ pool: deps.pool }) as unknown as Extension,
     createCollabAttributionExtension({ batcher }) as unknown as Extension,
+    createCollabAwarenessExtension({ pool: deps.pool }) as unknown as Extension,
   ];
 }
 
