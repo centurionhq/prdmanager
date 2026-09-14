@@ -3,7 +3,7 @@
  * `validateDocument` in `'publish'` mode, server-managed `status`, a frozen `published` version and the
  * WO-133 outbox projection actually running (asserted via `graph_dirty`/`graph_version`, never timing).
  */
-import { Neo4jGraphDatabase } from '@prdm/core';
+import { Neo4jGraphDatabase, sha256 } from '@prdm/core';
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
@@ -172,6 +172,85 @@ describe('/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId
       url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${body.document.docId}/publish`,
       headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
       payload: { versionId: body.document.latestVersion.id, contentHash: body.document.latestVersion.contentHash },
+    });
+    expect(res.statusCode).toBe(409);
+
+    await app.close();
+  });
+
+  test('WO-138: publishing an SDD generates its work orders, and the retry endpoint is idempotent', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await setupOrgAndProject();
+    const ownerCookie = await signIn(app, owner.email);
+
+    // SDD-001's `architects: ["FR-001"]` must resolve against what will actually ship: publish mode
+    // only ever sees published documents, so FR-001 needs to already be published, not just exist.
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+       VALUES ($1, $2, 'FR-001', 'FR', 'Example feature', 'docs/fr/FR-001.md', 'collab', 'published', $3)`,
+      [org.id, project.id, '---\nid: FR-001\ntype: FR\ntitle: "Example feature"\nstatus: approved\n---\n\n## Solicitud\n'],
+    );
+    const sddContent = `---\nid: SDD-001\ntype: SDD\ntitle: "Example design"\nstatus: active\narchitects: ["FR-001"]\nimpacts_paths: ["src/example.ts"]\n---\n\n## Contexto\n\n## Tareas\n\n- [ ] Implement the thing\n`;
+    const { rows } = await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state)
+       VALUES ($1, $2, 'SDD-001', 'SDD', 'Example design', 'docs/sdd/SDD-001.md', 'collab', 'in_review') RETURNING id`,
+      [org.id, project.id],
+    );
+    const documentId = rows[0].id as string;
+    const { rows: versionRows } = await pg.ownerPool.query(
+      `INSERT INTO "document_versions" (org_id, document_id, version_no, reason, rendered_markdown, content_hash) VALUES ($1, $2, 1, 'manual', $3, $4) RETURNING id, content_hash`,
+      [org.id, documentId, sddContent, sha256(sddContent)],
+    );
+    const versionId = versionRows[0].id as string;
+    const contentHash = versionRows[0].content_hash as string;
+
+    const published = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/SDD-001/publish`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
+      payload: { versionId, contentHash },
+    });
+    expect(published.statusCode).toBe(200);
+    expect(published.json().workOrders).toEqual({ generated: true, created: 1 });
+
+    const list = await app.inject({
+      method: 'GET',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents?kind=WO`,
+      headers: { ...AUTH_HOST(), cookie: ownerCookie },
+    });
+    expect(list.json().documents).toHaveLength(1);
+
+    const retry = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/SDD-001/generate-work-orders`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
+    });
+    expect(retry.statusCode).toBe(200);
+    expect(retry.json().workOrders).toEqual({ generated: true, created: 0 });
+
+    const { rows: auditRows } = await pg.ownerPool.query(`SELECT action FROM audit_log WHERE org_id = $1 AND action = 'document.work_orders_generated'`, [org.id]);
+    expect(auditRows).toHaveLength(1);
+
+    await app.close();
+  });
+
+  test('the retry endpoint refuses (409) a document that is not a published SDD/ADR', async () => {
+    const app = buildApp();
+    const { owner, editor, org, project } = await setupOrgAndProject();
+    const editorCookie = await signIn(app, editor.email);
+    const ownerCookie = await signIn(app, owner.email);
+    const created = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), editorCookie),
+      payload: { kind: 'PRD', title: 'Not a blueprint' },
+    });
+    const docId = created.json().document.docId as string;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${docId}/generate-work-orders`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
     });
     expect(res.statusCode).toBe(409);
 

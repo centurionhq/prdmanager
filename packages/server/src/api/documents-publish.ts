@@ -12,10 +12,16 @@
  * itself (SDD-007 "status approved/active") — `id`/`type`/`title`/`created_at` are already correct from
  * however the document reached `in_review` (WO-136's draft creation sets them once, up front, so there
  * is nothing left for a *publish*-time id allocation to do in this design).
+ *
+ * WO-138: publishing an SDD/ADR also runs `generateWorkOrders` (idempotent — safe even if some work
+ * orders already exist from a prior publish of the same blueprint version). A failure there is
+ * deliberately *not* a publish failure — the document is already durably published — surfaced instead
+ * as `{workOrdersGenerated: false, workOrdersError}` in the response, with
+ * `POST .../documents/:docId/generate-work-orders` as an explicit, admin-triggered retry.
  */
-import { parseDocument, sha256, validateDocument, type DraftKind, type FieldValue } from '@prdm/core';
+import { generateWorkOrders, parseDocument, sha256, validateDocument, type DraftKind, type FieldValue, type ProjectEngine } from '@prdm/core';
 import { can, publishDocumentInputSchema } from '@prdm/contracts';
-import { createTenantDb } from '@prdm/db';
+import { createTenantDb, type DocumentRecord } from '@prdm/db';
 import type { Neo4jGraphDatabase } from '@prdm/core';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
@@ -44,10 +50,49 @@ interface DocumentRouteParams {
 /** SDD-007 "status approved/active": a Feature is approved on publish, a Blueprint/Artifact is active;
  * Feedback (human-authored via WO-136, unlike MCP-generated feedback) has no server-managed status of
  * its own and simply keeps whatever it already had. */
-function publishedStatus(kind: DraftKind, current: FieldValue | undefined): FieldValue {
+export function publishedStatus(kind: DraftKind, current: FieldValue | undefined): FieldValue {
   if (kind === 'MRD' || kind === 'PRD' || kind === 'FR') return 'approved';
   if (kind === 'SDD' || kind === 'ADR' || kind === 'ART') return 'active';
   return current ?? 'new';
+}
+
+export function isBlueprintKind(kind: string): kind is 'SDD' | 'ADR' {
+  return kind === 'SDD' || kind === 'ADR';
+}
+
+export interface WorkOrderGenerationResult {
+  generated: boolean;
+  created: number;
+  error?: string;
+}
+
+/** WO-138: idempotent (safe to call repeatedly — `generateWorkOrders` itself skips tasks already
+ * generated, keyed by `source_task`) and never throws — a failure is reported, never propagated, so a
+ * caller (publish, or the manual retry route below) can always still respond successfully about the
+ * document itself. */
+export async function generateWorkOrdersFor(engine: ProjectEngine, docId: string): Promise<WorkOrderGenerationResult> {
+  try {
+    const result = await generateWorkOrders(engine, docId);
+    return { generated: true, created: result.created.length };
+  } catch (err) {
+    return { generated: false, created: 0, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+function toDocumentSummaryPayload(document: DocumentRecord) {
+  return {
+    id: document.id,
+    docId: document.docId,
+    kind: document.kind,
+    title: document.title,
+    origin: document.origin,
+    workflowState: document.workflowState,
+    sourcePath: document.sourcePath,
+    updatedAt: document.updatedAt.toISOString(),
+    publishedVersionId: document.publishedVersionId,
+    publishedRaw: document.publishedRaw,
+    publishedContentHash: document.publishedContentHash,
+  };
 }
 
 export function registerDocumentPublishRoute(app: FastifyInstance, opts: RegisterDocumentPublishRouteOptions): void {
@@ -130,21 +175,47 @@ export function registerDocumentPublishRoute(app: FastifyInstance, opts: Registe
           userAgent: userAgentOf(req),
         });
 
-      return {
-        document: {
-          id: updated.id,
-          docId: updated.docId,
-          kind: updated.kind,
-          title: updated.title,
-          origin: updated.origin,
-          workflowState: updated.workflowState,
-          sourcePath: updated.sourcePath,
-          updatedAt: updated.updatedAt.toISOString(),
-          publishedVersionId: updated.publishedVersionId,
-          publishedRaw: updated.publishedRaw,
-          publishedContentHash: updated.publishedContentHash,
-        },
-      };
+      const workOrders = isBlueprintKind(updated.kind) ? await generateWorkOrdersFor(engine, req.params.docId) : undefined;
+
+      return { document: toDocumentSummaryPayload(updated), workOrders };
+    },
+  );
+
+  app.post<{ Params: DocumentRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/generate-work-orders',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+      const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+      if (!can(subject, 'publish')) throw new ForbiddenError();
+
+      const scope = createTenantDb(pool).forOrg(org.id).forProject(project.id);
+      const existing = await scope.documents.findByDocId(req.params.docId);
+      if (!existing) throw new NotFoundError();
+      if (existing.document.workflowState !== 'published' || !isBlueprintKind(existing.document.kind)) {
+        throw new ConflictError(`${req.params.docId} is not a published SDD/ADR`);
+      }
+
+      const neo4j = requireNeo4j(opts.neo4j);
+      const engine = resolvePgProjectEngine(pool, neo4j, org.id, project);
+      const workOrders = await generateWorkOrdersFor(engine, req.params.docId);
+      if (!workOrders.generated) throw new ConflictError(`could not generate work orders for ${req.params.docId}: ${workOrders.error}`);
+
+      await createTenantDb(pool)
+        .forOrg(org.id)
+        .auditLog.record({
+          projectId: project.id,
+          actorType: 'user',
+          actorId: session.user.id,
+          action: 'document.work_orders_generated',
+          target: req.params.docId,
+          metadata: { created: workOrders.created },
+          ip: req.ip,
+          userAgent: userAgentOf(req),
+        });
+
+      return { workOrders };
     },
   );
 }
