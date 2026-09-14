@@ -111,7 +111,11 @@ export async function buildIsolationFixtures(app: BuiltApp, pg: PgTestDb): Promi
     orgId: orgB.id,
     userId: orgBOwner.id,
     name: 'org B bearer probe token',
-    scopes: ['governance:read'],
+    // Every scope a bearer isolation probe might need to actually reach a route's own IDOR check
+    // (rather than being turned away earlier by the scope prehandler with a 403, which the suite
+    // would otherwise misreport as a real isolation failure — SDD-006 §Aislamiento point 4 only
+    // cares about resource-level leakage, not re-testing the scope check itself here).
+    scopes: ['governance:read', 'reports:write'],
     expiresAt: new Date(Date.now() + DAY_MS),
   });
 

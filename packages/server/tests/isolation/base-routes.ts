@@ -334,4 +334,16 @@ export function registerBaseIsolationRoutes(): void {
       params: { path: { graphProjectId: fixtures.projectA1.graphProjectId } },
     }),
   });
+
+  // SDD-010 (WO-180): same IDOR-safe resolution as governance, before any idempotency-key/body work
+  // even starts — org B's bearer token (only `governance:read`, not `reports:write`) already 403s
+  // before it could reach a 404, but is still a legitimate cross-tenant probe: no `reports:write`
+  // scope should ever be reachable, from any org, against a project it doesn't own.
+  registerIsolationProbe('POST', '/api/v1/projects/:graphProjectId/code-reports', {
+    mutating: true,
+    crossOrg: (fixtures) => ({
+      credential: { kind: 'bearer', secret: fixtures.orgBOwnerBearerSecret },
+      params: { path: { graphProjectId: fixtures.projectA1.graphProjectId }, body: {} },
+    }),
+  });
 }

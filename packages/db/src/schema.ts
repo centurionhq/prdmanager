@@ -16,4 +16,5 @@ export * from './schema/doc-updates.js';
 export * from './schema/doc-client-bindings.js';
 export * from './schema/doc-comments.js';
 export * from './schema/agent.js';
+export * from './schema/code-reports.js';
 export * from './schema/oidc.js';

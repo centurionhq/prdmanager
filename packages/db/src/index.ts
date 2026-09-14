@@ -1,5 +1,6 @@
 export * from './audit-metadata.js';
 export * from './agent-repository.js';
+export * from './code-reports-repository.js';
 export * from './doc-comments-repository.js';
 export * from './doc-updates-repository.js';
 export * from './documents-repository.js';

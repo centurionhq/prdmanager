@@ -13,6 +13,7 @@ import { installBearerAccessPreHandler } from './access/bearer-access-prehandler
 import { installRouteAccessRegistry, type RouteRegistry } from './access/route-registry.js';
 import { registerAdminOrganizationRoutes } from './api/admin-organizations.js';
 import { registerCiTokenRoutes } from './api/ci-tokens.js';
+import { registerCodeReportRoutes } from './api/code-reports.js';
 import { registerHealthRoute } from './api/health.js';
 import { registerInvitationAcceptRoute } from './api/invitation-accept.js';
 import { registerOrganizationInvitationRoutes } from './api/organization-invitations.js';
@@ -267,6 +268,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerCiTokenRoutes(app, { auth, pool, env, clock });
       registerV1MeRoute(app, { pool });
       registerGovernanceRoutes(app, { pool });
+      registerCodeReportRoutes(app, { pool });
     });
   }
 

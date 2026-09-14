@@ -46,6 +46,10 @@ const ALLOWLISTED_TABLES = new Set([
   // is structurally a platform-level counter (no single org_id could own a cross-tenant total) rather
   // than tenant data; it holds nothing but a date and two counts.
   'llm_global_usage',
+  // SDD-010 (WO-179): a GitHub Actions OIDC token's jti must be single-use regardless of which
+  // organization eventually verifies it — see packages/db/src/schema/oidc.ts's own module doc comment
+  // for why this is deliberately global rather than tenant data.
+  'oidc_used_jtis',
 ]);
 
 interface TableRow {
