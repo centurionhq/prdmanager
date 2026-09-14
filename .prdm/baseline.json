@@ -236,12 +236,13 @@
     "WO-202": "7e93541be123f30c5de0c123449173cbcedd898a5463151220b4e0bde30cb7c9",
     "WO-203": "bfe7c8848176948a38aae9b9e53e9744fecc720de6096448a29d5754a1ff1b59",
     "WO-204": "bacd7bbe726d63966e1344aa3c121c99a72d78e706ee932594450e1e85064b6a",
-    "WO-205": "33f56e4154ca0de4ffb9beeb4d90689afec1d49d00106a37f9f1ce7bcc56bfd6"
+    "WO-205": "33f56e4154ca0de4ffb9beeb4d90689afec1d49d00106a37f9f1ce7bcc56bfd6",
+    "WO-206": "b0b4b2308b04da1a47777fd6e81bfee2617adcbbea1c672737a83a0613e3193f"
   },
   "governs": {
     "ADR-001": {
       ".mcp.json": "691d720317adc75931825d29250f4aa9c6636e63b78fadb5eebb7d070c6029ef",
-      "docker-compose.yml": "6a2324f095e6ffdfb15591da5954f860b5ff5479e0d58428810aad887224d61d",
+      "docker-compose.yml": "005201727bc885d15c18c36b8a6289bcd3e2a0acc80c48d0e10fa6f3fdf408d0",
       "scripts/install-tooling.sh": "f7353d94b1424472a3810163d4add2a1e965adbbdd3a6c0ddfbb2c4e512f51e5",
       "scripts/mcp-neo4j.sh": "37c776f5abf1e28da03da971816e529870fdd7a1e095efd8e616fcf83546b9b0",
       "scripts/validate-graph-model.mjs": "69e3cebb068a1e67c659eec44ab07863cae026ef70727719de84029711c20614"
@@ -514,7 +515,7 @@
       "packages/testkit/src/fixture.ts": "5649facc1b52770e1058907b4f7443bedf41d9f465333366222a5599bcea9088",
       "packages/testkit/src/index.ts": "15d7ec430cd409a847df696f673cc462b00f5d7b3ec518abf2f52ae816f22e75",
       "packages/testkit/src/pg-factories.ts": "ac7446f246a997523fca8c94403a3459cc8be8cd197f93a1ab3c4f178beecb9e",
-      "packages/testkit/src/pg.ts": "8caff319ed5edf45747107068a6d64a36013c10fd0dda0dd2d8c4e0755d1b934",
+      "packages/testkit/src/pg.ts": "40c3801c4a50cf11b0653a4bb46526eac8f15dbd800361189f5f5bbbcba276c1",
       "packages/testkit/src/tmp.ts": "d7ddf9b3063acc3aa77c390525bd684b6a2db00cd1a07f2d622b95e6c969bbfa",
       "packages/web/package.json": "0a322e6206d5dbb1eb7d248c497ebad02e5443d1e51f4249c560984aaa3ae8ff",
       "packages/web/tsconfig.client.json": "76d5af925065e8a2f9c1d2a80797e87c650e45faa7efe3ad4b5a919d421f2332",
@@ -552,7 +553,7 @@
       "packages/core/src/sync/tree-sitter-extractor.ts": "52a1ab5c871c6a97977391a16edeca3e1deb908973c62cfebc2205a54686ca8c"
     },
     "SDD-005": {
-      ".env.example": "4da22105989cb05b88a31043a627756ae357b0aa3f582627421314054dd4453a",
+      ".env.example": "0b8169730a261b08b39f3d058ec3f7887cd8a2be38e63a48d8e01ab2b475a1df",
       ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
       "package-lock.json": "144cb1afd3979f3d7d1ebfa286da8e506530baa32ff2df2f13584b15a4287ad1",
@@ -562,7 +563,7 @@
       "packages/testkit/src/fixture.ts": "5649facc1b52770e1058907b4f7443bedf41d9f465333366222a5599bcea9088",
       "packages/testkit/src/index.ts": "15d7ec430cd409a847df696f673cc462b00f5d7b3ec518abf2f52ae816f22e75",
       "packages/testkit/src/pg-factories.ts": "ac7446f246a997523fca8c94403a3459cc8be8cd197f93a1ab3c4f178beecb9e",
-      "packages/testkit/src/pg.ts": "8caff319ed5edf45747107068a6d64a36013c10fd0dda0dd2d8c4e0755d1b934",
+      "packages/testkit/src/pg.ts": "40c3801c4a50cf11b0653a4bb46526eac8f15dbd800361189f5f5bbbcba276c1",
       "packages/testkit/src/tmp.ts": "d7ddf9b3063acc3aa77c390525bd684b6a2db00cd1a07f2d622b95e6c969bbfa",
       "packages/web/package.json": "0a322e6206d5dbb1eb7d248c497ebad02e5443d1e51f4249c560984aaa3ae8ff",
       "packages/web/playwright.config.ts": "8f2bebd688cc7d23f6f9461b77a70129433f5ae7ff2e79c0326ad1c7d3606aba",
@@ -656,10 +657,10 @@
       "vitest.config.ts": "08fb701335317191db988c4bfe9cb155261493353fc0f4592710e0e0b248650f"
     },
     "SDD-006": {
-      ".env.example": "4da22105989cb05b88a31043a627756ae357b0aa3f582627421314054dd4453a",
+      ".env.example": "0b8169730a261b08b39f3d058ec3f7887cd8a2be38e63a48d8e01ab2b475a1df",
       ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
-      "docker-compose.yml": "6a2324f095e6ffdfb15591da5954f860b5ff5479e0d58428810aad887224d61d",
+      "docker-compose.yml": "005201727bc885d15c18c36b8a6289bcd3e2a0acc80c48d0e10fa6f3fdf408d0",
       "docker/postgres/init/01-roles.sh": "debbcd64f4e3b5fcbd30c5ef6b35f6066d9239bb42c59844b9a2d2292d8fa6b9",
       "package-lock.json": "144cb1afd3979f3d7d1ebfa286da8e506530baa32ff2df2f13584b15a4287ad1",
       "package.json": "9c45aa4b7cb2a911f71f1293dac6b6bb35c5d68a13762c112a181393c20bbce1",
@@ -695,7 +696,7 @@
       "packages/testkit/src/fixture.ts": "5649facc1b52770e1058907b4f7443bedf41d9f465333366222a5599bcea9088",
       "packages/testkit/src/index.ts": "15d7ec430cd409a847df696f673cc462b00f5d7b3ec518abf2f52ae816f22e75",
       "packages/testkit/src/pg-factories.ts": "ac7446f246a997523fca8c94403a3459cc8be8cd197f93a1ab3c4f178beecb9e",
-      "packages/testkit/src/pg.ts": "8caff319ed5edf45747107068a6d64a36013c10fd0dda0dd2d8c4e0755d1b934",
+      "packages/testkit/src/pg.ts": "40c3801c4a50cf11b0653a4bb46526eac8f15dbd800361189f5f5bbbcba276c1",
       "packages/testkit/src/tmp.ts": "d7ddf9b3063acc3aa77c390525bd684b6a2db00cd1a07f2d622b95e6c969bbfa",
       "packages/web/package.json": "0a322e6206d5dbb1eb7d248c497ebad02e5443d1e51f4249c560984aaa3ae8ff",
       "packages/web/src/api/branch.ts": "cac682c839c32cb05ef18205fa0f4aff805e81610889b8d11065fdd2a873afc1",
@@ -910,7 +911,7 @@
       "packages/testkit/src/fixture.ts": "5649facc1b52770e1058907b4f7443bedf41d9f465333366222a5599bcea9088",
       "packages/testkit/src/index.ts": "15d7ec430cd409a847df696f673cc462b00f5d7b3ec518abf2f52ae816f22e75",
       "packages/testkit/src/pg-factories.ts": "ac7446f246a997523fca8c94403a3459cc8be8cd197f93a1ab3c4f178beecb9e",
-      "packages/testkit/src/pg.ts": "8caff319ed5edf45747107068a6d64a36013c10fd0dda0dd2d8c4e0755d1b934",
+      "packages/testkit/src/pg.ts": "40c3801c4a50cf11b0653a4bb46526eac8f15dbd800361189f5f5bbbcba276c1",
       "packages/testkit/src/tmp.ts": "d7ddf9b3063acc3aa77c390525bd684b6a2db00cd1a07f2d622b95e6c969bbfa",
       "packages/web/src/api/branch.ts": "cac682c839c32cb05ef18205fa0f4aff805e81610889b8d11065fdd2a873afc1",
       "packages/web/src/api/drift.ts": "fd7d570a73f679b1ebdedd5b8492f8d1dd7af60de88edab97d2552fb7d415869",
@@ -962,7 +963,7 @@
       "vitest.config.ts": "08fb701335317191db988c4bfe9cb155261493353fc0f4592710e0e0b248650f"
     },
     "SDD-008": {
-      ".env.example": "4da22105989cb05b88a31043a627756ae357b0aa3f582627421314054dd4453a",
+      ".env.example": "0b8169730a261b08b39f3d058ec3f7887cd8a2be38e63a48d8e01ab2b475a1df",
       "package-lock.json": "144cb1afd3979f3d7d1ebfa286da8e506530baa32ff2df2f13584b15a4287ad1",
       "package.json": "9c45aa4b7cb2a911f71f1293dac6b6bb35c5d68a13762c112a181393c20bbce1",
       "packages/contracts/src/error-envelope.ts": "890cad3c40415661009c613a1e3602d07fb7ee7f6708423511d41700f2ce0c66",
@@ -992,7 +993,7 @@
       "vitest.config.ts": "08fb701335317191db988c4bfe9cb155261493353fc0f4592710e0e0b248650f"
     },
     "SDD-009": {
-      ".env.example": "4da22105989cb05b88a31043a627756ae357b0aa3f582627421314054dd4453a",
+      ".env.example": "0b8169730a261b08b39f3d058ec3f7887cd8a2be38e63a48d8e01ab2b475a1df",
       "package-lock.json": "144cb1afd3979f3d7d1ebfa286da8e506530baa32ff2df2f13584b15a4287ad1",
       "package.json": "9c45aa4b7cb2a911f71f1293dac6b6bb35c5d68a13762c112a181393c20bbce1",
       "packages/contracts/src/error-envelope.ts": "890cad3c40415661009c613a1e3602d07fb7ee7f6708423511d41700f2ce0c66",
@@ -1031,7 +1032,7 @@
       "README.md": "f1428780bc1bb21b33bcbd501071d44bff5e6b416f3eb43fae58e54bdd8a9000"
     },
     "SDD-010": {
-      ".env.example": "4da22105989cb05b88a31043a627756ae357b0aa3f582627421314054dd4453a",
+      ".env.example": "0b8169730a261b08b39f3d058ec3f7887cd8a2be38e63a48d8e01ab2b475a1df",
       ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
       "package-lock.json": "144cb1afd3979f3d7d1ebfa286da8e506530baa32ff2df2f13584b15a4287ad1",
@@ -1171,7 +1172,7 @@
       "packages/testkit/src/fixture.ts": "5649facc1b52770e1058907b4f7443bedf41d9f465333366222a5599bcea9088",
       "packages/testkit/src/index.ts": "15d7ec430cd409a847df696f673cc462b00f5d7b3ec518abf2f52ae816f22e75",
       "packages/testkit/src/pg-factories.ts": "ac7446f246a997523fca8c94403a3459cc8be8cd197f93a1ab3c4f178beecb9e",
-      "packages/testkit/src/pg.ts": "8caff319ed5edf45747107068a6d64a36013c10fd0dda0dd2d8c4e0755d1b934",
+      "packages/testkit/src/pg.ts": "40c3801c4a50cf11b0653a4bb46526eac8f15dbd800361189f5f5bbbcba276c1",
       "packages/testkit/src/tmp.ts": "d7ddf9b3063acc3aa77c390525bd684b6a2db00cd1a07f2d622b95e6c969bbfa",
       "README.md": "f1428780bc1bb21b33bcbd501071d44bff5e6b416f3eb43fae58e54bdd8a9000",
       "vitest.config.ts": "08fb701335317191db988c4bfe9cb155261493353fc0f4592710e0e0b248650f"
