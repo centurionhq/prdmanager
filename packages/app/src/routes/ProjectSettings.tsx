@@ -1,7 +1,7 @@
 /**
- * `/o/:orgSlug/p/:projectSlug/settings` (SDD-006 §Permisos, WO-118; WO-119 adds a CI-tokens section
- * here too): the caller's *effective* project role (`@prdm/contracts`'s `can()`, the same rule the
- * server uses — "owner y admin de organización heredan admin de proyecto") gates the members section.
+ * `/o/:orgSlug/p/:projectSlug/settings` (SDD-006 §Permisos, WO-118+WO-119): the caller's *effective*
+ * project role (`@prdm/contracts`'s `can()`, the same rule the server uses — "owner y admin de
+ * organización heredan admin de proyecto") gates both the members section and the CI-tokens section.
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import { useParams } from 'react-router';
@@ -10,6 +10,7 @@ import { LoadingState } from '@prdm/ui';
 import { getProject, getSession, listOrganizationMembers, listProjectMembers } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
+import { CiTokensSection } from './CiTokensSection.js';
 import { useOrgShellContext } from './OrgShell.js';
 import { ProjectMembersSection } from './ProjectMembersSection.js';
 import formStyles from '../styles/forms.module.css';
@@ -54,6 +55,7 @@ export function ProjectSettings(): ReactElement {
   if (!data || !projectSlug) return <LoadingState label="Cargando proyecto…" />;
 
   const canManageMembers = can(data.subject, 'manage_members');
+  const canManageCiTokens = can(data.subject, 'manage_ci_tokens');
 
   return (
     <div>
@@ -67,6 +69,7 @@ export function ProjectSettings(): ReactElement {
         canManage={canManageMembers}
         onChanged={() => void reload()}
       />
+      {canManageCiTokens && <CiTokensSection orgSlug={orgSlug} projectSlug={projectSlug} />}
     </div>
   );
 }

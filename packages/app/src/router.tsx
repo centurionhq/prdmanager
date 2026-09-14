@@ -7,6 +7,7 @@ import { InviteAccept } from './routes/InviteAccept.js';
 import { Login } from './routes/Login.js';
 import { OrgMembersSettings } from './routes/OrgMembersSettings.js';
 import { OrgShell } from './routes/OrgShell.js';
+import { PersonalTokensSettings } from './routes/PersonalTokensSettings.js';
 import { ProjectsDashboard } from './routes/ProjectsDashboard.js';
 import { ProjectSettings } from './routes/ProjectSettings.js';
 import { ResetPassword } from './routes/ResetPassword.js';
@@ -17,6 +18,7 @@ export const routes: RouteObject[] = [
   { path: '/login', element: <Login /> },
   { path: '/reset-password', element: <ResetPassword /> },
   { path: '/invite/:id', element: <InviteAccept /> },
+  { path: '/settings/tokens', element: <PersonalTokensSettings /> },
   {
     path: '/o/:orgSlug',
     element: <OrgShell />,

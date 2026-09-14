@@ -153,6 +153,11 @@
   gap: var(--space-sm);
 }
 
+.secretTitle {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
 .secretValue {
   font-family: var(--font-mono);
   word-break: break-all;
