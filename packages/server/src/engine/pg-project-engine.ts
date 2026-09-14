@@ -47,6 +47,19 @@
  * graph store being unreachable) is reported through `onProjectionError` but never fails the caller's
  * already-committed Postgres write: `graph_dirty` simply stays `true` and the next `recover()` (or the
  * next write's own post-commit step) retries it — eventual consistency, never a lost/rolled-back write.
+ *
+ * **`collab`-origin editable-field writes (WO-139, a deliberate SDD-008 placeholder):**
+ * `writeGeneratedFields`/`renameField`/`replace` all guard on the target document's `origin` first. A
+ * `generated`-origin document (a WO, or feedback/artifacts the MCP surface creates) has no working copy
+ * at all, so a direct write is exactly correct, unchanged since WO-132. A `collab`-origin document
+ * (human-authored via WO-136) might have one, and SDD-007 is explicit that such a write must never be a
+ * direct `UPDATE` of `published_raw`/a future `working_state` — a change already broadcast to a live
+ * `Y.Doc` can't be undone if this transaction later rolls back. Until `packages/collab` exists, the
+ * requested field diff is merged into `documents.pending_editable_patch` instead (see
+ * `queuePendingEditablePatch`): idempotent, rolled back for free by Postgres like any other write in
+ * this same transaction, and deliberately inert — nothing here fakes applying it as a real edit. A
+ * future SDD-008 work order is what actually turns a pending patch into a server-attributed Yjs
+ * transaction and clears it.
  */
 import {
   acknowledge as acknowledgeDrift,
@@ -435,21 +448,70 @@ export class PgProjectEngine implements ProjectEngine {
     return this.writeGeneratedFields(tx, id, fields);
   }
 
+  /**
+   * `EngineOps.updateDocument` (SDD-007; WO-139's placeholder): a `collab`-origin document may have a
+   * working copy a human is actively editing (`createFeatureRequest` appending to a Feedback's
+   * `informs`, or `closeFeature` closing a Feature — both call this on a document that, in the SaaS
+   * product, is always `collab`-origin, never `generated`). SDD-007's explicit invariant is that such a
+   * write is NEVER applied via a direct `UPDATE` of `published_raw`/a future `working_state`: a change
+   * already broadcast to a live `Y.Doc` can't be undone if this transaction later rolls back. Until
+   * `packages/collab` exists (SDD-008) to apply it as a real, server-attributed Yjs transaction, the
+   * field diff is merged into `pending_editable_patch` instead — idempotent (repeated/overlapping
+   * writes just merge further) and durable, but deliberately inert: nothing here fakes applying it.
+   */
   private async writeGeneratedFields(tx: PgDatabase, id: string, fields: Record<string, FieldValue>): Promise<ParsedDoc> {
     const row = await this.findDocumentRow(tx, id);
+    if (row.origin === 'collab') return this.queuePendingEditablePatch(tx, row, fields);
     if (row.publishedRaw === null) throw new Error(`document ${id} has no published content to update`);
     return this.writeGeneratedContent(tx, row, setFrontmatterFields(row.publishedRaw, fields));
   }
 
+  /** Merges `fields` into `documents.pending_editable_patch` (a plain shallow merge: the latest write
+   * for a given key always wins, matching `setFrontmatterFields`' own "last write wins" semantics)
+   * without touching `published_raw`/versions/`workflow_state` at all — nothing about what's actually
+   * shipped changes, so this deliberately does not mark the graph dirty either. Returns a `ParsedDoc`
+   * parsed from the document's current (still-unpatched) content purely to satisfy `EngineOps`'
+   * contract; every current caller of `ops.updateDocument` against a `collab`-origin document discards
+   * the return value. */
+  private async queuePendingEditablePatch(tx: PgDatabase, row: DocumentRow, fields: Record<string, FieldValue>): Promise<ParsedDoc> {
+    const existingPatch = (row.pendingEditablePatch as Record<string, FieldValue> | null) ?? {};
+    const mergedPatch = { ...existingPatch, ...fields };
+    await tx.update(schema.documents).set({ pendingEditablePatch: mergedPatch, updatedAt: new Date() }).where(eq(schema.documents.id, row.id));
+
+    const currentContent = row.publishedRaw ?? (await this.latestVersionContent(tx, row.id));
+    if (currentContent === null) throw new Error(`document ${row.docId} has no content to reflect in the pending-patch return value`);
+    return this.reparseOrThrow(row.sourcePath, currentContent);
+  }
+
+  private async latestVersionContent(tx: PgDatabase, documentId: string): Promise<string | null> {
+    const [maxRow] = await tx
+      .select({ maxVersionNo: sql<number>`coalesce(max(${schema.documentVersions.versionNo}), 0)` })
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.documentId, documentId));
+    if (!maxRow || maxRow.maxVersionNo === 0) return null;
+    const [latest] = await tx
+      .select({ renderedMarkdown: schema.documentVersions.renderedMarkdown })
+      .from(schema.documentVersions)
+      .where(and(eq(schema.documentVersions.documentId, documentId), eq(schema.documentVersions.versionNo, maxRow.maxVersionNo)));
+    return latest?.renderedMarkdown ?? null;
+  }
+
+  /** `EngineOps.renameFrontmatterField`: only ever called by `migrate/docs.ts` (local-only, SDD-007),
+   * never reached against a real `collab`-origin document in the SaaS product today — guarded anyway,
+   * consistently with `writeGeneratedFields`, rather than silently mis-happening if that ever changes. */
   private async renameField(tx: PgDatabase, id: string, oldKey: string, newKey: string): Promise<ParsedDoc> {
     const row = await this.findDocumentRow(tx, id);
+    if (row.origin === 'collab') throw new Error(`cannot rename a frontmatter field on ${id}: it has a working copy (SDD-008 will support this once collab exists)`);
     if (row.publishedRaw === null) throw new Error(`document ${id} has no published content to update`);
     return this.writeGeneratedContent(tx, row, renameFrontmatterKey(row.publishedRaw, oldKey, newKey));
   }
 
-  /** `EngineOps.replaceDocument`: same immutable-id guarantee as `Engine.replaceDocument`. */
+  /** `EngineOps.replaceDocument`: same immutable-id guarantee as `Engine.replaceDocument`, and the same
+   * `collab`-origin guard as `writeGeneratedFields` (see its doc comment) — not reached by any current
+   * domain function, guarded for the same reason as `renameField` above. */
   private async replace(tx: PgDatabase, id: string, content: string): Promise<ParsedDoc> {
     const row = await this.findDocumentRow(tx, id);
+    if (row.origin === 'collab') throw new Error(`cannot replace ${id}'s content: it has a working copy (SDD-008 will support this once collab exists)`);
     const parsed = parseDocument(content, row.sourcePath);
     if (!parsed?.ok) throw new Error(`replacement content for ${row.sourcePath} is invalid: ${parsed ? parsed.error : 'frontmatter lost'}`);
     if (parsed.doc.node.id !== id) throw new Error(`replacement content must keep id ${id}, got ${parsed.doc.node.id}`);

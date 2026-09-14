@@ -70,6 +70,16 @@ export const documents = pgTable(
     publishedContentHash: text('published_content_hash'),
     /** Cached result of the last `validateDocument` run against this document, so the editor can show it without recomputing on every read. */
     lastValidation: jsonb('last_validation'),
+    /**
+     * WO-139 deliberate SDD-008 placeholder: a shallow field-merge patch an engine write (e.g.
+     * `createFeatureRequest` appending to a Feedback's `informs`, or `closeFeature` closing a Feature)
+     * queued for a `collab`-origin document instead of ever being applied via a direct `UPDATE
+     * working_state`/`published_raw` — SDD-007's explicit invariant, since a change already broadcast
+     * to a live `Y.Doc` can't be undone if the write's transaction later rolls back. `null` when there
+     * is no pending patch. A future SDD-008 work order applies this as a real Yjs transaction (a
+     * server-attributed commit, per SDD-007) once `packages/collab` exists, then clears it.
+     */
+    pendingEditablePatch: jsonb('pending_editable_patch'),
     createdBy: text('created_by').references(() => user.id),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
