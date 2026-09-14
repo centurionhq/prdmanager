@@ -2,12 +2,17 @@
 id: "WO-178"
 type: "WO"
 title: "Endpoint GET governance con ETag por graph_version y settings del servidor, con tests"
-status: "pending"
+status: "done"
 created_at: "2026-09-13"
 implements: ["SDD-010"]
 impacts_paths: ["packages/server/src/**","packages/server/tests/**","packages/server/*.json","packages/mcp/src/**","packages/cli/src/**","packages/cli/tests/**","packages/cli/package.json","packages/core/src/**","packages/contracts/src/**","packages/contracts/tests/**","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/app/src/**","packages/app/tests/**","packages/app/*.config.ts","packages/testkit/src/**",".github/workflows/prdm-sync.yml",".gitignore","vitest.config.ts","README.md",".env.example","package.json","package-lock.json"]
 source_task: "37e7eb95adb3926e"
 tags: ["saas","remote-mcp","sync","drift","cli","import","oidc"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-14T22:30:17.778Z"
+completed_at: "2026-09-14T22:33:09.176Z"
+resolved_by: ["8ba59e0557f0ac5be7f22e9bb309178ed8417fbb"]
+blueprint_hashes: {"SDD-010":"a40225b83b2e4989ac23e7ba309a3abafe0491bdaf5ebdbdc7802d034f80760a"}
 ---
 
 ## Objetivo
