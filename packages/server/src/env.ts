@@ -94,6 +94,14 @@ const rawServerEnvSchema = z.object({
   SMTP_SECURE: z.enum(['0', '1']).optional().default('0').transform((value) => value === '1'),
   DEEPSEEK_API_KEY: z.string().min(1).optional(),
   DEEPSEEK_BASE_URL: z.string().url().optional(),
+  // SDD-007 "PgProjectEngine" (WO-137): the graph store every project's outbox projection writes to.
+  // Unlike the CLI's `loadConfig` (`assertLocalNeo4j`), the server has no "accidentally overwrote my
+  // local dev graph" risk to guard against — it is always expected to reach a real, possibly remote,
+  // operator-configured instance.
+  NEO4J_URI: z.string().url('NEO4J_URI must be a valid URI').optional().default('neo4j://127.0.0.1:7687'),
+  NEO4J_USERNAME: z.string().min(1).optional().default('neo4j'),
+  NEO4J_PASSWORD: z.string().min(1, 'NEO4J_PASSWORD is required'),
+  NEO4J_DATABASE: z.string().min(1).optional().default('neo4j'),
 });
 
 export interface SmtpEnv {
@@ -110,6 +118,13 @@ export interface DeepSeekEnv {
   baseUrl?: string;
 }
 
+export interface Neo4jEnv {
+  uri: string;
+  username: string;
+  password: string;
+  database: string;
+}
+
 export interface ServerEnv {
   nodeEnv: NodeEnv;
   serverPort: number;
@@ -120,6 +135,7 @@ export interface ServerEnv {
   trustProxy: boolean;
   smtp: SmtpEnv;
   deepseek?: DeepSeekEnv;
+  neo4j: Neo4jEnv;
 }
 
 function resolveNodeEnv(value: string | undefined): NodeEnv {
@@ -155,5 +171,6 @@ export function resolveServerEnv(env: NodeJS.ProcessEnv): ServerEnv {
       from: data.SMTP_FROM,
     },
     deepseek,
+    neo4j: { uri: data.NEO4J_URI, username: data.NEO4J_USERNAME, password: data.NEO4J_PASSWORD, database: data.NEO4J_DATABASE },
   };
 }

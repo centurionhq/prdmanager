@@ -9,6 +9,7 @@ const VALID_RAW_ENV: NodeJS.ProcessEnv = {
   SMTP_HOST: '127.0.0.1',
   SMTP_PORT: '1025',
   SMTP_FROM: 'prdm <no-reply@example.test>',
+  NEO4J_PASSWORD: 'test-password',
 };
 
 describe('resolveServerEnv', () => {
@@ -24,6 +25,7 @@ describe('resolveServerEnv', () => {
       trustProxy: false,
       smtp: { host: '127.0.0.1', port: 1025, secure: false, from: 'prdm <no-reply@example.test>' },
       deepseek: undefined,
+      neo4j: { uri: 'neo4j://127.0.0.1:7687', username: 'neo4j', password: 'test-password', database: 'neo4j' },
     });
   });
 
@@ -78,6 +80,14 @@ describe('resolveServerEnv', () => {
     expect(() => resolveServerEnv({ ...VALID_RAW_ENV, SMTP_PORT: 'abc' })).toThrow(/SMTP_PORT/);
     const { SMTP_FROM: _f, ...withoutFrom } = VALID_RAW_ENV;
     expect(() => resolveServerEnv(withoutFrom)).toThrow(/SMTP_FROM/);
+  });
+
+  test('requires NEO4J_PASSWORD; NEO4J_URI/USERNAME/DATABASE default to the local dev instance', () => {
+    const { NEO4J_PASSWORD: _p, ...withoutPassword } = VALID_RAW_ENV;
+    expect(() => resolveServerEnv(withoutPassword)).toThrow(/NEO4J_PASSWORD/);
+
+    const env = resolveServerEnv({ ...VALID_RAW_ENV, NEO4J_URI: 'neo4j://graph.example.test:7687', NEO4J_USERNAME: 'app', NEO4J_DATABASE: 'prdm' });
+    expect(env.neo4j).toEqual({ uri: 'neo4j://graph.example.test:7687', username: 'app', password: 'test-password', database: 'prdm' });
   });
 
   test('leaves deepseek undefined when DEEPSEEK_API_KEY is absent, populated when present', () => {

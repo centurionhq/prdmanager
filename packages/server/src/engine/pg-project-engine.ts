@@ -496,6 +496,65 @@ export class PgProjectEngine implements ProjectEngine {
     return parsed.doc;
   }
 
+  /**
+   * Publishes a human-authored (`origin: 'collab'`) document (SDD-007 "Documentos y flujo"; WO-137):
+   * freezes a new `document_versions` row (`reason: 'published'`) from already-validated final content
+   * (the caller runs `validateDocument` in `'publish'` mode *before* calling this — this method only
+   * re-checks that `expectedVersionId` is still the actual latest version, a narrow data-integrity
+   * guard against a concurrent publish/edit racing this one, under the same per-project advisory lock
+   * every other write here uses), sets `workflow_state = 'published'`/`published_raw`/
+   * `published_content_hash`/`published_version_id`, and marks the graph dirty — `withTx`'s own
+   * post-commit step (WO-133) then projects it exactly like any other write.
+   */
+  async publishDocument(docId: string, input: { expectedVersionId: string; renderedMarkdown: string; frontmatter: Record<string, unknown>; publishedBy: string }): Promise<DocumentRow> {
+    return this.withTx(async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(schema.documents)
+        .where(and(eq(schema.documents.projectId, this.projectId), eq(schema.documents.docId, docId)));
+      if (!row) throw new Error(`document ${docId} not found`);
+
+      const [maxRow] = await tx
+        .select({ maxVersionNo: sql<number>`coalesce(max(${schema.documentVersions.versionNo}), 0)` })
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.documentId, row.id));
+      const [latestVersion] = await tx
+        .select()
+        .from(schema.documentVersions)
+        .where(and(eq(schema.documentVersions.documentId, row.id), eq(schema.documentVersions.versionNo, maxRow?.maxVersionNo ?? 0)));
+      if (!latestVersion || latestVersion.id !== input.expectedVersionId) {
+        throw new Error(`${docId} has a newer version than the one being published; reload and try again`);
+      }
+
+      const contentHash = sha256(input.renderedMarkdown);
+      const [published] = await tx
+        .insert(schema.documentVersions)
+        .values({
+          orgId: this.orgId,
+          documentId: row.id,
+          versionNo: (maxRow?.maxVersionNo ?? 0) + 1,
+          reason: 'published',
+          renderedMarkdown: input.renderedMarkdown,
+          frontmatter: input.frontmatter,
+          contentHash,
+          contributors: [input.publishedBy],
+          createdBy: input.publishedBy,
+        })
+        .returning();
+      if (!published) throw new Error(`failed to insert published version for ${docId}`);
+
+      const [updated] = await tx
+        .update(schema.documents)
+        .set({ workflowState: 'published', publishedRaw: input.renderedMarkdown, publishedContentHash: contentHash, publishedVersionId: published.id, updatedAt: new Date() })
+        .where(eq(schema.documents.id, row.id))
+        .returning();
+      if (!updated) throw new Error(`failed to update document ${docId} after publish`);
+
+      await this.markGraphDirty(tx);
+      return updated;
+    });
+  }
+
   /** `EngineOps.readCommit` (SDD-007): only commits that arrived through a CI-verified baseline report
    * (SDD-010, not yet built) are ever visible; anything else — including a sha real in git but never
    * reported, or reported only as an unverified preview — answers `null` here exactly like an unknown

@@ -67,3 +67,9 @@ export const documentDetailSchema = documentSummarySchema.extend({
   publishedContentHash: z.string().nullable(),
 });
 export type DocumentDetail = z.infer<typeof documentDetailSchema>;
+
+export const publishDocumentInputSchema = z.object({
+  versionId: z.string().min(1),
+  contentHash: z.string().min(1),
+});
+export type PublishDocumentInput = z.infer<typeof publishDocumentInputSchema>;

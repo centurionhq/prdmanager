@@ -11,6 +11,7 @@ export function buildTestServerEnv(overrides: Partial<ServerEnv> = {}): ServerEn
     trustedOrigins: ['https://app.example.test'],
     trustProxy: false,
     smtp: { host: '127.0.0.1', port: 1025, secure: false, from: 'prdm <no-reply@example.test>' },
+    neo4j: { uri: 'neo4j://127.0.0.1:0', username: 'neo4j', password: 'unused-in-tests-that-never-touch-neo4j', database: 'neo4j' },
     ...overrides,
   };
 }

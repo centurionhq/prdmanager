@@ -4,6 +4,7 @@
 import { existsSync } from 'node:fs';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { Neo4jGraphDatabase } from '@prdm/core';
 import { createPool, reconcileSuperadminMemberships } from '@prdm/db';
 import { buildServer } from './build-server.js';
 import { DEFAULT_SERVER_HOST, resolveServerEnv } from './env.js';
@@ -17,13 +18,18 @@ async function main(): Promise<void> {
   const env = resolveServerEnv(process.env);
   const pool = createPool({ connectionString: env.databaseUrl });
   const mailer = new NodemailerMailer(env.smtp);
+  // SDD-007 "PgProjectEngine" (WO-137): connects lazily (the driver itself never opens a socket up
+  // front) and applies the graph's own schema migrations, idempotent and safe on every boot exactly
+  // like `packages/testkit`'s equivalent does for tests.
+  const neo4j = Neo4jGraphDatabase.connect(env.neo4j);
+  await neo4j.migrate();
 
   const staticDir = fileURLToPath(APP_DIST);
   if (!existsSync(staticDir)) {
     throw new Error(`app bundle not found at ${staticDir}; run "npm run build --workspace=@prdm/app" first`);
   }
 
-  const app = buildServer({ env, pool, mailer, staticDir });
+  const app = buildServer({ env, pool, mailer, staticDir, neo4j });
 
   // Security review #1 (WO-101): the superadmin-org-creation flow can't be one DB transaction (better-auth's
   // internal writes aren't composable), so a crash mid-flow can leave a superadmin holding a stray `member`
@@ -36,6 +42,7 @@ async function main(): Promise<void> {
     if (closing) return;
     closing = true;
     await app.close();
+    await neo4j.close();
     await pool.end();
   };
   process.once('SIGINT', () => void shutdown());

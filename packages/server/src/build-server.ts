@@ -1,5 +1,6 @@
 import rateLimitPlugin, { type FastifyRateLimitStoreCtor } from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
+import type { Neo4jGraphDatabase } from '@prdm/core';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { Pool } from 'pg';
 import { installBearerAccessPreHandler } from './access/bearer-access-prehandler.js';
@@ -10,6 +11,7 @@ import { registerHealthRoute } from './api/health.js';
 import { registerInvitationAcceptRoute } from './api/invitation-accept.js';
 import { registerOrganizationInvitationRoutes } from './api/organization-invitations.js';
 import { registerDocumentRoutes } from './api/documents.js';
+import { registerDocumentPublishRoute } from './api/documents-publish.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
 import { registerProjectRoutes } from './api/projects.js';
 import { registerTokenRoutes } from './api/tokens.js';
@@ -54,6 +56,10 @@ export interface BuildServerDeps {
   /** `packages/app`'s built bundle (`dist/`), or a temp dir in tests; static serving — and the SPA fallback in
    * `setNotFoundHandler` — is skipped entirely when omitted (SDD-006 "Local y despliegue"). */
   staticDir?: string;
+  /** The graph store every project's `PgProjectEngine` outbox projection writes to (SDD-007, WO-137).
+   * Optional so every existing test that never touches a document/graph route keeps working unchanged;
+   * a route that actually needs one calls `requireNeo4j` (`./engine/resolve-pg-project-engine.js`). */
+  neo4j?: Neo4jGraphDatabase;
 }
 
 /**
@@ -63,7 +69,7 @@ export interface BuildServerDeps {
  * its allowlist on `/api/auth/*` — `graph`, `llm` and `oidc` land with the SDD-006 tasks that need them.
  */
 export function buildServer(deps: BuildServerDeps): FastifyInstance {
-  const { env, logger = true, clock = () => new Date(), pool, mailer, rateLimitStore, staticDir } = deps;
+  const { env, logger = true, clock = () => new Date(), pool, mailer, rateLimitStore, staticDir, neo4j } = deps;
   // Fastify only derives `request.ip`/`request.hostname` from X-Forwarded-* headers when this is
   // set (SDD-006 §Autenticación): same PRDM_TRUST_PROXY gate as the /api/auth/* Host guard and,
   // later, @fastify/rate-limit's IP source (WO-095) — one flag, one trust decision, everywhere.
@@ -145,6 +151,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerOrganizationInvitationRoutes(app, { auth, pool, mailer, env });
       registerProjectRoutes(app, { auth, pool, env });
       registerDocumentRoutes(app, { auth, pool, env });
+      registerDocumentPublishRoute(app, { auth, pool, env, neo4j });
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
       registerTokenRoutes(app, { auth, pool, env, clock });
       registerCiTokenRoutes(app, { auth, pool, env, clock });
