@@ -2,12 +2,17 @@
 id: "WO-193"
 type: "WO"
 title: "Importación de contadores, grandfathered y baseline con trust import marcada como no verificada por CI, con auditoría de campos privilegiados, con tests"
-status: "pending"
+status: "done"
 created_at: "2026-09-13"
 implements: ["SDD-010"]
 impacts_paths: ["packages/server/src/**","packages/server/tests/**","packages/server/*.json","packages/mcp/src/**","packages/cli/src/**","packages/cli/tests/**","packages/cli/package.json","packages/core/src/**","packages/contracts/src/**","packages/contracts/tests/**","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/app/src/**","packages/app/tests/**","packages/app/*.config.ts","packages/testkit/src/**",".github/workflows/prdm-sync.yml",".gitignore","vitest.config.ts","README.md",".env.example","package.json","package-lock.json"]
 source_task: "5d93489ece3a4cf2"
 tags: ["saas","remote-mcp","sync","drift","cli","import","oidc"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T01:13:27.900Z"
+completed_at: "2026-09-15T01:18:35.844Z"
+resolved_by: ["ab4028fbbcbaff79e00bd5aceef2047b30640c3c"]
+blueprint_hashes: {"SDD-010":"a40225b83b2e4989ac23e7ba309a3abafe0491bdaf5ebdbdc7802d034f80760a"}
 ---
 
 ## Objetivo
