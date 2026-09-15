@@ -1,6 +1,9 @@
 /**
- * Generic accessible tabs primitive (WO-287): `role="tablist"`/`"tab"`/`"tabpanel"` with roving
- * arrow-key focus (Home/End included), shared by the desktop side panel and the mobile tab bar.
+ * Generic accessible tabs primitive (WO-287, moved to src/components in WO-319):
+ * `role="tablist"`/`"tab"`/`"tabpanel"` with roving arrow-key focus (Home/End included).
+ *
+ * Every caller gets the same ARIA wiring and keyboard support; `classNames` lets a screen keep
+ * its own visual design (padding, borders, colors) instead of the default look in Tabs.module.css.
  */
 import type { KeyboardEvent, ReactElement, ReactNode } from 'react';
 import styles from './Tabs.module.css';
@@ -11,12 +14,21 @@ export interface TabDef {
   readonly panel: ReactNode;
 }
 
+export interface TabsClassNames {
+  readonly wrapper?: string;
+  readonly tablist?: string;
+  /** Given whether the tab is selected, returns its className. */
+  readonly tab?: (selected: boolean) => string;
+  readonly panel?: string;
+}
+
 export interface TabsProps {
   readonly ariaLabel: string;
   readonly tabs: readonly TabDef[];
   readonly activeId: string;
   readonly onChange: (id: string) => void;
   readonly idPrefix: string;
+  readonly classNames?: TabsClassNames;
 }
 
 const NEXT_KEYS = new Set(['ArrowRight', 'ArrowDown']);
@@ -30,7 +42,11 @@ function targetIndexFor(key: string, activeIndex: number, count: number): number
   return undefined;
 }
 
-export function Tabs({ ariaLabel, tabs, activeId, onChange, idPrefix }: TabsProps): ReactElement {
+function defaultTabClassName(selected: boolean): string {
+  return [styles.tab, selected ? styles.selected : null].filter((value): value is string => Boolean(value)).join(' ');
+}
+
+export function Tabs({ ariaLabel, tabs, activeId, onChange, idPrefix, classNames }: TabsProps): ReactElement {
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
     const activeIndex = buttons.findIndex((button) => button.id === `${idPrefix}-tab-${activeId}`);
@@ -48,8 +64,8 @@ export function Tabs({ ariaLabel, tabs, activeId, onChange, idPrefix }: TabsProp
   }
 
   return (
-    <div className={styles.wrapper}>
-      <div role="tablist" aria-label={ariaLabel} className={styles.tablist} onKeyDown={handleKeyDown}>
+    <div className={classNames?.wrapper ?? styles.wrapper}>
+      <div role="tablist" aria-label={ariaLabel} className={classNames?.tablist ?? styles.tablist} onKeyDown={handleKeyDown}>
         {tabs.map((tab) => {
           const selected = tab.id === activeId;
           return (
@@ -61,7 +77,7 @@ export function Tabs({ ariaLabel, tabs, activeId, onChange, idPrefix }: TabsProp
               aria-selected={selected}
               aria-controls={`${idPrefix}-panel-${tab.id}`}
               tabIndex={selected ? 0 : -1}
-              className={[styles.tab, selected ? styles.selected : null].filter((value): value is string => Boolean(value)).join(' ')}
+              className={classNames?.tab ? classNames.tab(selected) : defaultTabClassName(selected)}
               onClick={() => onChange(tab.id)}
             >
               {tab.label}
@@ -76,7 +92,7 @@ export function Tabs({ ariaLabel, tabs, activeId, onChange, idPrefix }: TabsProp
           id={`${idPrefix}-panel-${tab.id}`}
           aria-labelledby={`${idPrefix}-tab-${tab.id}`}
           hidden={tab.id !== activeId}
-          className={styles.panel}
+          className={classNames?.panel ?? styles.panel}
         >
           {tab.id === activeId ? tab.panel : null}
         </div>

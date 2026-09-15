@@ -3,6 +3,7 @@
  * Validación. WO-287 laid out the tabs; WO-289 wired Agente; WO-290 wires the rest.
  */
 import { useState, type ReactElement } from 'react';
+import { Tabs } from '../../components';
 import {
   validationIssuesForDocument,
   type AgentProposal,
@@ -13,7 +14,6 @@ import {
 } from '../../data';
 import { AgentTab } from './AgentTab';
 import { CommentsTab } from './CommentsTab';
-import { Tabs } from './Tabs';
 import type { ProposalOutcome } from './useDocumentEditor';
 import { ValidationTab } from './ValidationTab';
 import { VersionsTab } from './VersionsTab';

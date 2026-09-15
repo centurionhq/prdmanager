@@ -3,11 +3,11 @@
  * under 768px instead of the desktop's three columns.
  */
 import { useState, type ReactElement } from 'react';
+import { Tabs } from '../../components';
 import type { AgentProposal, CommentThread, DocumentBlock, DocumentVersion, ProjectDocument } from '../../data';
 import { AgentTab } from './AgentTab';
 import { CommentsTab } from './CommentsTab';
 import { EditorColumn } from './EditorColumn';
-import { Tabs } from './Tabs';
 import type { EditorMode, ProposalOutcome } from './useDocumentEditor';
 import { VersionsTab } from './VersionsTab';
 
