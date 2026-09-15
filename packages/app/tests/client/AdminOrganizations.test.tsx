@@ -34,9 +34,10 @@ describe('AdminOrganizations', () => {
     const create = vi.spyOn(client, 'createOrganizationAsSuperadmin');
     render(<AdminOrganizations />);
 
-    await screen.findByRole('heading', { name: 'Nueva organización' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Crear organización' }));
+    await screen.findByRole('dialog', { name: 'Crear organización' });
     await userEvent.type(screen.getByLabelText('Slug'), 'Not Valid!');
-    await userEvent.click(screen.getByRole('button', { name: 'Crear organización' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Crear e invitar' }));
 
     expect(await screen.findByText(/Minúsculas, números y guiones/)).toBeTruthy();
     expect(create).not.toHaveBeenCalled();
@@ -50,13 +51,29 @@ describe('AdminOrganizations', () => {
     render(<AdminOrganizations />);
 
     await screen.findByText(/Todavía no se creó ninguna organización/);
+    await userEvent.click(screen.getByRole('button', { name: 'Crear organización' }));
+    await screen.findByRole('dialog', { name: 'Crear organización' });
     await userEvent.type(screen.getByLabelText('Nombre'), 'New Org');
     await userEvent.type(screen.getByLabelText('Slug'), 'new-org');
     await userEvent.type(screen.getByLabelText('Email del owner'), 'owner@example.test');
-    await userEvent.click(screen.getByRole('button', { name: 'Crear organización' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Crear e invitar' }));
 
     await waitFor(() => expect(create).toHaveBeenCalledWith({ name: 'New Org', slug: 'new-org', ownerEmail: 'owner@example.test' }));
     expect(await screen.findByText(/procesará automáticamente con DeepSeek/)).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByText('new-org')).toBeTruthy();
+  });
+
+  it('closes the create modal on Cancelar without submitting', async () => {
+    vi.spyOn(client, 'listAllOrganizationsAsSuperadmin').mockResolvedValue([]);
+    const create = vi.spyOn(client, 'createOrganizationAsSuperadmin');
+    render(<AdminOrganizations />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Crear organización' }));
+    await screen.findByRole('dialog', { name: 'Crear organización' });
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(create).not.toHaveBeenCalled();
   });
 });
