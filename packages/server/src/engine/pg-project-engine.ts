@@ -48,23 +48,41 @@
  * already-committed Postgres write: `graph_dirty` simply stays `true` and the next `recover()` (or the
  * next write's own post-commit step) retries it — eventual consistency, never a lost/rolled-back write.
  *
- * **`collab`-origin editable-field writes (WO-139, a deliberate SDD-008 placeholder):**
- * `writeGeneratedFields`/`renameField`/`replace` all guard on the target document's `origin` first. A
- * `generated`-origin document (a WO, or feedback/artifacts the MCP surface creates) has no working copy
- * at all, so a direct write is exactly correct, unchanged since WO-132. A `collab`-origin document
- * (human-authored via WO-136) might have one, and SDD-007 is explicit that such a write must never be a
- * direct `UPDATE` of `published_raw`/a future `working_state` — a change already broadcast to a live
- * `Y.Doc` can't be undone if this transaction later rolls back. Until `packages/collab` exists, the
- * requested field diff is merged into `documents.pending_editable_patch` instead (see
- * `queuePendingEditablePatch`): idempotent, rolled back for free by Postgres like any other write in
- * this same transaction, and deliberately inert — nothing here fakes applying it as a real edit. A
- * future SDD-008 work order is what actually turns a pending patch into a server-attributed Yjs
- * transaction and clears it.
+ * **`collab`-origin field writes (WO-139 → WO-250):** `writeGeneratedFields`/`renameField`/`replace` all
+ * guard on the target document's `origin` first. A `generated`-origin document (a WO, or
+ * feedback/artifacts the MCP surface creates) has no working copy at all, so a direct write is exactly
+ * correct, unchanged since WO-132. A `collab`-origin document (human-authored via WO-136) might have one,
+ * so `writeGeneratedFields` splits the requested fields in two (see `isServerManagedField`):
+ *
+ * - **Server-managed fields** (`closeFeature`'s `status`/`closed_at`/`closed_by`, or `status` being set to
+ *   any other `FORBIDDEN_TERMINAL_STATUS` value) are never something a human types into the Y.Doc — SDD-008
+ *   keeps them out of it entirely by design — so there is nothing a rollback needs to protect here: they're
+ *   written straight to `published_raw` (`writeServerManagedCollabFields`, reusing the same
+ *   `setFrontmatterFields`/`writeGeneratedContent`/`reason: 'engine_write'` path a `generated`-origin write
+ *   already uses), which is what makes the change visible to `scan()`/drift/graph/MCP immediately, with no
+ *   dependency on anyone ever opening this document's editor (WO-250: this is exactly what was missing —
+ *   `closeFeature` used to only ever reach `pending_editable_patch`, invisible to all of those until, and
+ *   unless, someone happened to open the live editor). If a Hocuspocus instance is wired up
+ *   (`PgProjectEngineOptions.hocuspocus`), the equivalent change is additionally queued in
+ *   `pendingLiveDocSyncs` and applied to the document's live `Y.Doc` as a real, `system:engine`-attributed
+ *   transaction (same `openDirectConnection` + scratch-doc-diffed-against-the-live-state-vector pattern as
+ *   `../collab/restore.ts`/`../collab/accept-agent-proposal.ts`) — but only once `withTx`'s surrounding
+ *   Postgres transaction has actually committed, never before: a change already broadcast to a live `Y.Doc`
+ *   can't be undone if that transaction later rolls back, the same invariant WO-139 was protecting.
+ * - **Genuinely Y.Doc-editable fields** (`createFeatureRequest`'s `informs` link-back today — anything not
+ *   in `FORBIDDEN_STATIC_FIELDS`/`FORBIDDEN_TERMINAL_STATUS`) keep going through
+ *   `queuePendingEditablePatch`, unchanged since WO-139: merged into `documents.pending_editable_patch`,
+ *   idempotent, rolled back for free by Postgres like any other write in this same transaction, and
+ *   deliberately inert until a live editor actually opens this document (`../collab/persistence.ts`'s
+ *   `onLoadDocument`) — correct for a field a human is meant to keep editing live, wrong for a
+ *   server-managed one, which is exactly why WO-250 split the two.
  */
 import {
   acknowledge as acknowledgeDrift,
   buildRefreshReport,
   emptyBaseline,
+  FORBIDDEN_STATIC_FIELDS,
+  FORBIDDEN_TERMINAL_STATUS,
   parseDocument,
   renameFrontmatterKey,
   scanContents,
@@ -90,9 +108,13 @@ import {
   type TransactionOptions,
   type WorkOrderUpdate,
 } from '@prdm/core';
-import { formatDocId, schema, withTenantTx, type PgDatabase } from '@prdm/db';
-import { and, eq, sql } from 'drizzle-orm';
+import { formatDocId, schema, seedIdCounterAtLeast, withTenantTx, type PgDatabase } from '@prdm/db';
+import { assertValidRoot, createDocumentYDoc, decodeUpdateRanges, FRONTMATTER_ROOT, InvalidDocumentRootError, type FrontmatterValue } from '@prdm/collab';
+import { and, desc, eq, sql } from 'drizzle-orm';
+import type { Hocuspocus } from '@hocuspocus/server';
 import type { Pool } from 'pg';
+import * as Y from 'yjs';
+import { formatDocumentName } from '../collab/document-name.js';
 import { saasProjectRoot } from './pg-project-settings.js';
 
 type DocumentRow = typeof schema.documents.$inferSelect;
@@ -110,6 +132,47 @@ type DocumentKindValue = (typeof schema.documentKind.enumValues)[number];
  * in sync by hand, same cross-package convention already used for `collab/`'s `DOC_UPDATES_LOCK_SALT`. */
 const WRITE_LOCK_SALT = 0;
 const PROJECTION_LOCK_SALT = 1;
+
+/** WO-250: same salt/keyspace as `../collab/doc-update-writer.ts`/`../collab/restore.ts`/
+ * `../collab/accept-agent-proposal.ts`'s own `DOC_UPDATES_LOCK_SALT` ('PDU0') — `applyServerManagedFieldsToLiveDoc`
+ * durably writes its own `doc_updates` row the same way those do (a direct Hocuspocus connection has no
+ * `beforeSync` hook to do it for them), so it must take the exact same per-document advisory lock they do
+ * to serialize against a concurrent live edit's own `doc_updates.seq` allocation. Duplicated by hand
+ * across files/packages, same convention as `WRITE_LOCK_SALT` above. */
+const DOC_UPDATES_LOCK_SALT = 0x5044_5530; // 'PDU0'
+
+/** A fresh, unregistered 32-bit Yjs client id (WO-250) — same generation shape used by
+ * `../collab/restore.ts`/`../collab/accept-agent-proposal.ts` (each file keeps its own tiny copy rather
+ * than sharing one; `generateNewClientId` isn't part of `yjs`'s public API surface). */
+function freshClientId(): number {
+  return Math.floor(Math.random() * 2 ** 32);
+}
+
+/** `system:engine` (WO-250), matching `../collab/persistence.ts`'s own `PENDING_PATCH_ORIGIN` value
+ * (SDD-008 §"Autoría por línea no falsificable": a server-attributed transaction, never a real
+ * connection's client id) — kept as a separately-defined constant rather than importing it from a
+ * Hocuspocus-extension module into this engine-layer one, same "duplicated by hand, kept in sync"
+ * convention as the lock salts above. */
+const ENGINE_WRITE_ORIGIN = 'system:engine';
+
+/**
+ * WO-250: a field a `collab`-origin document's engine write touches is "server-managed" — and therefore
+ * safe (and correct) to write directly to `published_raw` rather than queue in `pending_editable_patch`
+ * — exactly when it's one of the identity/lifecycle/provenance fields `@prdm/core`'s
+ * `FORBIDDEN_STATIC_FIELDS` already says a human draft may never set directly (SDD-002 "Ciclo de vida":
+ * `closed_at`/`closed_by`/`assigned_to`/`claimed_at`/`completed_at`/`resolved_by`/`blueprint_hashes`/
+ * `source_task`), or `status` being set to one of `FORBIDDEN_TERMINAL_STATUS`'s lifecycle-managed terminal
+ * values (`closeFeature`'s own `status: 'closed'`) — `status` is otherwise a plain human-editable field
+ * for any non-terminal value. Grounded in exactly what the two real callers of `ops.updateDocument`
+ * against a `collab`-origin document pass today: `closeFeature` (`status`/`closed_at`/`closed_by`, all
+ * server-managed) and `createFeatureRequest`'s `informs` link-back (not server-managed — a human can
+ * freely draft `informs`, per `FORBIDDEN_STATIC_FIELDS` not including it — so it keeps going through
+ * `queuePendingEditablePatch` unchanged).
+ */
+function isServerManagedField(key: string, value: FieldValue): boolean {
+  if (FORBIDDEN_STATIC_FIELDS.has(key)) return true;
+  return key === 'status' && typeof value === 'string' && FORBIDDEN_TERMINAL_STATUS.has(value);
+}
 
 /** Extracts the numeric sequence out of a real `KIND-NNN` id (`FB-014` -> `14`); throws for anything
  * that isn't already a validated id, since every caller here only ever sees `ParsedDoc.node.id`. */
@@ -157,14 +220,32 @@ export interface PgProjectEngineOptions {
   projectId: string;
   settings: ProjectSettings;
   store: GraphStore;
+  /** WO-250: the server's live `Hocuspocus` instance, used only to apply a server-managed collab-field
+   * write (see `isServerManagedField`) to a document's live `Y.Doc` once the underlying Postgres write has
+   * committed (`applyServerManagedFieldsToLiveDoc`). Optional: `undefined` in any context that never
+   * touches a real-time collab server (CLI/MCP-remote read paths, most tests) — `published_raw` is always
+   * written directly either way, so `scan()`/drift/graph/MCP see a server-managed write immediately
+   * regardless; only an already-open live editor stays stale (until reload) without this wired up. */
+  hocuspocus?: Hocuspocus;
   /** Called when the post-commit outbox projection fails (SDD-007's outbox never fails the caller's
    * already-committed write for this — see this module's doc comment); defaults to writing a single
    * line to stderr so a failure is never silently swallowed even without a logger wired up. */
   onProjectionError?: (err: unknown) => void;
+  /** WO-250: called when applying a server-managed collab-field write to a document's live `Y.Doc` fails
+   * after the underlying Postgres write already committed — same "never fail the caller's already-
+   * committed write" contract as `onProjectionError` (see this module's doc comment): the `published_raw`
+   * write already succeeded and is what `scan()`/drift/graph/MCP read, so a failure here only ever means a
+   * currently-open live editor stays stale until it reloads. Defaults to a single stderr line, same shape
+   * as `onProjectionError`'s own default. */
+  onLiveDocSyncError?: (err: unknown) => void;
 }
 
 function defaultProjectionErrorHandler(err: unknown): void {
   process.stderr.write(`PgProjectEngine: graph projection failed, will retry on next write/recover(): ${(err as Error)?.message ?? String(err)}\n`);
+}
+
+function defaultLiveDocSyncErrorHandler(err: unknown): void {
+  process.stderr.write(`PgProjectEngine: applying a server-managed field write to a document's live Y.Doc failed (published_raw already committed): ${(err as Error)?.message ?? String(err)}\n`);
 }
 
 async function loadScanState(tx: PgDatabase, projectId: string): Promise<ScanResult> {
@@ -214,6 +295,15 @@ export class PgProjectEngine implements ProjectEngine {
    * per SDD-007, and typed against the concrete `Engine`) keeps compiling unchanged. */
   private readonly config: PrdmConfig;
   private readonly onProjectionError: (err: unknown) => void;
+  private readonly onLiveDocSyncError: (err: unknown) => void;
+  private readonly hocuspocus: Hocuspocus | undefined;
+  /** WO-250: server-managed collab-field writes queued by `writeServerManagedCollabFields` during the
+   * current `withTx` call, applied to each document's live `Y.Doc` only *after* the enclosing Postgres
+   * transaction actually commits (see `withTx`). Reset at the start of every `withTx` call; safe as a
+   * plain instance field despite `PgProjectEngine` not being otherwise re-entrant-safe because
+   * `enqueueForProject` already guarantees at most one `withTx` call is ever in flight for this project id
+   * at a time, across every instance. */
+  private pendingLiveDocSyncs: Array<{ documentId: string; fields: Record<string, FieldValue> }> = [];
 
   constructor(opts: PgProjectEngineOptions) {
     this.pool = opts.pool;
@@ -221,7 +311,9 @@ export class PgProjectEngine implements ProjectEngine {
     this.projectId = opts.projectId;
     this.settings = opts.settings;
     this.store = opts.store;
+    this.hocuspocus = opts.hocuspocus;
     this.onProjectionError = opts.onProjectionError ?? defaultProjectionErrorHandler;
+    this.onLiveDocSyncError = opts.onLiveDocSyncError ?? defaultLiveDocSyncErrorHandler;
     this.config = {
       ...opts.settings,
       root: saasProjectRoot(opts.projectId),
@@ -279,6 +371,7 @@ export class PgProjectEngine implements ProjectEngine {
 
   private withTx<T>(fn: (tx: PgDatabase, ops: EngineOps) => Promise<T>): Promise<T> {
     return enqueueForProject(this.projectId, async () => {
+      this.pendingLiveDocSyncs = [];
       const result = await withTenantTx(this.pool, this.orgId, async (tx) => {
         // Deterministic per-project lock key (SDD-007: "pg_advisory_xact_lock sobre el uuid del
         // proyecto"); hashtextextended never truncates a uuid string the way int4/int8 casts of its
@@ -286,6 +379,21 @@ export class PgProjectEngine implements ProjectEngine {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${this.projectId}::text, ${WRITE_LOCK_SALT}))`);
         return fn(tx, this.buildOps(tx));
       });
+      // WO-250: only now that the transaction above has actually committed can any server-managed
+      // collab-field write queued during it safely reach its document's live Y.Doc — never before, the
+      // same "a broadcast change can't be undone by a later rollback" invariant `writeServerManagedCollabFields`'s
+      // own doc comment explains. A failure here (e.g. Hocuspocus temporarily unreachable) never undoes or
+      // fails the caller's already-committed `published_raw` write — `scan()`/drift/graph/MCP already see
+      // it; only a currently-open live editor stays stale until it reloads.
+      const liveDocSyncs = this.pendingLiveDocSyncs;
+      this.pendingLiveDocSyncs = [];
+      for (const sync of liveDocSyncs) {
+        try {
+          await this.applyServerManagedFieldsToLiveDoc(sync.documentId, sync.fields);
+        } catch (err) {
+          this.onLiveDocSyncError(err);
+        }
+      }
       // Only after the transaction above has actually committed (SDD-007's outbox): any number of
       // internal writes already collapsed into a single `graph_dirty = true`, so this is the one
       // place per outer `transaction()`/`refresh()`/`acknowledge()` call that can ever trigger a
@@ -379,18 +487,19 @@ export class PgProjectEngine implements ProjectEngine {
       .where(eq(schema.projects.id, this.projectId));
   }
 
+  /** WO-251: delegates to `@prdm/db`'s `seedIdCounterAtLeast` — the exact same `INSERT ... ON CONFLICT
+   * (project_id, kind) DO UPDATE SET last_seq = GREATEST(...)` upsert `import-repository.ts` already uses
+   * — rather than hand-duplicating that SQL here with `org_id` sourced from `this.orgId` instead of
+   * `seedIdCounterAtLeast`'s own `current_setting('app.org_id', true)`. The two are never actually
+   * different values in practice: every call into `bumpIdCounter` already runs inside a
+   * `withTenantTx(this.pool, this.orgId, ...)` transaction, which is exactly what sets that same
+   * `app.org_id` GUC for the duration of `tx` (SDD-007 "Documentos y flujo": keeps the counter's
+   * `last_seq` from ever lagging behind an id a document actually used, regardless of ordering, without a
+   * separate row lock — the unique `(project_id, kind)` constraint plus `GREATEST` makes this safe under
+   * concurrent inserts for different kinds; same-kind inserts are already serialized by this project's
+   * advisory lock). */
   private async bumpIdCounter(tx: PgDatabase, kind: DocumentKindValue, seq: number): Promise<void> {
-    // SDD-007 "createDocument avanza id_counters con GREATEST en la misma transacción": keeps the
-    // counter's `last_seq` from ever lagging behind an id a document actually used, regardless of
-    // ordering, without a separate row lock (the unique `(project_id, kind)` constraint plus
-    // `GREATEST` makes this safe under concurrent inserts for different kinds; same-kind inserts are
-    // already serialized by this project's advisory lock).
-    await tx.execute(sql`
-      insert into "id_counters" ("project_id", "org_id", "kind", "last_seq")
-      values (${this.projectId}, ${this.orgId}, ${kind}, ${seq})
-      on conflict ("project_id", "kind")
-      do update set "last_seq" = greatest("id_counters"."last_seq", excluded."last_seq")
-    `);
+    await seedIdCounterAtLeast(tx, this.projectId, kind, seq);
   }
 
   /** `EngineOps.createDocument`: only ever called by generator domain functions (`generateWorkOrders`,
@@ -454,21 +563,136 @@ export class PgProjectEngine implements ProjectEngine {
   }
 
   /**
-   * `EngineOps.updateDocument` (SDD-007; WO-139's placeholder): a `collab`-origin document may have a
-   * working copy a human is actively editing (`createFeatureRequest` appending to a Feedback's
-   * `informs`, or `closeFeature` closing a Feature — both call this on a document that, in the SaaS
-   * product, is always `collab`-origin, never `generated`). SDD-007's explicit invariant is that such a
-   * write is NEVER applied via a direct `UPDATE` of `published_raw`/a future `working_state`: a change
-   * already broadcast to a live `Y.Doc` can't be undone if this transaction later rolls back. Until
-   * `packages/collab` exists (SDD-008) to apply it as a real, server-attributed Yjs transaction, the
-   * field diff is merged into `pending_editable_patch` instead — idempotent (repeated/overlapping
-   * writes just merge further) and durable, but deliberately inert: nothing here fakes applying it.
+   * `EngineOps.updateDocument` (SDD-007; WO-139 → WO-250): a `collab`-origin document may have a working
+   * copy a human is actively editing (`createFeatureRequest` appending to a Feedback's `informs`, or
+   * `closeFeature` closing a Feature — both call this on a document that, in the SaaS product, is always
+   * `collab`-origin, never `generated`), so the requested fields are split by `isServerManagedField`:
+   * server-managed ones (`status`/`closed_at`/`closed_by` for `closeFeature`) go straight to
+   * `published_raw` via `writeServerManagedCollabFields`, since SDD-008's own design keeps them out of the
+   * Y.Doc entirely — there is nothing a rollback needs to protect there, unlike a genuinely human-editable
+   * field (`informs`), which still can never be applied via a direct `UPDATE` of `published_raw`/a future
+   * `working_state` (a change already broadcast to a live `Y.Doc` can't be undone if this transaction
+   * later rolls back) and keeps going through `queuePendingEditablePatch`, unchanged since WO-139.
    */
   private async writeGeneratedFields(tx: PgDatabase, id: string, fields: Record<string, FieldValue>): Promise<ParsedDoc> {
     const row = await this.findDocumentRow(tx, id);
-    if (row.origin === 'collab') return this.queuePendingEditablePatch(tx, row, fields);
-    if (row.publishedRaw === null) throw new Error(`document ${id} has no published content to update`);
-    return this.writeGeneratedContent(tx, row, setFrontmatterFields(row.publishedRaw, fields));
+    if (row.origin !== 'collab') {
+      if (row.publishedRaw === null) throw new Error(`document ${id} has no published content to update`);
+      return this.writeGeneratedContent(tx, row, setFrontmatterFields(row.publishedRaw, fields));
+    }
+
+    const serverManagedFields: Record<string, FieldValue> = {};
+    const editableFields: Record<string, FieldValue> = {};
+    for (const [key, value] of Object.entries(fields)) {
+      if (isServerManagedField(key, value)) serverManagedFields[key] = value;
+      else editableFields[key] = value;
+    }
+
+    if (Object.keys(serverManagedFields).length === 0) return this.queuePendingEditablePatch(tx, row, editableFields);
+
+    const written = await this.writeServerManagedCollabFields(tx, row, serverManagedFields);
+    if (Object.keys(editableFields).length > 0) return this.queuePendingEditablePatch(tx, row, editableFields);
+    return written;
+  }
+
+  /**
+   * WO-250: writes a `collab`-origin document's server-managed fields (see `isServerManagedField`)
+   * directly to `published_raw`, reusing the exact same `setFrontmatterFields`/`writeGeneratedContent`
+   * path (`reason: 'engine_write'`) a `generated`-origin write already uses — this is what makes the
+   * change visible to `scan()`/drift/graph/MCP the instant this transaction commits, with no dependency on
+   * anyone ever opening this document's editor (the WO-250 bug: `closeFeature`'s status flip used to only
+   * ever reach `pending_editable_patch`, invisible to all of those unless someone happened to open the
+   * live editor). Queues the equivalent live-`Y.Doc` update in `pendingLiveDocSyncs` rather than applying
+   * it immediately — `withTx` only flushes that queue once the surrounding Postgres transaction has
+   * actually committed, since a change already broadcast to a live document can't be undone by a later
+   * rollback (the very invariant WO-139 originally introduced `pending_editable_patch` to protect).
+   */
+  private async writeServerManagedCollabFields(tx: PgDatabase, row: DocumentRow, fields: Record<string, FieldValue>): Promise<ParsedDoc> {
+    if (row.publishedRaw === null) throw new Error(`document ${row.docId} has no published content to update`);
+    const parsed = await this.writeGeneratedContent(tx, row, setFrontmatterFields(row.publishedRaw, fields));
+    this.pendingLiveDocSyncs.push({ documentId: row.id, fields });
+    return parsed;
+  }
+
+  /**
+   * WO-250: applies `fields` to document `documentId`'s live `Y.Doc` as a real, `system:engine`-attributed
+   * transaction — same "open a direct connection, diff a scratch clone (carrying a fresh client id)
+   * against the live document's current state vector, durably write the `doc_updates` row *before* the
+   * diff ever reaches the live document and gets broadcast, only then `applyUpdate` the live document"
+   * pattern as `../collab/restore.ts`/`../collab/accept-agent-proposal.ts` (their own module doc comments
+   * explain why a direct connection has to do this itself: it never goes through the normal `beforeSync`
+   * attribution hook). `Hocuspocus.openDirectConnection` loads the document on demand via
+   * `../collab/persistence.ts`'s `onLoadDocument` regardless of whether a live session is already open for
+   * it, so this reaches the document's true current state either way. A no-op (returns immediately) when
+   * this `PgProjectEngine` was constructed without a `hocuspocus` instance.
+   */
+  private async applyServerManagedFieldsToLiveDoc(documentId: string, fields: Record<string, FieldValue>): Promise<void> {
+    if (!this.hocuspocus) return;
+
+    const documentName = formatDocumentName(this.projectId, documentId);
+    const direct = await this.hocuspocus.openDirectConnection(documentName, {});
+    try {
+      const liveDocument = direct.document;
+      if (!liveDocument) throw new Error(`direct connection to ${documentName} has no document`);
+
+      const clientId = freshClientId();
+      const before = Y.encodeStateVector(liveDocument);
+      const scratch = createDocumentYDoc();
+      Y.applyUpdate(scratch, Y.encodeStateAsUpdate(liveDocument));
+      scratch.clientID = clientId;
+      scratch.transact(() => {
+        const fm = scratch.getMap<FrontmatterValue>(FRONTMATTER_ROOT);
+        for (const [key, value] of Object.entries(fields)) {
+          try {
+            assertValidRoot(FRONTMATTER_ROOT, key, value);
+          } catch (err) {
+            // Matches `../collab/persistence.ts`'s own `applyPendingPatch`: a key/value this Y.Doc's
+            // narrower `FrontmatterValue` can't represent must never block every other field in the same
+            // write from reaching the live document.
+            if (err instanceof InvalidDocumentRootError) continue;
+            throw err;
+          }
+          fm.set(key, value as FrontmatterValue);
+        }
+      }, ENGINE_WRITE_ORIGIN);
+      const update = Y.encodeStateAsUpdate(scratch, before);
+      scratch.destroy();
+
+      if (update.length === 0) return;
+
+      const { structRanges, deleteRanges } = decodeUpdateRanges(update);
+      await withTenantTx(this.pool, this.orgId, async (writeTx) => {
+        await writeTx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${documentId}::text, ${DOC_UPDATES_LOCK_SALT}))`);
+        const [latest] = await writeTx
+          .select({ seq: schema.docUpdates.seq })
+          .from(schema.docUpdates)
+          .where(eq(schema.docUpdates.documentId, documentId))
+          .orderBy(desc(schema.docUpdates.seq))
+          .limit(1);
+        const seq = (latest?.seq ?? 0) + 1;
+
+        // No `doc_client_bindings` row, matching `../collab/accept-agent-proposal.ts`'s own note: bindings
+        // only ever bind a *user's* client id to look up who's typing live — a `system:engine`-attributed
+        // server transaction is never itself a live connection.
+        await writeTx.insert(schema.docUpdates).values({
+          orgId: this.orgId,
+          documentId,
+          seq,
+          actorKind: 'system',
+          userId: null,
+          onBehalfOf: null,
+          agentId: null,
+          connectionId: null,
+          update: Buffer.from(update),
+          structRanges,
+          deleteRanges,
+        });
+      });
+
+      await direct.transact((doc) => Y.applyUpdate(doc, update, ENGINE_WRITE_ORIGIN));
+    } finally {
+      await direct.disconnect();
+    }
   }
 
   /** Merges `fields` into `documents.pending_editable_patch` (a plain shallow merge: the latest write

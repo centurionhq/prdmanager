@@ -5,6 +5,7 @@
 import { Neo4jGraphDatabase, parseDocument } from '@prdm/core';
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
+import * as Y from 'yjs';
 import { buildServer } from '../../src/build-server.js';
 import { FakeMailer } from '../../src/mailer.js';
 import { mutationHeaders } from '../helpers/csrf.js';
@@ -136,7 +137,7 @@ describe('/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId
     await app.close();
   });
 
-  test('an editor is forbidden from closing; an admin can, and the write is a queued pending patch', async () => {
+  test('an editor is forbidden from closing; an admin can, and the write reaches published_raw immediately', async () => {
     const { app, editor, owner, org, project } = await setup();
     await seedReadyFeature(org.id, project.id);
     const editorCookie = await signIn(app, editor.email);
@@ -158,16 +159,73 @@ describe('/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId
     const body = ok.json();
     expect(body.result.featureId).toBe('PRD-001');
     expect(body.result.closedBy).toMatch(/^dev:/);
-    expect(body.pendingEditablePatch).toBe(true);
+    expect(body.pendingEditablePatch).toBeUndefined();
 
     const { rows } = await pg.ownerPool.query(`SELECT published_raw, pending_editable_patch FROM "documents" WHERE project_id = $1 AND doc_id = 'PRD-001'`, [project.id]);
-    // PRD-001 is collab-origin: the status flip is queued (WO-139), never written to published_raw directly.
-    expect(rows[0].published_raw).toContain('status: approved');
-    expect(rows[0].pending_editable_patch).toEqual({ status: 'closed', closed_at: body.result.closedAt, closed_by: body.result.closedBy });
+    // WO-250: `status`/`closed_at`/`closed_by` are server-managed fields — written straight to
+    // `published_raw` the instant this request's transaction commits, with no `pending_editable_patch`
+    // queue and no dependency on anyone ever opening PRD-001's collab editor.
+    expect(rows[0].published_raw).toContain('status: "closed"');
+    expect(rows[0].published_raw).toContain(`closed_at: ${JSON.stringify(body.result.closedAt)}`);
+    expect(rows[0].published_raw).toContain(`closed_by: ${JSON.stringify(body.result.closedBy)}`);
+    expect(rows[0].pending_editable_patch).toBeNull();
+
+    // Visible to scan()/drift/graph/MCP immediately — the literal regression WO-250 fixes — asserted here
+    // via the same closure-readiness read path the app itself uses right after closing.
+    const readinessAfter = await app.inject({
+      method: 'GET',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/PRD-001/closure-readiness`,
+      headers: { ...AUTH_HOST(), cookie: ownerCookie },
+    });
+    expect(readinessAfter.json().readiness.checks.find((c: { name: string }) => c.name === 'feature_approved').ok).toBe(true);
 
     const { rows: auditRows } = await pg.ownerPool.query(`SELECT action, target FROM audit_log WHERE org_id = $1 AND action = 'feature.closed'`, [org.id]);
     expect(auditRows).toHaveLength(1);
     expect(auditRows[0].target).toBe('PRD-001');
+
+    await app.close();
+  });
+
+  test("closing a Feature that already has live collab history also applies the status flip to its live Y.Doc, attributed to 'system' (never anonymous, never the closing user's own client)", async () => {
+    const { app, owner, org, project } = await setup();
+    await seedReadyFeature(org.id, project.id);
+    const ownerCookie = await signIn(app, owner.email);
+
+    const { rows: docRows } = await pg.ownerPool.query(`SELECT id FROM "documents" WHERE project_id = $1 AND doc_id = 'PRD-001'`, [project.id]);
+    const documentId: string = docRows[0].id;
+
+    // Gives PRD-001 real live collab history (as if a human had opened its editor before) — mirrors
+    // `documents-restore.test.ts`'s own `seedLiveEdit` helper, without needing a real websocket connection.
+    const shared = new Y.Doc({ gc: false });
+    const before = Y.encodeStateVector(shared);
+    shared.getMap('fm').set('title', 'Example feature');
+    const seedUpdate = Buffer.from(Y.encodeStateAsUpdate(shared, before));
+    const { decodeUpdateRanges } = await import('@prdm/collab');
+    const { structRanges, deleteRanges } = decodeUpdateRanges(seedUpdate);
+    await pg.ownerPool.query(
+      `INSERT INTO doc_updates (org_id, document_id, seq, actor_kind, user_id, struct_ranges, delete_ranges, update)
+       VALUES ($1, $2, 1, 'user', $3, $4, $5, $6)`,
+      [org.id, documentId, owner.id, JSON.stringify(structRanges), JSON.stringify(deleteRanges), seedUpdate],
+    );
+
+    const ok = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/PRD-001/close`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
+    });
+    expect(ok.statusCode).toBe(200);
+    const body = ok.json();
+
+    const { reconstructLiveYDoc } = await import('../../src/collab/reconstruct-ydoc.js');
+    const { ydoc } = await reconstructLiveYDoc(pg.appPool, org.id, documentId);
+    expect(ydoc.getMap('fm').get('status')).toBe('closed');
+    expect(ydoc.getMap('fm').get('closed_by')).toBe(body.result.closedBy);
+
+    const { rows: updateRows } = await pg.ownerPool.query(`SELECT actor_kind, user_id, agent_id, on_behalf_of FROM doc_updates WHERE document_id = $1 ORDER BY seq DESC LIMIT 1`, [documentId]);
+    expect(updateRows[0].actor_kind).toBe('system');
+    expect(updateRows[0].user_id).toBeNull();
+    expect(updateRows[0].agent_id).toBeNull();
+    expect(updateRows[0].on_behalf_of).toBeNull();
 
     await app.close();
   });

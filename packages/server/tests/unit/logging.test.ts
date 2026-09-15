@@ -74,6 +74,33 @@ describe('buildLoggerOptions redaction (pino, no Fastify involved)', () => {
     expect(output).not.toContain(RESET_TOKEN);
     expect(output).not.toContain(INVITE_SECRET);
   });
+
+  test('WO-248: the err serializer redacts secrets nested inside a logged error at any depth, not just one level', () => {
+    const { stream, text } = captureStream();
+    const logger = pino(buildLoggerOptions({ level: 'info' }), stream);
+
+    // Real, currently-reachable shape: an HTTP client error commonly carries the original request's
+    // config/headers as an own property, two wildcard segments deeper than *.authorization ever matches
+    // (confirmed empirically: *.authorization alone does NOT redact this — only the err serializer does).
+    const err = new Error('DeepSeek request failed');
+    (err as unknown as { config: unknown }).config = { url: 'https://api.deepseek.com', headers: { authorization: `Bearer ${DEEPSEEK_SECRET}` } };
+    logger.error({ err }, 'agent loop failed unexpectedly');
+
+    const output = text();
+    expect(output).not.toContain(DEEPSEEK_SECRET);
+    expect(output).toContain('[redacted]');
+  });
+
+  test('WO-248: the err serializer still reports the error type, message and stack', () => {
+    const { stream, text } = captureStream();
+    const logger = pino(buildLoggerOptions({ level: 'info' }), stream);
+
+    logger.error({ err: new Error('plain failure, nothing to redact') }, 'boom');
+
+    const output = text();
+    expect(output).toContain('plain failure, nothing to redact');
+    expect(output).toContain('"type":"Error"');
+  });
 });
 
 describe('buildServer request logging never leaks secrets', () => {

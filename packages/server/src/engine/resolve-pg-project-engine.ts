@@ -6,6 +6,7 @@
  */
 import type { Neo4jGraphDatabase } from '@prdm/core';
 import type { ProjectRecord } from '@prdm/db';
+import type { Hocuspocus } from '@hocuspocus/server';
 import type { Pool } from 'pg';
 import { createPgProjectEngine, type PgProjectEngine } from './pg-project-engine.js';
 import { buildProjectSettings, saasProjectRoot } from './pg-project-settings.js';
@@ -21,7 +22,13 @@ export function requireNeo4j(neo4j: Neo4jGraphDatabase | undefined): Neo4jGraphD
   return neo4j;
 }
 
-export function resolvePgProjectEngine(pool: Pool, neo4j: Neo4jGraphDatabase, orgId: string, project: ProjectRecord): PgProjectEngine {
+/**
+ * `hocuspocus` (WO-250) is optional and, today, only ever passed by `close-feature.ts`: it's what lets a
+ * server-managed collab-field write (`closeFeature`'s status flip) also reach an already-open live editor
+ * immediately, rather than only `published_raw` — see `PgProjectEngineOptions.hocuspocus`'s own doc
+ * comment for why every other call site is unaffected by leaving it `undefined`.
+ */
+export function resolvePgProjectEngine(pool: Pool, neo4j: Neo4jGraphDatabase, orgId: string, project: ProjectRecord, hocuspocus?: Hocuspocus): PgProjectEngine {
   const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: saasProjectRoot(project.id) });
-  return createPgProjectEngine({ pool, orgId, projectId: project.id, settings: buildProjectSettings(project), store });
+  return createPgProjectEngine({ pool, orgId, projectId: project.id, settings: buildProjectSettings(project), store, hocuspocus });
 }

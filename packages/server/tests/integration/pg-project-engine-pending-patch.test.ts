@@ -1,8 +1,10 @@
 /**
- * `PgProjectEngine`'s SDD-008 placeholder for engine writes to a `collab`-origin document's editable
- * fields (SDD-007 "PgProjectEngine"; WO-139): never a direct `UPDATE` of `published_raw`/a future
- * `working_state` — merged into `documents.pending_editable_patch` instead, idempotently, and rolled
- * back with the rest of the transaction like any other write.
+ * `PgProjectEngine`'s SDD-008 mechanism for engine writes to a `collab`-origin document's genuinely
+ * Y.Doc-editable fields (SDD-007 "PgProjectEngine"; WO-139, narrowed by WO-250 to only cover
+ * non-server-managed fields — see `pg-project-engine-server-managed-fields.test.ts` for the
+ * `status`/`closed_at`/`closed_by`-style fields this file's own scope no longer includes): never a direct
+ * `UPDATE` of `published_raw`/a future `working_state` — merged into `documents.pending_editable_patch`
+ * instead, idempotently, and rolled back with the rest of the transaction like any other write.
  */
 import { createFeatureRequest, Neo4jGraphDatabase, type GraphStore } from '@prdm/core';
 import { createTenantDb } from '@prdm/db';

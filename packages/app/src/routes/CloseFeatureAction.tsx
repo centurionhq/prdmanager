@@ -2,9 +2,10 @@
  * "Cerrar feature" action on `DocumentDetail` (SDD-007 "Documentos y flujo": "Cierre de feature: admin
  * de proyecto con confirmación explícita"; WO-143): a two-step confirmation — opening it fetches
  * `closureReadiness` so the admin reviews every check *before* confirming, and the confirm button stays
- * disabled unless it is actually ready. Closing a `collab`-origin Feature only ever queues the status
- * flip (WO-139's placeholder) rather than applying it immediately, which the success message says
- * explicitly rather than implying an instant visible change.
+ * disabled unless it is actually ready. Closing a `collab`-origin Feature applies the status flip
+ * immediately (WO-250: `status`/`closed_at`/`closed_by` are server-managed fields written straight to
+ * `published_raw`, not queued in `pending_editable_patch` the way WO-139's now-superseded placeholder
+ * used to).
  */
 import { useState, type ReactElement } from 'react';
 import type { ClosureReadiness } from '@prdm/core';
@@ -47,7 +48,7 @@ export function CloseFeatureAction({ orgSlug, projectSlug, docId, onClosed }: { 
   }
 
   if (closed) {
-    return <p className={formStyles.success}>Feature cerrada. El cambio de estado quedará pendiente hasta que exista el editor colaborativo (SDD-008).</p>;
+    return <p className={formStyles.success}>Feature cerrada.</p>;
   }
 
   if (!readiness) {

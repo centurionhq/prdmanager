@@ -7,6 +7,7 @@
  *    otherwise leak through the URL itself (query strings, not just headers).
  */
 import type { FastifyRequest, FastifyServerOptions } from 'fastify';
+import pino from 'pino';
 
 /** Pino dot/bracket paths redacted wherever they appear in a logged object. */
 export const REDACT_PATHS: string[] = [
@@ -31,6 +32,57 @@ export const REDACT_PATHS: string[] = [
 ];
 
 const REDACT_CENSOR = '[redacted]';
+
+/**
+ * WO-248 (performance/security review, LOW/preventive): `REDACT_PATHS`'s `*.token`/`*.secret`/etc. entries
+ * only match ONE wildcard segment (`*.token` matches `a.token`, not `a.b.token`) — empirically confirmed
+ * against the installed `@pinojs/redact` engine despite its own README claiming an intermediate wildcard
+ * "redacts at any level". A caught `Error` can carry arbitrary own properties from whatever threw it (an
+ * HTTP client library commonly attaches `err.config`/`err.response` carrying the original request's
+ * headers, for exactly the DeepSeek API calls this server makes) — `pino.stdSerializers.err` preserves
+ * those properties verbatim, so `err.config.headers.authorization` (two wildcard segments deep) would
+ * reach a log line unredacted with only the path-based mechanism above.
+ *
+ * `deepRedactSecrets` is a second, independent layer: it walks a value recursively (bounded depth against
+ * pathological/circular input) and blanks any plain-object key whose *name* matches a known secret key,
+ * regardless of how deep it sits — applied only to the `err` serializer's output below, since that's the
+ * one place this codebase logs an object whose full shape isn't controlled by this codebase's own code.
+ */
+const SECRET_KEY_NAMES = new Set(
+  ['authorization', 'cookie', 'set-cookie', 'password', 'secret', 'token', 'apikey', 'betterauthsecret', 'better_auth_secret', 'deepseek_api_key', 'database_url', 'smtp_pass'].map((name) =>
+    name.toLowerCase(),
+  ),
+);
+
+const DEEP_REDACT_MAX_DEPTH = 8;
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function deepRedactSecrets(value: unknown, depth = 0, seen: WeakSet<object> = new WeakSet()): unknown {
+  if (depth >= DEEP_REDACT_MAX_DEPTH) return value;
+  if (Array.isArray(value)) {
+    if (seen.has(value)) return value;
+    seen.add(value);
+    return value.map((entry) => deepRedactSecrets(entry, depth + 1, seen));
+  }
+  if (!isPlainRecord(value)) return value;
+  if (seen.has(value)) return value;
+  seen.add(value);
+
+  const result: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    result[key] = SECRET_KEY_NAMES.has(key.toLowerCase()) ? REDACT_CENSOR : deepRedactSecrets(entry, depth + 1, seen);
+  }
+  return result;
+}
+
+/** Wraps pino's own default `err` serializer (which safely extracts `type`/`message`/`stack` from an
+ * arbitrary thrown value) with the recursive pass above. */
+function errSerializer(err: unknown): unknown {
+  return deepRedactSecrets(pino.stdSerializers.err(err as Error));
+}
 
 /** Path prefixes whose entire pathname is replaced (SDD-006 §Cabeceras): the segment after the
  * prefix can itself be a one-time secret (reset token, invitation id) that must never reach a log. */
@@ -71,7 +123,7 @@ export function buildLoggerOptions(overrides: Record<string, unknown> = {}): Rec
   return {
     redact: { paths: REDACT_PATHS, censor: REDACT_CENSOR },
     ...restOverrides,
-    serializers: { req: reqSerializer, ...serializers },
+    serializers: { req: reqSerializer, err: errSerializer, ...serializers },
   };
 }
 

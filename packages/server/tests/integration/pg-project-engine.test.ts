@@ -115,6 +115,25 @@ describe('PgProjectEngine (WO-132)', () => {
     expect(scan.ids).toContain('FB-007');
   });
 
+  test('createDocument bumps id_counters via the same GREATEST-upsert @prdm/db\'s seedIdCounterAtLeast/import-repository.ts already share (WO-251): backfilling a lower, previously-skipped id never moves an already-higher counter backward', async () => {
+    const { engine, orgId, projectId } = await makeEngine();
+    // Simulates an import (`import-repository.ts`, via the very `seedIdCounterAtLeast` function
+    // `bumpIdCounter` now delegates to) having already claimed up to FB-010.
+    await pg.ownerPool.query(`INSERT INTO "id_counters" (project_id, org_id, kind, last_seq) VALUES ($1, $2, 'FB', 10)`, [projectId, orgId]);
+
+    // Backfilling a gap (FB-003 was never actually created) must still succeed, and must never regress
+    // the counter — exactly the GREATEST semantics `seedIdCounterAtLeast`'s own doc comment guarantees.
+    await engine.transaction((ops) => ops.createDocument('docs/feedback/FB-003-backfill.md', FB_TEMPLATE('FB-003', 'Backfilled')));
+
+    const { rows } = await pg.ownerPool.query(`SELECT last_seq FROM id_counters WHERE project_id = $1 AND kind = 'FB'`, [projectId]);
+    expect(rows[0].last_seq).toBe(10);
+
+    // A normal forward create still advances it exactly like before this WO's refactor.
+    await engine.transaction((ops) => ops.createDocument('docs/feedback/FB-011-next.md', FB_TEMPLATE('FB-011', 'Next')));
+    const after = await pg.ownerPool.query(`SELECT last_seq FROM id_counters WHERE project_id = $1 AND kind = 'FB'`, [projectId]);
+    expect(after.rows[0].last_seq).toBe(11);
+  });
+
   test('updateDocument rewrites frontmatter fields in place and freezes a new engine_write version', async () => {
     const { engine, projectId } = await makeEngine();
     await engine.transaction((ops) => ops.createDocument('docs/feedback/FB-001-first.md', FB_TEMPLATE('FB-001', 'First feedback')));

@@ -137,7 +137,7 @@ describe('DocumentDetail', () => {
       ready: true,
       checks: [{ name: 'feature_approved', ok: true, detail: 'PRD-001 is approved' }],
     });
-    const close = vi.spyOn(client, 'closeFeature').mockResolvedValue({ result: { featureId: 'PRD-001', closedAt: '2026-01-02T00:00:00.000Z', closedBy: 'dev:u1' }, pendingEditablePatch: true });
+    const close = vi.spyOn(client, 'closeFeature').mockResolvedValue({ result: { featureId: 'PRD-001', closedAt: '2026-01-02T00:00:00.000Z', closedBy: 'dev:u1' } });
 
     await userEvent.click(screen.getByRole('button', { name: 'Cerrar feature' }));
     await waitFor(() => expect(readiness).toHaveBeenCalledWith('acme', 'web', 'PRD-001'));

@@ -13,16 +13,19 @@
  * 404 for every real user until a future WO wires that up.
  *
  * `closeFeature` calls `ops.updateDocument(featureId, {status: 'closed', ...})` internally; since a
- * Feature (MRD/PRD/FR) is always `collab`-origin in this product, WO-139's placeholder applies: the
- * actual status flip is queued in `pending_editable_patch`, not written to `published_raw`, until
- * SDD-008 exists. The close request itself still succeeds and is durably recorded (SDD-007's own
- * design) — this is documented in the response so the app can show it accurately rather than implying
- * an instant visible change.
+ * Feature (MRD/PRD/FR) is always `collab`-origin in this product, `status`/`closed_at`/`closed_by` are
+ * exactly the "server-managed" fields `PgProjectEngine.writeGeneratedFields` (WO-250) now writes straight
+ * to `published_raw` — visible to `scan()`/drift/graph/MCP the instant this request's transaction
+ * commits, never dependent on anyone opening `PRD-001`'s editor. `hocuspocus` (passed to
+ * `resolvePgProjectEngine`) is what additionally lets that same write reach an already-open live editor
+ * immediately instead of only on its next reload (WO-250; see `PgProjectEngine.
+ * applyServerManagedFieldsToLiveDoc`).
  */
 import { closeFeature, closureReadiness } from '@prdm/core';
 import { can } from '@prdm/contracts';
 import type { Neo4jGraphDatabase } from '@prdm/core';
 import { createTenantDb } from '@prdm/db';
+import type { Hocuspocus } from '@hocuspocus/server';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
@@ -38,6 +41,7 @@ export interface RegisterCloseFeatureRoutesOptions {
   pool: Pool;
   env: ServerEnv;
   neo4j?: Neo4jGraphDatabase;
+  hocuspocus?: Hocuspocus;
 }
 
 interface DocumentRouteParams {
@@ -47,7 +51,7 @@ interface DocumentRouteParams {
 }
 
 export function registerCloseFeatureRoutes(app: FastifyInstance, opts: RegisterCloseFeatureRoutesOptions): void {
-  const { auth, pool, env } = opts;
+  const { auth, pool, env, hocuspocus } = opts;
 
   app.get<{ Params: DocumentRouteParams }>(
     '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/closure-readiness',
@@ -75,7 +79,7 @@ export function registerCloseFeatureRoutes(app: FastifyInstance, opts: RegisterC
       if (!can(subject, 'close_feature')) throw new ForbiddenError();
 
       const neo4j = requireNeo4j(opts.neo4j);
-      const engine = resolvePgProjectEngine(pool, neo4j, org.id, project);
+      const engine = resolvePgProjectEngine(pool, neo4j, org.id, project, hocuspocus);
       let result;
       try {
         result = await closeFeature(engine, req.params.docId, { by: `dev:${session.user.id}` });
@@ -96,7 +100,9 @@ export function registerCloseFeatureRoutes(app: FastifyInstance, opts: RegisterC
           userAgent: userAgentOf(req),
         });
 
-      return { result, pendingEditablePatch: true };
+      // WO-250: no longer a `pending_editable_patch` (status/closed_at/closed_by are server-managed
+      // fields written straight to `published_raw` by now) — nothing left pending to report.
+      return { result };
     },
   );
 }

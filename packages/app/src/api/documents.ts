@@ -76,9 +76,10 @@ export interface CloseFeatureResult {
   closedBy: string;
 }
 
-/** `POST .../close` (WO-143): admin-only server-side. `pendingEditablePatch: true` always — the status
- * flip is queued for a future SDD-008 Yjs transaction (WO-139), never written immediately. */
-export function closeFeature(orgSlug: string, projectSlug: string, docId: string): Promise<{ result: CloseFeatureResult; pendingEditablePatch: boolean }> {
+/** `POST .../close` (WO-143): admin-only server-side. The status flip (WO-250) is written straight to
+ * `published_raw` (and, if the feature's editor is open live, its `Y.Doc` too) before this resolves —
+ * visible everywhere immediately, never a queued patch waiting on someone opening the editor. */
+export function closeFeature(orgSlug: string, projectSlug: string, docId: string): Promise<{ result: CloseFeatureResult }> {
   return request(`${documentBase(orgSlug, projectSlug, docId)}/close`, { method: 'POST' });
 }
 
