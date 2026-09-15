@@ -26,3 +26,20 @@ export function formatRelativeAccess(iso: string, now: Date = new Date()): strin
   if (diffMs < WEEK_MS) return `hace ${Math.round(diffMs / DAY_MS)} d`;
   return formatDate(iso);
 }
+
+const HEX_CHARS = '0123456789abcdef';
+
+function randomHex(length: number): string {
+  return Array.from({ length }, () => HEX_CHARS[Math.floor(Math.random() * HEX_CHARS.length)]).join('');
+}
+
+/** A mock CI token secret: `prdm_ci_<4 hex>` prefix plus 24 more hex characters. */
+export function generateTokenSecret(): { readonly prefix: string; readonly secret: string } {
+  const prefix = `prdm_ci_${randomHex(4)}`;
+  return { prefix, secret: `${prefix}${randomHex(24)}` };
+}
+
+/** `YYYY-MM-DD`, matching the plain date strings CiToken.createdAt/expiresAt use. */
+export function toDateOnly(date: Date): string {
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+}
