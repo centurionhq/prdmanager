@@ -22,7 +22,7 @@
  *    *first* real CI-verified report is still treated as this project's very first baseline (no
  *    force-push override needed) rather than retroactively legitimizing whatever the import claimed.
  */
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { seedIdCounterAtLeast, type DocumentKind } from './id-counters.js';
 import { commits, documents, documentVersions, projectBaselines } from './schema/documents.js';
@@ -30,6 +30,14 @@ import { projects } from './schema/projects.js';
 import { withTenantTx } from './tenant.js';
 
 export const IMPORT_ACTOR_ID = 'system:import';
+
+/** `pg_advisory_xact_lock(hashtextextended(project_id, salt))`'s own keyspace, distinct from
+ * `packages/server/src/engine/pg-project-engine.ts`'s `WRITE_LOCK_SALT`/`PROJECTION_LOCK_SALT` (0/1) and
+ * `packages/server/src/collab/`'s shared `DOC_UPDATES_LOCK_SALT` (`0x5044_5530`, `'PDU0'`) — Postgres
+ * advisory locks are global to the database, not scoped by package, so every caller picks its own value
+ * by hand (same cross-file convention already established between those). `0x5044_4930` spells `'PDI0'`
+ * (Project Document Import). */
+const IMPORT_LOCK_SALT = 0x5044_4930;
 
 export class ProjectNotEmptyError extends Error {
   constructor() {
@@ -100,11 +108,23 @@ function resolvedByShas(doc: ImportDocumentInput): string[] {
   return raw.filter((sha): sha is string => typeof sha === 'string' && SHA_PATTERN.test(sha));
 }
 
-/** Inserts every document, atomically, after re-checking the project is still empty inside the same
- * transaction (never a separate check-then-insert with a race window), then applies every WO-193 side
- * effect in the same transaction. */
+/**
+ * Inserts every document, atomically, after re-checking the project is still empty inside the same
+ * transaction, then applies every WO-193 side effect in the same transaction.
+ *
+ * WO-235: the emptiness check and the inserts sharing one transaction is *not*, by itself, enough to be
+ * race-free — under Postgres's default READ COMMITTED isolation, two concurrent transactions each
+ * running this same check-then-insert sequence can both observe zero existing documents before either
+ * one commits, and both then proceed to insert. The advisory lock below (taken as the very first
+ * statement, spanning the emptiness check through every insert that follows) is what actually closes
+ * that window: a second concurrent `importDocuments` call for the same project genuinely blocks until
+ * the first transaction commits or rolls back, and only then re-runs its own emptiness check — which now
+ * correctly observes the first import's already-committed documents and throws `ProjectNotEmptyError`,
+ * instead of racing it.
+ */
 export async function importDocuments(pool: Pool, input: ImportDocumentsInput): Promise<ImportResult> {
   return withTenantTx(pool, input.orgId, async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.projectId}::text, ${IMPORT_LOCK_SALT}))`);
     const existing = await tx.select({ id: documents.id }).from(documents).where(eq(documents.projectId, input.projectId)).limit(1);
     if (existing.length > 0) throw new ProjectNotEmptyError();
 

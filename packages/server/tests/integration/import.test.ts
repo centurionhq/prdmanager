@@ -117,6 +117,33 @@ describe('POST /api/v1/projects/:graphProjectId/import (WO-192)', () => {
     await app.close();
   });
 
+  test('two real concurrent import attempts into the same empty project: exactly one succeeds, never a mixed partial state (WO-235)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { org, project, cookie } = await seedOwnerAndProject(app);
+    const secret = await issuePersonalToken(app, org, cookie, ['import:write']);
+
+    const bodyA = { schema_version: 1 as const, prdmYaml: validPrdmYaml(), documents: [{ sourcePath: 'docs/prd/PRD-001.md', content: prdDoc('PRD-001') }] };
+    const bodyB = { schema_version: 1 as const, prdmYaml: validPrdmYaml(), documents: [{ sourcePath: 'docs/prd/PRD-002.md', content: prdDoc('PRD-002') }] };
+
+    const [resA, resB] = await Promise.all([
+      app.inject({ method: 'POST', url: `/api/v1/projects/${project.graphProjectId}/import`, headers: { authorization: `Bearer ${secret}` }, payload: bodyA }),
+      app.inject({ method: 'POST', url: `/api/v1/projects/${project.graphProjectId}/import`, headers: { authorization: `Bearer ${secret}` }, payload: bodyB }),
+    ]);
+
+    // Exactly one request won (200) and the other lost with the expected conflict (409) — never both
+    // succeeding, and never both failing.
+    const statuses = [resA.statusCode, resB.statusCode].sort((a, b) => a - b);
+    expect(statuses).toEqual([200, 409]);
+
+    const rows = (await pg.ownerPool.query(`SELECT doc_id FROM documents WHERE project_id = $1`, [project.id])).rows;
+    // Never a corrupted mixed-import state (both PRD-001 and PRD-002 present, or neither) — exactly the
+    // one document the winning request named.
+    expect(rows).toHaveLength(1);
+    expect(['PRD-001', 'PRD-002']).toContain(rows[0].doc_id);
+
+    await app.close();
+  }, 30_000);
+
   test('rejects a document whose id/type frontmatter fails core schema validation', async () => {
     const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
     const { org, project, cookie } = await seedOwnerAndProject(app);
