@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { routes } from '../../../src/router';
@@ -47,5 +48,22 @@ describe('ArbolPage', () => {
     renderAt('/arbol?estado=listo');
     await screen.findByRole('treeitem', { name: /MRD-001/ });
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+  });
+
+  it('opens the closure modal from "Ver cierre de feature"', async () => {
+    const user = userEvent.setup();
+    renderAt('/arbol/FR-001?estado=listo');
+    await screen.findByRole('heading', { level: 2, name: 'Persistencia stateful de borradores' });
+    await user.click(screen.getByRole('button', { name: 'Ver cierre de feature' }));
+    expect(screen.getByRole('dialog', { name: 'Cerrar feature' })).toBeTruthy();
+    expect(screen.getByText('Cuatro de cinco checks pasan')).toBeTruthy();
+  });
+
+  it('shows the already-closed message for a closed feature', async () => {
+    const user = userEvent.setup();
+    renderAt('/arbol/PRD-002?estado=listo');
+    await screen.findByRole('heading', { level: 2, name: 'Multi-Project Governance & Conversational Authoring' });
+    await user.click(screen.getByRole('button', { name: 'Ver cierre de feature' }));
+    expect(screen.getByText('Esta feature ya está cerrada.')).toBeTruthy();
   });
 });
