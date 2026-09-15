@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useSearchParams } from 'react-router';
 import { DataTable, EmptyState, ErrorState, IdTag, PageHeader, SearchField, Skeleton, StatusBadge, type DataTableColumn } from '../../components';
 import { BLUEPRINTS, WORK_ORDERS, type WorkOrder } from '../../data';
@@ -16,6 +16,7 @@ import {
   type StatusFilterKey,
 } from './filters';
 import { OrdenesFiltersBar } from './OrdenesFiltersBar';
+import { OrderDrawer } from './OrderDrawer';
 import styles from './OrdenesPage.module.css';
 
 const SORT_ACCESSORS: Record<OrdenesSortKey, (order: WorkOrder) => string | number> = {
@@ -62,7 +63,7 @@ function columns(): readonly DataTableColumn<WorkOrder>[] {
 export function OrdenesPage(): ReactElement {
   const { state, retry } = useDemoState();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [orders] = useState<readonly WorkOrder[]>(WORK_ORDERS);
+  const [orders, setOrders] = useState<readonly WorkOrder[]>(WORK_ORDERS);
   const [assignee, setAssignee] = useState<AssigneeFilterKey>('todas');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState<OrdenesSortKey>>(DEFAULT_SORT);
@@ -70,6 +71,37 @@ export function OrdenesPage(): ReactElement {
   const status = (searchParams.get('filtro') as StatusFilterKey | null) ?? 'todas';
   const blueprintId = searchParams.get('blueprint') ?? DEFAULT_BLUEPRINT_FILTER;
   const featureId = searchParams.get('feature') ?? undefined;
+  const openOrderId = searchParams.get('orden') ?? undefined;
+  const openOrder = orders.find((order) => order.id === openOrderId);
+
+  // The Drawer must stay mounted while it closes so its dialog controller can return focus to
+  // the row that opened it; unmounting it the instant `orden` leaves the URL would instead drop
+  // focus to <body>. `drawerOrder` keeps the last opened order around; `open` below still tracks
+  // the URL, so the dialog itself closes normally.
+  const [drawerOrder, setDrawerOrder] = useState<WorkOrder | undefined>(undefined);
+  useEffect(() => {
+    if (openOrder) setDrawerOrder(openOrder);
+  }, [openOrder]);
+
+  function openOrderDrawer(order: WorkOrder): void {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.set('orden', order.id);
+      return next;
+    });
+  }
+
+  function closeOrderDrawer(): void {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.delete('orden');
+      return next;
+    });
+  }
+
+  function updateOrder(next: WorkOrder): void {
+    setOrders((previous) => previous.map((order) => (order.id === next.id ? next : order)));
+  }
 
   function setStatus(value: StatusFilterKey): void {
     setSearchParams((previous) => {
@@ -149,6 +181,8 @@ export function OrdenesPage(): ReactElement {
             getRowId={(order) => order.id}
             sort={sort}
             onSortChange={(next) => setSort(next as SortState<OrdenesSortKey>)}
+            onRowClick={openOrderDrawer}
+            selectedId={openOrderId}
             emptyState={
               <EmptyState
                 title="Ninguna orden coincide con estos filtros."
@@ -162,6 +196,10 @@ export function OrdenesPage(): ReactElement {
             <p className={styles.footer}>
               Mostrando <span className="num">{rows.length}</span> de <span className="num">{total}</span> órdenes
             </p>
+          ) : null}
+
+          {drawerOrder ? (
+            <OrderDrawer order={drawerOrder} open={Boolean(openOrder)} onClose={closeOrderDrawer} onUpdate={updateOrder} />
           ) : null}
         </div>
       ) : null}

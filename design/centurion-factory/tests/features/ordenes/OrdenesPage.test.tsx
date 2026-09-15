@@ -115,4 +115,39 @@ describe('OrdenesPage', () => {
     const footer = screen.getByText(/^Mostrando/);
     expect(footer.textContent).toBe(`Mostrando ${WORK_ORDERS.length} de ${WORK_ORDERS.length} órdenes`);
   });
+
+  it('?orden= opens the drawer for that order', async () => {
+    renderAt('/ordenes?estado=listo&orden=WO-310');
+    expect(await screen.findByRole('dialog', { name: 'Resumen del importador en la CLI' })).toBeTruthy();
+  });
+
+  it('clicking a row opens its drawer and closing it returns focus to the row', async () => {
+    const user = userEvent.setup();
+    renderAt('/ordenes?estado=listo');
+    await screen.findByRole('table');
+    const row = screen.getByRole('cell', { name: 'WO-310' }).closest('tr');
+    if (!row) throw new Error('row not found');
+    await user.click(row);
+    expect(screen.getByRole('dialog', { name: 'Resumen del importador en la CLI' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Cerrar' }));
+    expect(document.activeElement).toBe(row);
+  });
+
+  it('taking a pending order updates its row and the chip counts', async () => {
+    const user = userEvent.setup();
+    renderAt('/ordenes?estado=listo&orden=WO-311');
+    const dialog = await screen.findByRole('dialog', { name: 'Test de importación de 2.000 documentos' });
+    const pendingBefore = within(screen.getByRole('radiogroup', { name: 'Estado' })).getByRole('radio', { name: /Pendientes/ });
+    const pendingCountBefore = pendingBefore.textContent;
+
+    await user.click(within(dialog).getByRole('button', { name: 'Tomar orden' }));
+    const modal = screen.getByRole('dialog', { name: 'Tomar orden' });
+    await user.click(within(modal).getByRole('button', { name: 'Tomar orden' }));
+
+    const row = screen.getByRole('cell', { name: 'WO-311' }).closest('tr');
+    if (!row) throw new Error('row not found');
+    expect(within(row).getByText('En curso')).toBeTruthy();
+    const pendingAfter = within(screen.getByRole('radiogroup', { name: 'Estado' })).getByRole('radio', { name: /Pendientes/ });
+    expect(pendingAfter.textContent).not.toBe(pendingCountBefore);
+  });
 });
