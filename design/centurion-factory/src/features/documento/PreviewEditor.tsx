@@ -4,7 +4,7 @@
  * `~~`/`[]()`. The block model is always the source of truth: the DOM is only re-synced when the
  * incoming `block.text` did not originate from this same field's own edit (see `Block` below).
  */
-import { useEffect, useRef, type ClipboardEvent, type KeyboardEvent, type ReactElement } from 'react';
+import { useEffect, useId, useRef, type ClipboardEvent, type KeyboardEvent, type ReactElement } from 'react';
 import { getPerson, type BlockType, type DocumentBlock } from '../../data';
 import { htmlToInline, inlineToHtml } from './markdown';
 import styles from './PreviewEditor.module.css';
@@ -92,6 +92,7 @@ function BlockField({
   registerField,
 }: BlockFieldProps): ReactElement {
   const ref = useRef<HTMLDivElement | null>(null);
+  const fieldId = useId();
 
   useEffect(() => {
     const element = ref.current;
@@ -146,7 +147,7 @@ function BlockField({
 
   return (
     <div
-      id={`block-field-${block.id}`}
+      id={`block-field-${fieldId}`}
       ref={(element) => {
         ref.current = element;
         registerField(block.id, element);

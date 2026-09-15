@@ -8,10 +8,10 @@ import type { BlockType, DocumentBlock } from '../../data';
 import { blocksForPaste, mergeIntoPrevious, splitBlock, splitFieldAtCaret } from './blockEditing';
 import styles from './EditorColumn.module.css';
 import { MarkdownEditor } from './MarkdownEditor';
-import { htmlToInline, parseMarkdown, reconcileBlocks, sanitizeHref, serializeBlocks } from './markdown';
+import { htmlToInline, sanitizeHref } from './markdown';
 import { PreviewEditor } from './PreviewEditor';
 import { Toolbar, type InlineFormat } from './Toolbar';
-import { CURRENT_USER_ID } from './useDocumentEditor';
+import { CURRENT_USER_ID, type EditorMode } from './useDocumentEditor';
 
 type FocusPosition = 'start' | 'end';
 
@@ -30,9 +30,11 @@ export interface EditorColumnProps {
   readonly blocks: readonly DocumentBlock[];
   readonly onBlocksChange: (next: readonly DocumentBlock[]) => void;
   readonly saveStatus: string;
+  readonly mode: EditorMode;
+  readonly onModeChange: (mode: EditorMode) => void;
+  readonly markdownDraft: string;
+  readonly onMarkdownDraftChange: (draft: string) => void;
 }
-
-type EditorMode = 'preview' | 'markdown';
 
 const FORMAT_TAG: Readonly<Record<InlineFormat, 'strong' | 'em' | 'del'>> = { '**': 'strong', _: 'em', '~~': 'del' };
 
@@ -53,11 +55,17 @@ function activeFormatsAt(node: Node | null, root: HTMLElement): ReadonlySet<Inli
   return formats;
 }
 
-export function EditorColumn({ blocks, onBlocksChange, saveStatus }: EditorColumnProps): ReactElement {
-  const [mode, setMode] = useState<EditorMode>('preview');
+export function EditorColumn({
+  blocks,
+  onBlocksChange,
+  saveStatus,
+  mode,
+  onModeChange,
+  markdownDraft,
+  onMarkdownDraftChange,
+}: EditorColumnProps): ReactElement {
   const [focusedBlockId, setFocusedBlockId] = useState<string | undefined>(blocks[0]?.id);
   const [activeFormats, setActiveFormats] = useState<ReadonlySet<InlineFormat>>(new Set());
-  const [markdownDraft, setMarkdownDraft] = useState('');
   const [markdownGutterBlocks, setMarkdownGutterBlocks] = useState<readonly DocumentBlock[]>(blocks);
   const [focusRequest, setFocusRequest] = useState<{ readonly id: string; readonly position: FocusPosition } | null>(null);
   const fieldsRef = useRef(new Map<string, HTMLDivElement>());
@@ -77,23 +85,17 @@ export function EditorColumn({ blocks, onBlocksChange, saveStatus }: EditorColum
     setFocusRequest(null);
   }, [focusRequest]);
 
-  function switchToMarkdown(): void {
-    setMarkdownDraft(serializeBlocks(blocks));
-    setMarkdownGutterBlocks(blocks);
-    setMode('markdown');
-  }
-
-  function switchToPreview(): void {
-    const parsed = parseMarkdown(markdownDraft);
-    onBlocksChange(reconcileBlocks(blocks, parsed, CURRENT_USER_ID));
-    setMode('preview');
-  }
+  // The Markdown gutter's per-line authorship is a snapshot of the blocks live when the tab opened
+  // (re-parsing `markdownDraft` on every keystroke would reattribute lines the user hasn't touched).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (mode === 'markdown') setMarkdownGutterBlocks(blocks);
+  }, [mode]);
 
   function handleTabKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     event.preventDefault();
-    if (mode === 'preview') switchToMarkdown();
-    else switchToPreview();
+    onModeChange(mode === 'preview' ? 'markdown' : 'preview');
   }
 
   function updateBlock(id: string, patch: Partial<DocumentBlock>): void {
@@ -236,7 +238,7 @@ export function EditorColumn({ blocks, onBlocksChange, saveStatus }: EditorColum
           role="tab"
           aria-selected={mode === 'preview'}
           className={mode === 'preview' ? styles.tabSelected : styles.tab}
-          onClick={mode === 'markdown' ? switchToPreview : undefined}
+          onClick={mode === 'markdown' ? () => onModeChange('preview') : undefined}
         >
           Vista previa
         </button>
@@ -245,7 +247,7 @@ export function EditorColumn({ blocks, onBlocksChange, saveStatus }: EditorColum
           role="tab"
           aria-selected={mode === 'markdown'}
           className={mode === 'markdown' ? styles.tabSelected : styles.tab}
-          onClick={mode === 'preview' ? switchToMarkdown : undefined}
+          onClick={mode === 'preview' ? () => onModeChange('markdown') : undefined}
         >
           Markdown
         </button>
@@ -278,7 +280,7 @@ export function EditorColumn({ blocks, onBlocksChange, saveStatus }: EditorColum
           />
         </>
       ) : (
-        <MarkdownEditor value={markdownDraft} onChange={setMarkdownDraft} gutterBlocks={markdownGutterBlocks} />
+        <MarkdownEditor value={markdownDraft} onChange={onMarkdownDraftChange} gutterBlocks={markdownGutterBlocks} />
       )}
 
       <div className={styles.footer}>

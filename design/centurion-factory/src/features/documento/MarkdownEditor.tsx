@@ -2,7 +2,7 @@
  * Markdown tab (WO-300): a monospace textarea of the serialized blocks, with line numbers and a
  * best-effort author gutter (computed once from the blocks that were live when the tab opened).
  */
-import type { ChangeEvent, ReactElement } from 'react';
+import { useId, type ChangeEvent, type ReactElement } from 'react';
 import { getPerson, type DocumentBlock } from '../../data';
 import styles from './MarkdownEditor.module.css';
 
@@ -22,6 +22,7 @@ function gutterLineAuthor(gutterBlocks: readonly DocumentBlock[], lineIndex: num
 
 export function MarkdownEditor({ value, onChange, gutterBlocks }: MarkdownEditorProps): ReactElement {
   const lines = value.split('\n');
+  const textareaId = useId();
 
   function handleChange(event: ChangeEvent<HTMLTextAreaElement>): void {
     onChange(event.target.value);
@@ -37,10 +38,10 @@ export function MarkdownEditor({ value, onChange, gutterBlocks }: MarkdownEditor
           </div>
         ))}
       </div>
-      <label className="visually-hidden" htmlFor="documento-markdown">
+      <label className="visually-hidden" htmlFor={textareaId}>
         Fuente en Markdown del documento
       </label>
-      <textarea id="documento-markdown" className={`${styles.textarea} id`} value={value} onChange={handleChange} spellCheck={false} />
+      <textarea id={textareaId} className={`${styles.textarea} id`} value={value} onChange={handleChange} spellCheck={false} />
     </div>
   );
 }

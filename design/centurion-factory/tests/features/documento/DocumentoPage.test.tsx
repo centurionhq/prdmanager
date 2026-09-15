@@ -1,7 +1,7 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { routes } from '../../../src/router';
 
 function renderAt(path: string) {
@@ -9,6 +9,25 @@ function renderAt(path: string) {
   render(<RouterProvider router={router} />);
   return router;
 }
+
+/** Mocks `window.matchMedia` so `useMediaQuery` reports `matches` for every query. */
+function mockMatchMedia(matches: boolean): void {
+  window.matchMedia = ((query: string) => ({
+    matches,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+}
+
+afterEach(() => {
+  // @ts-expect-error -- restoring jsdom's default (no matchMedia implementation) between tests.
+  delete window.matchMedia;
+});
 
 describe('DocumentoPage', () => {
   it('shows an error state with a link back to Documentos for an unknown id', async () => {
@@ -53,5 +72,46 @@ describe('DocumentoPage', () => {
 
     await user.keyboard('{ArrowLeft}');
     expect(agenteTab.getAttribute('aria-selected')).toBe('true');
+  });
+});
+
+describe('DocumentoPage: a single editor layout, chosen by viewport', () => {
+  it('renders only the desktop layout by default (jsdom has no matchMedia)', async () => {
+    renderAt('/documentos/SDD-011');
+    await screen.findByText(/Versión 7/);
+
+    expect(screen.getAllByRole('tablist', { name: 'Modo del editor' })).toHaveLength(1);
+    expect(screen.queryByRole('tablist', { name: 'Secciones del documento' })).toBeNull();
+    expect(screen.getByText('Frontmatter')).toBeTruthy();
+  });
+
+  it('renders only the mobile tabs when the viewport matches the mobile media query', async () => {
+    mockMatchMedia(true);
+    renderAt('/documentos/SDD-011');
+    await screen.findByRole('tablist', { name: 'Secciones del documento' });
+
+    expect(screen.getAllByRole('tablist', { name: 'Modo del editor' })).toHaveLength(1);
+    expect(screen.queryByText('Frontmatter')).toBeNull();
+    expect(screen.queryByRole('tablist', { name: 'Panel del documento' })).toBeNull();
+  });
+});
+
+describe('DocumentoPage: navigating between documents resets state', () => {
+  it('does not keep the previous document\'s frontmatter title after navigating to another one', async () => {
+    const user = userEvent.setup();
+    const router = renderAt('/documentos/SDD-011');
+    await screen.findByText(/Versión 7/);
+
+    const titleInput = screen.getByLabelText('Título') as HTMLInputElement;
+    await user.clear(titleInput);
+    await user.type(titleInput, 'Un título editado que no debería sobrevivir');
+
+    await act(async () => {
+      await router.navigate('/documentos/MRD-001');
+    });
+    await screen.findByText(/Versión 3/);
+
+    const freshTitleInput = screen.getByLabelText('Título') as HTMLInputElement;
+    expect(freshTitleInput.value).not.toBe('Un título editado que no debería sobrevivir');
   });
 });

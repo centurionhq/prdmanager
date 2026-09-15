@@ -8,7 +8,7 @@ import { AgentTab } from './AgentTab';
 import { CommentsTab } from './CommentsTab';
 import { EditorColumn } from './EditorColumn';
 import { Tabs } from './Tabs';
-import type { ProposalOutcome } from './useDocumentEditor';
+import type { EditorMode, ProposalOutcome } from './useDocumentEditor';
 import { VersionsTab } from './VersionsTab';
 
 export interface MobileTabsProps {
@@ -24,6 +24,10 @@ export interface MobileTabsProps {
   readonly onRestoreVersion: (versionNo: number) => string;
   readonly onBlocksChange: (next: readonly DocumentBlock[]) => void;
   readonly saveStatus: string;
+  readonly editorMode: EditorMode;
+  readonly onEditorModeChange: (mode: EditorMode) => void;
+  readonly markdownDraft: string;
+  readonly onMarkdownDraftChange: (draft: string) => void;
 }
 
 export function MobileTabs({
@@ -39,6 +43,10 @@ export function MobileTabs({
   onRestoreVersion,
   onBlocksChange,
   saveStatus,
+  editorMode,
+  onEditorModeChange,
+  markdownDraft,
+  onMarkdownDraftChange,
 }: MobileTabsProps): ReactElement {
   const [activeId, setActiveId] = useState('documento');
 
@@ -49,7 +57,21 @@ export function MobileTabs({
       activeId={activeId}
       onChange={setActiveId}
       tabs={[
-        { id: 'documento', label: 'Documento', panel: <EditorColumn blocks={blocks} onBlocksChange={onBlocksChange} saveStatus={saveStatus} /> },
+        {
+          id: 'documento',
+          label: 'Documento',
+          panel: (
+            <EditorColumn
+              blocks={blocks}
+              onBlocksChange={onBlocksChange}
+              saveStatus={saveStatus}
+              mode={editorMode}
+              onModeChange={onEditorModeChange}
+              markdownDraft={markdownDraft}
+              onMarkdownDraftChange={onMarkdownDraftChange}
+            />
+          ),
+        },
         {
           id: 'agente',
           label: 'Agente',

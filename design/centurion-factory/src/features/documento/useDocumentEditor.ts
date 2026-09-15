@@ -21,11 +21,14 @@ import {
   type WorkflowState,
 } from '../../data';
 import { formatRelative } from './format';
+import { parseMarkdown, reconcileBlocks, serializeBlocks } from './markdown';
 import { findMatchingBlock, stripLinePrefix } from './proposalEdits';
 
 /** "Editás como Admin de proyecto" in the header: the simulated current session. */
 export const CURRENT_USER_ID = 'ana-rios';
 export const CURRENT_USER_NAME = 'Ana Ríos';
+
+export type EditorMode = 'preview' | 'markdown';
 
 export type WorkflowTransition = 'request_review' | 'publish' | 'back_to_draft' | 'archive' | 'restore_to_draft';
 
@@ -66,6 +69,10 @@ export interface UseDocumentEditorResult {
   readonly resolveThread: (threadId: string) => void;
   readonly restoreVersion: (versionNo: number) => string;
   readonly updateBlocks: (next: readonly DocumentBlock[]) => void;
+  readonly editorMode: EditorMode;
+  readonly setEditorMode: (mode: EditorMode) => void;
+  readonly markdownDraft: string;
+  readonly setMarkdownDraft: (draft: string) => void;
 }
 
 function nextVersionNumber(versions: readonly DocumentVersion[]): number {
@@ -88,6 +95,22 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
   const [blocks, setBlocks] = useState<readonly DocumentBlock[]>(() => document?.blocks ?? []);
   const [proposals, setProposals] = useState<readonly AgentProposal[]>(() => [...proposalsForDocument(id)]);
   const [comments, setComments] = useState<readonly CommentThread[]>(() => [...commentsForDocument(id)]);
+  const [editorMode, setEditorModeState] = useState<EditorMode>('preview');
+  const [markdownDraft, setMarkdownDraft] = useState('');
+
+  /** `blocks` folded with any pending Markdown-tab edit, without touching state (pure read). */
+  function effectiveBlocks(): readonly DocumentBlock[] {
+    if (editorMode !== 'markdown') return blocks;
+    return reconcileBlocks(blocks, parseMarkdown(markdownDraft), CURRENT_USER_ID);
+  }
+
+  /** Switching tabs seeds the draft from the model, and leaving Markdown folds the draft back in. */
+  function setEditorMode(next: EditorMode): void {
+    if (next === editorMode) return;
+    if (next === 'markdown') setMarkdownDraft(serializeBlocks(blocks));
+    else setBlocks(effectiveBlocks());
+    setEditorModeState(next);
+  }
 
   function addVersion(reason: VersionReason, label?: string): void {
     if (!document) return;
@@ -104,6 +127,7 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
   }
 
   function save(): void {
+    setBlocks(effectiveBlocks());
     addVersion('manual');
     setSavedJustNow(true);
   }
@@ -119,15 +143,19 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
     const proposal = proposals.find((candidate) => candidate.id === proposalId);
     if (!proposal || proposal.status !== 'pending') return { toast: 'Propuesta aceptada' };
 
+    // Fold in any pending Markdown-tab edit first, so the staleness check (and the eventual
+    // replacement) never operates on text the user has already changed but not yet saved.
+    const currentBlocks = effectiveBlocks();
     const edit = proposal.edits[0];
-    const target = edit ? findMatchingBlock(blocks, edit.expectedText) : undefined;
+    const target = edit ? findMatchingBlock(currentBlocks, edit.expectedText) : undefined;
     if (!edit || !target) {
+      setBlocks(currentBlocks);
       setProposals((current) => current.map((item) => (item.id === proposalId ? { ...item, status: 'stale' } : item)));
       return { toast: 'Esta propuesta quedó vieja', stale: true };
     }
 
-    setBlocks((current) =>
-      current.map((block) =>
+    setBlocks(
+      currentBlocks.map((block) =>
         block.id === target.id ? { ...block, text: stripLinePrefix(edit.replacement), author: 'agent', acceptedBy: CURRENT_USER_NAME } : block,
       ),
     );
@@ -186,5 +214,9 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
     resolveThread,
     restoreVersion,
     updateBlocks,
+    editorMode,
+    setEditorMode,
+    markdownDraft,
+    setMarkdownDraft,
   };
 }
