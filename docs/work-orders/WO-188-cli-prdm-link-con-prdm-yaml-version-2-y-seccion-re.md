@@ -2,12 +2,17 @@
 id: "WO-188"
 type: "WO"
 title: "CLI prdm link con .prdm.yaml version 2 y sección remote, mensaje claro del parser v1, .prdm/remote/ en el gitignore del scaffold y entrada stdio de prdm mcp-proxy en .mcp.json, con tests"
-status: "pending"
+status: "done"
 created_at: "2026-09-13"
 implements: ["SDD-010"]
 impacts_paths: ["packages/server/src/**","packages/server/tests/**","packages/server/*.json","packages/mcp/src/**","packages/cli/src/**","packages/cli/tests/**","packages/cli/package.json","packages/core/src/**","packages/contracts/src/**","packages/contracts/tests/**","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/app/src/**","packages/app/tests/**","packages/app/*.config.ts","packages/testkit/src/**",".github/workflows/prdm-sync.yml",".gitignore","vitest.config.ts","README.md",".env.example","package.json","package-lock.json"]
 source_task: "4f704505d493560f"
 tags: ["saas","remote-mcp","sync","drift","cli","import","oidc"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T00:32:38.372Z"
+completed_at: "2026-09-15T00:41:30.658Z"
+resolved_by: ["8ea7b7c87a576378f0520c5363848fa5d5f91f51"]
+blueprint_hashes: {"SDD-010":"a40225b83b2e4989ac23e7ba309a3abafe0491bdaf5ebdbdc7802d034f80760a"}
 ---
 
 ## Objetivo
