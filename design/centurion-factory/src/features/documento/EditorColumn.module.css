@@ -1,0 +1,27 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+}
+
+.textarea {
+  flex: 1;
+  min-height: 240px;
+  padding: var(--space-4);
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--grafito);
+  resize: none;
+}
+
+.textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

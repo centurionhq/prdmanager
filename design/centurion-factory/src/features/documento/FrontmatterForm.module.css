@@ -1,0 +1,113 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.input {
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+  font-size: var(--text-sm);
+  color: var(--grafito);
+}
+
+.input:disabled {
+  color: var(--texto-secundario);
+}
+
+.readOnlyRow {
+  height: var(--control-height);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+  min-width: 0;
+}
+
+.readOnlyText {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--text-sm);
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+}
+
+.chip {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  background: var(--relleno);
+  border: 1px solid var(--regla-fila);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-sm);
+}
+
+.chipRemove {
+  display: flex;
+  color: var(--apagado);
+}
+
+.chipForm {
+  flex: 1;
+  min-width: 80px;
+}
+
+.chipInput {
+  width: 100%;
+  border: 0;
+  background: none;
+  font-size: var(--text-sm);
+  color: var(--cianotipo);
+}
+
+.chipInput:focus-visible {
+  outline: none;
+}
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: var(--rule);
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
