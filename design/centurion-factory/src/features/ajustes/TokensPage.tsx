@@ -1,82 +1,17 @@
-import { Check, Copy } from 'lucide-react';
-import { useRef, useState, type ReactElement } from 'react';
-import { Button, EmptyState, ErrorState, Modal, Skeleton, useToast } from '../../components';
-import { CI_TOKENS, type CiToken } from '../../data';
+import type { ReactElement } from 'react';
+import { Button, EmptyState, ErrorState, Skeleton } from '../../components';
 import { useDemoState } from '../../lib/use-demo-state';
-import { CreateTokenModal, type CreateTokenInput } from './CreateTokenModal';
-import { CLIPBOARD_ERROR, copyToClipboard, generateTokenSecret, toDateOnly } from './lib';
+import { CreateTokenModal } from './CreateTokenModal';
+import { NewTokenSecretPanel } from './NewTokenSecretPanel';
+import { RevokeTokenModal } from './RevokeTokenModal';
 import styles from './TokensPage.module.css';
 import { TokensTable } from './TokensTable';
-
-const CURRENT_PERSON_ID = 'ana-rios';
-
-interface NewTokenSecret {
-  readonly name: string;
-  readonly secret: string;
-}
-
-interface PendingRemoval {
-  readonly message: string;
-  readonly onConfirm: () => void;
-}
-
-function daysFromNow(days: number): Date {
-  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-}
+import { useTokensState } from './useTokensState';
 
 /** /ajustes/tokens: CI tokens table plus create/revoke flows (WO-306). */
 export function TokensPage(): ReactElement {
   const { state, retry } = useDemoState();
-  const toast = useToast();
-  const [tokens, setTokens] = useState<readonly CiToken[]>(() => [...CI_TOKENS]);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newSecret, setNewSecret] = useState<NewTokenSecret | null>(null);
-  const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
-  const secretFieldRef = useRef<HTMLInputElement>(null);
-
-  function handleCreate(input: CreateTokenInput): void {
-    const { prefix, secret } = generateTokenSecret();
-    const created: CiToken = {
-      name: input.name,
-      prefix,
-      scopes: input.scopes,
-      branch: input.branch,
-      createdBy: CURRENT_PERSON_ID,
-      createdAt: toDateOnly(new Date()),
-      expiresAt: toDateOnly(daysFromNow(input.expiresInDays)),
-      expired: false,
-    };
-    setTokens((current) => [created, ...current]);
-    setCreateOpen(false);
-    setNewSecret({ name: created.name, secret });
-  }
-
-  async function handleCopy(): Promise<void> {
-    if (!newSecret) return;
-    const copied = await copyToClipboard(newSecret.secret);
-    if (copied) {
-      toast.show('Token copiado');
-      return;
-    }
-    secretFieldRef.current?.select();
-    toast.show(CLIPBOARD_ERROR);
-  }
-
-  function handleRevoke(token: CiToken): void {
-    setPendingRemoval({
-      message: `¿Revocar el token ${token.name}? Ya no va a poder enviar reportes de CI.`,
-      onConfirm: () => {
-        setTokens((current) => current.filter((entry) => entry.prefix !== token.prefix));
-        toast.show('Token revocado');
-        setPendingRemoval(null);
-      },
-    });
-  }
-
-  function handleDelete(token: CiToken): void {
-    setTokens((current) => current.filter((entry) => entry.prefix !== token.prefix));
-    toast.show('Token eliminado');
-  }
+  const tokens = useTokensState();
 
   return (
     <>
@@ -88,31 +23,13 @@ export function TokensPage(): ReactElement {
           </p>
         </div>
         {state === 'listo' ? (
-          <Button type="button" variant="primary" onClick={() => setCreateOpen(true)}>
+          <Button type="button" variant="primary" onClick={tokens.openCreate}>
             Crear token
           </Button>
         ) : null}
       </div>
 
-      {newSecret ? (
-        <div role="status" className={styles.successPanel}>
-          <div className={styles.successHeader}>
-            <Check aria-hidden="true" size={20} className={styles.successIcon} />
-            <span className={styles.successTitle}>Token creado</span>
-          </div>
-          <p className={styles.successBody}>Copiá el token ahora. Por seguridad no lo vamos a volver a mostrar.</p>
-          <div className={styles.successRow}>
-            <input ref={secretFieldRef} readOnly className={`id ${styles.secretField}`} value={newSecret.secret} />
-            <Button type="button" variant="secondary" onClick={handleCopy}>
-              <Copy aria-hidden="true" size={16} />
-              Copiar
-            </Button>
-            <button type="button" className={styles.linkButton} onClick={() => setNewSecret(null)}>
-              Ya lo guardé
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <NewTokenSecretPanel tokens={tokens} />
 
       {state === 'cargando' ? <Skeleton rows={3} /> : null}
 
@@ -124,41 +41,25 @@ export function TokensPage(): ReactElement {
         <EmptyState
           title="No hay tokens de CI todavía."
           body="Creá uno para que CI pueda enviar reportes de drift."
-          action={{ label: 'Crear token', onClick: () => setCreateOpen(true) }}
+          action={{ label: 'Crear token', onClick: tokens.openCreate }}
         />
       ) : null}
 
       {state === 'listo' ? (
         <div className={styles.tableSection}>
-          <TokensTable tokens={tokens} onRevoke={handleRevoke} onDelete={handleDelete} />
+          <TokensTable tokens={tokens.tokens} onRevoke={tokens.handleRevoke} onDelete={tokens.handleDelete} />
           <p className={styles.footerNote}>Máximo 90 días. Rotalos antes de que venzan para no cortar el reporte oficial.</p>
         </div>
       ) : null}
 
       <CreateTokenModal
-        open={createOpen}
-        existingNames={tokens.map((token) => token.name)}
-        onClose={() => setCreateOpen(false)}
-        onCreate={handleCreate}
+        open={tokens.createOpen}
+        existingNames={tokens.tokens.map((token) => token.name)}
+        onClose={tokens.closeCreate}
+        onCreate={tokens.handleCreate}
       />
 
-      <Modal
-        open={pendingRemoval !== null}
-        title="Revocar token"
-        onClose={() => setPendingRemoval(null)}
-        footer={
-          <>
-            <Button type="button" variant="secondary" onClick={() => setPendingRemoval(null)}>
-              Cancelar
-            </Button>
-            <Button type="button" variant="destructive" onClick={() => pendingRemoval?.onConfirm()}>
-              Confirmar
-            </Button>
-          </>
-        }
-      >
-        <p>{pendingRemoval?.message}</p>
-      </Modal>
+      <RevokeTokenModal tokens={tokens} />
     </>
   );
 }
