@@ -1,8 +1,9 @@
 import { readFileSync, statSync } from 'node:fs';
 import type { Command } from 'commander';
-import { checkCommitMessage, checkCommitRange, type CommitRangeEntry } from '@prdm/core';
+import { checkCommitMessage, checkCommitRange, detectProjectFileMode, type CommitRangeEntry } from '@prdm/core';
 import { CliError, messageOf } from '../errors.js';
 import type { CliDeps } from '../program.js';
+import { runRemoteCommitMsg } from '../remote/commit-msg.js';
 
 const MAX_MESSAGE_BYTES = 64 * 1024;
 
@@ -32,7 +33,17 @@ function isAmend(env: NodeJS.ProcessEnv): boolean {
 
 async function runCommitMsg(deps: CliDeps, file: string): Promise<void> {
   const message = stripComments(readMessageFile(file));
-  const result = await checkCommitMessage(deps.root, message, { amend: isAmend(process.env) });
+  const options = { amend: isAmend(process.env) };
+
+  const mode = detectProjectFileMode(deps.root);
+  if (mode.kind === 'remote') {
+    const { result, warning } = await runRemoteCommitMsg(deps.root, mode.file, message, options, { env: process.env });
+    if (warning) deps.stderr(`warning: ${warning}`);
+    if (!result.ok) throw new CliError(result.message ?? 'commit rejected by prdm commit policy');
+    return;
+  }
+
+  const result = await checkCommitMessage(deps.root, message, options);
   if (!result.ok) throw new CliError(result.message ?? 'commit rejected by prdm commit policy');
 }
 

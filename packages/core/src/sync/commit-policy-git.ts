@@ -146,19 +146,44 @@ export interface CommitMsgCheckOptions {
   amend?: boolean;
 }
 
+/** The two `.prdm.yaml` fields `checkCommitMessage` actually needs (WO-197): a remote-mode caller
+ * supplies these directly (from the governance cache/server settings) instead of a local `.prdm.yaml`,
+ * whose `version: 2` shape the local (`parseProjectFile`) reader can't parse at all. */
+export interface CommitPolicySettings {
+  enforceRefs: boolean;
+  ignore: string[];
+}
+
 /**
  * Evaluates the commit that `git commit` is about to create from the current index, for the `commit-msg` hook.
- * Returns `{ ok: true, ... }` immediately (no git/project state is read) when the project has no `.prdm.yaml`.
+ * Returns `{ ok: true, ... }` immediately (no git/project state is read) when the project has no `.prdm.yaml`
+ * and `remoteSettings` wasn't supplied either.
  *
  * `source` (WO-196 `PolicyDocsSource` seam) supplies every policy-*document* read; everything else here —
  * which code paths changed, merge/amend detection — is local-git-specific and unaffected by it. Defaults
- * to `GitPolicyDocsSource` (the exact, unchanged local-mode behavior); a remote-mode caller (WO-197)
- * supplies its own source reading the governance cache instead.
+ * to `GitPolicyDocsSource` (the exact, unchanged local-mode behavior).
+ *
+ * `remoteSettings` (WO-197): when supplied, skips reading/parsing the local `.prdm.yaml` for
+ * `enforceRefs`/`ignore` entirely — a remote-mode caller passes its own governance-cache-derived
+ * settings, never the local file (which is a `version: 2` file the local-mode parser would otherwise
+ * reject outright).
  */
-export async function checkCommitMessage(root: string, message: string, options: CommitMsgCheckOptions = {}, source: PolicyDocsSource = defaultPolicyDocsSource(root)): Promise<EvaluateCommitResult> {
-  const settingsRaw = await readTextFile(join(root, '.prdm.yaml'));
-  if (settingsRaw === null) return { ok: true, requiredFor: [], refs: [] };
-  const settings = parseProjectFile(settingsRaw);
+export async function checkCommitMessage(
+  root: string,
+  message: string,
+  options: CommitMsgCheckOptions = {},
+  source: PolicyDocsSource = defaultPolicyDocsSource(root),
+  remoteSettings?: CommitPolicySettings,
+): Promise<EvaluateCommitResult> {
+  let settings: CommitPolicySettings;
+  if (remoteSettings) {
+    settings = remoteSettings;
+  } else {
+    const settingsRaw = await readTextFile(join(root, '.prdm.yaml'));
+    if (settingsRaw === null) return { ok: true, requiredFor: [], refs: [] };
+    const localSettings = parseProjectFile(settingsRaw);
+    settings = { enforceRefs: localSettings.git.enforceRefs, ignore: localSettings.ignore };
+  }
   const prefix = await projectPrefix(root);
 
   const hasHead = (await git(root, ['rev-parse', '-q', '--verify', 'HEAD'])) !== null;
@@ -185,7 +210,7 @@ export async function checkCommitMessage(root: string, message: string, options:
     hasConflictsInGoverned,
     docsAtHead,
     docsInIndex,
-    settings: { enforceRefs: settings.git.enforceRefs, isWithinEnforcementRange: withinRange },
+    settings: { enforceRefs: settings.enforceRefs, isWithinEnforcementRange: withinRange },
   });
 }
 

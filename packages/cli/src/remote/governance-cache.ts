@@ -18,6 +18,10 @@ const MANIFEST_PATH = `${GOVERNANCE_CACHE_DIR}/manifest.json`;
 interface GovernanceManifest {
   graphVersion: string;
   ids: string[];
+  /** ISO timestamp of the last successful fetch (WO-197: the `commit-msg` hook's "cache older than 10
+   * minutes" check reads this). Absent from a manifest written before WO-197 — treated as "unknown age"
+   * (as stale as possible) rather than crashing. */
+  fetchedAt?: string;
 }
 
 export interface GovernanceCacheDeps {
@@ -25,6 +29,8 @@ export interface GovernanceCacheDeps {
   /** Injectable so a test can prove a planted symlink is rejected without reaching into `safe-fs`
    * internals — defaults to the real, hardened `safeReplaceAtomic`. */
   writeFile?: (root: string, relPath: string, content: string) => Promise<void>;
+  /** Injectable clock (WO-197), recorded into the manifest as `fetchedAt`. */
+  now?: () => Date;
 }
 
 export interface CachedGovernanceDocument {
@@ -54,9 +60,9 @@ async function readManifest(root: string): Promise<GovernanceManifest | null> {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (typeof parsed !== 'object' || parsed === null) return null;
-    const { graphVersion, ids } = parsed as Partial<GovernanceManifest>;
+    const { graphVersion, ids, fetchedAt } = parsed as Partial<GovernanceManifest>;
     if (typeof graphVersion !== 'string' || !Array.isArray(ids) || !ids.every((id) => typeof id === 'string')) return null;
-    return { graphVersion, ids };
+    return { graphVersion, ids, fetchedAt: typeof fetchedAt === 'string' ? fetchedAt : undefined };
   } catch {
     return null;
   }
@@ -81,7 +87,11 @@ async function loadCachedDocuments(root: string, ids: readonly string[], readFil
   return documents;
 }
 
-async function writeGovernanceResponse(root: string, response: GovernanceResponseDto, deps: Required<Pick<GovernanceCacheDeps, 'writeFile'>>): Promise<CachedGovernanceDocument[]> {
+async function writeGovernanceResponse(
+  root: string,
+  response: GovernanceResponseDto,
+  deps: Required<Pick<GovernanceCacheDeps, 'writeFile'>> & { now: () => Date },
+): Promise<CachedGovernanceDocument[]> {
   for (const doc of response.documents) assertSafeGovernanceDocId(doc);
 
   const existing = await readManifest(root);
@@ -97,7 +107,7 @@ async function writeGovernanceResponse(root: string, response: GovernanceRespons
     documents.push({ id: doc.id, sourcePath: path, content: doc.content });
   }
 
-  const manifest: GovernanceManifest = { graphVersion: response.graphVersion, ids: [...nextIds] };
+  const manifest: GovernanceManifest = { graphVersion: response.graphVersion, ids: [...nextIds], fetchedAt: deps.now().toISOString() };
   await deps.writeFile(root, MANIFEST_PATH, JSON.stringify(manifest, null, 2));
   return documents;
 }
@@ -139,7 +149,7 @@ export async function syncGovernanceCache(root: string, origin: string, graphPro
   const body = parsed.data;
 
   const settings = parseGovernedSettings(body.settings);
-  const documents = await writeGovernanceResponse(root, body, { writeFile });
+  const documents = await writeGovernanceResponse(root, body, { writeFile, now: deps.now ?? (() => new Date()) });
   await writeFile(root, `${GOVERNANCE_CACHE_DIR}/settings.json`, JSON.stringify(body.settings, null, 2));
 
   return { graphVersion: body.graphVersion, settings, hashAlgoVersion: body.settings.hash_algo_version, documents, unchanged: false };
@@ -147,4 +157,18 @@ export async function syncGovernanceCache(root: string, origin: string, graphPro
 
 async function defaultWriteFile(root: string, relPath: string, content: string): Promise<void> {
   await safeReplaceAtomic(root, relPath, content);
+}
+
+/** Reads whatever governance is currently cached, without ever making a network call — the `commit-msg`
+ * hook's (WO-197) offline fallback. `null` when there is no cache at all. */
+export async function loadCachedGovernance(root: string): Promise<(GovernanceCacheResult & { ageMs: number | null }) | null> {
+  const manifest = await readManifest(root);
+  if (!manifest) return null;
+  const settingsRaw = await safeReadFile(root, `${GOVERNANCE_CACHE_DIR}/settings.json`);
+  if (settingsRaw === null) return null;
+  const documents = await loadCachedDocuments(root, manifest.ids, safeReadFile);
+  const rawSettings = JSON.parse(settingsRaw) as { hash_algo_version?: unknown };
+  const hashAlgoVersion = typeof rawSettings.hash_algo_version === 'number' ? rawSettings.hash_algo_version : 1;
+  const ageMs = manifest.fetchedAt ? Date.now() - new Date(manifest.fetchedAt).getTime() : null;
+  return { graphVersion: manifest.graphVersion, settings: parseGovernedSettings(rawSettings), hashAlgoVersion, documents, unchanged: true, ageMs };
 }
