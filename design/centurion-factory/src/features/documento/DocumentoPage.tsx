@@ -5,25 +5,18 @@
  * selector and the workflow transitions; WO-300 upgrades the editor.
  */
 import type { ReactElement } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
-import { Button, ErrorState, PageHeader, StatusBadge, useToast } from '../../components';
+import { useNavigate, useParams } from 'react-router';
+import { useToast } from '../../components';
 import { validationIssuesForDocument } from '../../data';
+import { DocumentoDesktopLayout } from './DocumentoDesktopLayout';
+import { DocumentoHeader } from './DocumentoHeader';
+import { DocumentoMobileLayout } from './DocumentoMobileLayout';
+import { DocumentoNotFound } from './DocumentoNotFound';
 import styles from './DocumentoPage.module.css';
-import { EditorColumn } from './EditorColumn';
-import { FrontmatterForm } from './FrontmatterForm';
-import { editingAsLabel } from './labels';
-import { MobileTabs } from './MobileTabs';
-import { RoleSelect } from './RoleSelect';
-import { SidePanel } from './SidePanel';
 import { useDocumentEditor, type WorkflowTransition } from './useDocumentEditor';
 import { useMediaQuery } from './useMediaQuery';
-import { WorkflowActions } from './WorkflowActions';
 
 const MOBILE_QUERY = '(max-width: 767px)';
-
-function latestOf<T extends { readonly versionNo: number }>(versions: readonly T[]): T | undefined {
-  return [...versions].sort((a, b) => b.versionNo - a.versionNo).at(0);
-}
 
 /**
  * The route renders `<DocumentoPage />` for every `/documentos/:id`, so without a key React keeps
@@ -40,139 +33,50 @@ function DocumentoPageForId({ id }: { readonly id: string }): ReactElement {
   const navigate = useNavigate();
   const { show } = useToast();
   const isMobile = useMediaQuery(MOBILE_QUERY);
-  const {
-    document,
-    workflowState,
-    blocks,
-    versions,
-    proposals,
-    metaLine,
-    architectOf,
-    role,
-    setRole,
-    save,
-    transition,
-    acceptProposal,
-    rejectProposal,
-    comments,
-    addReply,
-    resolveThread,
-    restoreVersion,
-    updateBlocks,
-    editorMode,
-    setEditorMode,
-    markdownDraft,
-    setMarkdownDraft,
-    markdownLineBlockIds,
-  } = useDocumentEditor(id);
+  const editor = useDocumentEditor(id);
+  const { document, workflowState } = editor;
 
   if (!document || !workflowState) {
-    const title = `No encontramos el documento ${id}.`;
-    return (
-      <>
-        {/* ErrorState renders `title` as a <p>; the page still needs its own h1 (WO-313). */}
-        <h1 className="visually-hidden">{title}</h1>
-        <ErrorState title={title} body="Puede que se haya archivado o que el enlace esté roto." onRetry={() => navigate('/documentos')} retryLabel="Volver a Documentos" />
-      </>
-    );
+    return <DocumentoNotFound id={id} onRetry={() => navigate('/documentos')} />;
   }
 
   const errorCount = validationIssuesForDocument(document.id).filter((issue) => issue.severity === 'error').length;
 
   function handleSave(): void {
-    save();
+    editor.save();
     show('Guardado');
   }
 
   function handleTransition(kind: WorkflowTransition): void {
-    show(transition(kind));
+    show(editor.transition(kind));
   }
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        eyebrow={
-          <nav aria-label="Ruta" className={styles.breadcrumb}>
-            <Link to="/documentos">Documentos</Link>
-            <span aria-hidden="true">/</span>
-            <span className="id">{document.id}</span>
-          </nav>
-        }
-        title={document.title}
-        subtitle={
-          <span className={styles.meta}>
-            <StatusBadge kind="workflow" status={workflowState} />
-            <span className={styles.metaText}>{metaLine}</span>
-          </span>
-        }
-        actions={
-          isMobile ? undefined : (
-            <div className={styles.desktopActions}>
-              <RoleSelect role={role} onChange={setRole} />
-              <span className={styles.editingAs}>Editás como {editingAsLabel(role)}</span>
-              <Button type="button" variant="secondary" onClick={handleSave}>
-                Guardar
-              </Button>
-              <WorkflowActions workflowState={workflowState} role={role} errorCount={errorCount} onTransition={handleTransition} />
-            </div>
-          )
-        }
+      <DocumentoHeader
+        document={document}
+        workflowState={workflowState}
+        metaLine={editor.metaLine}
+        isMobile={isMobile}
+        role={editor.role}
+        onRoleChange={editor.setRole}
+        errorCount={errorCount}
+        onSave={handleSave}
+        onTransition={handleTransition}
       />
 
       {isMobile ? (
-        <div className={styles.mobileLayout}>
-          <MobileTabs
-            document={document}
-            blocks={blocks}
-            proposals={proposals}
-            onAcceptProposal={acceptProposal}
-            onRejectProposal={rejectProposal}
-            comments={comments}
-            onReply={addReply}
-            onResolveThread={resolveThread}
-            versions={versions}
-            onRestoreVersion={restoreVersion}
-            onBlocksChange={updateBlocks}
-            saveStatus={metaLine}
-            editorMode={editorMode}
-            onEditorModeChange={setEditorMode}
-            markdownDraft={markdownDraft}
-            onMarkdownDraftChange={setMarkdownDraft}
-            markdownLineBlockIds={markdownLineBlockIds}
-          />
-          <div className={styles.mobileActionBar}>
-            <Button type="button" variant="secondary" onClick={handleSave}>
-              Guardar
-            </Button>
-            <WorkflowActions workflowState={workflowState} role={role} errorCount={errorCount} onTransition={handleTransition} />
-          </div>
-        </div>
+        <DocumentoMobileLayout
+          document={document}
+          workflowState={workflowState}
+          editor={editor}
+          role={editor.role}
+          errorCount={errorCount}
+          onSave={handleSave}
+          onTransition={handleTransition}
+        />
       ) : (
-        <div className={styles.desktopLayout}>
-          <FrontmatterForm document={document} workflowState={workflowState} architectOf={architectOf} latestVersion={latestOf(versions)} />
-          <EditorColumn
-            blocks={blocks}
-            onBlocksChange={updateBlocks}
-            saveStatus={metaLine}
-            mode={editorMode}
-            onModeChange={setEditorMode}
-            markdownDraft={markdownDraft}
-            onMarkdownDraftChange={setMarkdownDraft}
-            markdownLineBlockIds={markdownLineBlockIds}
-          />
-          <SidePanel
-            document={document}
-            blocks={blocks}
-            proposals={proposals}
-            onAcceptProposal={acceptProposal}
-            onRejectProposal={rejectProposal}
-            comments={comments}
-            onReply={addReply}
-            onResolveThread={resolveThread}
-            versions={versions}
-            onRestoreVersion={restoreVersion}
-          />
-        </div>
+        <DocumentoDesktopLayout document={document} workflowState={workflowState} architectOf={editor.architectOf} editor={editor} />
       )}
     </div>
   );
