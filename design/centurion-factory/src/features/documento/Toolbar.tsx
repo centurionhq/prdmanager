@@ -3,12 +3,15 @@
  * focus, a block-style group (aria-pressed), inline marks (aria-pressed from the live selection),
  * list/task converters and Enlace. Every button prevents `mousedown` so clicking it never blurs
  * the focused block — the DOM selection it needs to format has to survive the click.
+ * WO-313: on mobile the block style becomes a native select (the button group overflows at 375px),
+ * and Escape in the Enlace popover cancels it, returning focus and the selection to the block.
  */
 import { Link as LinkIcon, List, ListChecks, ListOrdered } from 'lucide-react';
-import { useId, useState, type KeyboardEvent, type MouseEvent, type ReactElement } from 'react';
+import { useId, useState, type ChangeEvent, type KeyboardEvent, type MouseEvent, type ReactElement } from 'react';
 import { Button } from '../../components';
 import type { BlockType } from '../../data';
 import styles from './Toolbar.module.css';
+import { useMediaQuery } from './useMediaQuery';
 
 export type InlineFormat = '**' | '_' | '~~';
 
@@ -19,6 +22,9 @@ export interface ToolbarProps {
   readonly onFormatSelection: (marker: InlineFormat) => void;
   readonly onRequestLink: () => void;
   readonly onInsertLink: (url: string) => void;
+  readonly onCancelLink: () => void;
+  /** False until a block has real focus (WO-313): Enlace has nothing to insert into before that. */
+  readonly linkEnabled: boolean;
 }
 
 const BLOCK_STYLE_OPTIONS: readonly { readonly type: BlockType; readonly label: string }[] = [
@@ -28,6 +34,7 @@ const BLOCK_STYLE_OPTIONS: readonly { readonly type: BlockType; readonly label: 
   { type: 'h3', label: 'Título 3' },
 ];
 
+const MOBILE_QUERY = '(max-width: 767px)';
 const NEXT_KEYS = new Set(['ArrowRight', 'ArrowDown']);
 const PREVIOUS_KEYS = new Set(['ArrowLeft', 'ArrowUp']);
 
@@ -36,13 +43,25 @@ function keepFocus(event: MouseEvent<HTMLButtonElement>): void {
   event.preventDefault();
 }
 
-function LinkPopover({ onSubmit, onCancel }: { readonly onSubmit: (url: string) => void; readonly onCancel: () => void }): ReactElement {
+interface LinkPopoverProps {
+  readonly onSubmit: (url: string) => void;
+  readonly onCancel: () => void;
+}
+
+function LinkPopover({ onSubmit, onCancel }: LinkPopoverProps): ReactElement {
   const [url, setUrl] = useState('');
   const inputId = useId();
+
+  function handleKeyDown(event: KeyboardEvent<HTMLFormElement>): void {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    onCancel();
+  }
 
   return (
     <form
       className={styles.linkPopover}
+      onKeyDown={handleKeyDown}
       onSubmit={(event) => {
         event.preventDefault();
         if (url.trim()) onSubmit(url.trim());
@@ -62,7 +81,59 @@ function LinkPopover({ onSubmit, onCancel }: { readonly onSubmit: (url: string) 
   );
 }
 
-export function Toolbar({ blockType, activeFormats, onSetBlockType, onFormatSelection, onRequestLink, onInsertLink }: ToolbarProps): ReactElement {
+interface BlockStylePickerProps {
+  readonly blockType: BlockType | undefined;
+  readonly onSetBlockType: (type: BlockType) => void;
+}
+
+/** Desktop: a pressed-state button group. Mobile: a native select (the buttons overflow at 375px). */
+function BlockStylePicker({ blockType, onSetBlockType }: BlockStylePickerProps): ReactElement {
+  const isMobile = useMediaQuery(MOBILE_QUERY);
+
+  if (isMobile) {
+    function handleChange(event: ChangeEvent<HTMLSelectElement>): void {
+      onSetBlockType(event.target.value as BlockType);
+    }
+
+    return (
+      <select aria-label="Estilo de bloque" className={styles.blockSelect} value={blockType ?? 'p'} onChange={handleChange}>
+        {BLOCK_STYLE_OPTIONS.map((option) => (
+          <option key={option.type} value={option.type}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  return (
+    <div className={styles.group}>
+      {BLOCK_STYLE_OPTIONS.map((option) => (
+        <button
+          key={option.type}
+          type="button"
+          aria-pressed={blockType === option.type}
+          className={[styles.button, styles.textButton, blockType === option.type ? styles.pressed : null].filter(Boolean).join(' ')}
+          onMouseDown={keepFocus}
+          onClick={() => onSetBlockType(option.type)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Toolbar({
+  blockType,
+  activeFormats,
+  onSetBlockType,
+  onFormatSelection,
+  onRequestLink,
+  onInsertLink,
+  onCancelLink,
+  linkEnabled,
+}: ToolbarProps): ReactElement {
   const [linkOpen, setLinkOpen] = useState(false);
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
@@ -81,22 +152,14 @@ export function Toolbar({ blockType, activeFormats, onSetBlockType, onFormatSele
     buttons[targetIndex]?.focus();
   }
 
+  function handleCancelLink(): void {
+    setLinkOpen(false);
+    onCancelLink();
+  }
+
   return (
     <div role="toolbar" aria-label="Formato" className={styles.toolbar} onKeyDown={handleKeyDown}>
-      <div className={styles.group}>
-        {BLOCK_STYLE_OPTIONS.map((option) => (
-          <button
-            key={option.type}
-            type="button"
-            aria-pressed={blockType === option.type}
-            className={[styles.button, styles.textButton, blockType === option.type ? styles.pressed : null].filter(Boolean).join(' ')}
-            onMouseDown={keepFocus}
-            onClick={() => onSetBlockType(option.type)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      <BlockStylePicker blockType={blockType} onSetBlockType={onSetBlockType} />
       <span className={styles.divider} aria-hidden="true" />
       <button
         type="button"
@@ -174,6 +237,7 @@ export function Toolbar({ blockType, activeFormats, onSetBlockType, onFormatSele
         title="Enlace"
         aria-label="Enlace"
         className={styles.button}
+        disabled={!linkEnabled}
         onMouseDown={keepFocus}
         onClick={() => {
           onRequestLink();
@@ -188,7 +252,7 @@ export function Toolbar({ blockType, activeFormats, onSetBlockType, onFormatSele
             onInsertLink(url);
             setLinkOpen(false);
           }}
-          onCancel={() => setLinkOpen(false)}
+          onCancel={handleCancelLink}
         />
       ) : null}
     </div>

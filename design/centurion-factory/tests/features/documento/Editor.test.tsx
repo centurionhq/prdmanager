@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { routes } from '../../../src/router';
+import { mockMatchMedia, restoreMatchMedia } from './matchMedia';
 
 function renderAt(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -10,7 +11,10 @@ function renderAt(path: string) {
   return router;
 }
 
-// The editor mounts once in the desktop layout and once inside the mobile "Documento" tab.
+afterEach(restoreMatchMedia);
+
+// DocumentoPage renders a single layout (WO-311); helpers still take the first match for
+// symmetry with tests that render either layout.
 function firstOf<T extends HTMLElement>(elements: T[]): T {
   return elements[0] as T;
 }
@@ -123,6 +127,60 @@ describe('Editor: WYSIWYG inline formatting', () => {
     expect(field.querySelector('strong')?.textContent).toBe('negrita');
     expect(field.textContent).not.toContain('**');
   });
+
+  it('clicking Negrita on already-bold text unwraps it instead of nesting a second <strong>', async () => {
+    const user = userEvent.setup();
+    renderAt('/documentos/SDD-011');
+    await screen.findByText(/Versión 7/);
+
+    const field = firstFieldContaining('El paquete design/centurion-factory');
+    field.focus();
+    selectTextWithin(field, 'solo con datos mock');
+    await user.click(firstButton('Negrita'));
+    expect(field.querySelector('strong')).toBeTruthy();
+    expect(firstButton('Negrita').getAttribute('aria-pressed')).toBe('true');
+
+    await user.click(firstButton('Negrita'));
+
+    expect(field.querySelector('strong')).toBeNull();
+    expect(field.textContent).toContain('solo con datos mock');
+    expect(firstButton('Negrita').getAttribute('aria-pressed')).toBe('false');
+  });
+});
+
+describe('Editor: Enlace popover keyboard and focus behavior', () => {
+  it('disables Enlace until a block has real focus', async () => {
+    renderAt('/documentos/SDD-011');
+    await screen.findByText(/Versión 7/);
+
+    expect(firstButton('Enlace').hasAttribute('disabled')).toBe(true);
+
+    const field = firstFieldContaining('El paquete design/centurion-factory');
+    act(() => field.focus());
+
+    expect(firstButton('Enlace').hasAttribute('disabled')).toBe(false);
+  });
+
+  it('Escape closes the popover, returns focus to the block and restores the selection', async () => {
+    const user = userEvent.setup();
+    renderAt('/documentos/SDD-011');
+    await screen.findByText(/Versión 7/);
+
+    const field = firstFieldContaining('El paquete design/centurion-factory');
+    field.focus();
+    selectTextWithin(field, 'solo con datos mock');
+
+    await user.click(firstButton('Enlace'));
+    const urlInput = firstOf(screen.getAllByLabelText('URL del enlace'));
+    expect(urlInput).toBeTruthy();
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByLabelText('URL del enlace')).toBeNull();
+    expect(document.activeElement).toBe(field);
+    const selection = window.getSelection();
+    expect(selection?.toString()).toBe('solo con datos mock');
+  });
 });
 
 describe('Editor: link href sanitizing', () => {
@@ -145,5 +203,36 @@ describe('Editor: link href sanitizing', () => {
     expect(anchor?.getAttribute('href')).toBe('#');
     expect(anchor?.getAttribute('rel')).toBe('noopener noreferrer');
     expect(field.innerHTML).not.toContain('javascript:');
+  });
+});
+
+describe('Toolbar on mobile: block style is a native select, not a button group', () => {
+  it('shows a "Estilo de bloque" select instead of the Párrafo/Título button group', async () => {
+    const user = userEvent.setup();
+    mockMatchMedia(true);
+    renderAt('/documentos/SDD-011');
+    await screen.findByRole('tablist', { name: 'Secciones del documento' });
+
+    const field = firstFieldContaining('El paquete design/centurion-factory');
+    act(() => field.focus());
+
+    const select = screen.getByRole('combobox', { name: 'Estilo de bloque' }) as HTMLSelectElement;
+    expect(select.value).toBe('p');
+    expect(screen.queryByRole('button', { name: 'Título 2' })).toBeNull();
+
+    await user.selectOptions(select, 'h2');
+
+    await user.click(firstTab('Markdown'));
+    expect(firstMarkdownTextarea().value).toContain('## El paquete design/centurion-factory');
+  });
+
+  it('still shows Negrita/Cursiva/Tachado as icon buttons', async () => {
+    mockMatchMedia(true);
+    renderAt('/documentos/SDD-011');
+    await screen.findByRole('tablist', { name: 'Secciones del documento' });
+
+    expect(screen.getByRole('button', { name: 'Negrita' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cursiva' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Tachado' })).toBeTruthy();
   });
 });

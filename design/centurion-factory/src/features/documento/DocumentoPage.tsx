@@ -67,13 +67,13 @@ function DocumentoPageForId({ id }: { readonly id: string }): ReactElement {
   } = useDocumentEditor(id);
 
   if (!document || !workflowState) {
+    const title = `No encontramos el documento ${id}.`;
     return (
-      <ErrorState
-        title={`No encontramos el documento ${id}.`}
-        body="Puede que se haya archivado o que el enlace esté roto."
-        onRetry={() => navigate('/documentos')}
-        retryLabel="Volver a Documentos"
-      />
+      <>
+        {/* ErrorState renders `title` as a <p>; the page still needs its own h1 (WO-313). */}
+        <h1 className="visually-hidden">{title}</h1>
+        <ErrorState title={title} body="Puede que se haya archivado o que el enlace esté roto." onRetry={() => navigate('/documentos')} retryLabel="Volver a Documentos" />
+      </>
     );
   }
 

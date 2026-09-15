@@ -61,15 +61,17 @@
   bottom: var(--bottom-bar-height);
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
-  height: 72px;
+  min-height: 72px;
   align-items: center;
-  padding: 0 var(--space-4);
+  padding: var(--space-2) var(--space-4);
   background: var(--superficie);
   border-top: var(--rule);
 }
 
 .mobileActionBar > * {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 140px;
   min-height: var(--hit-target);
 }

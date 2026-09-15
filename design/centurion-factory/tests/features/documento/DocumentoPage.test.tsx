@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { routes } from '../../../src/router';
+import { mockMatchMedia, restoreMatchMedia } from './matchMedia';
 
 function renderAt(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -10,24 +11,7 @@ function renderAt(path: string) {
   return router;
 }
 
-/** Mocks `window.matchMedia` so `useMediaQuery` reports `matches` for every query. */
-function mockMatchMedia(matches: boolean): void {
-  window.matchMedia = ((query: string) => ({
-    matches,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  })) as unknown as typeof window.matchMedia;
-}
-
-afterEach(() => {
-  // @ts-expect-error -- restoring jsdom's default (no matchMedia implementation) between tests.
-  delete window.matchMedia;
-});
+afterEach(restoreMatchMedia);
 
 describe('DocumentoPage', () => {
   it('shows an error state with a link back to Documentos for an unknown id', async () => {
@@ -35,7 +19,8 @@ describe('DocumentoPage', () => {
     renderAt('/documentos/XYZ-999');
 
     expect(await screen.findByRole('alert')).toBeTruthy();
-    expect(screen.getByText('No encontramos el documento XYZ-999.')).toBeTruthy();
+    expect(screen.getAllByText('No encontramos el documento XYZ-999.').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { level: 1, name: 'No encontramos el documento XYZ-999.' })).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Volver a Documentos' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Documentos' })).toBeTruthy();

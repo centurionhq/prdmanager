@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import type { BlockType, DocumentBlock } from '../../data';
 import { blocksForPaste, mergeIntoPrevious, splitBlock, splitFieldAtCaret } from './blockEditing';
+import { findAncestorWithTag, normalizeFormatting, unwrapElement } from './domFormatting';
 import styles from './EditorColumn.module.css';
 import { MarkdownEditor } from './MarkdownEditor';
 import { htmlToInline, sanitizeHref } from './markdown';
@@ -67,6 +68,7 @@ export function EditorColumn({
   markdownLineBlockIds,
 }: EditorColumnProps): ReactElement {
   const [focusedBlockId, setFocusedBlockId] = useState<string | undefined>(blocks[0]?.id);
+  const [hasBlockFocus, setHasBlockFocus] = useState(false);
   const [activeFormats, setActiveFormats] = useState<ReadonlySet<InlineFormat>>(new Set());
   const [focusRequest, setFocusRequest] = useState<{ readonly id: string; readonly position: FocusPosition } | null>(null);
   const fieldsRef = useRef(new Map<string, HTMLDivElement>());
@@ -82,9 +84,15 @@ export function EditorColumn({
       element.focus();
       placeCaretAt(element, focusRequest.position);
       setFocusedBlockId(focusRequest.id);
+      setHasBlockFocus(true);
     }
     setFocusRequest(null);
   }, [focusRequest]);
+
+  function handleFocusBlock(blockId: string): void {
+    setFocusedBlockId(blockId);
+    setHasBlockFocus(true);
+  }
 
   function handleTabKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
@@ -123,15 +131,24 @@ export function EditorColumn({
     const range = selection.getRangeAt(0);
     if (range.collapsed || !root.contains(range.commonAncestorContainer)) return;
 
-    const wrapper = document.createElement(FORMAT_TAG[marker]);
-    wrapper.appendChild(range.extractContents());
-    range.insertNode(wrapper);
+    const tagName = FORMAT_TAG[marker].toUpperCase();
+    const activeAncestor = activeFormats.has(marker) ? findAncestorWithTag(selection.anchorNode, root, tagName) : null;
 
-    selection.removeAllRanges();
-    const nextRange = document.createRange();
-    nextRange.selectNodeContents(wrapper);
-    selection.addRange(nextRange);
+    if (activeAncestor) {
+      // Already formatted: toggle off by unwrapping, instead of nesting a second identical tag.
+      unwrapElement(activeAncestor);
+    } else {
+      const wrapper = document.createElement(FORMAT_TAG[marker]);
+      wrapper.appendChild(range.extractContents());
+      range.insertNode(wrapper);
 
+      selection.removeAllRanges();
+      const nextRange = document.createRange();
+      nextRange.selectNodeContents(wrapper);
+      selection.addRange(nextRange);
+    }
+
+    normalizeFormatting(root);
     syncBlockFromDom(focusedBlockId, root);
     refreshActiveFormats(focusedBlockId);
   }
@@ -172,6 +189,21 @@ export function EditorColumn({
 
     syncBlockFromDom(captured.blockId, root);
     capturedLinkRangeRef.current = null;
+  }
+
+  /** Escape (or Cancelar) in the Enlace popover: focus the block again with its selection restored. */
+  function handleCancelLink(): void {
+    const captured = capturedLinkRangeRef.current;
+    capturedLinkRangeRef.current = null;
+    if (!captured) return;
+    const root = fieldsRef.current.get(captured.blockId);
+    if (!root) return;
+
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(captured.range);
+    refreshActiveFormats(captured.blockId);
   }
 
   /** The field's root element and the caret Range inside it, if any (shared by Enter/Backspace/paste). */
@@ -256,10 +288,13 @@ export function EditorColumn({
             onFormatSelection={handleFormatSelection}
             onRequestLink={handleRequestLink}
             onInsertLink={handleInsertLink}
+            onCancelLink={handleCancelLink}
+            linkEnabled={hasBlockFocus}
           />
           <PreviewEditor
             blocks={blocks}
-            onFocusBlock={setFocusedBlockId}
+            onFocusBlock={handleFocusBlock}
+            onBlurBlock={() => setHasBlockFocus(false)}
             onChangeText={(id, text) => updateBlock(id, { text })}
             onToggleChecked={(id) => updateBlock(id, { checked: !blocks.find((block) => block.id === id)?.checked })}
             onFormatShortcut={handleFormatSelection}

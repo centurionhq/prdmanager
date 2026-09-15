@@ -22,7 +22,7 @@ const BULLET_PATTERN = /^-\s(.*)$/;
 const ORDERED_PATTERN = /^\d+\.\s(.*)$/;
 
 /** How many consecutive `ol` blocks immediately precede `index` (for "1.", "2." numbering). */
-function orderedNumberAt(blocks: readonly DocumentBlock[], index: number): number {
+export function orderedNumberAt(blocks: readonly DocumentBlock[], index: number): number {
   let count = 1;
   for (let cursor = index - 1; cursor >= 0 && blocks[cursor]?.type === 'ol'; cursor -= 1) count += 1;
   return count;
@@ -242,6 +242,16 @@ export function inlineToHtml(text: string): string {
     .join('');
 }
 
+function inlineNodeToPlainText(node: InlineNode): string {
+  if (node.kind === 'text') return node.value;
+  return node.children.map(inlineNodeToPlainText).join('');
+}
+
+/** A block's Markdown-ish text with every formatting marker stripped, for accessible names. */
+export function plainText(text: string): string {
+  return parseInline(text).map(inlineNodeToPlainText).join('');
+}
+
 const INLINE_TAGS: Readonly<Record<string, string>> = {
   STRONG: '**',
   B: '**',
@@ -288,11 +298,6 @@ export function htmlToInline(html: string): string {
 }
 
 let nextGeneratedId = 0;
-
-/** Test-only escape hatch so id generation stays deterministic across unit tests. */
-export function resetGeneratedIdsForTests(): void {
-  nextGeneratedId = 0;
-}
 
 /** A fresh block id, for a brand-new block created by parsing, splitting or pasting. */
 export function generateBlockId(): string {

@@ -55,8 +55,10 @@ function ChipList({
       <span className={styles.label}>{label}</span>
       <div className={styles.chipRow}>
         {chips.map((chip) => (
-          <span key={chip} className={[styles.chip, mono ? 'id' : null].filter(Boolean).join(' ')}>
-            {chip}
+          <span key={chip} className={styles.chip}>
+            <span className={[styles.chipText, mono ? 'id' : null].filter(Boolean).join(' ')} title={chip}>
+              {chip}
+            </span>
             <button type="button" aria-label={`Quitar ${chip}`} className={styles.chipRemove} onClick={() => onRemove(chip)}>
               <X aria-hidden="true" size={12} />
             </button>

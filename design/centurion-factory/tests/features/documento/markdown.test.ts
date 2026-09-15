@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DocumentBlock } from '../../../src/data';
-import { htmlToInline, inlineToHtml, parseLine, parseMarkdown, sanitizeHref, serializeBlocks } from '../../../src/features/documento/markdown';
+import { htmlToInline, inlineToHtml, parseLine, parseMarkdown, plainText, sanitizeHref, serializeBlocks } from '../../../src/features/documento/markdown';
 
 function block(id: string, type: DocumentBlock['type'], text: string, extra?: Partial<DocumentBlock>): DocumentBlock {
   return { id, type, text, author: 'ana-rios', ...extra };
@@ -280,3 +280,21 @@ describe('lineForBlock escapes a leading block marker for p blocks (via serializ
 });
 
 // reconcileBlocks now lives in blockReconciliation.ts (WO-312); see blockReconciliation.test.ts.
+
+describe('plainText', () => {
+  it('strips bold/italic/strikethrough markers, keeping just the words', () => {
+    expect(plainText('**Revisar** _todo_ antes de ~~publicar~~')).toBe('Revisar todo antes de publicar');
+  });
+
+  it('keeps a link\'s visible text and drops the href', () => {
+    expect(plainText('Mirá el [informe](https://example.com) completo')).toBe('Mirá el informe completo');
+  });
+
+  it('unescapes backslash-escaped literal characters', () => {
+    expect(plainText('snake\\_case\\_name')).toBe('snake_case_name');
+  });
+
+  it('leaves plain text untouched', () => {
+    expect(plainText('Texto sin formato.')).toBe('Texto sin formato.');
+  });
+});

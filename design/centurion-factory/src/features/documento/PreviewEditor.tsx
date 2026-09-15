@@ -6,12 +6,13 @@
  */
 import { useEffect, useId, useRef, type ClipboardEvent, type KeyboardEvent, type ReactElement } from 'react';
 import { getPerson, type BlockType, type DocumentBlock } from '../../data';
-import { htmlToInline, inlineToHtml } from './markdown';
+import { htmlToInline, inlineToHtml, orderedNumberAt, plainText } from './markdown';
 import styles from './PreviewEditor.module.css';
 
 export interface PreviewEditorProps {
   readonly blocks: readonly DocumentBlock[];
   readonly onFocusBlock: (id: string) => void;
+  readonly onBlurBlock: () => void;
   readonly onChangeText: (id: string, text: string) => void;
   readonly onToggleChecked: (id: string) => void;
   readonly onFormatShortcut: (marker: '**' | '_') => void;
@@ -39,12 +40,6 @@ function gutterFor(block: DocumentBlock): { readonly text: string; readonly isAg
   return { text: getPerson(block.author)?.initials ?? block.author, isAgent: false };
 }
 
-function orderedNumberAt(blocks: readonly DocumentBlock[], index: number): number {
-  let count = 1;
-  for (let cursor = index - 1; cursor >= 0 && blocks[cursor]?.type === 'ol'; cursor -= 1) count += 1;
-  return count;
-}
-
 const BLOCK_LABELS: Readonly<Record<BlockType, string>> = {
   h1: 'Título 1',
   h2: 'Título 2',
@@ -69,6 +64,7 @@ interface BlockFieldProps {
   readonly block: DocumentBlock;
   readonly index: number;
   readonly onFocusBlock: (id: string) => void;
+  readonly onBlurBlock: () => void;
   readonly onChangeText: (id: string, text: string) => void;
   readonly onFormatShortcut: (marker: '**' | '_') => void;
   readonly onSelectionChange: (blockId: string) => void;
@@ -83,6 +79,7 @@ function BlockField({
   block,
   index,
   onFocusBlock,
+  onBlurBlock,
   onChangeText,
   onFormatShortcut,
   onSelectionChange,
@@ -162,6 +159,7 @@ function BlockField({
         onFocusBlock(block.id);
         onSelectionChange(block.id);
       }}
+      onBlur={onBlurBlock}
       onInput={handleInput}
       onKeyUp={() => onSelectionChange(block.id)}
       onMouseUp={() => onSelectionChange(block.id)}
@@ -174,6 +172,7 @@ function BlockField({
 export function PreviewEditor({
   blocks,
   onFocusBlock,
+  onBlurBlock,
   onChangeText,
   onToggleChecked,
   onFormatShortcut,
@@ -201,18 +200,21 @@ export function PreviewEditor({
             {block.type === 'li' ? <span className={styles.bullet} aria-hidden="true" /> : null}
             {block.type === 'ol' ? <span className={`${styles.marker} num`}>{orderedNumberAt(blocks, index)}.</span> : null}
             {block.type === 'task' ? (
-              <input
-                type="checkbox"
-                className={styles.checkbox}
-                checked={block.checked ?? false}
-                onChange={() => onToggleChecked(block.id)}
-                aria-label={`Tarea: ${block.text}`}
-              />
+              <span className={styles.checkboxHitArea}>
+                <input
+                  type="checkbox"
+                  className={styles.checkbox}
+                  checked={block.checked ?? false}
+                  onChange={() => onToggleChecked(block.id)}
+                  aria-label={`Tarea: ${plainText(block.text)}`}
+                />
+              </span>
             ) : null}
             <BlockField
               block={block}
               index={index}
               onFocusBlock={onFocusBlock}
+              onBlurBlock={onBlurBlock}
               onChangeText={onChangeText}
               onFormatShortcut={onFormatShortcut}
               onSelectionChange={onSelectionChange}

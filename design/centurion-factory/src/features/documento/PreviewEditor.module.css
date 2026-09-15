@@ -50,11 +50,29 @@
   color: var(--texto-secundario);
 }
 
+.checkboxHitArea {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .checkbox {
   flex: none;
   width: 16px;
   height: 16px;
   margin-top: 6px;
+}
+
+@media (max-width: 767px) {
+  .checkboxHitArea {
+    width: var(--hit-target);
+    height: var(--hit-target);
+  }
+
+  .checkbox {
+    margin-top: 0;
+  }
 }
 
 .field {
