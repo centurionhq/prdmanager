@@ -98,8 +98,11 @@ export interface McpProxyDeps {
 }
 
 function defaultHttpTransport(target: McpProxyTarget): Transport {
+  // WO-236: every other credentialed fetch in this codebase (login, sync, import, policy-docs) already
+  // sets `redirect: 'error'` — the live MCP data channel had been missed, so this proxy's stored
+  // credential could otherwise be silently forwarded to wherever the server redirects a request to.
   return new StreamableHTTPClientTransport(new URL(`/mcp/${target.graphProjectId}`, target.origin), {
-    requestInit: { headers: { authorization: `Bearer ${target.token}` } },
+    requestInit: { headers: { authorization: `Bearer ${target.token}` }, redirect: 'error' },
   });
 }
 

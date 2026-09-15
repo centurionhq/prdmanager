@@ -4,6 +4,7 @@
  * different server than `PRDM_SERVER` expects, and otherwise relays JSON-RPC messages between a stdio
  * transport and a real Streamable HTTP server.
  */
+import { createServer, type Server } from 'node:http';
 import { join } from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -193,6 +194,65 @@ describe('runMcpProxy relay (WO-189)', () => {
     expect(response.id).toBe(1);
     expect(response.result?.protocolVersion).toBeDefined();
     expect(seenAuthorization).toEqual(['Bearer prdm_pat_relay']);
+  });
+
+  test('the live MCP data channel rejects a redirect instead of following it, never reaching the redirect target (WO-236)', async () => {
+    let targetHit = false;
+    const redirectingServer: Server = createServer((req, res) => {
+      if (req.url?.startsWith('/mcp/')) {
+        res.writeHead(302, { location: '/evil' });
+        res.end();
+        return;
+      }
+      if (req.url === '/evil') {
+        targetHit = true;
+        res.writeHead(200);
+        res.end('should never be reached');
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>((resolve) => redirectingServer.listen(0, '127.0.0.1', resolve));
+    const address = redirectingServer.address();
+    if (address === null || typeof address === 'string') throw new Error('expected a bound TCP address');
+    const redirectingBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    writeFiles(root, { '.prdm.yaml': renderRemoteProjectFile(remoteFile(redirectingBaseUrl)) });
+    saveCredentials({ [redirectingBaseUrl]: { token: 'prdm_pat_relay' } }, { XDG_CONFIG_HOME: xdgHome });
+    saveProjectPin(root, { server: redirectingBaseUrl, graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
+
+    try {
+      const stdio = new FakeTransport();
+      const stderrLines: string[] = [];
+      let resolveFailed: () => void;
+      const failed = new Promise<void>((resolve) => {
+        resolveFailed = resolve;
+      });
+      await runMcpProxy({
+        cwd: root,
+        root,
+        env: { XDG_CONFIG_HOME: xdgHome },
+        stderr: (line) => {
+          stderrLines.push(line);
+          resolveFailed();
+        },
+        createStdioTransport: () => stdio,
+      });
+
+      stdio.receive({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: { protocolVersion: LATEST_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: 'editor', version: '0.0.0' } },
+      });
+
+      await failed;
+      expect(targetHit).toBe(false);
+      expect(stdio.sent).toHaveLength(0);
+    } finally {
+      await new Promise((resolve) => redirectingServer.close(resolve));
+    }
   });
 
   test('refuses to run from inside the repo\'s node_modules, without ever contacting the server', async () => {

@@ -46,7 +46,10 @@ export async function resolveRemoteProject(origin: string, token: string, org: s
   const fetchImpl = deps.fetchImpl ?? fetch;
   await verifyOrg(origin, token, org, fetchImpl);
 
-  const transport = new StreamableHTTPClientTransport(new URL('/mcp', origin), { fetch: fetchImpl, requestInit: { headers: { authorization: `Bearer ${token}` } } });
+  // WO-236: every other credentialed fetch in this codebase (login, sync, import, policy-docs) already
+  // sets `redirect: 'error'` — the live MCP data channel had been missed, so a token could otherwise be
+  // silently forwarded to wherever the server redirects a request to.
+  const transport = new StreamableHTTPClientTransport(new URL('/mcp', origin), { fetch: fetchImpl, requestInit: { headers: { authorization: `Bearer ${token}` }, redirect: 'error' } });
   const client = new Client({ name: 'prdm-link', version: '0.0.0' });
   try {
     await client.connect(transport);
