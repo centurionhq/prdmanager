@@ -4,7 +4,8 @@
     "composite": false,
     "declaration": false,
     "noEmit": true,
-    "rootDir": "."
+    "rootDir": ".",
+    "lib": ["es2023", "dom", "dom.iterable"]
   },
   "include": [
     "packages/core/src/**/*.ts",
