@@ -2,12 +2,14 @@
 id: "WO-266"
 type: "WO"
 title: "Rondas de iteración del canvas hasta aprobación del usuario y sincronización de tokens y mapa de pantallas aprobados en este SDD"
-status: "pending"
+status: "in_progress"
 created_at: "2026-09-15"
 implements: ["SDD-011"]
 impacts_paths: ["design/centurion-factory/src/**","design/centurion-factory/tests/**","design/centurion-factory/scripts/**","design/centurion-factory/canvas/**","design/centurion-factory/CLAUDE.m[d]"]
 source_task: "9f647a71be37257f"
 tags: ["design","frontend","mock","canvas","accessibility"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T14:01:46.466Z"
 ---
 
 ## Objetivo

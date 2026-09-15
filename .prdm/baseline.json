@@ -3625,10 +3625,20 @@
       "vitest.config.ts": "21313309875e5a8f151d2da2ccac6c4046cb2a0ed5df05c706edb520cdcd29e2"
     },
     "SDD-011": {
-      "design/centurion-factory/canvas/canvas.json": "382ab83331083c4dbb9aad96a73b6d06f5eb08b34db0ba3ccd0a4bc0e0ba3118",
-      "design/centurion-factory/canvas/Main.dc.html": "f4fd518bb0af84a7e1adf95fcd545613d6e0b26747afe616096b5379d340e0e4",
-      "design/centurion-factory/canvas/PliegoCianotipo.dc.html": "9080e6d3c1bc20172608c6e3656ca2ab32cd280e9eac464c75745bca58abfc3f",
-      "design/centurion-factory/canvas/SalaDeControl.dc.html": "1834a86e554aadd5d0220d8b1de5e0201dce47af66cc7dd1359b4849a3632f0f"
+      "design/centurion-factory/canvas/Arbol.dc.html": "a89d10e5679d603c490ef7d900b56a812681360b800c102c3e0db213b70e4f9c",
+      "design/centurion-factory/canvas/canvas.json": "decfdcbb46640fc183a3de2d8a83b491f7cdcb0dd7c1758037ed3a1d2646f113",
+      "design/centurion-factory/canvas/Componentes.dc.html": "0ee86359958f8a8b329028a3f510a77eb904b2e63ddff4ecaa68057ae6c16e2c",
+      "design/centurion-factory/canvas/Documento.dc.html": "ff81cff7330bcfa167572d7e35c6c31125620ccb1cb505b68abd4c5652401824",
+      "design/centurion-factory/canvas/DocumentoMobile.dc.html": "3970d510d23e6d64e526cf33b6085487e24769768954bdb2ce48565e748eb748",
+      "design/centurion-factory/canvas/Documentos.dc.html": "585db4964540bdeac937f62f9a82fff49268ba3ab719823ab140c4c442a03a5b",
+      "design/centurion-factory/canvas/Drift.dc.html": "ed063199cd817551e44f6c94a76261f535b274847fd3ef4efde795669a45ae2a",
+      "design/centurion-factory/canvas/Entrada.dc.html": "15e3c83aa9736ab91908c802175ea16464d184ba102005483603fcdaeb288d47",
+      "design/centurion-factory/canvas/Main.dc.html": "3c180c23f1b37cfc8ef21040b965ee71c526cb65b6d9243050c15ec8dd698676",
+      "design/centurion-factory/canvas/Ordenes.dc.html": "f0300e116110d3225f7fb5767c80d2a006f0044155f58c077dd6420ae28fe7c0",
+      "design/centurion-factory/canvas/OrdenesMobile.dc.html": "f850b4b95c1a2864c869873fb8160de4806a9165e0459cdbfb4e9a635809c004",
+      "design/centurion-factory/canvas/PlantaMobile.dc.html": "28d2752f3002b5611c15fca6eedd7baa183c4dbb290074f4641ff6b043836ea1",
+      "design/centurion-factory/canvas/PliegoCianotipo.dc.html": "5083b019fd1cc595a22ba39656bbee39860cb8aa9a2f026f95d0b5e0987a49e6",
+      "design/centurion-factory/canvas/SalaDeControl.dc.html": "89c7806a3be353102a1e04af48d5efe8433de748fb0e7aadac4209d666084a18"
     }
   }
 }
