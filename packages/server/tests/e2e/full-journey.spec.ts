@@ -105,6 +105,13 @@ async function waitForBodyOnServer(context: BrowserContext, url: string, expecte
   }
 }
 
+/** WO-357: "Publicar" only opens the `PublishReviewModal` review screen now — the real `publishDocument`
+ * call happens when its own "Publicar versión N" button is confirmed instead. */
+async function publishFromReview(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Publicar' }).click();
+  await page.getByRole('button', { name: /^Publicar versión \d+$/ }).click();
+}
+
 test('full product journey', async ({ browser }) => {
   test.setTimeout(150_000);
   const { baseUrl, org, project, alice, bob, ciTokenSecret, mcpTokenSecret, oidcPrivateKey } = journey;
@@ -225,7 +232,7 @@ test('full product journey', async ({ browser }) => {
 
     await pageAlice.getByRole('button', { name: 'Solicitar revisión' }).click();
     await expect(pageAlice.getByText(/in_review/)).toBeVisible();
-    await pageAlice.getByRole('button', { name: 'Publicar' }).click();
+    await publishFromReview(pageAlice);
     await expect(pageAlice.getByText(/published/)).toBeVisible();
 
     fbDocIdRef = fbDocId;
@@ -245,7 +252,7 @@ test('full product journey', async ({ browser }) => {
 
     await pageAlice.getByRole('button', { name: 'Solicitar revisión' }).click();
     await expect(pageAlice.getByText(/in_review/)).toBeVisible();
-    await pageAlice.getByRole('button', { name: 'Publicar' }).click();
+    await publishFromReview(pageAlice);
     await expect(pageAlice.getByText(/published/)).toBeVisible();
   });
 
@@ -281,7 +288,7 @@ test('full product journey', async ({ browser }) => {
 
     await pageAlice.getByRole('button', { name: 'Solicitar revisión' }).click();
     await expect(pageAlice.getByText(/in_review/)).toBeVisible();
-    await pageAlice.getByRole('button', { name: 'Publicar' }).click();
+    await publishFromReview(pageAlice);
     await expect(pageAlice.getByText(/published/)).toBeVisible();
     await expect(pageAlice.getByText(/Work orders generados: 1/)).toBeVisible();
   });
