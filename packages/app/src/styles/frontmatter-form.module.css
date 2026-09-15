@@ -1,50 +1,62 @@
+/* Frontmatter form (SDD-013 §"Documentos", WO-358): re-tokenized onto the Centurion Factory token sheet
+   (`./tokens.css`), see the "Frontmatter" rail on `Documento.dc.html`. */
+
 .form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem 1rem;
-  margin: 0 0 1rem;
-  background: var(--color-bg-elevated-solid);
+  gap: var(--space-4);
+  border: 0;
+  padding: 0;
+  margin: 0;
 }
 
 .legend {
-  padding: 0 0.35rem;
-  color: var(--color-fg-muted);
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  padding: 0;
+  color: var(--apagado);
+  font-size: var(--text-sm);
+  font-weight: 700;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: var(--space-1);
 }
 
 .label {
-  font-size: 0.85rem;
-  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+  color: var(--apagado);
 }
 
 .input {
-  background: var(--color-bg-inset);
-  border: 1px solid var(--color-border);
-  border-radius: 0.35rem;
-  color: var(--color-fg);
-  padding: 0.35rem 0.5rem;
+  height: var(--control-height);
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-input);
+  color: var(--grafito);
+  padding: 0 var(--space-3);
   font: inherit;
+  font-size: var(--text-sm);
+}
+
+.input:disabled {
+  color: var(--apagado);
+  cursor: not-allowed;
+}
+
+.input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .hint {
   margin: 0;
-  font-size: 0.75rem;
-  color: var(--color-fg-subtle);
+  font-size: var(--text-xs);
+  color: var(--apagado);
 }
 
 .error {
   margin: 0;
-  font-size: 0.75rem;
-  color: var(--color-status-error);
+  font-size: var(--text-xs);
+  color: var(--paro);
 }

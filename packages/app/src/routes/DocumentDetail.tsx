@@ -17,7 +17,7 @@ import { CommentsPanel } from '../components/CommentsPanel.js';
 import { VersionsPanel } from '../components/VersionsPanel.js';
 import { ValidationPanel } from '../components/ValidationPanel.js';
 import { FrontmatterForm } from '../components/FrontmatterForm.js';
-import { Button, IdTag, PublishReviewModal, StatusBadge } from '../components/index.js';
+import { Button, DocumentStateBanner, IdTag, PublishReviewModal, StatusBadge } from '../components/index.js';
 import { CollabDocumentProvider } from '../collab/collab-document-context.js';
 import { formatCollabDocumentName } from '../collab/document-name.js';
 import { FormError } from '../components/FormError.js';
@@ -207,7 +207,7 @@ export function DocumentDetail(): ReactElement {
       {doc.origin === 'collab' ? (
         <CollabDocumentProvider documentName={formatCollabDocumentName(projectOverview.id, doc.id)} orgSlug={orgSlug} projectSlug={project} docId={doc.docId}>
           <FrontmatterForm kind={doc.kind} />
-          <CollabEditor subject={subject} />
+          <CollabEditor subject={subject} archived={doc.workflowState === 'archived'} />
           <AgentPanel subject={subject} />
           <CommentsPanel subject={subject} />
           <VersionsPanel subject={subject} />
@@ -224,7 +224,10 @@ export function DocumentDetail(): ReactElement {
           />
         </CollabDocumentProvider>
       ) : (
-        <pre className={formStyles.card}>{content || '(sin contenido)'}</pre>
+        <>
+          <DocumentStateBanner variant={doc.workflowState === 'archived' ? 'archivado' : 'generado'} />
+          <pre className={formStyles.card}>{content || '(sin contenido)'}</pre>
+        </>
       )}
     </div>
   );

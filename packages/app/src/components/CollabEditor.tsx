@@ -11,6 +11,12 @@
  * character offsets. The new thread shows up in `CommentsPanel`/the highlight decorations on its own, via
  * the `comment:updated` stateless broadcast the create route already sends — this component never
  * refreshes those itself.
+ *
+ * WO-358: "Vista previa"/"Markdown" tabs (`Documento.dc.html`) replace the old single toggle button —
+ * "Vista previa" (the read-only `MarkdownPreview` bridge SDD-013 describes until the lossless block
+ * editor, ADR-009/SDD-014, replaces it) is the default tab, matching the canvas. The CodeMirror container
+ * stays mounted at all times regardless of which tab is active (only visually `hidden`) — recreating it on
+ * every tab switch would lose scroll position/undo history for nothing.
  */
 import { useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react';
 import { EditorView } from '@codemirror/view';
@@ -22,6 +28,7 @@ import { useStatelessMessage } from '../collab/use-stateless-message.js';
 import { getDocumentBlame } from '../api/documents.js';
 import { createCommentThread } from '../api/comments.js';
 import { errorMessage } from '../api/error-message.js';
+import { DocumentStateBanner, type DocumentBannerVariant } from './DocumentStateBanner/DocumentStateBanner.js';
 import { MarkdownPreview } from './MarkdownPreview.js';
 import styles from '../styles/editor.module.css';
 
@@ -33,17 +40,27 @@ const STATUS_LABEL: Record<string, string> = {
 
 export interface CollabEditorProps {
   subject: PermissionSubject;
+  /** The document's real `workflowState === 'archived'` — shows the "archivado" banner and, combined with
+   * the server-authorized `readonly` scope archiving a document already implies, disables editing. */
+  archived?: boolean;
+}
+
+function bannerVariantFor(status: string, archived: boolean, readOnly: boolean): DocumentBannerVariant | null {
+  if (status === 'disconnected') return 'desconectado';
+  if (archived) return 'archivado';
+  if (readOnly) return 'solo_lectura';
+  return null;
 }
 
 /** Renders inside a `CollabDocumentProvider` (`../routes/DocumentDetail.js`) — never creates its own
  * `HocuspocusProvider`, so it always shares the exact same connection/awareness identity as the
  * frontmatter form and every other panel on the same document page. */
-export function CollabEditor({ subject }: CollabEditorProps): ReactElement {
+export function CollabEditor({ subject, archived = false }: CollabEditorProps): ReactElement {
   const { provider, state, orgSlug, projectSlug, docId, setEditorView } = useCollabDocumentContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [editorReady, setEditorReady] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
+  const [showPreview, setShowPreview] = useState(true);
   const [bodyText, setBodyText] = useState('');
   // WO-214: `null` whenever the selection is empty — the trigger button is simply absent then, never a
   // disabled button with an unclear reason (SDD-008's own comment UI is transient, tied to selection).
@@ -143,6 +160,8 @@ export function CollabEditor({ subject }: CollabEditorProps): ReactElement {
     return () => body.unobserve(sync);
   }, [provider, showPreview]);
 
+  const banner = bannerVariantFor(state.status, archived, readOnly);
+
   return (
     <div className={styles.editorShell}>
       <div className={styles.statusBar} role="status">
@@ -168,9 +187,36 @@ export function CollabEditor({ subject }: CollabEditorProps): ReactElement {
             Comentar selección
           </button>
         )}
-        <button type="button" className={styles.previewToggle} aria-pressed={showPreview} onClick={() => setShowPreview((v) => !v)}>
-          {showPreview ? 'Editor' : 'Vista previa'}
-        </button>
+      </div>
+
+      {banner && <DocumentStateBanner variant={banner} />}
+
+      <div className={styles.tabsBar}>
+        <div role="tablist" aria-label="Modo del editor" className={styles.tabs}>
+          <button
+            type="button"
+            role="tab"
+            id="editor-tab-preview"
+            aria-selected={showPreview}
+            aria-controls="editor-panel-preview"
+            className={showPreview ? styles.tabActive : styles.tab}
+            onClick={() => setShowPreview(true)}
+          >
+            Vista previa
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="editor-tab-markdown"
+            aria-selected={!showPreview}
+            aria-controls="editor-panel-markdown"
+            className={!showPreview ? styles.tabActive : styles.tab}
+            onClick={() => setShowPreview(false)}
+          >
+            Markdown
+          </button>
+        </div>
+        <span className={styles.authorNote}>Autoría por bloque</span>
       </div>
 
       {canComment && selection && showCommentForm && (
@@ -205,14 +251,22 @@ export function CollabEditor({ subject }: CollabEditorProps): ReactElement {
           {commentError}
         </p>
       )}
-      {/* Kept mounted (never unmounted) while previewing — CodeMirror re-creating its view on every
-          toggle would lose scroll position/undo history for no reason; hiding it visually is enough. */}
-      <div ref={containerRef} className={styles.editorContainer} data-testid="collab-editor-container" hidden={showPreview} />
       {showPreview && (
-        <div className={styles.preview} data-testid="markdown-preview">
+        <div id="editor-panel-preview" role="tabpanel" aria-labelledby="editor-tab-preview" className={styles.preview} data-testid="markdown-preview">
           <MarkdownPreview body={bodyText} />
         </div>
       )}
+      {/* Kept mounted (never unmounted) while previewing — CodeMirror re-creating its view on every
+          tab switch would lose scroll position/undo history for no reason; hiding it visually is enough. */}
+      <div
+        ref={containerRef}
+        id="editor-panel-markdown"
+        role="tabpanel"
+        aria-labelledby="editor-tab-markdown"
+        className={styles.editorContainer}
+        data-testid="collab-editor-container"
+        hidden={showPreview}
+      />
       {!editorReady && <p className={styles.loading}>Cargando editor…</p>}
     </div>
   );

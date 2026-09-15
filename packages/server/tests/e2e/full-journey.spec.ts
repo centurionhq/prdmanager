@@ -51,11 +51,19 @@ async function typeLines(page: Page, text: string): Promise<void> {
   }
 }
 
+/** WO-358: the body editor's `.cm-content` only exists behind the "Markdown" tab now (the default tab is
+ * "Vista previa", the read-only `MarkdownPreview` bridge) — every direct CodeMirror interaction below
+ * switches to it first. Idempotent: clicking an already-selected tab is harmless. */
+async function switchToMarkdownTab(page: Page): Promise<void> {
+  await page.getByRole('tab', { name: 'Markdown' }).click();
+}
+
 /** A freshly created document's live `Y.Doc` starts genuinely empty (its `working_state` is only ever
  * written once a real collab edit happens — the template used to seed `document_versions` never seeds
  * the live document itself), so the very first edit can just click into `.cm-content` and type: the
  * caret lands at the document's only (empty) line. */
 async function typeIntoEmptyBody(page: Page, text: string): Promise<void> {
+  await switchToMarkdownTab(page);
   await page.locator('.cm-content').click();
   await typeLines(page, text);
 }
@@ -67,6 +75,7 @@ async function typeIntoEmptyBody(page: Page, text: string): Promise<void> {
  * content so far is exactly what the previous step appended — so "the real end of the document" and
  * "right after that content" are the same place. */
 async function appendAtEnd(page: Page, text: string): Promise<void> {
+  await switchToMarkdownTab(page);
   await page.locator('.cm-content').click();
   await page.keyboard.press('Control+End');
   await page.keyboard.press('Enter');
@@ -99,6 +108,7 @@ async function waitForBodyOnServer(context: BrowserContext, url: string, expecte
   const probe = await context.newPage();
   try {
     await probe.goto(url);
+    await switchToMarkdownTab(probe);
     await expect(probe.locator('.cm-content')).toContainText(expectedText);
   } finally {
     await probe.close();
@@ -150,6 +160,7 @@ test('full product journey', async ({ browser }) => {
   await test.step('Bob opens the same PRD', async () => {
     await pageBob.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${prdDocId}`);
     await expect(pageBob.getByRole('heading', { name: 'Product Vision' })).toBeVisible();
+    await switchToMarkdownTab(pageBob);
     await expect(pageBob.locator('.cm-content')).toBeVisible();
   });
 
@@ -177,6 +188,7 @@ test('full product journey', async ({ browser }) => {
 
   await test.step('Both see real blame attribution for each other', async () => {
     await pageAlice.reload();
+    await switchToMarkdownTab(pageAlice);
     await expect(pageAlice.locator('.cm-content')).toContainText('ship real-time collaboration');
     const markers = pageAlice.locator('button.cm-blame-marker');
     await expect(markers.first()).toBeVisible();
