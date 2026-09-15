@@ -10,6 +10,7 @@ import { organization } from 'better-auth/plugins/organization';
 import { twoFactor } from 'better-auth/plugins/two-factor';
 import { connect, schema } from '@prdm/db';
 import type { Pool } from 'pg';
+import type { AgentStreamRevocationHub } from '../agent/agent-stream-revocation.js';
 import type { CollabRevocationHub } from '../collab/revocation.js';
 import { buildResetPasswordEmail } from '../email/reset-password-email.js';
 import type { ServerEnv } from '../env.js';
@@ -38,6 +39,10 @@ export interface BuildAuthDeps {
    * `./collab/revalidate.js` safety-net poll. Optional so every existing test that builds an `Auth`
    * without caring about `/collab` (most of `auth-mount.test.ts`, etc.) keeps working unchanged. */
   collabRevocationHub?: CollabRevocationHub;
+  /** WO-253/WO-258 (security review, HIGH): same trigger as `collabRevocationHub` above, wired to also
+   * abort a revoked user's in-flight agent SSE turn (see `../agent/agent-stream-revocation.ts`'s own doc
+   * comment for why `/collab`'s revocation alone doesn't cover that route). */
+  agentStreamRevocationHub?: AgentStreamRevocationHub;
 }
 
 /** `/change-password`'s own `revokeOtherSessions` flag is client-controlled and optional; SDD-006
@@ -81,7 +86,7 @@ function hostPrefixedCookies(): Record<string, { name: string; attributes: Recor
 }
 
 export function buildAuth(deps: BuildAuthDeps) {
-  const { env, pool, mailer, collabRevocationHub } = deps;
+  const { env, pool, mailer, collabRevocationHub, agentStreamRevocationHub } = deps;
   const db = connect(pool);
   const database = drizzleAdapter(db, {
     provider: 'pg',
@@ -142,17 +147,21 @@ export function buildAuth(deps: BuildAuthDeps) {
     // the same call the instant-revocation call sites in `../api/projects.js`/`../api/documents.js`
     // already use — `revokeUser` closes every `/collab` connection this user holds anywhere, matching
     // this hub method's own doc comment, which already anticipated exactly this wiring.
-    databaseHooks: collabRevocationHub
-      ? {
-          session: {
-            delete: {
-              after: async (session) => {
-                collabRevocationHub.revokeUser(session.userId);
+    databaseHooks:
+      collabRevocationHub || agentStreamRevocationHub
+        ? {
+            session: {
+              delete: {
+                after: async (session) => {
+                  collabRevocationHub?.revokeUser(session.userId);
+                  // WO-253/WO-258: same trigger, so a revoked session's agent SSE turn is aborted the
+                  // instant its session row is deleted, not just at its next per-tool-call role re-check.
+                  agentStreamRevocationHub?.revokeUser(session.userId);
+                },
               },
             },
-          },
-        }
-      : undefined,
+          }
+        : undefined,
     advanced: env.nodeEnv === 'production' ? { useSecureCookies: false, cookies: hostPrefixedCookies() } : {},
     logger: { disabled: env.nodeEnv === 'test' },
   });

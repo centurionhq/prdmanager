@@ -33,6 +33,7 @@ import type { LlmClient, LlmMessage, LlmToolCall } from '../agent/llm-client.js'
 import { ALL_AGENT_TOOLS, type AgentToolContext } from '../agent/tools/index.js';
 import { acceptAgentProposal, ProposalNotFoundError as AcceptProposalNotFoundError, ProposalNotPendingError as AcceptProposalNotPendingError } from '../collab/accept-agent-proposal.js';
 import { rejectAgentProposal, ProposalNotFoundError as RejectProposalNotFoundError, ProposalNotPendingError as RejectProposalNotPendingError } from '../collab/reject-agent-proposal.js';
+import type { AgentStreamRevocationHub } from '../agent/agent-stream-revocation.js';
 import { requireNeo4j } from '../engine/resolve-pg-project-engine.js';
 import type { ServerEnv } from '../env.js';
 import { ConflictError, ForbiddenError, NotFoundError, RateLimitedError, ValidationError } from '../errors.js';
@@ -58,6 +59,10 @@ export interface RegisterDocumentAgentRoutesOptions {
   rateLimiter: AgentRateLimiter;
   /** Test-only: overrides `() => new Date()` so a quota test never depends on which day it actually runs. */
   clock?: () => Date;
+  /** WO-253/WO-258: lets a revoked session's stream be aborted instantly, the same way `/collab` already
+   * is via `collabRevocationHub`. Optional so every existing test that builds these routes without caring
+   * about revocation keeps working unchanged. */
+  agentStreamRevocationHub?: AgentStreamRevocationHub;
 }
 
 interface ProposalRouteParams extends DocumentRouteParams {
@@ -130,7 +135,7 @@ export function disableRequestTimeout(raw: { setTimeout?: (msecs: number, callba
 }
 
 export function registerDocumentAgentRoutes(app: FastifyInstance, opts: RegisterDocumentAgentRoutesOptions): void {
-  const { auth, pool, env, neo4j, llmClient, model, hocuspocus, rateLimiter, clock = () => new Date() } = opts;
+  const { auth, pool, env, neo4j, llmClient, model, hocuspocus, rateLimiter, clock = () => new Date(), agentStreamRevocationHub } = opts;
   const activeStreamUserIds = new Set<string>();
 
   // WO-176: lets the chat panel restore the caller's own conversation (transcript + proposals) on mount,
@@ -191,6 +196,10 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
       if (activeStreamUserIds.has(userId)) throw new ConflictError('an agent conversation is already streaming for this user');
       activeStreamUserIds.add(userId);
 
+      // Declared outside the `try` below (not `const` inside it) so `finally` — a separate block scope —
+      // can still reach it to unregister from `agentStreamRevocationHub`; `undefined` covers the early-throw
+      // paths above `new AbortController()` that this `finally` also runs for.
+      let controller: AbortController | undefined;
       try {
         // Reserved *before* the model is ever called (SDD-009 "reserva de tokens antes de llamar (los
         // turnos concurrentes no exceden la cuota)") — see agent-quota.ts's own module doc comment for why
@@ -229,8 +238,13 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
           },
         };
 
-        const controller = new AbortController();
-        req.raw.on('close', () => controller.abort());
+        controller = new AbortController();
+        req.raw.on('close', () => controller?.abort());
+        // WO-253/WO-258: registered before the loop starts, unregistered in `finally` below — the same
+        // controller a client disconnect already aborts, now also reachable from a session revocation
+        // that lands mid-turn (see `agent-stream-revocation.ts`'s own doc comment for why `/collab`'s
+        // existing revocation hub doesn't cover this route).
+        agentStreamRevocationHub?.register(userId, controller);
 
         reply.hijack();
         disableRequestTimeout(reply.raw);
@@ -258,8 +272,9 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
         const actualTokens = newMessages.reduce((sum, message) => sum + (message.usage?.totalTokens ?? 0), 0);
         await reconcileAgentTokens(pool, org.id, reservationTokens, actualTokens, usageDate);
 
-        for (const message of newMessages) {
-          await tenantDb.agent.messages.append({
+        // WO-256: one batched insert instead of one `append` per message.
+        await tenantDb.agent.messages.appendMany(
+          newMessages.map((message) => ({
             conversationId: conversation.id,
             role: message.role,
             content: message.content,
@@ -270,13 +285,14 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
             completionTokens: message.usage?.completionTokens ?? null,
             totalTokens: message.usage?.totalTokens ?? null,
             model: message.model ?? null,
-          });
-        }
+          })),
+        );
         await tenantDb.agent.conversations.touch(conversation.id);
 
         reply.raw.end();
       } finally {
         activeStreamUserIds.delete(userId);
+        if (controller) agentStreamRevocationHub?.unregister(userId, controller);
       }
     },
   );

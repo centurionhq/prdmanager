@@ -14,6 +14,8 @@ import { installRouteAccessRegistry, type RouteRegistry } from './access/route-r
 import { registerAdminOrganizationRoutes } from './api/admin-organizations.js';
 import { registerCiTokenRoutes } from './api/ci-tokens.js';
 import { registerCodeReportRoutes } from './api/code-reports.js';
+import { buildCodeReportRateLimiter } from './rate-limit/code-report-rate-limits.js';
+import type { ScannedDocsCache } from './engine/scanned-docs-cache.js';
 import { registerHealthRoute } from './api/health.js';
 import { registerInvitationAcceptRoute } from './api/invitation-accept.js';
 import { registerOrganizationInvitationRoutes } from './api/organization-invitations.js';
@@ -28,6 +30,7 @@ import { registerDocumentPublishRoute } from './api/documents-publish.js';
 import { registerDocumentVersionRoutes } from './api/documents-versions.js';
 import { registerDocumentCommentRoutes } from './api/documents-comments.js';
 import { registerDocumentAgentRoutes } from './api/documents-agent.js';
+import { createAgentStreamRevocationHub, type AgentStreamRevocationHub } from './agent/agent-stream-revocation.js';
 import { buildCommentRateLimiter } from './rate-limit/comment-rate-limits.js';
 import { buildAgentRateLimiter } from './rate-limit/agent-rate-limits.js';
 import type { LlmClient } from './agent/llm-client.js';
@@ -38,6 +41,7 @@ import { DEFAULT_MCP_TOOL_RATE_LIMIT_PER_MINUTE, registerMcpRemoteRoutes } from 
 import { buildMcpToolRateLimiter } from './rate-limit/mcp-tool-rate-limits.js';
 import { registerGovernanceRoutes } from './api/governance.js';
 import { registerImportRoutes } from './api/import.js';
+import { buildImportRateLimiter } from './rate-limit/import-rate-limits.js';
 import { registerGraphRoutes } from './api/graph.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
 import { registerPolicyDocsRoutes } from './api/policy-docs.js';
@@ -114,6 +118,9 @@ export interface BuildServerDeps {
    * omitted (the default), the agent is entirely absent from the server, same as today. Every test that
    * exercises it passes a `FakeLlmClient` (SDD-009: "es el único usado en tests y E2E"). */
   llmClient?: LlmClient;
+  /** Test-only: an injected `ScannedDocsCache` (WO-261) so a test can count real scan invocations
+   * without mocking Postgres. Production always gets a fresh, real `createScannedDocsCache()`. */
+  scannedDocsCache?: ScannedDocsCache;
 }
 
 /**
@@ -138,6 +145,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
     llmClient,
     githubOidcJwks = githubOidcRemoteJwks(),
     oidcJtiStore,
+    scannedDocsCache,
   } = deps;
   // Fastify only derives `request.ip`/`request.hostname` from X-Forwarded-* headers when this is
   // set (SDD-006 §Autenticación): same PRDM_TRUST_PROXY gate as the /api/auth/* Host guard and,
@@ -210,7 +218,10 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
     // `revokeUser` the instant better-auth deletes a session row — `attach()` (giving it the live
     // `Hocuspocus` instance) still happens later, once `registerCollabRoute` constructs one.
     const collabRevocationHub: CollabRevocationHub = createCollabRevocationHub();
-    const auth = buildAuth({ env, pool, mailer, clock, collabRevocationHub });
+    // WO-253/WO-258: same "built before buildAuth" reasoning as collabRevocationHub above — its
+    // databaseHooks.session.delete.after hook needs both hubs to exist before it's constructed.
+    const agentStreamRevocationHub: AgentStreamRevocationHub = createAgentStreamRevocationHub();
+    const auth = buildAuth({ env, pool, mailer, clock, collabRevocationHub, agentStreamRevocationHub });
     app.decorate('auth', auth);
     // `global: false`: no route is rate-limited unless it opts in explicitly (register-auth.ts does,
     // per-path, via the exported keyed helper) — this plugin only ever supplies `app.createRateLimit`.
@@ -264,20 +275,21 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
           hocuspocus,
           rateLimiter: buildAgentRateLimiter(app, env.agentQuotas.rpmPerUser),
           clock,
+          agentStreamRevocationHub,
         });
       registerDriftRoutes(app, { auth, pool, env, neo4j });
       registerForcePushOverrideRoutes(app, { auth, pool, env });
       registerGraphRoutes(app, { auth, pool, env, neo4j });
-      registerCloseFeatureRoutes(app, { auth, pool, env, neo4j });
+      registerCloseFeatureRoutes(app, { auth, pool, env, neo4j, hocuspocus });
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
       registerTokenRoutes(app, { auth, pool, env, clock });
       registerCiTokenRoutes(app, { auth, pool, env, clock });
       registerV1MeRoute(app, { pool });
       registerGovernanceRoutes(app, { pool });
-      registerCodeReportRoutes(app, { pool, neo4j });
+      registerCodeReportRoutes(app, { pool, neo4j, rateLimiter: buildCodeReportRateLimiter(app), scannedDocsCache });
       registerPolicyDocsRoutes(app, { pool });
       registerMcpRemoteRoutes(app, { pool, neo4j, rateLimiter: buildMcpToolRateLimiter(app, DEFAULT_MCP_TOOL_RATE_LIMIT_PER_MINUTE) });
-      registerImportRoutes(app, { pool });
+      registerImportRoutes(app, { pool, rateLimiter: buildImportRateLimiter(app) });
     });
   }
 

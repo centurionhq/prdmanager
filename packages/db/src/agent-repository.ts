@@ -60,6 +60,11 @@ export interface AgentConversationsRepository {
 
 export interface AgentMessagesRepository {
   append(input: AppendMessageInput): Promise<AgentMessageRecord>;
+  /** WO-256: one batched insert instead of one `append` per message — `documents-agent.ts` persists every
+   * message a turn produced (assistant + tool results, up to a few per loop iteration) in a single call
+   * once the turn finishes, rather than a sequential `for` loop of individually-awaited inserts. Returns
+   * `[]` for an empty `inputs` without issuing any query. */
+  appendMany(inputs: readonly AppendMessageInput[]): Promise<AgentMessageRecord[]>;
   /** Ascending by `createdAt` (oldest first), capped to the most recent `limit` messages (default
    * {@link DEFAULT_MESSAGE_HISTORY_LIMIT}) — WO-254: the agent loop only ever resends the last
    * `DEFAULT_MAX_HISTORY_MESSAGES` (40, `agent-loop.ts`) to the model, and the chat panel only ever
@@ -107,6 +112,24 @@ export interface AgentRepositories {
   llmUsage: LlmUsageRepository;
 }
 
+/** Shared by `append` and `appendMany` so the two never drift on which `AppendMessageInput` fields map to
+ * which column/default. */
+function toAgentMessageValues(orgId: string, input: AppendMessageInput) {
+  return {
+    orgId,
+    conversationId: input.conversationId,
+    role: input.role,
+    content: input.content,
+    toolCalls: input.toolCalls ?? null,
+    toolCallId: input.toolCallId ?? null,
+    toolName: input.toolName ?? null,
+    promptTokens: input.promptTokens ?? null,
+    completionTokens: input.completionTokens ?? null,
+    totalTokens: input.totalTokens ?? null,
+    model: input.model ?? null,
+  };
+}
+
 export function buildAgentRepositories(pool: Pool, orgId: string): AgentRepositories {
   return {
     conversations: {
@@ -133,25 +156,14 @@ export function buildAgentRepositories(pool: Pool, orgId: string): AgentReposito
     messages: {
       append: (input) =>
         withTenantTx(pool, orgId, async (tx) => {
-          const [row] = await tx
-            .insert(agentMessages)
-            .values({
-              orgId,
-              conversationId: input.conversationId,
-              role: input.role,
-              content: input.content,
-              toolCalls: input.toolCalls ?? null,
-              toolCallId: input.toolCallId ?? null,
-              toolName: input.toolName ?? null,
-              promptTokens: input.promptTokens ?? null,
-              completionTokens: input.completionTokens ?? null,
-              totalTokens: input.totalTokens ?? null,
-              model: input.model ?? null,
-            })
-            .returning();
+          const [row] = await tx.insert(agentMessages).values(toAgentMessageValues(orgId, input)).returning();
           if (!row) throw new Error(`failed to append agent message to conversation ${input.conversationId}`);
           return row;
         }),
+      appendMany: (inputs) => {
+        if (inputs.length === 0) return Promise.resolve([]);
+        return withTenantTx(pool, orgId, (tx) => tx.insert(agentMessages).values(inputs.map((input) => toAgentMessageValues(orgId, input))).returning());
+      },
       listForConversation: (conversationId, limit = DEFAULT_MESSAGE_HISTORY_LIMIT) =>
         withTenantTx(pool, orgId, async (tx) => {
           const rows = await tx
