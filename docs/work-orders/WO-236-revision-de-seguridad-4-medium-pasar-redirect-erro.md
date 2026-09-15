@@ -2,12 +2,17 @@
 id: "WO-236"
 type: "WO"
 title: "Revisión de seguridad #4 (MEDIUM): pasar redirect: 'error' también en la construcción de StreamableHTTPClientTransport (mcp-client.ts y mcp-proxy.ts), no solo en los fetches de login/sync/import, con test de un servidor que redirige"
-status: "pending"
+status: "done"
 created_at: "2026-09-15"
 implements: ["SDD-010"]
 impacts_paths: ["packages/server/src/**","packages/server/tests/**","packages/server/*.json","packages/mcp/src/**","packages/cli/src/**","packages/cli/tests/**","packages/cli/package.json","packages/core/src/**","packages/contracts/src/**","packages/contracts/tests/**","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/app/src/**","packages/app/tests/**","packages/app/*.config.ts","packages/testkit/src/**",".github/workflows/prdm-sync.yml",".gitignore","vitest.config.ts","README.md",".env.example","package.json","package-lock.json"]
 source_task: "2f8bf9d60d80a38a"
 tags: ["saas","remote-mcp","sync","drift","cli","import","oidc"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T03:11:03.529Z"
+completed_at: "2026-09-15T03:15:36.433Z"
+resolved_by: ["597fec994bfb8599d105ae206186c87b30f664e6"]
+blueprint_hashes: {"SDD-010":"a40225b83b2e4989ac23e7ba309a3abafe0491bdaf5ebdbdc7802d034f80760a"}
 ---
 
 ## Objetivo
