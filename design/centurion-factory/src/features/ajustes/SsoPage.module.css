@@ -207,7 +207,7 @@
 }
 
 .statusOk {
-  color: var(--senal);
+  color: var(--senal-texto);
 }
 
 .statusPending {
@@ -281,13 +281,15 @@
 }
 
 .switchRow {
-  display: flex;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
   align-items: center;
-  gap: var(--space-3);
+  column-gap: var(--space-3);
   min-height: 32px;
   font-family: inherit;
   font-size: var(--text-sm);
   color: var(--grafito);
+  text-align: start;
 }
 
 .track {

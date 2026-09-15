@@ -19,9 +19,11 @@
   display: flex;
   align-items: center;
   gap: var(--space-6);
+  min-width: 0;
 }
 
 .wordmark {
+  flex: none;
   font-size: 1.125rem;
   font-weight: 800;
   font-stretch: var(--stretch-display);
@@ -36,6 +38,7 @@
 
 .switcherWrap {
   position: relative;
+  min-width: 0;
 }
 
 .switcherButton {
@@ -43,6 +46,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
   padding: 0 10px 0 var(--space-3);
   border: 1px solid var(--regla);
   border-radius: var(--radius-plate);
@@ -50,6 +55,13 @@
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--grafito);
+}
+
+.switcherLabel {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .switcherButton:hover {
@@ -257,7 +269,7 @@
 }
 
 .driftOk {
-  color: var(--senal);
+  color: var(--senal-texto);
   font-weight: 600;
 }
 
@@ -312,10 +324,13 @@
 @media (max-width: 767px) {
   .topBar {
     padding: 0 var(--space-4);
+    gap: var(--space-3);
   }
 
   .topBarLeft {
     gap: var(--space-3);
+    min-width: 0;
+    flex: 1 1 auto;
   }
 
   .topBarDivider {
@@ -323,6 +338,14 @@
   }
 
   .settingsLink {
+    display: none;
+  }
+
+  .topBarRight {
+    flex: none;
+  }
+
+  .personName {
     display: none;
   }
 

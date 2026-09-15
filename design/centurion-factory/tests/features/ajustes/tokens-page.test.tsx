@@ -69,6 +69,15 @@ describe('TokensPage: listo', () => {
     expect(within(mainRow).getByText('reports:baseline')).toBeTruthy();
   });
 
+  it('labels every cell so the stacked mobile layout never runs values together (WO-316)', async () => {
+    renderAt('/ajustes/tokens');
+    await screen.findByRole('table');
+    const mainRow = tokenRow('github-actions-main');
+    expect(within(mainRow).getByText('github-actions-main').closest('td')?.getAttribute('data-label')).toBe('Nombre');
+    expect(within(mainRow).getByText('reports:write').closest('td')?.getAttribute('data-label')).toBe('Alcance');
+    expect(within(mainRow).getByText('main').closest('td')?.getAttribute('data-label')).toBe('Rama');
+  });
+
   it('shows the expired token muted with its expiry note and an Eliminar action', async () => {
     renderAt('/ajustes/tokens');
     await screen.findByRole('table');

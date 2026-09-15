@@ -53,27 +53,27 @@ export function TokensTable({ tokens, onRevoke, onDelete }: TokensTableProps): R
           const creator = getPerson(token.createdBy)?.name ?? token.createdBy;
           return (
             <tr key={token.name} className={styles.row}>
-              <td className={cellClass(token.expired, styles.nameCell)}>
+              <td data-label="Nombre" className={cellClass(token.expired, styles.nameCell)}>
                 <span className={styles.tokenName}>{token.name}</span>
                 <span className={`num ${styles.tokenMeta}`}>{`${creator}, ${formatDate(token.createdAt)}`}</span>
               </td>
-              <td className={cellClass(token.expired)}>
+              <td data-label="Prefijo" className={cellClass(token.expired)}>
                 <span className={`id ${token.expired ? styles.muted : ''}`}>{`${token.prefix}…`}</span>
               </td>
-              <td className={cellClass(token.expired, styles.scopeCell)}>
+              <td data-label="Alcance" className={cellClass(token.expired, styles.scopeCell)}>
                 {token.scopes.map((scope) => (
                   <span key={scope} className={`id ${styles.scopeChip}`}>
                     {scope}
                   </span>
                 ))}
               </td>
-              <td className={cellClass(token.expired)}>
+              <td data-label="Rama" className={cellClass(token.expired)}>
                 <BranchValue branch={token.branch} expired={token.expired} />
               </td>
-              <td className={`${cellClass(token.expired)} num`}>
+              <td data-label="Vence" className={`${cellClass(token.expired)} num`}>
                 {token.expired ? `Venció el ${formatDate(token.expiresAt)}` : formatDate(token.expiresAt)}
               </td>
-              <td className={`${cellClass(token.expired)} num`}>
+              <td data-label="Último uso" className={`${cellClass(token.expired)} num`}>
                 {token.lastUsed ? formatRelativeAccess(token.lastUsed) : '—'}
               </td>
               <td className={cellClass(token.expired, styles.actionsCell)}>

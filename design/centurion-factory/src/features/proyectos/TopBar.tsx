@@ -39,7 +39,7 @@ export function TopBar(): ReactElement {
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((value) => !value)}
           >
-            Centurion HQ
+            <span className={styles.switcherLabel}>Centurion HQ</span>
             <ChevronsUpDown aria-hidden="true" size={16} />
           </button>
           {menuOpen ? (

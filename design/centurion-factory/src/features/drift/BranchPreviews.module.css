@@ -89,7 +89,7 @@
 }
 
 .issueCountZero {
-  color: var(--senal);
+  color: var(--senal-texto);
 }
 
 .issueCountSome {

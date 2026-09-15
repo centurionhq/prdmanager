@@ -245,11 +245,44 @@
   }
 
   .cell {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
     padding: var(--space-1) 0;
+    text-align: right;
+  }
+
+  .cell::before {
+    content: attr(data-label);
+    flex: none;
+    font-weight: 600;
+    color: var(--apagado);
+    text-align: left;
+  }
+
+  .table td.nameCell,
+  .table td.scopeCell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+  }
+
+  .nameCell::before,
+  .scopeCell::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--apagado);
   }
 
   .actionsCell {
     text-align: left;
     padding-top: var(--space-2);
+  }
+
+  .actionsCell::before {
+    content: none;
   }
 }

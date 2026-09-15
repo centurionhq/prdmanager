@@ -73,7 +73,7 @@ export function MembersTable({
               <td className={styles.cell}>
                 <PersonCell person={person} isYou={isYou} />
               </td>
-              <td className={styles.cell}>
+              <td data-label="Rol" className={styles.cell}>
                 <select
                   aria-label={`Rol de ${person.name}`}
                   className={styles.roleSelect}
@@ -88,7 +88,7 @@ export function MembersTable({
                   ))}
                 </select>
               </td>
-              <td className={`${styles.cell} num`}>{formatRelativeAccess(person.lastAccess)}</td>
+              <td data-label="Acceso" className={`${styles.cell} num`}>{formatRelativeAccess(person.lastAccess)}</td>
               <td className={`${styles.cell} ${styles.actionsCell}`}>
                 {isYou ? <span className={styles.hintBadge}>No podés quitarte</span> : null}
                 <button
@@ -122,8 +122,8 @@ export function MembersTable({
                 </div>
               </div>
             </td>
-            <td className={styles.cell}>{ROLE_LABELS[invitation.role]}</td>
-            <td className={styles.cell}>
+            <td data-label="Rol" className={styles.cell}>{ROLE_LABELS[invitation.role]}</td>
+            <td data-label="Acceso" className={styles.cell}>
               <span aria-hidden="true">—</span>
               <span className="visually-hidden">Sin acceso todavía</span>
             </td>

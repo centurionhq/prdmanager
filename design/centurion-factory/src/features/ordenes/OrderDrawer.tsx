@@ -141,7 +141,7 @@ export function OrderDrawer({ order, open, onClose, onUpdate }: OrderDrawerProps
                 const status = codeSyncStatus(path);
                 return (
                   <li key={path} className={styles.pathRow}>
-                    <span className="id">{path}</span>
+                    <span className={`id ${styles.pathText}`}>{path}</span>
                     <span className={[styles.pathStatus, status === 'synced' ? styles.pathSynced : styles.pathOutOfSync].join(' ')}>
                       {status === 'synced' ? 'Sincronizado' : 'Fuera de sincronía'}
                     </span>

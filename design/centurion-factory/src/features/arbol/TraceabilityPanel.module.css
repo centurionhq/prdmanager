@@ -102,7 +102,7 @@
 }
 
 .codeSynced {
-  color: var(--senal);
+  color: var(--senal-texto);
 }
 
 .codeOutOfSync {

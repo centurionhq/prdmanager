@@ -48,6 +48,16 @@ describe('OrderDrawer', () => {
     expect(within(codeSection).getByText('Sincronizado')).toBeTruthy();
   });
 
+  it('lets a governed path wrap so its status badge never clips (WO-316)', () => {
+    renderDrawer('WO-310');
+    const path = screen.getByText('packages/cli/src/commands/import.ts');
+    expect(path.className).toContain('id');
+    expect(path.className).toContain('pathText');
+    const row = path.closest('li');
+    if (!row) throw new Error('path row not found');
+    expect(within(row).getByText('Sincronizado')).toBeTruthy();
+  });
+
   it('renders the commit history', () => {
     renderDrawer('WO-310');
     expect(screen.getByText('3c1a5af')).toBeTruthy();

@@ -67,6 +67,13 @@ describe('MiembrosPage', () => {
     expect(screen.queryByText('Lucas Vera')).toBeNull();
   });
 
+  it('labels the Rol and Acceso cells for the stacked mobile layout (WO-316)', async () => {
+    renderAt('/ajustes/miembros');
+    await screen.findByRole('heading', { level: 2 });
+    const row = memberRow('Julia Paz');
+    expect(within(row).getByRole('combobox', { name: 'Rol de Julia Paz' }).closest('td')?.getAttribute('data-label')).toBe('Rol');
+  });
+
   it('shows the pending invitation row with resend and revoke actions', async () => {
     const user = userEvent.setup();
     renderAt('/ajustes/miembros');
