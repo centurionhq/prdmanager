@@ -2970,7 +2970,7 @@
       "packages/cli/tests/unit/governance-cache.test.ts": "6c7627e17890dda91ea86faa0076dfe821e08c0681a335e1f8340b54804648c9",
       "packages/cli/tests/unit/import.test.ts": "b4ae05974eb158101c91027ff04ab27dd28287b0d38922567f163b437fa856bb",
       "packages/cli/tests/unit/link.test.ts": "7ca07879495bc3fb71e9987eec78bd2d2709c7fb442221e1152c89e2c982d8ef",
-      "packages/cli/tests/unit/mcp-proxy.test.ts": "c165b08ce07bb7fd6de56ecb27e9beeea11db7e9b266fcdc1a5937dad4ffe84d",
+      "packages/cli/tests/unit/mcp-proxy.test.ts": "ca6a3853f24fbc3389bf121c8a456f0e382d61ade357a33b19b059a648bfe5af",
       "packages/cli/tests/unit/migrate.test.ts": "07c72861938606f4b2b942106a0e6505504a8d784ea62ab79f787853603a1790",
       "packages/cli/tests/unit/policy-docs.test.ts": "b7ee02f08d34bcb9f0e607d9f81c06c002fa3b33a4cc247622f72ffd543a886d",
       "packages/cli/tests/unit/prdm-sync-workflow.test.ts": "eae2aaa918ba5dab9f458a0f3864fb9a305853aae033815e4bc186f5de4822e3",
