@@ -235,3 +235,15 @@ Todo corre dentro de `design/centurion-factory`:
 - [ ] Ajustes de miembros con cambio de rol, invitaciones pendientes, modal Invitar persona con toast y matriz de permisos por rol, con tests
 - [ ] Ajustes de tokens de CI con secreto mostrado una sola vez, alcance, rama, vencimiento y revocación
 - [ ] Ajustes de autenticación y SSO con proveedor OIDC o SAML, dominios verificados, reglas de acceso, probar conexión y Guardar cambios, con tests
+- [ ] Revisión: editor con hrefs saneados (solo http, https, mailto y relativos) y rel noopener en enlaces generados desde Markdown, popover Enlace y propuestas del agente, con tests
+- [ ] Revisión: editor que escapa caracteres Markdown literales y marcadores de bloque al serializar, soporta escapes con barra invertida y hrefs con paréntesis, con tests de ida y vuelta
+- [ ] Revisión: editor donde Enter divide el bloque y pegar inserta texto plano, con tests
+- [ ] Revisión: Guardar incluye lo editado en el tab Markdown, una sola instancia del editor por breakpoint sin ids duplicados y estado reiniciado al cambiar de documento, con tests
+- [ ] Revisión: autoría preservada por similitud de texto al volver del Markdown y gutter alineado por mapa de líneas, con tests
+- [ ] Revisión: negrita, cursiva y tachado que se desactivan, DOM normalizado, popover Enlace con Esc y retorno de foco, propuestas con listas numeradas y nombres accesibles sin marcado, con tests
+- [ ] Revisión: DataTable con filas apiladas legibles en mobile, orden visible en mobile sin botones ocultos enfocables y fila con enlace accesible; Modal y Drawer que no cierran al arrastrar una selección, con tests
+- [ ] Revisión: token de texto verde para fondos acero con test de contraste, identificadores que no se cortan en el guion y script de capturas estable (reveal terminado y barra fija oculta)
+- [ ] Revisión: desbordes y layout en mobile de Planta, Documento, drawer de Órdenes, Proyectos, Ajustes y chips de rutas, con verificación a 375px
+- [ ] Revisión: formularios accesibles (errores asociados a campos, radiogroup con tabindex móvil, aria-controls de Más), títulos de Login y Proyectos y subtítulo de Órdenes coherente con el estado, con tests
+- [ ] Revisión: tokens de CI con nombres únicos y copia al portapapeles con manejo de error, filtro de Órdenes validado desde la URL y requestAnimationFrame cancelado en el árbol, con tests
+- [ ] Revisión: funciones de más de 50 líneas divididas (SsoPage, EntradaPage, EditorColumn, OrderDrawer, OrdenesPage) con Tabs y formato de fechas compartidos en src
