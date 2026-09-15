@@ -37,6 +37,7 @@ import { registerForcePushOverrideRoutes } from './api/force-push-overrides.js';
 import { DEFAULT_MCP_TOOL_RATE_LIMIT_PER_MINUTE, registerMcpRemoteRoutes } from './api/mcp-remote.js';
 import { buildMcpToolRateLimiter } from './rate-limit/mcp-tool-rate-limits.js';
 import { registerGovernanceRoutes } from './api/governance.js';
+import { registerImportRoutes } from './api/import.js';
 import { registerGraphRoutes } from './api/graph.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
 import { registerPolicyDocsRoutes } from './api/policy-docs.js';
@@ -276,6 +277,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerCodeReportRoutes(app, { pool, neo4j });
       registerPolicyDocsRoutes(app, { pool });
       registerMcpRemoteRoutes(app, { pool, neo4j, rateLimiter: buildMcpToolRateLimiter(app, DEFAULT_MCP_TOOL_RATE_LIMIT_PER_MINUTE) });
+      registerImportRoutes(app, { pool });
     });
   }
 

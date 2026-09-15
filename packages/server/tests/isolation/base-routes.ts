@@ -387,6 +387,17 @@ export function registerBaseIsolationRoutes(): void {
     }),
   });
 
+  // SDD-010 (WO-192): same IDOR-safe resolution as governance/code-reports — resolved and rejected
+  // before the request body (or the caller's actual `import` permission) is ever looked at, so an empty
+  // body is enough to prove the 404.
+  registerIsolationProbe('POST', '/api/v1/projects/:graphProjectId/import', {
+    mutating: true,
+    crossOrg: (fixtures) => ({
+      credential: { kind: 'bearer', secret: fixtures.orgBOwnerBearerSecret },
+      params: { path: { graphProjectId: fixtures.projectA1.graphProjectId }, body: {} },
+    }),
+  });
+
   registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/code-reports/force-push-overrides', {
     mutating: true,
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug }, body: { headSha: 'a'.repeat(40) } })),

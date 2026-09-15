@@ -124,7 +124,7 @@ export async function buildIsolationFixtures(app: BuiltApp, pg: PgTestDb): Promi
     // (rather than being turned away earlier by the scope prehandler with a 403, which the suite
     // would otherwise misreport as a real isolation failure — SDD-006 §Aislamiento point 4 only
     // cares about resource-level leakage, not re-testing the scope check itself here).
-    scopes: ['governance:read', 'reports:write'],
+    scopes: ['governance:read', 'reports:write', 'import:write'],
     expiresAt: new Date(Date.now() + DAY_MS),
   });
 

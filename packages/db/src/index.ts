@@ -8,6 +8,7 @@ export * from './doc-comments-repository.js';
 export * from './doc-updates-repository.js';
 export * from './documents-repository.js';
 export * from './id-counters.js';
+export * from './import-repository.js';
 export * from './invitations.js';
 export * from './migrate.js';
 export * from './oidc-jti-store.js';
