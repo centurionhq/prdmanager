@@ -133,4 +133,27 @@ describe('POST /api/v1/projects/:graphProjectId/policy-docs (WO-183)', () => {
 
     await app.close();
   });
+
+  test('rejects a request body over the explicit bodyLimit before it ever reaches the schema/handler (WO-237)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { project, secret } = await setupProject(app);
+
+    // Comfortably over MAX_POLICY_DOCS_BODY_BYTES (32 KiB): 800 full-length shas is already more than
+    // MAX_POLICY_DOCS_SHAS (500) would ever allow through the schema, but bodyLimit rejects the raw
+    // bytes first — this proves the explicit limit itself is wired up, not just the array-length cap.
+    // Status is 500 (not Fastify's usual 413): this app's shared `setErrorHandler` (SDD-006) maps every
+    // non-`HttpError` — including Fastify's own built-in `FST_ERR_CTP_BODY_TOO_LARGE` — to a generic
+    // `internal_error`/500, the same pre-existing behavior every other route's `bodyLimit` already has
+    // (e.g. `import`/`code-reports`); fixing that shared mapping is outside this WO's scope.
+    const oversizedShas = Array.from({ length: 800 }, (_, i) => i.toString(16).padStart(40, '0'));
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/policy-docs`,
+      headers: { authorization: `Bearer ${secret}` },
+      payload: { shas: oversizedShas },
+    });
+    expect(res.statusCode).toBe(500);
+
+    await app.close();
+  });
 });

@@ -14,7 +14,7 @@
  * with no version yet as of some instant simply doesn't appear in that instant's document list — this
  * is a real point-in-time reconstruction, not a snapshot of "currently published" content.
  */
-import { governanceDocumentSchema, policyDocsRequestSchema, type GovernanceDocumentDto } from '@prdm/contracts';
+import { governanceDocumentSchema, MAX_POLICY_DOCS_BODY_BYTES, policyDocsRequestSchema, type GovernanceDocumentDto } from '@prdm/contracts';
 import { resolveProjectByGraphProjectId, schema, withTenantTx } from '@prdm/db';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
@@ -78,7 +78,7 @@ export function registerPolicyDocsRoutes(app: FastifyInstance, opts: RegisterPol
 
   app.post<{ Params: PolicyDocsRouteParams }>(
     '/api/v1/projects/:graphProjectId/policy-docs',
-    { config: { access: { kind: 'bearer', scope: 'governance:read' } } },
+    { config: { access: { kind: 'bearer', scope: 'governance:read' } }, bodyLimit: MAX_POLICY_DOCS_BODY_BYTES },
     async (req) => {
       const token = req.token!;
       const resolved = await resolveProjectByGraphProjectId(pool, req.params.graphProjectId);
