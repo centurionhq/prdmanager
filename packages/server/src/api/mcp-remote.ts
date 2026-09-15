@@ -39,7 +39,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { registerPrdmTools, registerRemoteWriteTools, type PrdmDeps, type RemoteWriteAuth } from '@prdm/mcp/lib';
 import { can, type PermissionSubject } from '@prdm/contracts';
-import { createTenantDb, findMembership, resolveProjectByGraphProjectId, type OrgRole, type ProjectRecord } from '@prdm/db';
+import { createTenantDb, findMembership, findUserProfile, resolveProjectByGraphProjectId, type OrgRole, type ProjectRecord } from '@prdm/db';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
 import type { Neo4jGraphDatabase } from '@prdm/core';
@@ -212,8 +212,30 @@ async function handleProjectMcpPost(req: FastifyRequest<{ Params: McpRouteParams
   if (!neo4j) throw new Error('graph store not configured for this server instance');
   const deps = await buildRemoteDeps(pool, neo4j, resolved.orgId, project);
 
+  // A missing `user_profile` row (should never happen for a real signed-up user — see
+  // `register-auth.ts`'s own hook — but defensive rather than 404ing an otherwise-legitimate
+  // connection over it) just means no `dev:<handle>` assignee will ever match this caller; every other
+  // tool is unaffected.
+  const profile = await findUserProfile(pool, auth.userId);
+
   const server = new McpServer({ name: 'prdm-graph-remote', version: SERVER_VERSION });
-  const remoteAuth: RemoteWriteAuth = { subject, scopes: token.scopes };
+  const remoteAuth: RemoteWriteAuth = {
+    subject,
+    scopes: token.scopes,
+    callerHandle: profile?.handle ?? '',
+    audit: async (action, target, metadata) => {
+      await createTenantDb(pool)
+        .forOrg(resolved.orgId)
+        .auditLog.record({
+          projectId: resolved.projectId,
+          actorType: 'user',
+          actorId: auth.userId,
+          action,
+          target,
+          metadata,
+        });
+    },
+  };
 
   instrumentToolCalls(server, async (toolName) => {
     const requiredScope = REMOTE_WRITE_TOOL_NAMES.has(toolName) ? 'mcp:write' : 'mcp:read';

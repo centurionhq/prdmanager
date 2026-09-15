@@ -37,10 +37,34 @@ export async function claimWorkOrder(engine: ProjectEngine, id: string, assignee
   });
 }
 
+/**
+ * Thrown by {@link verifyResolvingCommit} for either failure mode: the sha resolves to nothing at all
+ * (SDD-007: `EngineOps.readCommit` only ever answers a commit that arrived through a CI-verified
+ * baseline report — an unreported sha or one only ever reported as a preview looks identical to an
+ * unknown one), or it resolves but its message carries no `Refs: <id>` trailer for this work order.
+ * Named (rather than a bare `Error`) so a caller with a distinct, actionable error code to report — the
+ * remote MCP's `complete_work_order` (SDD-010, WO-186) — can `instanceof`-match it instead of parsing
+ * an error message string.
+ */
+export class CommitNotVerifiedError extends Error {
+  constructor(
+    readonly sha: string,
+    readonly workOrderId: string,
+    readonly reason: 'not_found' | 'missing_refs',
+  ) {
+    super(
+      reason === 'not_found'
+        ? `commit ${sha} was not found in the repository`
+        : `commit ${sha} does not reference ${workOrderId}; add the trailer "Refs: ${workOrderId}" to its message`,
+    );
+    this.name = 'CommitNotVerifiedError';
+  }
+}
+
 async function verifyResolvingCommit(ops: Pick<EngineOps, 'readCommit'>, id: string, sha: string): Promise<string> {
   const commit = await ops.readCommit(sha);
-  if (!commit) throw new Error(`commit ${sha} was not found in the repository`);
-  if (!commit.refs.includes(id)) throw new Error(`commit ${sha} does not reference ${id}; add the trailer "Refs: ${id}" to its message`);
+  if (!commit) throw new CommitNotVerifiedError(sha, id, 'not_found');
+  if (!commit.refs.includes(id)) throw new CommitNotVerifiedError(sha, id, 'missing_refs');
   return commit.sha;
 }
 
