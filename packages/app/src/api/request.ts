@@ -77,6 +77,27 @@ function isMutating(method: string): boolean {
   return MUTATING_METHODS.has(method);
 }
 
+/** Guards the `next=` redirect target below against an open redirect: only a same-origin, root-relative
+ * path is safe. Rejects a protocol-relative path (`//evil.com`, parsed by browsers as same-scheme,
+ * cross-origin) and any path carrying its own scheme (`https://evil.com`, `javascript:...`). */
+function isSafeNextPath(path: string): boolean {
+  return path.startsWith('/') && !path.startsWith('//') && !path.includes('://');
+}
+
+/** Exported for tests; every other caller reaches this only via {@link request}'s own 401 handling. */
+export function buildLoginRedirectUrl(currentPath: string): string {
+  return isSafeNextPath(currentPath) ? `/login?next=${encodeURIComponent(currentPath)}` : '/login';
+}
+
+/** SDD-013 §"Capa de datos": any `/api/app/*` call answered with 401 means the session is gone (expired,
+ * signed out elsewhere) — bounce to `/login` with a `next=` back to the current route. No-op outside a
+ * browser (e.g. this module's own Node-run unit tests never hit a 401 today, but stay defensive). */
+function redirectToLogin(): void {
+  if (typeof window === 'undefined' || !window.location) return;
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  window.location.href = buildLoginRedirectUrl(currentPath);
+}
+
 /** Exported for `./agent.ts`'s streaming `fetch` call (WO-176), which can't go through {@link request}
  * itself since that always reads the *whole* body as JSON — an SSE response is read incrementally. */
 export async function buildFetchInit(path: string, options: RequestOptions, includeCsrf: boolean): Promise<RequestInit> {
@@ -108,6 +129,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   if (!response.ok) {
+    if (response.status === 401) redirectToLogin();
     if (isAppErrorBody(body)) {
       throw new ApiClientError(response.status, body.error.code as ApiErrorCode, body.error.message);
     }
