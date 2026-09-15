@@ -63,3 +63,22 @@ describe('AppShell', () => {
     expect(screen.queryByRole('navigation', { name: 'Navegación principal' })).toBeNull();
   });
 });
+
+describe('RootLayout', () => {
+  it('provides toasts to every route, including login', async () => {
+    const { useToast } = await import('../../src/components');
+    function Probe() {
+      const { show } = useToast();
+      return (
+        <button type="button" onClick={() => show('Guardado')}>
+          Probar
+        </button>
+      );
+    }
+    const { RootLayout } = await import('../../src/components/shell/RootLayout');
+    const router = createMemoryRouter([{ element: <RootLayout />, children: [{ path: '/', element: <Probe /> }] }]);
+    render(<RouterProvider router={router} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Probar' }));
+    expect(screen.getByRole('status').textContent).toContain('Guardado');
+  });
+});

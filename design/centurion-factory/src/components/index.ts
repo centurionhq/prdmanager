@@ -41,3 +41,6 @@ export type { DrawerProps } from './Drawer/Drawer';
 
 export { ToastProvider, useToast } from './ToastProvider/ToastProvider';
 export type { ToastContextValue, ToastOptions, ToastProviderProps, ToastTone } from './ToastProvider/ToastProvider';
+
+export { PageHeader } from './PageHeader/PageHeader';
+export type { PageHeaderProps } from './PageHeader/PageHeader';
