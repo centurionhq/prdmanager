@@ -8,6 +8,7 @@ export * from './force-push-overrides.js';
 export * from './governance.js';
 export * from './import.js';
 export * from './invitations.js';
+export * from './lifecycle.js';
 export * from './policy-docs.js';
 export * from './organizations.js';
 export * from './permissions.js';
