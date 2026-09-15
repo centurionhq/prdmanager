@@ -9,7 +9,11 @@ import { SCREENSHOT_ROUTES, VIEWPORTS } from './routes.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'screenshots');
-const SETTLE_MS = 1800; // longer than the Planta reveal and the simulated list latency
+// Still generous even with reduced motion on: covers the simulated list latency (400ms).
+const SETTLE_MS = 3000;
+// The fixed bottom bar would otherwise paint mid-page on a full-page mobile capture, since
+// full-page screenshots scroll the viewport while `position: fixed` elements stay pinned.
+const HIDE_BOTTOM_BAR_CSS = 'nav[aria-label="Navegación móvil"]{position:static!important}';
 
 async function main() {
   await mkdir(outDir, { recursive: true });
@@ -22,11 +26,15 @@ async function main() {
   const failures = [];
   try {
     for (const viewport of VIEWPORTS) {
-      const page = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height } });
+      const page = await browser.newPage({
+        viewport: { width: viewport.width, height: viewport.height },
+        reducedMotion: 'reduce',
+      });
       page.on('pageerror', (error) => failures.push(`${viewport.name} ${page.url()}: ${error.message}`));
       for (const route of SCREENSHOT_ROUTES) {
         await page.goto(`${baseUrl}${route.path}`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(SETTLE_MS);
+        if (viewport.name === 'mobile') await page.addStyleTag({ content: HIDE_BOTTOM_BAR_CSS });
         const file = join(outDir, `${route.name}-${viewport.name}.png`);
         await page.screenshot({ path: file, fullPage: true });
         console.log(`captured ${file}`);

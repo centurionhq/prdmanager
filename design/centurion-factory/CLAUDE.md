@@ -44,7 +44,8 @@ Run everything from `design/centurion-factory` with Node 24 (`nvm use 24`).
 | `--acero` | `#E9ECEB` | App background |
 | `--cianotipo` | `#1F4FA0` | Primary actions, links, blueprint ids |
 | `--andon` | `#F5C400` | Drift or line stop only |
-| `--senal` | `#1E7F4F` | OK, synced, done |
+| `--senal` | `#1E7F4F` | OK, synced, done — fills and marks only, not text on light backgrounds |
+| `--senal-texto` | `#19703F` | Green **text** on acero, superficie or diff-agregado (`--senal` itself is 4.20:1 on acero and fails AA) |
 | `--paro` | `#B8322A` | Error, blocking, destructive |
 
 ### Derived colors

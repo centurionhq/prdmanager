@@ -1,4 +1,6 @@
 import { render, screen } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { StatusBadge } from '../../src/components/StatusBadge/StatusBadge';
 
@@ -42,5 +44,11 @@ describe('StatusBadge', () => {
   it('renders a decorative mark that is hidden from assistive tech', () => {
     const { container } = render(<StatusBadge kind="workOrder" status="done" />);
     expect(container.querySelector('[aria-hidden="true"]')).toBeTruthy();
+  });
+
+  it('uses --senal-texto (not --senal, which fails AA on acero) for the senal tone text color', () => {
+    const css = readFileSync(resolve(import.meta.dirname, '../../src/components/StatusBadge/StatusBadge.module.css'), 'utf8');
+    expect(css).toMatch(/\.toneSenal\s*\{[^}]*color:\s*var\(--senal-texto\)/);
+    expect(css).toMatch(/\.markSenal\s*\{[^}]*background:\s*var\(--senal\)/);
   });
 });

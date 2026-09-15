@@ -41,6 +41,11 @@ describe('design tokens', () => {
     expect(hex('paro')).toBe('#B8322A');
   });
 
+  it('defines a darker senal-texto for green text on light backgrounds (senal itself fails AA on acero)', () => {
+    expect(contrast(hex('senal'), hex('acero'))).toBeLessThan(4.5);
+    expect(hex('senal-texto')).toBe('#19703F');
+  });
+
   it('defines the type, spacing and radius scales', () => {
     for (const name of ['text-xs', 'text-sm', 'text-md', 'text-lg', 'text-xl', 'text-2xl', 'space-1', 'space-2', 'space-3', 'space-4', 'space-6', 'space-8', 'space-12', 'radius-plate', 'radius-input', 'font-sans', 'font-mono']) {
       expect(map.has(name), `--${name}`).toBe(true);
@@ -58,6 +63,9 @@ describe('design tokens', () => {
     ['cianotipo', 'acero'],
     ['cianotipo', 'superficie'],
     ['senal', 'superficie'],
+    ['senal-texto', 'acero'],
+    ['senal-texto', 'superficie'],
+    ['senal-texto', 'diff-agregado'],
     ['paro', 'superficie'],
     ['paro', 'acero'],
     ['andon-texto', 'superficie'],

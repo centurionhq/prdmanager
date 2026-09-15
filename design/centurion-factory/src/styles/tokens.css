@@ -10,6 +10,9 @@
   --andon: #F5C400;
   --senal: #1E7F4F;
   --paro: #B8322A;
+  /* --senal is 4.20:1 on --acero, which fails AA for text. Use --senal-texto for green TEXT
+     on light backgrounds (acero, superficie, diff-agregado); --senal stays for fills/marks. */
+  --senal-texto: #19703F;
 
   /* Derived neutrals and states */
   --superficie: #FBFCFB;

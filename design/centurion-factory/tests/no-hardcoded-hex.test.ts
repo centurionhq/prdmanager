@@ -54,4 +54,8 @@ describe('base styles', () => {
     expect(base).toMatch(/body\s*\{[^}]*background:\s*var\(--acero\)/);
     expect(base).toMatch(/body\s*\{[^}]*color:\s*var\(--grafito\)/);
   });
+
+  it('keeps literal identifiers from breaking at a hyphen, e.g. "FR-002"', () => {
+    expect(base).toMatch(/\.id\s*\{[^}]*white-space:\s*nowrap/);
+  });
 });
