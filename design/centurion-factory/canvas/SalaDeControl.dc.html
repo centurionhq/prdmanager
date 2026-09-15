@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #0B0D10; font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', Arial, sans-serif; color: #E6EAEE; }
+    a { color: #5CC8E0; } a:hover { color: #8ADAEB; }
+    * { box-sizing: border-box; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 960px; display: grid; grid-template-columns: 64px minmax(0, 1fr) 360px; background: #0B0D10;">
+
+  <nav style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 0; background: #0F1216; border-right: 1px solid #1E242B;">
+    <div style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: #E6EAEE; color: #0B0D10; font-weight: 700; font-size: 14px; margin-bottom: 16px;">CF</div>
+    <div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: #1B2129;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E6EAEE" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"></path></svg></div>
+    <div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A96A3" stroke-width="2"><path d="M6 3v12M6 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9c0 6-12 3-12 6"></path></svg></div>
+    <div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A96A3" stroke-width="2"><path d="M14 3H6v18h12V7z"></path><path d="M14 3v4h4"></path></svg></div>
+    <div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A96A3" stroke-width="2"><rect x="4" y="4" width="16" height="16"></rect><path d="M8 9h8M8 13h8M8 17h5"></path></svg></div>
+    <div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; position: relative;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFB020" stroke-width="2"><path d="M12 3l9 16H3z"></path><path d="M12 10v4M12 17v.5"></path></svg></div>
+  </nav>
+
+  <main style="display: flex; flex-direction: column; gap: 16px; padding: 16px 20px; min-width: 0;">
+    <header style="display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 40px;">
+      <div style="display: flex; align-items: baseline; gap: 12px;">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 600;">Planta</h1>
+        <span style="font-size: 14px; color: #8A96A3;">prdmanager · reporte oficial de <span class="id">main</span> hace 4 min</span>
+      </div>
+      <div style="width: 360px; height: 36px; display: flex; align-items: center; padding: 0 12px; background: #12161B; border: 1px solid #262D35; color: #8A96A3; font-size: 14px;">Buscar documentos, órdenes o código</div>
+    </header>
+
+    <section style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: #1E242B; border: 1px solid #1E242B;">
+      <div style="background: #0F1216; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 13px; color: #8A96A3;">Resolución mediana</span><span class="num" style="font-size: 28px; font-weight: 600;">5 min</span></div>
+      <div style="background: #0F1216; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 13px; color: #8A96A3;">Código sincronizado</span><span class="num" style="font-size: 28px; font-weight: 600; color: #FFB020;">99,6 %</span></div>
+      <div style="background: #0F1216; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 13px; color: #8A96A3;">Features trazadas</span><span class="num" style="font-size: 28px; font-weight: 600;">100 %</span></div>
+      <div style="background: #0F1216; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 13px; color: #8A96A3;">Commits con Refs</span><span class="num" style="font-size: 28px; font-weight: 600;">66,4 %</span></div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; background: #0F1216; border: 1px solid #1E242B;">
+      <div style="display: grid; grid-template-columns: 300px repeat(6, minmax(0, 1fr)); border-bottom: 1px solid #1E242B; font-size: 13px; color: #8A96A3;">
+        <div style="padding: 10px 16px;">Feature</div>
+        <div style="padding: 10px 12px; border-left: 1px solid #1E242B;">Ingesta</div>
+        <div style="padding: 10px 12px; border-left: 1px solid #1E242B;">Definición</div>
+        <div style="padding: 10px 12px; border-left: 1px solid #1E242B;">Diseño</div>
+        <div style="padding: 10px 12px; border-left: 1px solid #1E242B;">Planificación</div>
+        <div style="padding: 10px 12px; border-left: 1px solid #1E242B; color: #FFB020;">Ejecución</div>
+        <div style="padding: 10px 12px; border-left: 1px solid #1E242B;">Cierre</div>
+      </div>
+      <div style="display: grid; grid-template-columns: 300px repeat(6, minmax(0, 1fr)); border-bottom: 1px solid #1E242B; height: 52px; align-items: stretch;">
+        <div style="padding: 0 16px; display: flex; flex-direction: column; justify-content: center;"><span class="id" style="color: #8A96A3;">FR-002</span><span style="font-size: 15px;">Importador incremental de repos</span></div>
+        <div style="border-left: 1px solid #1E242B; background: #16324A;"></div><div style="border-left: 1px solid #1E242B; background: #16324A;"></div><div style="border-left: 1px solid #1E242B; background: #16324A;"></div><div style="border-left: 1px solid #1E242B; background: #16324A;"></div>
+        <div style="border-left: 1px solid #1E242B; background: #3A2A06; display: flex; align-items: center; padding: 0 12px; gap: 8px;"><span style="width: 8px; height: 8px; background: #FFB020;"></span><span class="num" style="font-size: 13px; color: #FFCB66;">14/22 · 3 fuera de sync</span></div>
+        <div style="border-left: 1px solid #1E242B;"></div>
+      </div>
+      <div style="display: grid; grid-template-columns: 300px repeat(6, minmax(0, 1fr)); border-bottom: 1px solid #1E242B; height: 52px;">
+        <div style="padding: 0 16px; display: flex; flex-direction: column; justify-content: center;"><span class="id" style="color: #8A96A3;">PRD-006</span><span style="font-size: 15px;">Rediseño del frontend con datos mock</span></div>
+        <div style="border-left: 1px solid #1E242B; background: #16324A;"></div><div style="border-left: 1px solid #1E242B; background: #16324A;"></div>
+        <div style="border-left: 1px solid #1E242B; background: #1D4A6E; display: flex; align-items: center; padding: 0 12px;"><span style="font-size: 13px; color: #CFE6F2;">canvas en revisión</span></div>
+        <div style="border-left: 1px solid #1E242B;"></div><div style="border-left: 1px solid #1E242B;"></div><div style="border-left: 1px solid #1E242B;"></div>
+      </div>
+      <div style="display: grid; grid-template-columns: 300px repeat(6, minmax(0, 1fr)); border-bottom: 1px solid #1E242B; height: 52px;">
+        <div style="padding: 0 16px; display: flex; flex-direction: column; justify-content: center;"><span class="id" style="color: #8A96A3;">FR-003</span><span style="font-size: 15px;">Avisos de drift por rama</span></div>
+        <div style="border-left: 1px solid #1E242B; background: #16324A;"></div>
+        <div style="border-left: 1px solid #1E242B; background: #1D4A6E; display: flex; align-items: center; padding: 0 12px;"><span style="font-size: 13px; color: #CFE6F2;">borrador</span></div>
+        <div style="border-left: 1px solid #1E242B;"></div><div style="border-left: 1px solid #1E242B;"></div><div style="border-left: 1px solid #1E242B;"></div><div style="border-left: 1px solid #1E242B;"></div>
+      </div>
+      <div style="display: grid; grid-template-columns: 300px repeat(6, minmax(0, 1fr)); border-bottom: 1px solid #1E242B; height: 52px;">
+        <div style="padding: 0 16px; display: flex; flex-direction: column; justify-content: center;"><span class="id" style="color: #8A96A3;">FR-001</span><span style="font-size: 15px;">Persistencia de borradores</span></div>
+        <div style="border-left: 1px solid #1E242B; background: #16324A;"></div><div style="border-left: 1px solid #1E242B; background: #16324A;"></div><div style="border-left: 1px solid #1E242B; background: #16324A;"></div><div style="border-left: 1px solid #1E242B; background: #16324A;"></div><div style="border-left: 1px solid #1E242B; background: #16324A;"></div>
+        <div style="border-left: 1px solid #1E242B; background: #134034; display: flex; align-items: center; padding: 0 12px;"><span class="num" style="font-size: 13px; color: #9FE6C8;">4/4 · falta reconocer</span></div>
+      </div>
+      <div style="display: grid; grid-template-columns: 300px repeat(6, minmax(0, 1fr)); height: 52px;">
+        <div style="padding: 0 16px; display: flex; flex-direction: column; justify-content: center;"><span class="id" style="color: #8A96A3;">PRD-005</span><span style="font-size: 15px; color: #8A96A3;">Plataforma SaaS colaborativa de PRDs</span></div>
+        <div style="border-left: 1px solid #1E242B; background: #131A21;"></div><div style="border-left: 1px solid #1E242B; background: #131A21;"></div><div style="border-left: 1px solid #1E242B; background: #131A21;"></div><div style="border-left: 1px solid #1E242B; background: #131A21;"></div><div style="border-left: 1px solid #1E242B; background: #131A21;"></div>
+        <div style="border-left: 1px solid #1E242B; background: #131A21; display: flex; align-items: center; padding: 0 12px;"><span class="num" style="font-size: 13px; color: #8A96A3;">cerrada · 245/245</span></div>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; background: #0F1216; border: 1px solid #1E242B;">
+      <div style="padding: 10px 16px; border-bottom: 1px solid #1E242B; display: flex; justify-content: space-between;"><h2 style="margin: 0; font-size: 16px; font-weight: 600;">Órdenes en curso</h2><a style="font-size: 14px;">Ver órdenes</a></div>
+      <div style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 120px 140px; font-size: 14px;">
+        <div class="id" style="padding: 10px 16px; border-bottom: 1px solid #1E242B;">WO-268</div><div style="padding: 10px 0; border-bottom: 1px solid #1E242B;">Escaneo incremental por hash de archivo</div><div style="padding: 10px 0; border-bottom: 1px solid #1E242B; color: #5CC8E0;">en curso</div><div class="id" style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1E242B; text-align: right;">agent:claude</div>
+        <div class="id" style="padding: 10px 16px; border-bottom: 1px solid #1E242B;">WO-271</div><div style="padding: 10px 0; border-bottom: 1px solid #1E242B;">Reintento de subida con idempotencia</div><div style="padding: 10px 0; border-bottom: 1px solid #1E242B; color: #5CC8E0;">en curso</div><div class="id" style="padding: 10px 16px 10px 0; border-bottom: 1px solid #1E242B; text-align: right;">dev:martin</div>
+        <div class="id" style="padding: 10px 16px;">WO-274</div><div style="padding: 10px 0;">Resumen del importador en la CLI</div><div style="padding: 10px 0; color: #FF6B78;">fuera de sync</div><div class="id" style="padding: 10px 16px 10px 0; text-align: right;">agent:claude</div>
+      </div>
+    </section>
+  </main>
+
+  <aside style="display: flex; flex-direction: column; background: #0F1216; border-left: 1px solid #1E242B;">
+    <div style="padding: 16px 20px; border-bottom: 1px solid #1E242B; display: flex; align-items: center; justify-content: space-between;"><h2 style="margin: 0; font-size: 16px; font-weight: 600;">Drift en vivo</h2><span class="num" style="font-size: 13px; color: #FFB020;">3 abiertos</span></div>
+    <div style="display: flex; flex-direction: column;">
+      <div style="padding: 14px 20px; border-bottom: 1px solid #1E242B; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 12px; color: #FF6B78; font-weight: 600;">Error · código fuera de sync</span><span class="id" style="color: #E6EAEE;">packages/server/src/import/scan.ts</span><span style="font-size: 13px; color: #8A96A3;">SDD-012 · hace 4 min</span></div>
+      <div style="padding: 14px 20px; border-bottom: 1px solid #1E242B; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 12px; color: #FF6B78; font-weight: 600;">Error · orden fuera de sync</span><span style="font-size: 14px;"><span class="id">WO-274</span> quedó atrás tras cambiar <span class="id">SDD-012</span></span><span style="font-size: 13px; color: #8A96A3;">hace 12 min</span></div>
+      <div style="padding: 14px 20px; border-bottom: 1px solid #1E242B; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 12px; color: #FFB020; font-weight: 600;">Aviso · ciclo de vida</span><span style="font-size: 14px;"><span class="id">FB-007</span> lleva 3 días sin triar</span><span style="font-size: 13px; color: #8A96A3;">hace 3 d</span></div>
+    </div>
+    <div style="margin-top: auto; padding: 16px 20px; border-top: 1px solid #1E242B;"><div style="height: 40px; display: flex; align-items: center; justify-content: center; background: #E6EAEE; color: #0B0D10; font-weight: 600; font-size: 14px;">Reconocer drift</div></div>
+  </aside>
+</div>
+</x-dc>
+</body>
+</html>

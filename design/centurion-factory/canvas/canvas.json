@@ -1,0 +1,14 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "A · Planta de acero (recomendada)", "x": 0, "y": 0, "w": 1440, "h": 960 },
+    { "file": "SalaDeControl.dc.html", "title": "B · Sala de control", "x": 1600, "y": 0, "w": 1440, "h": 960 },
+    { "file": "PliegoCianotipo.dc.html", "title": "C · Pliego de cianotipo", "x": 3200, "y": 0, "w": 1440, "h": 960 }
+  ],
+  "annotations": [
+    { "id": "dir-a", "x": 0, "y": -300, "w": 640, "text": "A · Planta de acero (recomendada)\n\nMotivación: piso de acero claro y callado, con una sola banda oscura, la línea, donde vive toda la audacia. El amarillo andon se usa solo cuando la línea se frena, así que nunca se vuelve ruido. Archivo, con su eje de ancho, da jerarquía sin sumar familias.\n\nTradeoff: es la más alejada del Stark HUD actual, así que portarla a packages/app implica retematizar." },
+    { "id": "dir-b", "x": 1600, "y": -300, "w": 640, "text": "B · Sala de control\n\nMotivación: oscura y densa, evoluciona el Stark HUD actual. La línea es una matriz de celdas y el drift vive en un riel lateral siempre visible. Máxima densidad para quien la mira todo el día.\n\nTradeoff: el port a packages/app es el más barato, pero también es la más genérica (consola oscura) y el andon compite con el resto de los estados." },
+    { "id": "dir-c", "x": 3200, "y": -300, "w": 640, "text": "C · Pliego de cianotipo\n\nMotivación: toda la app es un plano técnico, con grilla, cotas punteadas y rótulo de plano al pie. Es la lectura más literal de 'blueprints' y la más memorable.\n\nTradeoff: la grilla de fondo y el azul saturado cansan en uso diario, las tablas densas pierden legibilidad y el cianotipo deja de distinguir a los blueprints." },
+    { "id": "tokens-critica", "x": 0, "y": 1080, "w": 1000, "text": "Sistema de tokens propuesto (dirección A)\n\nColor: Grafito #17191C (texto y banda de línea), Acero #E9ECEB (fondo), Cianotipo #1F4FA0 (acciones y blueprints), Andon #F5C400 (solo drift o parada; nunca texto sobre claro), Señal #1E7F4F (ok), Paro #B8322A (error). Neutros: superficie #FBFCFB, regla #C9CFCD, apagado #565D63.\nTipo: Archivo variable (ancho 112-125 % en titulares y KPIs, condensado en tablas) + IBM Plex Mono solo para ids, SHAs y rutas. Escala 12/14/16/20/28/44. Espaciado 4-48. Radio 2 px (placas) y 4 px (inputs).\n\nCrítica contra tells de IA\n- Crema + terracota: evitado. También descarté la consola oscura con glow cian por genérica.\n- Eyebrows en mayúsculas: ninguno; sentence case.\n- Cards idénticas con sombra: no hay cards. Banda a sangre, tablas planas con reglas, y sombra solo en overlays.\n- Flechas en botones, mono en labels, gradientes: fuera. Mono solo en identificadores reales.\n- 01/02/03: la secuencia la da la posición en la línea, no números.\n\nDatos: ids y títulos reales del grafo; FR-002, FR-003, SDD-012 y el drift son de muestra." }
+  ],
+  "launch": { "view": "canvas" }
+}

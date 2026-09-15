@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 960px; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+
+  <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
+      <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+      <div style="font-size: 13px; color: #565D63;">Proyecto prdmanager</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600; font-size: 15px;">Planta</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Árbol de features</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Documentos</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Órdenes de trabajo</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Drift <span class="num" style="min-width: 22px; height: 20px; padding: 0 6px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 12px; font-weight: 700; border-radius: 2px;">3</span></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Bandeja de entrada <span class="num" style="font-size: 13px; color: #565D63;">2</span></div>
+    </div>
+    <div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+      <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">AR</div>
+      <div style="display: flex; flex-direction: column;"><span style="font-size: 14px; font-weight: 600;">Ana Ríos</span><span style="font-size: 12px; color: #565D63;">Admin de proyecto</span></div>
+    </div>
+  </nav>
+
+  <main style="display: flex; flex-direction: column; gap: 24px; padding: 24px 32px; min-width: 0;">
+    <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Planta</h1>
+        <div style="font-size: 14px; color: #565D63;">Actualizado hace 4 min desde el reporte oficial de <span class="id">main</span></div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 320px; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; color: #565D63; font-size: 14px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          Buscar documentos, órdenes o código
+        </div>
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Nuevo documento</div>
+      </div>
+    </header>
+
+    <section style="position: relative; background: #17191C; color: #E9ECEB; margin: 0 -32px; padding: 24px 32px 28px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px;">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 700; font-stretch: 118%;">La línea</h2>
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: #C4CAD0;">
+          <span style="width: 10px; height: 10px; background: #F5C400; border-radius: 5px;"></span>
+          Línea detenida en Ejecución: 3 órdenes fuera de sincronía en <span class="id" style="color: #E9ECEB;">FR-002</span>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 280px repeat(6, minmax(0, 1fr)); column-gap: 0;">
+        <div style="font-size: 13px; color: #8E979F; padding-bottom: 10px;">Feature</div>
+        <div style="font-size: 13px; color: #C4CAD0; padding: 0 0 10px 12px; border-left: 1px solid #2E3338;">Ingesta</div>
+        <div style="font-size: 13px; color: #C4CAD0; padding: 0 0 10px 12px; border-left: 1px solid #2E3338;">Definición</div>
+        <div style="font-size: 13px; color: #C4CAD0; padding: 0 0 10px 12px; border-left: 1px solid #2E3338;">Diseño</div>
+        <div style="font-size: 13px; color: #C4CAD0; padding: 0 0 10px 12px; border-left: 1px solid #2E3338;">Planificación</div>
+        <div style="font-size: 13px; color: #17191C; font-weight: 700; padding: 0 0 10px 12px; background: #F5C400;">Ejecución</div>
+        <div style="font-size: 13px; color: #C4CAD0; padding: 0 0 10px 12px; border-left: 1px solid #2E3338;">Cierre</div>
+      </div>
+      <div style="display: flex; flex-direction: column;">
+        <div style="display: grid; grid-template-columns: 280px repeat(6, minmax(0, 1fr)); height: 48px; align-items: center; border-top: 1px solid #2E3338;">
+          <div style="display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">FR-002</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Importador incremental de repos</span></div>
+          <div style="grid-column: 2 / span 4; height: 2px; background: #E9ECEB;"></div>
+          <div style="display: flex; align-items: center; gap: 10px; height: 100%; padding-left: 12px; background: rgba(245, 196, 0, 0.14);"><span style="width: 14px; height: 14px; background: #F5C400;"></span><span class="num" style="font-size: 13px; color: #F5C400; font-weight: 600;">14/22 · parada</span></div>
+          <div></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 280px repeat(6, minmax(0, 1fr)); height: 48px; align-items: center; border-top: 1px solid #2E3338;">
+          <div style="display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">PRD-006</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Rediseño del frontend con datos mock</span></div>
+          <div style="grid-column: 2 / span 2; height: 2px; background: #E9ECEB;"></div>
+          <div style="display: flex; align-items: center; gap: 10px; padding-left: 12px;"><span style="width: 14px; height: 14px; background: #E9ECEB;"></span><span style="font-size: 13px; color: #C4CAD0;">canvas en revisión</span></div>
+          <div></div><div style="height: 100%; background: rgba(245, 196, 0, 0.14);"></div><div></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 280px repeat(6, minmax(0, 1fr)); height: 48px; align-items: center; border-top: 1px solid #2E3338;">
+          <div style="display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">FR-003</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Avisos de drift por rama</span></div>
+          <div style="height: 2px; background: #E9ECEB;"></div>
+          <div style="display: flex; align-items: center; gap: 10px; padding-left: 12px;"><span style="width: 14px; height: 14px; border: 2px solid #E9ECEB;"></span><span style="font-size: 13px; color: #C4CAD0;">borrador</span></div>
+          <div></div><div></div><div style="height: 100%; background: rgba(245, 196, 0, 0.14);"></div><div></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 280px repeat(6, minmax(0, 1fr)); height: 48px; align-items: center; border-top: 1px solid #2E3338;">
+          <div style="display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">FR-001</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Persistencia de borradores</span></div>
+          <div style="grid-column: 2 / span 5; height: 2px; background: #E9ECEB;"></div>
+          <div style="display: flex; align-items: center; gap: 10px; padding-left: 12px;"><span style="width: 14px; height: 14px; background: #6FCF9A;"></span><span class="num" style="font-size: 13px; color: #C4CAD0;">4/4 · falta reconocer</span></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 280px repeat(6, minmax(0, 1fr)); height: 48px; align-items: center; border-top: 1px solid #2E3338; border-bottom: 1px solid #2E3338;">
+          <div style="display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">PRD-005</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Plataforma SaaS colaborativa de PRDs</span></div>
+          <div style="grid-column: 2 / span 5; height: 2px; background: #6B7278;"></div>
+          <div style="display: flex; align-items: center; gap: 10px; padding-left: 12px;"><span style="width: 14px; height: 14px; background: #6FCF9A;"></span><span class="num" style="font-size: 13px; color: #8E979F;">cerrada · 245/245</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid #C9CFCD; border-bottom: 1px solid #C9CFCD;">
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px 16px 0;">
+        <span style="font-size: 14px; color: #565D63;">Resolución mediana de una orden</span>
+        <span class="num" style="font-size: 36px; font-weight: 700; font-stretch: 112%;">5 min</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px; border-left: 1px solid #C9CFCD;">
+        <span style="font-size: 14px; color: #565D63;">Código sincronizado</span>
+        <span class="num" style="font-size: 36px; font-weight: 700; font-stretch: 112%;">99,6 %</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px; border-left: 1px solid #C9CFCD;">
+        <span style="font-size: 14px; color: #565D63;">Features trazadas</span>
+        <span class="num" style="font-size: 36px; font-weight: 700; font-stretch: 112%;">100 %</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 0 16px 24px; border-left: 1px solid #C9CFCD;">
+        <span style="font-size: 14px; color: #565D63;">Commits con Refs</span>
+        <span class="num" style="font-size: 36px; font-weight: 700; font-stretch: 112%;">66,4 %</span>
+      </div>
+    </section>
+
+    <section style="display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 32px;">
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;"><h2 style="margin: 0; font-size: 20px; font-weight: 700;">Drift reciente</h2><a style="font-size: 14px;">Ver todo el drift</a></div>
+        <div style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 120px; font-size: 14px;">
+          <div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Severidad</div><div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Qué pasó</div><div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD; text-align: right;">Detectado</div>
+          <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; gap: 6px; color: #B8322A; font-weight: 600;"><span style="width: 8px; height: 8px; background: #B8322A;"></span>Error</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF;">Código fuera de sincronía en <span class="id">packages/server/src/import/scan.ts</span></div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">hace 4 min</div>
+          <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; gap: 6px; color: #B8322A; font-weight: 600;"><span style="width: 8px; height: 8px; background: #B8322A;"></span>Error</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF;"><span class="id">SDD-012</span> cambió y dejó <span class="id">WO-274</span> fuera de sincronía</div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">hace 12 min</div>
+          <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; gap: 6px; color: #7A5A00; font-weight: 600;"><span style="width: 8px; height: 8px; background: #F5C400;"></span>Aviso</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF;"><span class="id">FB-007</span> lleva 3 días sin triar</div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">hace 3 d</div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;"><h2 style="margin: 0; font-size: 20px; font-weight: 700;">Órdenes en curso</h2><a style="font-size: 14px;">Ver órdenes</a></div>
+        <div style="display: grid; grid-template-columns: 80px minmax(0, 1fr) 110px; font-size: 14px;">
+          <div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Orden</div><div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Título</div><div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD; text-align: right;">Asignada a</div>
+          <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF;">WO-268</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Escaneo incremental por hash de archivo</div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right;">agent:claude</div>
+          <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF;">WO-271</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Reintento de subida con idempotencia</div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right;">dev:martin</div>
+          <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF;">WO-274</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #B8322A;">Resumen del importador en la CLI</div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right;">agent:claude</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+</body>
+</html>
