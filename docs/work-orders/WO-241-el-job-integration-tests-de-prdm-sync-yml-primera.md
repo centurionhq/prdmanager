@@ -2,12 +2,17 @@
 id: "WO-241"
 type: "WO"
 title: "El job integration-tests de prdm-sync.yml (primera corrida real) falló en dos suites pre-existentes que ninguna corría en CI hasta ahora: packages/cli/tests/e2e/isolation-and-authoring.test.ts lee NEO4J_PASSWORD de un .env que no existe en el runner, y packages/server/tests/integration/password-rese"
-status: "pending"
+status: "done"
 created_at: "2026-09-15"
 implements: ["SDD-010"]
 impacts_paths: ["packages/server/src/**","packages/server/tests/**","packages/server/*.json","packages/mcp/src/**","packages/cli/src/**","packages/cli/tests/**","packages/cli/package.json","packages/core/src/**","packages/contracts/src/**","packages/contracts/tests/**","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/app/src/**","packages/app/tests/**","packages/app/*.config.ts","packages/testkit/src/**",".github/workflows/prdm-sync.yml",".gitignore","vitest.config.ts","README.md",".env.example","package.json","package-lock.json"]
 source_task: "0ea274bd8b5111bd"
 tags: ["saas","remote-mcp","sync","drift","cli","import","oidc"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T06:25:03.008Z"
+completed_at: "2026-09-15T06:26:49.202Z"
+resolved_by: ["b17ecc3f4a1654101e6e13aee7b426c52cfd8349"]
+blueprint_hashes: {"SDD-010":"a40225b83b2e4989ac23e7ba309a3abafe0491bdaf5ebdbdc7802d034f80760a"}
 ---
 
 ## Objetivo
