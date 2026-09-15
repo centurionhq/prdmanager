@@ -2,7 +2,7 @@
 id: "WO-252"
 type: "WO"
 title: "HIGH (rendimiento) — revisión final WO-203: el liveYDocCache (reconstruct-ydoc.ts, agregado en la revisión de performance de la Fase 5) solo se evict()a desde persistence.ts's onLoadDocument/afterUnloadDocument — es decir, solo cuando una sesión de Hocuspocus abre o cierra ese documento en vivo. Las"
-status: "in_progress"
+status: "done"
 created_at: "2026-09-15"
 implements: ["SDD-008"]
 impacts_paths: ["packages/collab/src/**","packages/collab/tests/**","packages/collab/*.json","packages/contracts/src/**","packages/contracts/tests/**","packages/server/src/**","packages/server/tests/**","packages/server/*.json","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/app/src/**","packages/app/tests/**","packages/app/*.json","packages/app/*.config.ts","package.json","package-lock.json","tsconfig.json","tsconfig.test.json","vitest.config.ts",".env.example","README.md"]
@@ -10,6 +10,9 @@ source_task: "ef4abf4f9cb969ba"
 tags: ["saas","realtime","yjs","blame","comments","versions"]
 assigned_to: "agent:claude"
 claimed_at: "2026-09-15T10:12:57.679Z"
+completed_at: "2026-09-15T10:48:40.811Z"
+resolved_by: ["cdd9faf2f3adfdf72ebd2ce8e0a4a2f1031c3da4"]
+blueprint_hashes: {"SDD-008":"7cd57f8db0d39dba7c4dd43c5994c3149c3a7a0a5e1187b1f0946722c1da2765"}
 ---
 
 ## Objetivo
