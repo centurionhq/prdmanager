@@ -1,7 +1,7 @@
-import { useEffect, useState, type ChangeEvent, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { Button, Modal } from '../../components';
-import { isValidSlug, slugify } from './lib';
 import styles from './ProyectosPage.module.css';
+import { useNewProjectForm } from './useNewProjectForm';
 
 export interface NewProjectInput {
   readonly name: string;
@@ -14,41 +14,9 @@ export interface NewProjectModalProps {
   readonly onCreate: (input: NewProjectInput) => void;
 }
 
-const SLUG_ERROR = 'Usá minúsculas, números y guiones.';
-
 /** "Nuevo proyecto" modal: name plus an auto-derived, editable slug (WO-303). */
 export function NewProjectModal({ open, onClose, onCreate }: NewProjectModalProps): ReactElement {
-  const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
-  const [slugTouched, setSlugTouched] = useState(false);
-  const [error, setError] = useState<string>();
-
-  useEffect(() => {
-    if (!open) return;
-    setName('');
-    setSlug('');
-    setSlugTouched(false);
-    setError(undefined);
-  }, [open]);
-
-  function handleNameChange(event: ChangeEvent<HTMLInputElement>): void {
-    const value = event.target.value;
-    setName(value);
-    if (!slugTouched) setSlug(slugify(value));
-  }
-
-  function handleSlugChange(event: ChangeEvent<HTMLInputElement>): void {
-    setSlugTouched(true);
-    setSlug(event.target.value);
-  }
-
-  function handleSubmit(): void {
-    if (!isValidSlug(slug)) {
-      setError(SLUG_ERROR);
-      return;
-    }
-    onCreate({ name: name.trim() || slug, slug });
-  }
+  const form = useNewProjectForm(open, onCreate);
 
   return (
     <Modal
@@ -60,7 +28,7 @@ export function NewProjectModal({ open, onClose, onCreate }: NewProjectModalProp
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="button" variant="primary" onClick={handleSubmit}>
+          <Button type="button" variant="primary" onClick={form.handleSubmit}>
             Crear proyecto
           </Button>
         </>
@@ -70,16 +38,16 @@ export function NewProjectModal({ open, onClose, onCreate }: NewProjectModalProp
         <label htmlFor="new-project-name" className={styles.label}>
           Nombre
         </label>
-        <input id="new-project-name" className={styles.textInput} value={name} onChange={handleNameChange} />
+        <input id="new-project-name" className={styles.textInput} value={form.name} onChange={form.handleNameChange} />
       </div>
       <div className={styles.fieldGroup}>
         <label htmlFor="new-project-slug" className={styles.label}>
           Slug
         </label>
-        <input id="new-project-slug" className={styles.textInput} value={slug} onChange={handleSlugChange} />
-        {error ? (
+        <input id="new-project-slug" className={styles.textInput} value={form.slug} onChange={form.handleSlugChange} />
+        {form.error ? (
           <p role="alert" className={styles.fieldError}>
-            {error}
+            {form.error}
           </p>
         ) : null}
       </div>
