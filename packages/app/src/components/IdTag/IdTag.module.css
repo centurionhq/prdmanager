@@ -1,0 +1,11 @@
+.idTag {
+  color: var(--grafito);
+}
+
+.blueprint {
+  color: var(--cianotipo);
+}
+
+.muted {
+  color: var(--apagado);
+}

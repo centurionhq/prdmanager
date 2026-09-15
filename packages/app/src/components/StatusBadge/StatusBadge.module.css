@@ -1,0 +1,76 @@
+.badge {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.archived {
+  background: var(--relleno);
+  border-color: var(--regla-fila);
+}
+
+.mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+}
+
+.markHollow {
+  border: 1.5px solid var(--apagado);
+}
+
+.markCianotipo {
+  background: var(--cianotipo);
+}
+
+.markSenal {
+  background: var(--senal);
+}
+
+.markParo {
+  background: var(--paro);
+}
+
+.markApagado {
+  background: var(--apagado);
+}
+
+.markAndon {
+  background: var(--andon);
+}
+
+.markRegla {
+  background: var(--regla);
+}
+
+.toneNeutral {
+  color: var(--texto-secundario);
+}
+
+.toneCianotipo {
+  color: var(--cianotipo);
+}
+
+.toneSenal {
+  color: var(--senal-texto);
+}
+
+.toneParo {
+  color: var(--paro);
+}
+
+.toneApagado {
+  color: var(--apagado);
+}
+
+.toneAndon {
+  color: var(--andon-texto);
+}
