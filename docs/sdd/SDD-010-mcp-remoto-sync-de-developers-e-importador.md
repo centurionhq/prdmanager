@@ -94,5 +94,6 @@ Unitarios de contratos, adaptador de drift, verificación de claims OIDC con JWK
 - [ ] Guía en README de login, link, import, mcp-proxy, hooks y workflow de GitHub Actions con permisos id-token, PRDM_SERVER, PRDM_TOKEN en un Environment de la rama por defecto y sin pull_request_target
 - [ ] Correcciones de la revisión final paralela de arquitectura, seguridad y rendimiento
 - [ ] Dogfooding con sync --check en 0 y cobertura de 80% o más
+- [ ] Corregir flakiness de CI en el test de runMcpProxy: reemplazar la espera fija de 50ms por una espera basada en el evento real de envío del relay, ya que falló en el runner de CI más lento
 
 El cierre de PRD-005 con `prdm close PRD-005 --ack` no es una tarea: se ejecuta cuando todos los WOs de ADR-005, ADR-006 y SDD-006 a SDD-010 están terminados.
