@@ -2,20 +2,20 @@ import { randomBytes } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { DRAFT_KINDS, docId, getWorkOrderContext, templateFor, type DraftKind } from '@prdm/core';
-import type { PrdmDeps } from './deps.js';
+import { requireAuthoring, type PrdmDeps } from './deps.js';
 import { ensureRecovered } from './recover.js';
 import { jsonText } from './shared.js';
 
 const PROJECT_CONTEXT_CAP = 100;
 const FENCE_SUFFIX_BYTES = 4;
 
-/** Per-request random suffix so an attacker embedding a document/artifact body can never predict (and thus never close) the real fence tag. */
-function fenceTag(name: string): string {
+/** Per-request random suffix so an attacker embedding a document/artifact body can never predict (and thus never close) the real fence tag. Exported (WO-129) via `@prdm/mcp/lib` for reuse outside this module. */
+export function fenceTag(name: string): string {
   return `${name}_${randomBytes(FENCE_SUFFIX_BYTES).toString('hex')}`;
 }
 
-/** Untrusted content (titles, statuses, artifact/feedback bodies) can never forge or close a `<tag>`/`</tag>` fence once `<`/`>` are escaped. */
-function escapeFenceChars(text: string): string {
+/** Untrusted content (titles, statuses, artifact/feedback bodies) can never forge or close a `<tag>`/`</tag>` fence once `<`/`>` are escaped. Exported (WO-129) via `@prdm/mcp/lib` for reuse outside this module. */
+export function escapeFenceChars(text: string): string {
   return text.replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
 }
 
@@ -58,7 +58,7 @@ async function projectContextBlock(deps: PrdmDeps, parentId?: string): Promise<s
   const subgraph = await deps.store.fullGraph();
   const relevant = subgraph.nodes.filter((n) => n.label === 'Feature' || n.label === 'Blueprint').slice(0, PROJECT_CONTEXT_CAP);
   const featureLines = relevant.map((n) => escapeFenceChars(`- ${n.ref}: ${n.title} (${n.status ?? 'unknown'})`));
-  const drafts = deps.authoring.list();
+  const drafts = requireAuthoring(deps).list();
   const draftLines = drafts.map((d) => escapeFenceChars(`- ${d.draftId}: ${d.kind} ${d.targetId} (revision ${d.revision})`));
 
   const tag = fenceTag('project_context');
@@ -100,7 +100,9 @@ function instructions(id: string): string[] {
   ];
 }
 
-export function registerPrdmPrompts(server: McpServer, deps: PrdmDeps): void {
+/** `implement_work_order` (SDD-010's remote profile, WO-184): the only prompt ever exposed remotely —
+ * `author_artifact` (below) is dashboard/local-only, since authoring never happens over the remote MCP. */
+export function registerImplementWorkOrderPrompt(server: McpServer, deps: PrdmDeps): void {
   server.registerPrompt(
     'implement_work_order',
     {
@@ -125,7 +127,10 @@ export function registerPrdmPrompts(server: McpServer, deps: PrdmDeps): void {
       return { messages: [{ role: 'user' as const, content: { type: 'text' as const, text } }] };
     },
   );
+}
 
+/** `author_artifact`: local/stdio profile only (authoring is dashboard/local-only over the remote MCP). */
+export function registerAuthorArtifactPrompt(server: McpServer, deps: PrdmDeps): void {
   server.registerPrompt(
     'author_artifact',
     {
@@ -163,4 +168,10 @@ export function registerPrdmPrompts(server: McpServer, deps: PrdmDeps): void {
       return { messages: [{ role: 'user' as const, content: { type: 'text' as const, text } }] };
     },
   );
+}
+
+/** Full local/stdio prompt set: `implement_work_order` + `author_artifact`. */
+export function registerPrdmPrompts(server: McpServer, deps: PrdmDeps): void {
+  registerImplementWorkOrderPrompt(server, deps);
+  registerAuthorArtifactPrompt(server, deps);
 }

@@ -4,12 +4,17 @@
   "description": "prdm-graph MCP server exposing the Product & Context Graph Engine over stdio",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "bin": {
     "prdm-graph": "dist/server.js"
   },
   "exports": {
+    "./lib": {
+      "@prdm/source": "./src/lib.ts",
+      "types": "./dist/lib.d.ts",
+      "import": "./dist/lib.js"
+    },
     ".": {
       "@prdm/source": "./src/server.ts",
       "types": "./dist/server.d.ts",
@@ -21,6 +26,7 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
+    "@prdm/contracts": "0.2.0",
     "@prdm/core": "0.2.0",
     "zod": "4.6.3"
   }

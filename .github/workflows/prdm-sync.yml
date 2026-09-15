@@ -9,6 +9,24 @@
 #
 # Optional repository secret NEO4J_PASSWORD; without it a throwaway password is used for the ephemeral
 # service container, which is only reachable from this job's runner and holds no data beyond the CI run.
+#
+# WO-200 (SDD-010 §"CI en .github/workflows/prdm-sync.yml con servicio Postgres..."): three more jobs,
+# alongside `sync-check` above rather than folded into it, since each has its own service-container shape
+# and none of them gates on the others:
+#  - `npm-audit`: fast, no services, `npm audit --audit-level=high` (see that job's own comment for why
+#    that threshold and not "any finding at all").
+#  - `integration-tests`: the real Postgres+Neo4j-backed suites (`packages/*/tests/integration/**` and
+#    friends) that `sync-check`'s own `npm run test:unit` deliberately never touches — this is the first
+#    time this repository's own CI ever runs them.
+#  - `e2e`: WO-201's Playwright journey against a real, in-process `buildServer()` instance (see
+#    `packages/server/tests/e2e/harness.ts`), needing the same two services plus the built `@prdm/app` SPA.
+#
+# `integration-tests` and `e2e` each bootstrap their own ephemeral Postgres's `prdm_app` role *after*
+# checkout, by running `docker/postgres/init/01-roles.sh` directly against the service (rather than
+# mounting it as the service's own `docker-entrypoint-initdb.d`): GitHub Actions starts `services:`
+# containers before any step — including `actions/checkout` — ever runs, so a bind-mount of a path inside
+# this repository's own checkout isn't available yet at service-start time the way `docker-compose.yml`'s
+# local `postgres`/`postgres-test` services can rely on.
 name: prdm-sync
 
 on:
@@ -52,7 +70,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
 
       - run: npm ci
 
@@ -123,3 +141,205 @@ jobs:
       - name: "Check the Refs: policy over the range"
         if: steps.base.outputs.adopted == 'true'
         run: node prdm-base/packages/cli/dist/index.js check commits --range "${{ steps.range.outputs.range }}"
+
+  npm-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - run: npm ci
+
+      # `--audit-level=high`: this repository's current `npm audit` (checked when this job was written)
+      # reports only moderate-severity, dev-only transitive advisories (`esbuild`'s dev-server request
+      # forgery, pulled in through `drizzle-kit`'s own `@esbuild-kit/*` dependency chain — never present in
+      # anything this server actually ships or runs in production), fixable only via a breaking
+      # `drizzle-kit` downgrade. Failing the build on every low/moderate transitive advisory a dev
+      # dependency happens to pull in would make this job noisy without making the shipped product any
+      # safer; failing on high/critical keeps it meaningful. Revisit the threshold (or fix the moderate
+      # findings directly) if `npm audit`'s own output changes.
+      - run: npm audit --audit-level=high
+
+  integration-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      neo4j:
+        image: neo4j:2026.08.1-community
+        env:
+          NEO4J_AUTH: neo4j/${{ secrets.NEO4J_PASSWORD || 'prdm-ci-ephemeral-neo4j' }}
+          NEO4J_PLUGINS: '["apoc"]'
+          NEO4J_dbms_security_procedures_allowlist: "apoc.path.*,apoc.coll.*,apoc.meta.*,apoc.version"
+        # Mapped to 7688 (never 7687, `sync-check`'s own service port): `@prdm/testkit`'s `testConfig`
+        # refuses to run if its own Neo4j URI matches the "development" one, and defaults to
+        # `neo4j://127.0.0.1:7688` when `NEO4J_TEST_URI` isn't set — the same port `docker-compose.yml`'s
+        # local `neo4j-test` service already uses for exactly this reason.
+        ports:
+          - 7688:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p ${NEO4J_AUTH#neo4j/} 'RETURN 1'"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 30
+          --health-start-period 20s
+
+      postgres:
+        image: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
+        env:
+          POSTGRES_USER: prdm_owner
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'prdm-ci-ephemeral-owner' }}
+          POSTGRES_DB: prdm
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U prdm_owner -d prdm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 10s
+
+      # WO-241: `packages/server/tests/integration/password-reset.test.ts`'s real-SMTP-delivery case
+      # needs an actual mailpit reachable at 127.0.0.1:1025 — the same image/ports `docker-compose.yml`'s
+      # local `mailpit` service already uses, so behavior matches local dev exactly.
+      mailpit:
+        image: axllent/mailpit:v1.31.1@sha256:98b916bd3c8d61f7633a52d3ea2f58d00620cb01ca57ab59edde68c347a95365
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    env:
+      # `NEO4J_URI` deliberately left unset (defaults to 7687, matching `loadConfig`'s own default) —
+      # `testConfig` only ever needs it to *differ* from `NEO4J_TEST_URI` below; nothing in this job ever
+      # connects to 7687 at all.
+      NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD || 'prdm-ci-ephemeral-neo4j' }}
+      NEO4J_TEST_URI: neo4j://127.0.0.1:7688
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'prdm-ci-ephemeral-owner' }}
+      POSTGRES_APP_PASSWORD: ${{ secrets.POSTGRES_APP_PASSWORD || 'prdm-ci-ephemeral-app' }}
+      DATABASE_TEST_MIGRATION_URL: postgres://prdm_owner:${{ secrets.POSTGRES_PASSWORD || 'prdm-ci-ephemeral-owner' }}@127.0.0.1:5433/prdm
+      DATABASE_TEST_URL: postgres://prdm_app:${{ secrets.POSTGRES_APP_PASSWORD || 'prdm-ci-ephemeral-app' }}@127.0.0.1:5433/prdm
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - run: npm ci
+
+      # `docker-entrypoint-initdb.d` only runs at first container init, which for a `services:` container
+      # happens *before* this checkout exists (see this workflow's own top-of-file comment) — so the
+      # `prdm_app` role this repository's own migrations/tests expect is created here instead, by running
+      # the exact same idempotent script `docker-compose.yml`'s local Postgres already uses.
+      - name: "Bootstrap the prdm_app role on the CI Postgres service"
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5433"
+          PGPASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'prdm-ci-ephemeral-owner' }}
+          POSTGRES_USER: prdm_owner
+          POSTGRES_DB: prdm
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends postgresql-client
+          bash docker/postgres/init/01-roles.sh
+
+      # WO-241: `packages/cli/tests/e2e/isolation-and-authoring.test.ts` (pre-existing, PRD-002-era) reads
+      # `NEO4J_PASSWORD` straight from a real `.env` file rather than `process.env` — this is the first CI
+      # job to ever run it, since `sync-check`'s own `npm run test:unit` never touches `tests/e2e/`. Writes
+      # only the one line that helper needs, mirroring the value already set above via `env:`.
+      - name: "Write the .env line packages/cli/tests/e2e/helpers.ts reads directly"
+        run: echo "NEO4J_PASSWORD=${{ secrets.NEO4J_PASSWORD || 'prdm-ci-ephemeral-neo4j' }}" > .env
+
+      # A handful of this suite's own unit tests (e.g. `packages/cli/tests/unit/mcp-proxy.test.ts`) spawn
+      # `packages/cli/dist/index.js` directly, same as `sync-check`'s own build-before-test order.
+      - run: npm run build
+
+      # The full suite (unit + integration + collab + learning), not just `packages/*/tests/integration`:
+      # this is the first CI job with both a real Postgres and a real Neo4j available, so there is no
+      # reason to re-derive a narrower path list the way `test:unit` does — a little overlap with
+      # `sync-check`'s own unit run is a fair trade for one single, simple, unambiguous "did everything
+      # pass against real services" command.
+      - run: npm test
+
+  e2e:
+    runs-on: ubuntu-latest
+
+    services:
+      neo4j:
+        image: neo4j:2026.08.1-community
+        env:
+          NEO4J_AUTH: neo4j/${{ secrets.NEO4J_PASSWORD || 'prdm-ci-ephemeral-neo4j' }}
+          NEO4J_PLUGINS: '["apoc"]'
+          NEO4J_dbms_security_procedures_allowlist: "apoc.path.*,apoc.coll.*,apoc.meta.*,apoc.version"
+        ports:
+          - 7688:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p ${NEO4J_AUTH#neo4j/} 'RETURN 1'"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 30
+          --health-start-period 20s
+
+      postgres:
+        image: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
+        env:
+          POSTGRES_USER: prdm_owner
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'prdm-ci-ephemeral-owner' }}
+          POSTGRES_DB: prdm
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U prdm_owner -d prdm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 10s
+
+    env:
+      NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD || 'prdm-ci-ephemeral-neo4j' }}
+      NEO4J_TEST_URI: neo4j://127.0.0.1:7688
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'prdm-ci-ephemeral-owner' }}
+      POSTGRES_APP_PASSWORD: ${{ secrets.POSTGRES_APP_PASSWORD || 'prdm-ci-ephemeral-app' }}
+      DATABASE_TEST_MIGRATION_URL: postgres://prdm_owner:${{ secrets.POSTGRES_PASSWORD || 'prdm-ci-ephemeral-owner' }}@127.0.0.1:5433/prdm
+      DATABASE_TEST_URL: postgres://prdm_app:${{ secrets.POSTGRES_APP_PASSWORD || 'prdm-ci-ephemeral-app' }}@127.0.0.1:5433/prdm
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - run: npm ci
+
+      - name: "Bootstrap the prdm_app role on the CI Postgres service"
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5433"
+          PGPASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'prdm-ci-ephemeral-owner' }}
+          POSTGRES_USER: prdm_owner
+          POSTGRES_DB: prdm
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends postgresql-client
+          bash docker/postgres/init/01-roles.sh
+
+      # WO-201's journey drives a real browser against the actual built SPA (`buildServer`'s own
+      # `staticDir` serving, `packages/server/tests/e2e/harness.ts`) — never the Vite dev server.
+      - run: npm run build --workspace=@prdm/app
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: "Run the WO-201 Playwright journey"
+        run: NODE_OPTIONS=--conditions=@prdm/source npx playwright test -c packages/server/tests/e2e/playwright.config.ts
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: packages/server/test-results
+          retention-days: 7

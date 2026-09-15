@@ -4,9 +4,14 @@
   "description": "Product & Context Graph Engine core: domain, parser, graph, sync, work orders, feedback, artifacts and metrics",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "exports": {
+    "./domain": {
+      "@prdm/source": "./src/domain/index.ts",
+      "types": "./dist/domain/index.d.ts",
+      "import": "./dist/domain/index.js"
+    },
     ".": {
       "@prdm/source": "./src/index.ts",
       "types": "./dist/index.d.ts",

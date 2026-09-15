@@ -1,6 +1,5 @@
 import { ACTOR_PATTERN, ID_PATTERN, SHA_PATTERN, type ParsedDoc } from '../domain/schema.js';
-import type { Engine } from '../engine.js';
-import { readCommit } from '../sync/git.js';
+import type { EngineOps, ProjectEngine } from '../engine.js';
 import type { DriftIssue } from '../sync/monitor.js';
 
 type WorkOrderDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'WO' }> };
@@ -21,7 +20,7 @@ export interface ClaimResult {
 }
 
 /** Claims a pending/out_of_sync work order for an actor, moving it to in_progress. */
-export async function claimWorkOrder(engine: Engine, id: string, assignee: string, now: Date = new Date()): Promise<ClaimResult> {
+export async function claimWorkOrder(engine: ProjectEngine, id: string, assignee: string, now: Date = new Date()): Promise<ClaimResult> {
   if (!ACTOR_PATTERN.test(assignee)) throw new Error(`invalid assignee: ${assignee} (expected agent:name or dev:name)`);
 
   return engine.transaction(async (ops) => {
@@ -38,10 +37,34 @@ export async function claimWorkOrder(engine: Engine, id: string, assignee: strin
   });
 }
 
-async function verifyResolvingCommit(root: string, id: string, sha: string): Promise<string> {
-  const commit = await readCommit(root, sha);
-  if (!commit) throw new Error(`commit ${sha} was not found in the repository`);
-  if (!commit.refs.includes(id)) throw new Error(`commit ${sha} does not reference ${id}; add the trailer "Refs: ${id}" to its message`);
+/**
+ * Thrown by {@link verifyResolvingCommit} for either failure mode: the sha resolves to nothing at all
+ * (SDD-007: `EngineOps.readCommit` only ever answers a commit that arrived through a CI-verified
+ * baseline report — an unreported sha or one only ever reported as a preview looks identical to an
+ * unknown one), or it resolves but its message carries no `Refs: <id>` trailer for this work order.
+ * Named (rather than a bare `Error`) so a caller with a distinct, actionable error code to report — the
+ * remote MCP's `complete_work_order` (SDD-010, WO-186) — can `instanceof`-match it instead of parsing
+ * an error message string.
+ */
+export class CommitNotVerifiedError extends Error {
+  constructor(
+    readonly sha: string,
+    readonly workOrderId: string,
+    readonly reason: 'not_found' | 'missing_refs',
+  ) {
+    super(
+      reason === 'not_found'
+        ? `commit ${sha} was not found in the repository`
+        : `commit ${sha} does not reference ${workOrderId}; add the trailer "Refs: ${workOrderId}" to its message`,
+    );
+    this.name = 'CommitNotVerifiedError';
+  }
+}
+
+async function verifyResolvingCommit(ops: Pick<EngineOps, 'readCommit'>, id: string, sha: string): Promise<string> {
+  const commit = await ops.readCommit(sha);
+  if (!commit) throw new CommitNotVerifiedError(sha, id, 'not_found');
+  if (!commit.refs.includes(id)) throw new CommitNotVerifiedError(sha, id, 'missing_refs');
   return commit.sha;
 }
 
@@ -59,7 +82,7 @@ export interface CompleteResult {
 }
 
 /** Completes an in_progress/out_of_sync work order, recording the current content hash of every blueprint it implements. */
-export async function completeWorkOrder(engine: Engine, id: string, options: CompleteOptions = {}): Promise<CompleteResult> {
+export async function completeWorkOrder(engine: ProjectEngine, id: string, options: CompleteOptions = {}): Promise<CompleteResult> {
   const { commitSha, now = new Date() } = options;
   if (commitSha !== undefined && !SHA_PATTERN.test(commitSha)) throw new Error(`invalid commit sha: ${commitSha}`);
 
@@ -70,7 +93,7 @@ export async function completeWorkOrder(engine: Engine, id: string, options: Com
       throw new Error(`cannot complete ${id}: status is ${doc.frontmatter.status}, expected in_progress or out_of_sync`);
     }
 
-    const resolvingSha = commitSha ? await verifyResolvingCommit(ops.config.root, id, commitSha) : null;
+    const resolvingSha = commitSha ? await verifyResolvingCommit(ops, id, commitSha) : null;
     const completedAt = now.toISOString();
     const resolvedBy = resolvingSha ? [...new Set([...doc.frontmatter.resolved_by, resolvingSha])] : doc.frontmatter.resolved_by;
     const blueprintHashes = Object.fromEntries(

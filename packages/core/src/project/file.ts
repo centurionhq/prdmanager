@@ -60,8 +60,8 @@ function isPrintableName(name: string): boolean {
   return true;
 }
 
-const projectIdSchema = z.string().regex(PROJECT_ID_PATTERN, 'invalid project id (expected prj_ followed by 16 hex chars)');
-const projectNameSchema = z
+export const projectIdSchema = z.string().regex(PROJECT_ID_PATTERN, 'invalid project id (expected prj_ followed by 16 hex chars)');
+export const projectNameSchema = z
   .string()
   .min(1)
   .max(100)
@@ -180,6 +180,68 @@ function mergeFolders(docsDir: string, overrides: Partial<FolderMap>): FolderMap
   return { ...defaultFoldersForDocsDir(docsDir), ...overrides } as FolderMap;
 }
 
+/** Same shape as `rawProjectFileSchema`'s `folders`/`ignore`/`git`/`triage`/`lifecycle` fields, minus
+ * `version`/`project`/`docs_dir`/`authoring` — the subset of a server's `governance` response (SDD-010,
+ * WO-190) this function actually validates. Deliberately NOT `z.strictObject`: the full response
+ * (`@prdm/contracts`'s `projectSettingsSchema`) also carries `default_branch`/`github_repository*`/
+ * `hash_algo_version`, which are real, legitimate fields this function was never asked to validate (they
+ * have no `.prdm.yaml` counterpart to hold them to the same rules) — rejecting them here would mean this
+ * "validate the subset" function can never be pointed at the actual full object it's a subset of. */
+const governedSubsetSchema = z.object({
+  folders: z.strictObject(folderShape).prefault({}),
+  ignore: z.array(z.string().min(1)).default([]),
+  git: gitFileSchema,
+  triage: triageFileSchema,
+  lifecycle: lifecycleFileSchema,
+});
+
+export interface GovernedSettings {
+  docsDir: string;
+  folders: FolderMap;
+  ignore: string[];
+  git: GitSettings;
+  triage: TriageSettings;
+  lifecycle: LifecycleSettings;
+}
+
+/**
+ * Validates settings that arrive already parsed as JS — never raw YAML text — with the *exact same*
+ * rules `.prdm.yaml`'s own `folders`/`ignore`/`git`/`triage`/`lifecycle` fields get (SDD-010, WO-190:
+ * "la CLI los valida con las mismas reglas que .prdm.yaml"). Used for a remote project's server-sent
+ * `governance` settings, which a compromised/malicious server could in principle mis-shape — re-running
+ * them through the identical schema this module already applies to a local, untrusted `.prdm.yaml` means
+ * there is no second, potentially looser, validator to keep in sync.
+ *
+ * `docsDir` defaults to `'docs'`: the wire format this validates (`@prdm/contracts`'s
+ * `projectSettingsSchema`) has no `docs_dir` field at all (a project-identity concern the server settings
+ * blob deliberately excludes) — every published document's exact `sourcePath` already travels with it in
+ * the same `governance` response, so nothing downstream actually needs `folders`/`docsDir` to *locate* a
+ * document; they are validated here purely because SDD-010 names them among the server-authoritative
+ * fields.
+ */
+export function parseGovernedSettings(raw: unknown, docsDir = 'docs'): GovernedSettings {
+  const result = governedSubsetSchema.safeParse(raw);
+  if (!result.success) throw new Error(`invalid governed settings: ${result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')}`);
+  const data = result.data;
+
+  const folders = mergeFolders(docsDir, data.folders as Partial<FolderMap>);
+  for (const kind of DOC_KINDS) assertFolderPath(kind, folders[kind], docsDir);
+
+  return {
+    docsDir,
+    folders,
+    ignore: data.ignore,
+    git: { maxCommits: data.git.max_commits, enforceRefs: data.git.enforce_refs, enforceRefsSince: data.git.enforce_refs_since },
+    triage: {
+      autoLinkMinScore: data.triage.auto_link_min_score,
+      autoLinkMargin: data.triage.auto_link_margin,
+      maxCandidates: data.triage.max_candidates,
+      minMatchedTerms: data.triage.min_matched_terms,
+    },
+    lifecycle: { grandfathered: data.lifecycle.grandfathered },
+  };
+}
+
 function toSettings(raw: RawProjectFile): ProjectFileSettings {
   const folders = mergeFolders(raw.docs_dir, raw.folders as Partial<FolderMap>);
   assertSafeRelativePath('docs_dir', raw.docs_dir);
@@ -206,7 +268,12 @@ function toSettings(raw: RawProjectFile): ProjectFileSettings {
   };
 }
 
-function parseProjectFileUnsafe(src: string): ProjectFileSettings {
+/**
+ * Shared, hardened YAML-to-JS step (ADR-002 D7/D8: size limit, no custom tags/anchors/aliases, secret-key
+ * scan) reused by both the v1 (`parseProjectFile`) and v2/`remote` (`project/remote-file.ts`) parsers, so
+ * a future format never has to re-derive this hardening from scratch.
+ */
+export function parseProjectYamlRoot(src: string): unknown {
   if (Buffer.byteLength(src, 'utf8') > MAX_PROJECT_FILE_BYTES) throw new Error(`file exceeds ${MAX_PROJECT_FILE_BYTES} bytes`);
 
   const doc = parseDocument(src, YAML_PARSE_OPTIONS);
@@ -217,6 +284,25 @@ function parseProjectFileUnsafe(src: string): ProjectFileSettings {
   const root: unknown = doc.toJS(YAML_TO_JS_OPTIONS);
   if (root === null || typeof root !== 'object' || Array.isArray(root)) throw new Error('root must be a mapping');
   assertNoSecretKeys(root);
+  return root;
+}
+
+/** `.prdm.yaml`'s `version` field, read leniently (no full schema validation) purely to decide which
+ * parser applies — `undefined`/anything else falls through to {@link rawProjectFileSchema}'s own error
+ * for that case, unchanged from before `version: 2` existed. */
+function peekVersion(root: unknown): unknown {
+  return (root as { version?: unknown }).version;
+}
+
+function parseProjectFileUnsafe(src: string): ProjectFileSettings {
+  const root = parseProjectYamlRoot(src);
+
+  // WO-188: a `version: 2` (`remote`) file is a different, valid format this function was never meant to
+  // parse — surfaced as one clear, actionable message (SDD-010) instead of `rawProjectFileSchema`'s
+  // generic "invalid literal" error a `version: z.literal(1)` mismatch would otherwise produce.
+  if (peekVersion(root) === 2) {
+    throw new Error('.prdm.yaml has "version: 2" (a remote project), which requires a version of prdm that supports "remote" projects; upgrade the prdm CLI');
+  }
 
   const result = rawProjectFileSchema.safeParse(root);
   if (!result.success) throw new Error(result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; '));

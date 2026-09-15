@@ -1,0 +1,1 @@
+ALTER TABLE "documents" ADD COLUMN "pending_editable_patch" jsonb;

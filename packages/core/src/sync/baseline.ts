@@ -18,6 +18,13 @@ export function emptyBaseline(): Baseline {
 export async function loadBaseline(root: string): Promise<Baseline> {
   const raw = await safeReadFile(root, BASELINE_PATH);
   if (raw === null) return emptyBaseline();
+  return parseBaselineJson(raw);
+}
+
+/** Pure counterpart of `loadBaseline` for a `.prdm/baseline.json` string already in hand (SDD-010
+ * "Importador", WO-193: `prdm link --import` uploads the raw text, and the server re-validates it with
+ * this exact schema — never a second, hand-rolled one). */
+export function parseBaselineJson(raw: string): Baseline {
   let json: unknown;
   try {
     json = JSON.parse(raw);

@@ -1,0 +1,32 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "types": ["vite/client"],
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "sourceMap": true,
+    "composite": true,
+    "noEmit": true,
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  // Deliberately not referencing "../contracts"/"../ui" as TS project references (unlike e.g.
+  // packages/server, which does reference "../contracts"): `../ui`'s own tsconfig.json sets `noEmit: true`
+  // (it's consumed straight as TS source, no build step — see its own doc comment), and `tsc -b` rejects
+  // referencing a project that disables emit (TS6310). `packages/web/src/client`'s own tsconfig has the
+  // exact same shape (only references "../core") despite also importing `@prdm/ui` at runtime — type
+  // resolution for both `@prdm/contracts` and `@prdm/ui` instead goes through `moduleResolution: "bundler"`
+  // honoring `tsconfig.base.json`'s `customConditions: ["@prdm/source"]`, which both packages' `exports`
+  // maps straight to their `.ts` source, no reference or prior build required.
+  "references": [{ "path": "../core" }]
+}

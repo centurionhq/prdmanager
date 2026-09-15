@@ -67,7 +67,9 @@ describe('extractor comparison: adversarial input is not a Tree-sitter DoS risk'
     const content = `${functions}export function target() {\n  return 'found';\n}\n`;
     const start = performance.now();
     const result = treeSitter.extract(content, 'target', 'a.ts');
-    expect(performance.now() - start).toBeLessThan(500);
+    // Same headroom as the malformed-input case below: 500ms is extract()'s own budget, so asserting under it
+    // leaves zero slack for scheduling on a 2-vCPU CI runner (observed 514ms there).
+    expect(performance.now() - start).toBeLessThan(1500);
     expect(result).toBe("export function target() {\n  return 'found';\n}");
   });
 

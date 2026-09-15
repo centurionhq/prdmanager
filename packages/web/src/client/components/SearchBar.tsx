@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement, type RefObject } from 'react';
 import type { SearchHit } from '@prdm/core';
+import { useSelection } from '@prdm/ui';
 import { search } from '../api/client';
-import { useSelection } from '../state/selection';
 import styles from './SearchBar.module.css';
 
 /**

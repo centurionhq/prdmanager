@@ -2,14 +2,12 @@ import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import picomatch from 'picomatch';
 import { parseProjectFile, type ProjectFileSettings } from '../project/file.js';
 import { DEFAULT_LIFECYCLE } from '../project/types.js';
 import { findNestedProjectRoots } from '../project/discover.js';
-import { parseDocument } from '../parser/frontmatter.js';
-import type { Frontmatter } from '../domain/schema.js';
 import { parseRefs } from './git.js';
 import { evaluateCommit, isGovernedPath, isPathCoveredByRefs, type EvaluateCommitResult, type PolicyDoc } from './commit-policy.js';
+import { GitPolicyDocsSource, isInsideNested, type PolicyDocsSource } from './policy-docs-source.js';
 
 const run = promisify(execFile);
 const MAX_BUFFER = 64 * 1024 * 1024;
@@ -94,6 +92,17 @@ async function projectPrefix(root: string): Promise<string> {
   return out ? out.trim() : '';
 }
 
+/** `{ git, prefix }` for a `GitPolicyDocsSource` bound to `root`, reusing this module's own hardened git
+ * helpers (WO-196) — the default `PolicyDocsSource` `checkCommitMessage`/`checkCommitRange` use unless a
+ * caller supplies its own (e.g. a future remote-mode source, WO-197/WO-198). */
+function defaultPolicyDocsSource(root: string): PolicyDocsSource {
+  let prefixPromise: Promise<string> | undefined;
+  return new GitPolicyDocsSource({
+    git: (args) => git(root, args),
+    prefix: () => (prefixPromise ??= projectPrefix(root)),
+  });
+}
+
 /** Repo-relative -> project-relative: drops anything outside `prefix` and strips it from the rest. */
 function stripPrefix(prefix: string, paths: readonly string[]): string[] {
   if (!prefix) return [...paths];
@@ -127,66 +136,9 @@ async function changedPathsForCommit(root: string, prefix: string, parent1: stri
   return diffNamesBetween(root, prefix, parent1, sha);
 }
 
-/**
- * `ref === 'INDEX'` lists the staged tree; any other ref is a commit-ish (`HEAD`, a sha, `HEAD^`, ...). Both
- * `ls-tree` and `ls-files` implicitly restrict themselves to (and report paths relative to) `cwd`, so when `root`
- * is a subdirectory of the git repository (WO-024 finding 2) these are already project-relative with no further
- * work. `-z` (WO-024 finding 1c) keeps non-ASCII paths intact regardless of `core.quotepath`.
- */
-async function markdownPathsAt(root: string, ref: string): Promise<string[]> {
-  if (ref === 'INDEX') return splitZ(await git(root, ['ls-files', '--cached', '-z', '--', '*.md']));
-  return splitZ(await git(root, ['ls-tree', '-r', '-z', '--name-only', ref])).filter((path) => path.endsWith('.md'));
-}
-
-/** `<rev>:<path>` blob specs are always resolved relative to the repo top-level, so `prefix` (project-relative ->
- * repo-relative) must be re-applied here even though it was already stripped from `path` itself. */
-function blobSpec(ref: string, prefix: string, path: string): string {
-  return ref === 'INDEX' ? `:${prefix}${path}` : `${ref}:${prefix}${path}`;
-}
-
-function toPolicyDoc(fm: Frontmatter): PolicyDoc | null {
-  if (fm.type === 'SDD' || fm.type === 'ADR') return { type: fm.type, id: fm.id, impactsPaths: fm.impacts_paths };
-  if (fm.type === 'WO') return { type: 'WO', id: fm.id, status: fm.status, implements: fm.implements };
-  return null;
-}
-
-function isInsideNested(path: string, nestedRoots: readonly string[]): boolean {
-  return nestedRoots.some((dir) => path === dir || path.startsWith(`${dir}/`));
-}
-
 /** A subdirectory with its own `.prdm.yaml` is a separate project (SDD-002 "Proyecto activo") and is never governed here. */
 function excludeNested(paths: readonly string[], nestedRoots: readonly string[]): string[] {
   return paths.filter((path) => !isInsideNested(path, nestedRoots));
-}
-
-/**
- * Root-relative-to-`root` project subdirectories with their own `.prdm.yaml` at `ref` (WO-024 finding 1b): computed
- * from `git ls-tree`, never from the live working tree, so a nested project declared inside the very range being
- * checked cannot retroactively exempt paths that were governed at `ref`.
- */
-async function nestedProjectRootsAtRef(root: string, ref: string, ignore: readonly string[]): Promise<string[]> {
-  const paths = splitZ(await git(root, ['ls-tree', '-r', '-z', '--name-only', ref]));
-  const suffix = '/.prdm.yaml';
-  const isIgnored = ignore.length > 0 ? picomatch([...ignore]) : (): boolean => false;
-  return paths
-    .filter((path) => path.endsWith(suffix) && !isIgnored(path))
-    .map((path) => path.slice(0, -suffix.length))
-    .sort();
-}
-
-/** Reads and parses every SDD/ADR/WO document reachable at `ref`, excluding nested projects. */
-async function policyDocsAt(root: string, prefix: string, ref: string, paths: readonly string[], nestedRoots: readonly string[]): Promise<PolicyDoc[]> {
-  const docs: PolicyDoc[] = [];
-  for (const path of paths) {
-    if (isInsideNested(path, nestedRoots)) continue;
-    const content = await git(root, ['show', blobSpec(ref, prefix, path)]);
-    if (content === null) continue;
-    const parsed = parseDocument(content, path);
-    if (!parsed || !parsed.ok) continue;
-    const doc = toPolicyDoc(parsed.doc.frontmatter);
-    if (doc) docs.push(doc);
-  }
-  return docs;
 }
 
 export interface CommitMsgCheckOptions {
@@ -194,14 +146,44 @@ export interface CommitMsgCheckOptions {
   amend?: boolean;
 }
 
+/** The two `.prdm.yaml` fields `checkCommitMessage` actually needs (WO-197): a remote-mode caller
+ * supplies these directly (from the governance cache/server settings) instead of a local `.prdm.yaml`,
+ * whose `version: 2` shape the local (`parseProjectFile`) reader can't parse at all. */
+export interface CommitPolicySettings {
+  enforceRefs: boolean;
+  ignore: string[];
+}
+
 /**
  * Evaluates the commit that `git commit` is about to create from the current index, for the `commit-msg` hook.
- * Returns `{ ok: true, ... }` immediately (no git/project state is read) when the project has no `.prdm.yaml`.
+ * Returns `{ ok: true, ... }` immediately (no git/project state is read) when the project has no `.prdm.yaml`
+ * and `remoteSettings` wasn't supplied either.
+ *
+ * `source` (WO-196 `PolicyDocsSource` seam) supplies every policy-*document* read; everything else here —
+ * which code paths changed, merge/amend detection — is local-git-specific and unaffected by it. Defaults
+ * to `GitPolicyDocsSource` (the exact, unchanged local-mode behavior).
+ *
+ * `remoteSettings` (WO-197): when supplied, skips reading/parsing the local `.prdm.yaml` for
+ * `enforceRefs`/`ignore` entirely — a remote-mode caller passes its own governance-cache-derived
+ * settings, never the local file (which is a `version: 2` file the local-mode parser would otherwise
+ * reject outright).
  */
-export async function checkCommitMessage(root: string, message: string, options: CommitMsgCheckOptions = {}): Promise<EvaluateCommitResult> {
-  const settingsRaw = await readTextFile(join(root, '.prdm.yaml'));
-  if (settingsRaw === null) return { ok: true, requiredFor: [], refs: [] };
-  const settings = parseProjectFile(settingsRaw);
+export async function checkCommitMessage(
+  root: string,
+  message: string,
+  options: CommitMsgCheckOptions = {},
+  source: PolicyDocsSource = defaultPolicyDocsSource(root),
+  remoteSettings?: CommitPolicySettings,
+): Promise<EvaluateCommitResult> {
+  let settings: CommitPolicySettings;
+  if (remoteSettings) {
+    settings = remoteSettings;
+  } else {
+    const settingsRaw = await readTextFile(join(root, '.prdm.yaml'));
+    if (settingsRaw === null) return { ok: true, requiredFor: [], refs: [] };
+    const localSettings = parseProjectFile(settingsRaw);
+    settings = { enforceRefs: localSettings.git.enforceRefs, ignore: localSettings.ignore };
+  }
   const prefix = await projectPrefix(root);
 
   const hasHead = (await git(root, ['rev-parse', '-q', '--verify', 'HEAD'])) !== null;
@@ -213,8 +195,8 @@ export async function checkCommitMessage(root: string, message: string, options:
   const changedPaths = excludeNested(await diffCachedNames(root, prefix, diffBase), nestedRoots);
 
   const isMerge = (await git(root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) !== null;
-  const docsAtHead = hasHead ? await policyDocsAt(root, prefix, 'HEAD', await markdownPathsAt(root, 'HEAD'), nestedRoots) : [];
-  const docsInIndex = await policyDocsAt(root, prefix, 'INDEX', await markdownPathsAt(root, 'INDEX'), nestedRoots);
+  const docsAtHead = hasHead ? await source.policyDocsAt('HEAD', nestedRoots) : [];
+  const docsInIndex = await source.policyDocsAt('INDEX', nestedRoots);
   const allDocs = [...docsAtHead, ...docsInIndex];
 
   const hasConflictsInGoverned = isMerge && (await hasGovernedConflicts(root, prefix, changedPaths, allDocs, 'MERGE_HEAD'));
@@ -228,7 +210,7 @@ export async function checkCommitMessage(root: string, message: string, options:
     hasConflictsInGoverned,
     docsAtHead,
     docsInIndex,
-    settings: { enforceRefs: settings.git.enforceRefs, isWithinEnforcementRange: withinRange },
+    settings: { enforceRefs: settings.enforceRefs, isWithinEnforcementRange: withinRange },
   });
 }
 
@@ -316,26 +298,16 @@ async function evaluateHistoricalCommit(
 }
 
 /**
- * Reads `.prdm.yaml` at `ref` via `git show`, parsed. Returns `null` only when `ref` genuinely has no `.prdm.yaml`
- * (a normal, successful "not found") - never falls back to the live working tree (WO-024 finding 1e): a base
- * commit predating `.prdm.yaml` must fall back to schema defaults, not to whatever a PR's own checkout carries.
- */
-async function settingsAtRef(root: string, prefix: string, ref: string): Promise<ProjectFileSettings | null> {
-  const raw = await git(root, ['show', `${ref}:${prefix}.prdm.yaml`]);
-  return raw === null ? null : parseProjectFile(raw);
-}
-
-/**
  * `true` when `lifecycle.grandfathered` at `headRef` contains an `{ id, hash }` pair absent from `base` (WO-024
  * finding 5): comparing the *set* rather than just the count also catches swapping the hash of an id that was
  * already grandfathered. Removing entries is always fine.
  */
-async function grandfatheredGrew(root: string, prefix: string, baseSettings: ProjectFileSettings | null, headRef: string): Promise<boolean> {
+async function grandfatheredGrew(source: PolicyDocsSource, baseSettings: ProjectFileSettings | null, headRef: string): Promise<boolean> {
   const baseEntries = baseSettings?.lifecycle.grandfathered ?? DEFAULT_LIFECYCLE.grandfathered;
   const baseSet = new Set(baseEntries.map((entry) => `${entry.id}:${entry.hash}`));
   let headSettings: ProjectFileSettings | null;
   try {
-    headSettings = await settingsAtRef(root, prefix, headRef);
+    headSettings = await source.settingsAt(headRef);
   } catch {
     return false;
   }
@@ -350,13 +322,13 @@ function collectRangeRefs(baseRef: string, shas: readonly string[], parentsBySha
   return [...refs];
 }
 
-/** Memoized per-ref policy documents: every ref is read from git at most once per range check. */
-function policyDocsCache(root: string, prefix: string, nestedRoots: readonly string[]): (ref: string) => Promise<PolicyDoc[]> {
+/** Memoized per-ref policy documents: every ref is read at most once per range check. */
+function policyDocsCache(source: PolicyDocsSource, nestedRoots: readonly string[]): (ref: string) => Promise<PolicyDoc[]> {
   const cache = new Map<string, Promise<PolicyDoc[]>>();
   return (ref) => {
     let docs = cache.get(ref);
     if (!docs) {
-      docs = markdownPathsAt(root, ref).then((paths) => policyDocsAt(root, prefix, ref, paths, nestedRoots));
+      docs = source.policyDocsAt(ref, nestedRoots);
       cache.set(ref, docs);
     }
     return docs;
@@ -413,8 +385,11 @@ async function aggregateCoverageCheck(
  * fails loudly on git errors instead of silently passing (finding 3), rejects orphan root commits and runs an
  * aggregate coverage check across the whole range (finding 1d), and fails when `lifecycle.grandfathered` gained any
  * `{ id, hash }` pair relative to `base` (finding 5).
+ *
+ * `source` is the same WO-196 `PolicyDocsSource` seam `checkCommitMessage` takes, defaulting to
+ * `GitPolicyDocsSource` — local mode's behavior is unchanged.
  */
-export async function checkCommitRange(root: string, range: string): Promise<CommitRangeCheck> {
+export async function checkCommitRange(root: string, range: string, source: PolicyDocsSource = defaultPolicyDocsSource(root)): Promise<CommitRangeCheck> {
   const [baseRef, headRef] = splitRange(range);
   const prefix = await projectPrefix(root);
 
@@ -425,14 +400,14 @@ export async function checkCommitRange(root: string, range: string): Promise<Com
   const orphanShas = shas.filter((sha) => (parentsBySha.get(sha) ?? []).length === 0);
   const nonOrphanShas = shas.filter((sha) => !orphanShas.includes(sha));
 
-  const baseSettings = await settingsAtRef(root, prefix, baseRef);
+  const baseSettings = await source.settingsAt(baseRef);
   if (baseSettings === null) {
     // Enforcement is defined by the base: a base without .prdm.yaml has no policy a PR could weaken (adoption PRs).
     return { ok: true, commits: [], notEnforcedMessage: `${baseRef} has no .prdm.yaml; Refs enforcement starts once it is merged` };
   }
   const gitSettings = baseSettings.git;
-  const nestedRoots = await nestedProjectRootsAtRef(root, baseRef, baseSettings.ignore);
-  const docsAt = policyDocsCache(root, prefix, nestedRoots);
+  const nestedRoots = await source.nestedProjectRootsAt(baseRef, baseSettings.ignore);
+  const docsAt = policyDocsCache(source, nestedRoots);
 
   const rangeRefs = [...collectRangeRefs(baseRef, shas, parentsBySha), headRef];
   const allDocs = (await Promise.all(rangeRefs.map(docsAt))).flat();
@@ -445,7 +420,7 @@ export async function checkCommitRange(root: string, range: string): Promise<Com
   }
 
   const aggregate = await aggregateCoverageCheck(root, prefix, baseRef, headRef, nonOrphanShas, parentsBySha, nestedRoots, allDocs, gitSettings);
-  const grew = await grandfatheredGrew(root, prefix, baseSettings, headRef);
+  const grew = await grandfatheredGrew(source, baseSettings, headRef);
 
   const orphanCommitsMessage =
     orphanShas.length > 0 ? `orphan root commit(s) found inside the range (only the range base may be a root commit): ${orphanShas.join(', ')}` : undefined;

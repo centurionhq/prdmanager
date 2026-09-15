@@ -34,7 +34,7 @@ test('search, select a document, see its detail, and see the real drift status',
 test('selecting a work order from the list opens its detail too', async ({ page }) => {
   await page.goto('/');
 
-  const row = page.getByRole('row', { name: /WO-001/ });
+  const row = page.getByRole('button', { name: /Ver detalle de WO-001/ });
   await expect(row).toBeVisible();
   await row.click();
 

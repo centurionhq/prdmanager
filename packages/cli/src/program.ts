@@ -8,6 +8,9 @@ import { register as registerFeedbackCommands } from './commands/feedback.js';
 import { register as registerGraphCommands } from './commands/graph.js';
 import { register as registerHooksCommands } from './commands/hooks.js';
 import { register as registerInitCommands } from './commands/init.js';
+import { register as registerLinkCommands } from './commands/link.js';
+import { register as registerLoginCommands } from './commands/login.js';
+import { register as registerMcpProxyCommands } from './commands/mcp-proxy.js';
 import { register as registerMetricsCommands } from './commands/metrics.js';
 import { register as registerMigrateCommands } from './commands/migrate.js';
 import { register as registerParserCommands } from './commands/parser.js';
@@ -87,6 +90,9 @@ const REGISTRARS = [
   registerInitCommands,
   registerHooksCommands,
   registerCheckCommands,
+  registerLoginCommands,
+  registerLinkCommands,
+  registerMcpProxyCommands,
 ];
 
 export function createProgram(deps: CliDeps): Command {

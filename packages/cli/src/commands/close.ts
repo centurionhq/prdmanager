@@ -3,6 +3,7 @@ import { InvalidArgumentError } from 'commander';
 import { ACTOR_PATTERN, closeFeature, closureReadiness, type ClosureReadiness } from '@prdm/core';
 import { CliError } from '../errors.js';
 import { withContext, type CliDeps } from '../program.js';
+import { assertLocalMutationAllowed } from '../remote/guard.js';
 
 function parseActor(value: string): string {
   if (!ACTOR_PATTERN.test(value)) throw new InvalidArgumentError('actor must look like agent:name or dev:name');
@@ -33,6 +34,7 @@ async function runClose(deps: CliDeps, featureId: string, options: CloseOptions)
       `closing ${featureId} requires an explicit human confirmation: re-run with --ack. This is the architect gate for PRD-002's lifecycle (SDD-002 "Ciclo de vida"); it is never automated.`,
     );
   }
+  assertLocalMutationAllowed(deps.root, 'close');
   const by = resolveActor(options.by);
 
   await withContext(deps, async (ctx) => {

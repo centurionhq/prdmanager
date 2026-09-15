@@ -1,0 +1,29 @@
+# BuildKit per-Dockerfile ignore (WO-121): read *only* because packages/server/Dockerfile is built with
+# the repo root as context (`docker build -f packages/server/Dockerfile .`) — a plain `.dockerignore`
+# next to the Dockerfile is not consulted in that case, only `<dockerfile-name>.dockerignore` at the
+# context root (SDD-006 "Local y despliegue"). Paths below are relative to the repo root.
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/coverage
+**/*.log
+
+.git
+.gitignore
+.github
+
+.env
+.env.*
+!.env.example
+
+.claude
+.prdm/*.lock
+.prdm/engine.lock
+.prdm/journal-*.json
+.prdm/graph-stale
+.prdm/drafts
+
+packages/web/test-results
+packages/web/playwright-report
+packages/web/blob-report
+packages/web/playwright/.cache

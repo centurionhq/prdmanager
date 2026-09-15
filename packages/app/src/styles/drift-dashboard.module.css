@@ -1,0 +1,53 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  background: var(--color-bg-elevated-solid);
+  margin-bottom: 1rem;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.empty {
+  color: var(--color-fg-subtle);
+  font-size: 0.85rem;
+}
+
+.officialCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+}
+
+.badge {
+  display: inline-block;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.3rem;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+}
+
+.badgeOfficial {
+  border-color: var(--color-status-ok);
+}
+
+.badgePreview {
+  border-color: var(--color-status-warning);
+}
+
+.meta {
+  font-size: 0.8rem;
+  color: var(--color-fg-subtle);
+}
+
+.sha {
+  font-family: var(--font-mono);
+}

@@ -4,6 +4,7 @@ import { createFeatureRequest, submitFeedback, triageText, type SubmitFeedbackRe
 import { formatSearchHits } from '../format.js';
 import { CliError, messageOf } from '../errors.js';
 import { withContext, type CliDeps } from '../program.js';
+import { assertLocalMutationAllowed } from '../remote/guard.js';
 
 const MAX_FEEDBACK_FILE_BYTES = 1024 * 1024;
 
@@ -41,6 +42,7 @@ function feedbackHint(result: SubmitFeedbackResult): string {
 }
 
 async function runAdd(deps: CliDeps, options: AddOptions): Promise<void> {
+  assertLocalMutationAllowed(deps.root, 'feedback add');
   const text = await resolveFeedbackText(options);
   await withContext(deps, async (ctx) => {
     const result = await submitFeedback(ctx.engine, { text, source: options.source, customer: options.customer, title: options.title });
@@ -79,6 +81,7 @@ interface FrCreateOptions {
 }
 
 async function runFrCreate(deps: CliDeps, options: FrCreateOptions): Promise<void> {
+  assertLocalMutationAllowed(deps.root, 'fr create');
   await withContext(deps, async (ctx) => {
     const result = await createFeatureRequest(ctx.engine, {
       title: options.title,

@@ -1,0 +1,14 @@
+export { assertValidRoot, createDocumentYDoc, BODY_ROOT, FRONTMATTER_ROOT, InvalidDocumentRootError } from './schema.js';
+export type { FrontmatterPrimitive, FrontmatterValue } from './schema.js';
+export { applyProjection, projectDoc } from './projection.js';
+export type { DocProjection } from './projection.js';
+export { decodeUpdateRanges } from './update-ranges.js';
+export type { DecodedUpdateRanges, DeleteRange, StructRange } from './update-ranges.js';
+export { checkUpdateAgainstBindings } from './anti-spoofing.js';
+export type { AntiSpoofCheckParams, AntiSpoofCheckResult } from './anti-spoofing.js';
+export { buildRangeIndex, computeBlame } from './blame.js';
+export type { BlameActorKind, BlameAttribution, BlameResult, FieldBlame, LineBlame, RangeIndex, RangeIndexRow } from './blame.js';
+export { diffLines } from './diff.js';
+export type { LineDiffOp, LineDiffOpType } from './diff.js';
+export { createCommentAnchor, resolveCommentAnchor } from './comment-anchor.js';
+export type { EncodedCommentAnchor, ResolvedCommentAnchor } from './comment-anchor.js';

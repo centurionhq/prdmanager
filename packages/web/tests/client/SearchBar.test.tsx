@@ -2,9 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRef, type ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import { SelectionProvider, useSelection } from '@prdm/ui';
 import { search } from '../../src/client/api/client';
 import { SearchBar } from '../../src/client/components/SearchBar';
-import { SelectionProvider, useSelection } from '../../src/client/state/selection';
 
 vi.mock('../../src/client/api/client', () => ({ search: vi.fn() }));
 

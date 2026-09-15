@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { docId } from '../domain/schema.js';
-import type { Engine } from '../engine.js';
+import type { ProjectEngine } from '../engine.js';
 import type { SearchHit } from '../graph/types.js';
 import { nextId, renderDocument, slugify, todayIso } from '../util/ids.js';
 import { proposalTitle, triageText, type TriageProposal, type TriageReason } from './triage.js';
@@ -24,7 +24,7 @@ export interface SubmitFeedbackResult {
   proposal: TriageProposal | null;
 }
 
-export async function submitFeedback(engine: Engine, input: SubmitFeedbackInput): Promise<SubmitFeedbackResult> {
+export async function submitFeedback(engine: ProjectEngine, input: SubmitFeedbackInput): Promise<SubmitFeedbackResult> {
   const parsed = submitFeedbackSchema.parse(input);
 
   return engine.transaction(async (ops) => {
@@ -73,7 +73,7 @@ export interface CreateFeatureRequestResult {
   justifiedBy: string[];
 }
 
-export async function createFeatureRequest(engine: Engine, input: CreateFeatureRequestInput): Promise<CreateFeatureRequestResult> {
+export async function createFeatureRequest(engine: ProjectEngine, input: CreateFeatureRequestInput): Promise<CreateFeatureRequestResult> {
   const parsed = createFeatureRequestSchema.parse(input);
 
   return engine.transaction(async (ops) => {

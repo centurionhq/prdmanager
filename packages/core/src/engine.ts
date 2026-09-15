@@ -8,9 +8,9 @@ import { parseDocument } from './parser/frontmatter.js';
 import { scanDocuments, type ScanError, type ScanResult } from './parser/scan.js';
 import { loadBaseline, saveBaseline } from './sync/baseline.js';
 import { resolveGoverned, type CodeRefState } from './sync/code-refs.js';
-import { dirtyPaths, readCommits } from './sync/git.js';
+import { dirtyPaths, readCommit as readCommitFromGit, readCommits, type CommitInfo } from './sync/git.js';
 import { SymbolCache } from './sync/symbol-cache.js';
-import { acknowledge, detectDrift, type DriftInput, type DriftIssue, type GovernedState, type WorkOrderUpdate } from './sync/monitor.js';
+import { acknowledge, detectDrift, type DriftInput, type DriftIssue, type DriftResult, type GovernedState, type WorkOrderUpdate } from './sync/monitor.js';
 import { resolveInside } from './util/paths.js';
 import { withRepoLock } from './util/lock.js';
 import {
@@ -43,6 +43,26 @@ export interface RefreshReport {
   hasBlockingIssues: boolean;
 }
 
+export interface BuiltRefreshReport {
+  issues: DriftIssue[];
+  governed: (GovernedState & { hash: string | null })[];
+  workOrderUpdates: WorkOrderUpdate[];
+  reviewNeeded: DriftResult['reviewNeeded'];
+  baseline: DriftResult['baseline'];
+}
+
+/**
+ * Pure core shared by `doInspect`/`doRefresh` (WO-123/SDD-007): runs `detectDrift` and stitches each governed
+ * ref's current content hash back onto it (drift's own `governed` doesn't carry it). Does no I/O and never
+ * touches `this`, so it is safe to call from a future `PgProjectEngine` too.
+ */
+export function buildRefreshReport(input: DriftInput): BuiltRefreshReport {
+  const drift = detectDrift(input);
+  const hashByKey = new Map([...input.governed].flatMap(([bp, refs]) => refs.map((r) => [`${bp}|${r.key}`, r.hash] as const)));
+  const governed = drift.governed.map((g) => ({ ...g, hash: hashByKey.get(`${g.blueprintId}|${g.key}`) ?? null }));
+  return { issues: drift.issues, governed, workOrderUpdates: drift.workOrderUpdates, reviewNeeded: drift.reviewNeeded, baseline: drift.baseline };
+}
+
 /** Unlocked operations available inside Engine.transaction(); never call Engine's public methods from within one. */
 export interface EngineOps {
   readonly config: PrdmConfig;
@@ -57,6 +77,34 @@ export interface EngineOps {
   refresh(): Promise<RefreshReport>;
   /** Read-only equivalent of `refresh()`: scans, detects drift and computes lifecycle issues without writing any status field, baseline or graph snapshot. */
   inspect(): Promise<RefreshReport>;
+  /**
+   * Looks up a commit by sha (WO-125/SDD-007): local `Engine` delegates to `git log` on `config.root`; a future
+   * `PgProjectEngine` only returns commits that arrived in a CI-verified baseline report (SDD-010), answering
+   * `commit_not_verified_by_ci` for anything seen only in a preview. Callers must go through this instead of
+   * `sync/git.ts`'s `readCommit` directly, so they never assume local git access.
+   */
+  readCommit(sha: string): Promise<CommitInfo | null>;
+}
+
+/** Everything a `ProjectEngine` needs from `PrdmConfig` except `root` and `neo4j` (SaaS values come from `projects.settings`, not a filesystem path or a database connection). */
+export type ProjectSettings = Omit<PrdmConfig, 'root' | 'neo4j'>;
+
+/**
+ * Narrow port (WO-124/SDD-007) that every domain function (`generateWorkOrders`, `claimWorkOrder`, ...) is typed
+ * against instead of the concrete, disk-bound `Engine`. Implemented locally by `Engine` unchanged, and later by a
+ * Postgres-backed `PgProjectEngine` (SDD-007) with no local behavior change.
+ */
+export interface ProjectEngine {
+  readonly settings: ProjectSettings;
+  readonly store: GraphStore;
+  transaction<T>(fn: (ops: EngineOps) => Promise<T>, options?: TransactionOptions): Promise<T>;
+  refresh(): Promise<RefreshReport>;
+  inspect(): Promise<RefreshReport>;
+  /** Last computed report, read from saved state; never triggers a new scan/refresh (SDD-007: "estado guardado, nunca dispara refresh"). */
+  lastReport(): Promise<RefreshReport | null>;
+  acknowledge(target: string): Promise<RefreshReport>;
+  recover(): Promise<RecoverResult>;
+  scan(): Promise<ScanResult>;
 }
 
 export interface RecoverResult {
@@ -71,10 +119,12 @@ export interface TransactionOptions {
   atomic?: boolean;
 }
 
-export class Engine {
+export class Engine implements ProjectEngine {
   private queue: Promise<unknown> = Promise.resolve();
   private readonly ops: EngineOps;
   private writer: FileWriter;
+  /** Set at the end of `doRefresh`/`doInspect` (whichever path reached them: `refresh()`, `inspect()`, `acknowledge()` or a transaction's `ops.refresh()`/`ops.inspect()`), read by `lastReport()`. */
+  private lastReportValue: RefreshReport | null = null;
 
   constructor(
     readonly config: PrdmConfig,
@@ -91,7 +141,23 @@ export class Engine {
       replaceDocument: (id, content) => this.replaceDocument(id, content),
       refresh: () => this.doRefresh(),
       inspect: () => this.doInspect(),
+      readCommit: (sha) => readCommitFromGit(config.root, sha),
     };
+  }
+
+  /** `PrdmConfig` minus `root`/`neo4j`: the settings surface `ProjectEngine` callers may depend on (local-only fields are irrelevant to a future `PgProjectEngine`, which never has them at all). */
+  get settings(): ProjectSettings {
+    const { root: _root, neo4j: _neo4j, ...settings } = this.config;
+    return settings;
+  }
+
+  scan(): Promise<ScanResult> {
+    return scanDocuments(this.config.root, this.config.ignore);
+  }
+
+  /** Read-only, saved state; never recomputes (SDD-007). `null` until the first `refresh()`/`inspect()` of this process. */
+  async lastReport(): Promise<RefreshReport | null> {
+    return this.lastReportValue;
   }
 
   private plainWriter(): FileWriter {
@@ -225,18 +291,18 @@ export class Engine {
    */
   private async doInspect(): Promise<RefreshReport> {
     const { scan, input } = await this.collect();
-    const drift = detectDrift(input);
-    const hashByKey = new Map([...input.governed].flatMap(([bp, refs]) => refs.map((r) => [`${bp}|${r.key}`, r.hash] as const)));
-    const governed = drift.governed.map((g) => ({ ...g, hash: hashByKey.get(`${g.blueprintId}|${g.key}`) ?? null }));
-    return {
+    const built = buildRefreshReport(input);
+    const report: RefreshReport = {
       documents: scan.docs.length,
       errors: scan.errors,
-      issues: drift.issues,
-      governed,
-      workOrderUpdates: drift.workOrderUpdates,
+      issues: built.issues,
+      governed: built.governed,
+      workOrderUpdates: built.workOrderUpdates,
       baselineWritten: false,
-      hasBlockingIssues: scan.errors.length > 0 || drift.issues.some((i) => i.severity === 'error'),
+      hasBlockingIssues: scan.errors.length > 0 || built.issues.some((i) => i.severity === 'error'),
     };
+    this.lastReportValue = report;
+    return report;
   }
 
   private async doRefresh(): Promise<RefreshReport> {
@@ -245,31 +311,30 @@ export class Engine {
     // even if the snapshot write or a status update fails later (WO-023's atomic-transaction guarantees are
     // about documents, not this purely-derived, self-healing cache).
     await symbolCache.saveIfDirty(this.config.root);
-    const drift = detectDrift(input);
+    const built = buildRefreshReport(input);
 
-    const { applied, failures } = await this.applyStatusUpdates(drift.workOrderUpdates);
+    const { applied, failures } = await this.applyStatusUpdates(built.workOrderUpdates);
     const statusById = new Map(applied.map((u) => [u.id, u.to]));
     const docs = scan.docs.map((d) => withStatus(d, statusById.get(d.node.id)));
-    const issues = [...drift.issues, ...failures];
-
-    const hashByKey = new Map([...input.governed].flatMap(([bp, refs]) => refs.map((r) => [`${bp}|${r.key}`, r.hash] as const)));
-    const governed = drift.governed.map((g) => ({ ...g, hash: hashByKey.get(`${g.blueprintId}|${g.key}`) ?? null }));
+    const issues = [...built.issues, ...failures];
 
     // Snapshot before baseline: if writeSnapshot throws (e.g. the store is unreachable), the baseline must stay
     // untouched so a retry recomputes the exact same drift instead of silently accepting it as newly acknowledged.
-    await this.store.writeSnapshot({ docs, governed, reviewNeeded: drift.reviewNeeded, commits: input.commits });
+    await this.store.writeSnapshot({ docs, governed: built.governed, reviewNeeded: built.reviewNeeded, commits: input.commits });
     // A document that temporarily fails to parse would otherwise be pruned from the baseline and come back as "new" (drift silently accepted).
-    const baselineWritten = scan.errors.length === 0 ? await saveBaseline(this.config.root, drift.baseline) : false;
+    const baselineWritten = scan.errors.length === 0 ? await saveBaseline(this.config.root, built.baseline) : false;
 
-    return {
+    const report: RefreshReport = {
       documents: docs.length,
       errors: scan.errors,
       issues,
-      governed,
+      governed: built.governed,
       workOrderUpdates: applied,
       baselineWritten,
       hasBlockingIssues: scan.errors.length > 0 || issues.some((i) => i.severity === 'error'),
     };
+    this.lastReportValue = report;
+    return report;
   }
 
   private async applyStatusUpdates(updates: WorkOrderUpdate[]): Promise<{ applied: WorkOrderUpdate[]; failures: DriftIssue[] }> {

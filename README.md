@@ -13,9 +13,9 @@ Arquitectura: [SDD-001](docs/sdd/SDD-001-graph-engine.md), [SDD-002](docs/sdd/SD
 
 | Componente | Tecnología | Versión |
 |---|---|---|
-| Monorepo | npm workspaces | 10.8.2 |
+| Monorepo | npm workspaces | 11.19.0 |
 | Build | TypeScript `tsc -b` + project references | 7.0.2 |
-| Runtime | Node.js | 20.20.2 |
+| Runtime | Node.js | 24.21.0 |
 | Base de grafos | Neo4j Community + APOC en Docker (red interna, acceso local) | 2026.08.1 |
 | Driver Neo4j | neo4j-driver | 6.2.0 |
 | MCP | @modelcontextprotocol/sdk | 1.30.0 |
@@ -50,6 +50,11 @@ Scripts raíz (`package.json`):
 Cada paquete tiene su propio `package.json`, `tsconfig.json` y tests en `tests/`.
 
 ## Inicio rápido
+
+### Requisitos
+
+- **Node 24** (LTS "Krypton", vigente hasta 2028-04), instalado a nivel usuario con [nvm](https://github.com/nvm-sh/nvm) — nunca con `sudo`. El repo fija la versión exacta en [`.nvmrc`](.nvmrc); parado en la raíz del repo, `nvm install` la lee e instala/activa automáticamente. Ver [ADR-005](docs/adr/ADR-005-node-24-lts.md): supera la restricción de Node 20 de [ADR-004](docs/adr/ADR-004-stack-del-explorador-web.md), cuyas demás decisiones (Vite, Fastify, React, jsdom, etc.) siguen vigentes.
+- Docker (para Neo4j local).
 
 ### Proyecto Nuevo
 
@@ -377,6 +382,158 @@ npm run test:e2e --workspace=@prdm/web
 
 `PRDM_WEB_PORT` (por defecto `4600`) y `PRDM_WEB_HOST` (por defecto `127.0.0.1`; un valor no-loopback requiere `PRDM_WEB_ALLOW_REMOTE=1`) — ver Variables de Entorno.
 
+## SaaS local (`@prdm/server` + `@prdm/app`, PRD-005)
+
+`npm run dev` en la raíz levanta el servidor Fastify (`tsx watch`, con recarga en cada cambio) y Vite (proxy de `/api`, `/collab` y `/mcp` a `PRDM_SERVER_PORT`) como procesos hermanos, vía `packages/server/scripts/dev.mjs` — un script Node sin dependencias (SDD-006 "Local y despliegue"): no hacen falta dos terminales. Un solo `Ctrl-C` detiene ambos procesos; si alguno muere solo, el otro se detiene también con código de salida distinto de cero.
+
+```bash
+npm run dev                                  # servidor + app en paralelo, un solo Ctrl-C los detiene
+```
+
+Requiere `docker compose up -d postgres mailpit` y las variables de `.env` (`PRDM_PUBLIC_URL`, `BETTER_AUTH_SECRET`, `DATABASE_URL`, etc. — ver Variables de Entorno) ya exportadas en el entorno.
+
+En un Postgres nuevo (o tras cada migración agregada), aplicá el esquema una sola vez antes del primer `npm run dev` — el servidor no migra por sí solo, solo los harnesses de test lo hacen automáticamente:
+
+```bash
+npm run db:migrate                           # drizzle-kit migrate contra DATABASE_MIGRATION_URL
+```
+
+## SaaS multi-organización: MCP remoto y sync verificado por CI (SDD-010)
+
+Para organizaciones que corren prdm como SaaS multi-tenant, los developers trabajan con repositorios **vinculados en remoto**: la documentación y la política de `Refs:` viven en el servidor, no en el repo. La CLI reenvía al code assistant vía un proxy MCP local, y el workflow de CI acredita el estado del código con un token OIDC de GitHub Actions firmado, sin guardar secretos de larga vida accesibles desde cualquier rama.
+
+### Login y vinculación
+
+Primero, autenticate contra tu servidor prdm con tu token personal:
+
+```bash
+prdm login --server https://tu-org.prdm.example
+# Pide el token por prompt oculto; lo guarda en $XDG_CONFIG_HOME/prdm/credentials.json (modo 0600)
+```
+
+Después vinculá el repo a un proyecto remoto:
+
+```bash
+prdm link acme/widgets --server https://tu-org.prdm.example --mcp
+# Escribe version: 2 en .prdm.yaml con la sección remote (server/org/project)
+# Graba localmente (nunca en el repo) el graphProjectId vinculado, para detectar un .prdm.yaml editado
+# Agrega la entrada stdio de prdm mcp-proxy a .mcp.json
+```
+
+Tu `.prdm.yaml` queda así:
+
+```yaml
+version: 2
+project:
+  id: prj_...
+  name: widgets
+remote:
+  server: https://tu-org.prdm.example
+  org: acme
+  project: widgets
+  offline_policy: warn  # o 'block' si exigís red para cada commit
+```
+
+`.prdm/remote/` (la caché de los documentos de governance del servidor) se agrega a `.gitignore`.
+
+### Uso con un code assistant
+
+Después de `prdm link --mcp`, tu `.mcp.json` incluye:
+
+```json
+{
+  "prdm-remote": {
+    "type": "stdio",
+    "command": "prdm",
+    "args": ["mcp-proxy"]
+  }
+}
+```
+
+Esta entrada es **segura de commitear** — no contiene secretos. `prdm mcp-proxy` resuelve servidor, proyecto y token en tiempo de ejecución desde tu login local y `.prdm.yaml` de este repo exacto, y reenvía cada request de tu code assistant por Streamable HTTP. Se niega a correr si se invoca desde dentro de un `node_modules` (nunca confía en un binario que el propio repo podría controlar), y aborta sin enviar nada si `.prdm.yaml` no coincide con lo que vinculaste (servidor u otro proyecto).
+
+### Workflow de CI: GitHub Actions con OIDC
+
+El CI en modo remoto no corre Neo4j: reporta el estado del código al servidor, y es el servidor quien calcula el drift. Un token OIDC de GitHub Actions prueba que el reporte viene de verdad de tu repo, en la rama por defecto, en un push real.
+
+Ejemplo de `.github/workflows/prdm-sync.yml`:
+
+```yaml
+name: prdm-remote-sync
+
+on:
+  push:
+    branches: [main]  # Solo la rama por defecto puede volverse baseline oficial
+
+permissions:
+  contents: read
+  id-token: write  # Necesario para pedirle a GitHub el token OIDC
+
+jobs:
+  sync-check:
+    runs-on: ubuntu-latest
+    environment: prdm-ci  # Un Environment de GitHub protegido: solo la rama por defecto llega a estos secrets
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+
+      # En CI, PRDM_TOKEN es obligatorio (nunca se lee del archivo local de credenciales, que en un
+      # runner limpio no existe) y PRDM_SERVER debe coincidir con remote.server de .prdm.yaml.
+      - run: node packages/cli/dist/index.js sync --check
+        env:
+          PRDM_SERVER: ${{ secrets.PRDM_SERVER }}
+          PRDM_TOKEN: ${{ secrets.PRDM_TOKEN }}
+```
+
+**Puntos clave:**
+- `permissions: id-token: write` habilita al job a pedir el token OIDC de GitHub Actions.
+- `environment: prdm-ci` (o el nombre que uses) es un [Environment de GitHub](https://docs.github.com/actions/deployment/targeting-different-environments/using-environments-for-deployment) con reglas de protección — así `PRDM_SERVER`/`PRDM_TOKEN` solo son visibles para jobs que corren en la rama por defecto, nunca para un PR de un fork.
+- `PRDM_SERVER` y `PRDM_TOKEN` son obligatorios en CI: si falta cualquiera de los dos, `prdm sync` aborta con un error claro en vez de intentar adivinar o caer a un archivo local.
+- Nunca uses `pull_request_target` para este job: le daría a código de un fork acceso a estos secretos protegidos.
+- El token OIDC se adjunta al reporte automáticamente; el servidor verifica su firma contra el JWKS real de GitHub.
+
+### Git hooks: validación del mensaje de commit
+
+Los developers habilitan el hook `commit-msg` igual que en modo local:
+
+```bash
+prdm hooks install
+```
+
+El hook valida el trailer `Refs: WO-xxx` en los commits que tocan código gobernado, usando la caché de política del servidor. Si la caché tiene más de 10 minutos, intenta un refetch corto antes de evaluar; sin red, cae al `offline_policy` de `.prdm.yaml`:
+
+```yaml
+remote:
+  offline_policy: warn  # 'warn' = permite el commit con aviso; 'block' = lo impide
+```
+
+### Importar un repo prdm existente
+
+Para adoptar el modo remoto en un repo que ya tiene `.prdm.yaml` y documentos locales:
+
+```bash
+# El proyecto remoto de destino debe estar vacío
+prdm link acme/widgets --server https://tu-org.prdm.example --import
+# Lee y valida docs/, .prdm.yaml y .prdm/baseline.json localmente
+# Sube todo al servidor preservando ids, estados y Work Orders
+# La baseline importada queda marcada "no verificada por CI" hasta el primer reporte real con OIDC
+```
+
+La importación (una sola vez) exige:
+- que el proyecto remoto de destino esté vacío;
+- permiso de administrador de proyecto;
+- que el conjunto de documentos pase la misma validación que corre el servidor al recibirlos.
+
+Una vez importado, el primer push a la rama por defecto con un workflow de CI configurado convierte esa baseline en "verificada".
+
 ## Skills (Claude Code)
 
 Plugin **`neo4j-skills@neo4j-skills-marketplace`** v1.0.1 (declarado en `.claude/settings.json`):
@@ -397,6 +554,8 @@ npm run coverage
 ```
 
 Los tests de integración nunca usan BD de desarrollo (helper lo rechaza si la URI coincide).
+
+Cobertura verificada al cierre de PRD-005 (WO-204): 90.88% statements, 81.26% branches, 92.9% functions, 94.58% lines — por encima del umbral de 80% en las cuatro dimensiones. Único archivo sin cobertura por diseño: `packages/server/src/cli/run-bootstrap-superadmin.ts` (el entrypoint real de terminal, deliberadamente excluido de tests unitarios por el mismo motivo que `main.ts` — su lógica real y testeable vive en `bootstrap-superadmin.ts`, con 90.62%).
 
 ## Seguridad
 

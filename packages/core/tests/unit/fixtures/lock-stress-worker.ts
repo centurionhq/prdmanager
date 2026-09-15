@@ -34,12 +34,23 @@ async function main(): Promise<void> {
         await new Promise((resolve) => setTimeout(resolve, 1));
         unlinkSync(markerPath);
       },
-      // `staleAfterMs` needs real margin over `heartbeatMs`: a held lock is only ever "stale" once it has
-      // missed a heartbeat by that much. Leaving `heartbeatMs` at its 5s default (equal to `staleAfterMs`)
-      // meant a single scheduling delay on a contended CI runner (6 concurrent tsx processes on ~2 vCPUs)
-      // could make a still-live holder's lock look abandoned and get broken out from under it — a genuine
-      // mutual-exclusion violation, not a flaky assertion.
-      { timeoutMs: 15_000, staleAfterMs: 30_000, heartbeatMs: 500 },
+      // Two margins, both needed, and both empirically evidenced (not just theorized) on this repo's CI
+      // runner across four separate failures:
+      // - `staleAfterMs` over `heartbeatMs`: a held lock is only "stale" once it has missed a heartbeat by
+      //   that much. Equal values (an earlier 5s/5s) meant a single scheduling delay made a still-live
+      //   holder's lock look abandoned and get broken out from under it — a genuine mutual-exclusion
+      //   violation caught by the `wx` marker (EEXIST), not a flaky assertion. 30s was then verified safe
+      //   across many CI runs with zero such violations. WO-209 tried shrinking it to 8s to let waiters
+      //   recover sooner — that reproduced the *exact same* EEXIST violation on the very next CI run: real
+      //   scheduling delays under 6-way contention on a 2-vCPU runner can exceed 8s, so 30s is the actual
+      //   evidenced floor, not just a guess, and is restored here.
+      // - `timeoutMs` (how long a *waiter* retries before giving up) over `staleAfterMs`: with an earlier
+      //   15s/30s pairing a waiter always gave up *before* a truly stuck holder could ever be reclaimed, so
+      //   every waiter hard-failed with "another process holds the lock" instead of recovering. This part
+      //   of WO-209's fix was correct and stays: `timeoutMs` gives multiple eviction cycles of headroom
+      //   over `staleAfterMs` so a waiter can actually benefit from the recovery it pays for, without
+      //   needing `staleAfterMs` itself to shrink.
+      { timeoutMs: 90_000, staleAfterMs: 30_000, heartbeatMs: 500 },
     );
   }
 }
