@@ -44,6 +44,14 @@ describe('OrdenesPage', () => {
     expect(within(table).getAllByRole('row')).toHaveLength(WORK_ORDERS.length + 1); // + header row
   });
 
+  it('falls back to "Todas" for an unknown ?filtro= value (WO-318)', async () => {
+    renderAt('/ordenes?estado=listo&filtro=algo-inventado');
+    const table = await screen.findByRole('table');
+    expect(within(table).getAllByRole('row')).toHaveLength(WORK_ORDERS.length + 1);
+    const group = screen.getByRole('radiogroup', { name: 'Estado' });
+    expect(within(group).getByRole('radio', { name: /Todas/ }).getAttribute('aria-checked')).toBe('true');
+  });
+
   it('renders a status chip per option with a computed count', async () => {
     renderAt('/ordenes?estado=listo');
     await screen.findByRole('table');

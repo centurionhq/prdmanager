@@ -12,6 +12,7 @@ export interface CreateTokenInput {
 
 export interface CreateTokenModalProps {
   readonly open: boolean;
+  readonly existingNames?: readonly string[];
   readonly onClose: () => void;
   readonly onCreate: (input: CreateTokenInput) => void;
 }
@@ -19,13 +20,14 @@ export interface CreateTokenModalProps {
 const SCOPE_OPTIONS: readonly TokenScope[] = ['reports:write', 'reports:baseline', 'governance:read', 'mcp:read'];
 const EXPIRY_OPTIONS = [30, 60, 90] as const;
 const NAME_ERROR = 'Ponele un nombre al token.';
+const DUPLICATE_NAME_ERROR = 'Ya existe un token con ese nombre.';
 
 function toggleScope(scopes: readonly TokenScope[], scope: TokenScope): readonly TokenScope[] {
   return scopes.includes(scope) ? scopes.filter((entry) => entry !== scope) : [...scopes, scope];
 }
 
 /** "Crear token" modal: nombre, scopes, rama and vencimiento (WO-306). */
-export function CreateTokenModal({ open, onClose, onCreate }: CreateTokenModalProps): ReactElement {
+export function CreateTokenModal({ open, existingNames = [], onClose, onCreate }: CreateTokenModalProps): ReactElement {
   const [name, setName] = useState('');
   const [scopes, setScopes] = useState<readonly TokenScope[]>([]);
   const [branch, setBranch] = useState('main');
@@ -47,11 +49,17 @@ export function CreateTokenModal({ open, onClose, onCreate }: CreateTokenModalPr
   }
 
   function handleSubmit(): void {
-    if (name.trim().length === 0) {
+    const trimmedName = name.trim();
+    if (trimmedName.length === 0) {
       setError(NAME_ERROR);
       return;
     }
-    onCreate({ name: name.trim(), scopes, branch, expiresInDays });
+    const isDuplicate = existingNames.some((existing) => existing.toLowerCase() === trimmedName.toLowerCase());
+    if (isDuplicate) {
+      setError(DUPLICATE_NAME_ERROR);
+      return;
+    }
+    onCreate({ name: trimmedName, scopes, branch, expiresInDays });
   }
 
   return (

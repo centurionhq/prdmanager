@@ -52,7 +52,7 @@ export function TokensTable({ tokens, onRevoke, onDelete }: TokensTableProps): R
         {tokens.map((token) => {
           const creator = getPerson(token.createdBy)?.name ?? token.createdBy;
           return (
-            <tr key={token.name} className={styles.row}>
+            <tr key={token.prefix} className={styles.row}>
               <td data-label="Nombre" className={cellClass(token.expired, styles.nameCell)}>
                 <span className={styles.tokenName}>{token.name}</span>
                 <span className={`num ${styles.tokenMeta}`}>{`${creator}, ${formatDate(token.createdAt)}`}</span>

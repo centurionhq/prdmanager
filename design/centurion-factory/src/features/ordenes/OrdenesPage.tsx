@@ -9,6 +9,7 @@ import {
   DEFAULT_BLUEPRINT_FILTER,
   DEFAULT_SORT,
   filterWorkOrders,
+  parseStatusFilter,
   statusCounts,
   statusTotal,
   type AssigneeFilterKey,
@@ -68,7 +69,7 @@ export function OrdenesPage(): ReactElement {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState<OrdenesSortKey>>(DEFAULT_SORT);
 
-  const status = (searchParams.get('filtro') as StatusFilterKey | null) ?? 'todas';
+  const status = parseStatusFilter(searchParams.get('filtro'));
   const blueprintId = searchParams.get('blueprint') ?? DEFAULT_BLUEPRINT_FILTER;
   const featureId = searchParams.get('feature') ?? undefined;
   const openOrderId = searchParams.get('orden') ?? undefined;

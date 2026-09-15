@@ -33,10 +33,17 @@ export function FeatureTree({ features, selectedId }: FeatureTreeProps): ReactEl
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set(allExpandable));
   const [focusedId, setFocusedId] = useState(selectedId);
   const treeRef = useRef<HTMLDivElement>(null);
+  const pendingFrame = useRef<number | null>(null);
 
   useEffect(() => {
     setFocusedId((current) => (features.some((feature) => feature.id === current) ? current : selectedId));
   }, [selectedId, features]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingFrame.current !== null) cancelAnimationFrame(pendingFrame.current);
+    };
+  }, []);
 
   const tree = useMemo(() => buildTree(features), [features]);
   const rows = useMemo(() => flattenVisible(tree, expanded), [tree, expanded]);
@@ -45,7 +52,9 @@ export function FeatureTree({ features, selectedId }: FeatureTreeProps): ReactEl
 
   function focusRow(id: string): void {
     setFocusedId(id);
-    requestAnimationFrame(() => {
+    if (pendingFrame.current !== null) cancelAnimationFrame(pendingFrame.current);
+    pendingFrame.current = requestAnimationFrame(() => {
+      pendingFrame.current = null;
       treeRef.current?.querySelector<HTMLDivElement>(`[data-id="${CSS.escape(id)}"]`)?.focus();
     });
   }

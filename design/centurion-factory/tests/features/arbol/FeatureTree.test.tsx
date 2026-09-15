@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Feature } from '../../../src/data';
 import { FeatureTree } from '../../../src/features/arbol/FeatureTree';
 
@@ -86,6 +86,26 @@ describe('FeatureTree', () => {
     const tabbable = items.filter((item) => item.getAttribute('tabindex') === '0');
     expect(tabbable).toHaveLength(1);
     expect(tabbable[0]?.getAttribute('data-id')).toBe('PRD-002');
+  });
+
+  it('cancels the pending requestAnimationFrame on unmount (WO-318)', async () => {
+    const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame');
+    const user = userEvent.setup();
+    const router = createMemoryRouter(
+      [
+        { path: '/arbol/:id?', element: <FeatureTree features={FEATURES} selectedId="MRD-001" /> },
+        { path: '*', element: <p>otro</p> },
+      ],
+      { initialEntries: ['/arbol/MRD-001'] },
+    );
+    const { unmount } = render(<RouterProvider router={router} />);
+    screen.getByRole('treeitem', { name: /MRD-001/ }).focus();
+    await user.keyboard('{ArrowDown}');
+
+    unmount();
+
+    expect(cancelSpy).toHaveBeenCalled();
+    cancelSpy.mockRestore();
   });
 
   it('moves the roving tabindex with ArrowDown/ArrowUp', async () => {

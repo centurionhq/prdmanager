@@ -1,6 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkOrder } from '../../../src/data';
-import { CURRENT_ACTOR, filterWorkOrders, statusCounts, statusTotal, type OrdenesFilters } from '../../../src/features/ordenes/filters';
+import {
+  CURRENT_ACTOR,
+  filterWorkOrders,
+  parseStatusFilter,
+  statusCounts,
+  statusTotal,
+  type OrdenesFilters,
+} from '../../../src/features/ordenes/filters';
+
+describe('parseStatusFilter', () => {
+  it('accepts every known status filter key', () => {
+    expect(parseStatusFilter('pending')).toBe('pending');
+    expect(parseStatusFilter('mias')).toBe('mias');
+    expect(parseStatusFilter('todas')).toBe('todas');
+  });
+
+  it('falls back to "todas" for null, empty or an unknown value (WO-318)', () => {
+    expect(parseStatusFilter(null)).toBe('todas');
+    expect(parseStatusFilter('')).toBe('todas');
+    expect(parseStatusFilter('cualquier-cosa')).toBe('todas');
+    expect(parseStatusFilter('__proto__')).toBe('todas');
+  });
+});
 
 function order(overrides: Partial<WorkOrder>): WorkOrder {
   return {

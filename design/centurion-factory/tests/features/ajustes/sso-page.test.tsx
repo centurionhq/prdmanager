@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../../../src/router';
 
 function renderAt(path: string) {
@@ -68,12 +68,49 @@ describe('SsoPage', () => {
     renderAt('/ajustes/sso');
 
     await user.click(screen.getByRole('button', { name: /centurion\.dev/ }));
-    expect(screen.getByText(/prdm-verify=4f1c9e/)).toBeTruthy();
+    expect(screen.getByDisplayValue('prdm-verify=4f1c9e')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Verificar ahora' }));
     expect(
       await screen.findByText('Todavía no encontramos el registro TXT. Puede tardar hasta una hora.'),
     ).toBeTruthy();
+  });
+
+  describe('copying the TXT record (WO-318)', () => {
+    beforeEach(() => {
+      if (!navigator.clipboard) {
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText: async () => {} }, configurable: true });
+      }
+      vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('copies the record and shows a success toast', async () => {
+      const user = userEvent.setup();
+      renderAt('/ajustes/sso');
+      await user.click(screen.getByRole('button', { name: /centurion\.dev/ }));
+
+      await user.click(screen.getByRole('button', { name: 'Copiar' }));
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('prdm-verify=4f1c9e');
+      expect(await screen.findByText('Registro copiado')).toBeTruthy();
+    });
+
+    it('falls back to a toast and selects the record when writeText rejects', async () => {
+      vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
+      const user = userEvent.setup();
+      renderAt('/ajustes/sso');
+      await user.click(screen.getByRole('button', { name: /centurion\.dev/ }));
+
+      const record = screen.getByDisplayValue('prdm-verify=4f1c9e') as HTMLInputElement;
+      await user.click(screen.getByRole('button', { name: 'Copiar' }));
+
+      expect(await screen.findByText('No pudimos copiar. Seleccioná el texto y copialo a mano.')).toBeTruthy();
+      expect(record.selectionStart).toBe(0);
+      expect(record.selectionEnd).toBe(record.value.length);
+    });
   });
 
   it('reflects the initial access rules and reveals the default role while JIT is on', async () => {

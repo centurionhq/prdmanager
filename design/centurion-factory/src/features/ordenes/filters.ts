@@ -45,6 +45,14 @@ export const ASSIGNEE_FILTERS: readonly AssigneeFilterOption[] = [
 
 export const DEFAULT_BLUEPRINT_FILTER = 'todos';
 
+const STATUS_FILTER_KEYS: ReadonlySet<string> = new Set(STATUS_FILTERS.map((option) => option.key));
+
+/** Validates `?filtro=` against the known chip keys, falling back to "todas" for anything else. */
+export function parseStatusFilter(value: string | null): StatusFilterKey {
+  if (value && STATUS_FILTER_KEYS.has(value)) return value as StatusFilterKey;
+  return 'todas';
+}
+
 function matchesStatus(order: WorkOrder, key: StatusFilterKey): boolean {
   if (key === 'todas') return true;
   if (key === 'mias') return order.assignedTo === CURRENT_ACTOR;

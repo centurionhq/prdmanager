@@ -43,3 +43,19 @@ export function generateTokenSecret(): { readonly prefix: string; readonly secre
 export function toDateOnly(date: Date): string {
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
 }
+
+export const CLIPBOARD_ERROR = 'No pudimos copiar. Seleccioná el texto y copialo a mano.';
+
+/**
+ * Copies `text` to the clipboard, tolerating a missing `navigator.clipboard` (insecure context,
+ * unsupported browser) or a rejected `writeText` (denied permission). Never throws.
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+  if (!navigator.clipboard) return false;
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}

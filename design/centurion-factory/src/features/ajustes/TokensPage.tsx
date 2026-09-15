@@ -1,10 +1,10 @@
 import { Check, Copy } from 'lucide-react';
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 import { Button, EmptyState, ErrorState, Modal, Skeleton, useToast } from '../../components';
 import { CI_TOKENS, type CiToken } from '../../data';
 import { useDemoState } from '../../lib/use-demo-state';
 import { CreateTokenModal, type CreateTokenInput } from './CreateTokenModal';
-import { generateTokenSecret, toDateOnly } from './lib';
+import { CLIPBOARD_ERROR, copyToClipboard, generateTokenSecret, toDateOnly } from './lib';
 import styles from './TokensPage.module.css';
 import { TokensTable } from './TokensTable';
 
@@ -32,6 +32,7 @@ export function TokensPage(): ReactElement {
   const [createOpen, setCreateOpen] = useState(false);
   const [newSecret, setNewSecret] = useState<NewTokenSecret | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
+  const secretFieldRef = useRef<HTMLInputElement>(null);
 
   function handleCreate(input: CreateTokenInput): void {
     const { prefix, secret } = generateTokenSecret();
@@ -52,15 +53,20 @@ export function TokensPage(): ReactElement {
 
   async function handleCopy(): Promise<void> {
     if (!newSecret) return;
-    if (navigator.clipboard) await navigator.clipboard.writeText(newSecret.secret);
-    toast.show('Token copiado');
+    const copied = await copyToClipboard(newSecret.secret);
+    if (copied) {
+      toast.show('Token copiado');
+      return;
+    }
+    secretFieldRef.current?.select();
+    toast.show(CLIPBOARD_ERROR);
   }
 
   function handleRevoke(token: CiToken): void {
     setPendingRemoval({
       message: `¿Revocar el token ${token.name}? Ya no va a poder enviar reportes de CI.`,
       onConfirm: () => {
-        setTokens((current) => current.filter((entry) => entry.name !== token.name));
+        setTokens((current) => current.filter((entry) => entry.prefix !== token.prefix));
         toast.show('Token revocado');
         setPendingRemoval(null);
       },
@@ -68,7 +74,7 @@ export function TokensPage(): ReactElement {
   }
 
   function handleDelete(token: CiToken): void {
-    setTokens((current) => current.filter((entry) => entry.name !== token.name));
+    setTokens((current) => current.filter((entry) => entry.prefix !== token.prefix));
     toast.show('Token eliminado');
   }
 
@@ -96,7 +102,7 @@ export function TokensPage(): ReactElement {
           </div>
           <p className={styles.successBody}>Copiá el token ahora. Por seguridad no lo vamos a volver a mostrar.</p>
           <div className={styles.successRow}>
-            <input readOnly className={`id ${styles.secretField}`} value={newSecret.secret} />
+            <input ref={secretFieldRef} readOnly className={`id ${styles.secretField}`} value={newSecret.secret} />
             <Button type="button" variant="secondary" onClick={handleCopy}>
               <Copy aria-hidden="true" size={16} />
               Copiar
@@ -129,7 +135,12 @@ export function TokensPage(): ReactElement {
         </div>
       ) : null}
 
-      <CreateTokenModal open={createOpen} onClose={() => setCreateOpen(false)} onCreate={handleCreate} />
+      <CreateTokenModal
+        open={createOpen}
+        existingNames={tokens.map((token) => token.name)}
+        onClose={() => setCreateOpen(false)}
+        onCreate={handleCreate}
+      />
 
       <Modal
         open={pendingRemoval !== null}
