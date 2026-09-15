@@ -102,5 +102,6 @@ Unitarios de contratos, adaptador de drift, verificación de claims OIDC con JWK
 - [ ] Revisión de seguridad #4 (HIGH): la verificación de "proyecto vacío" del importador es check-then-act sin lock ni idempotency key bajo READ COMMITTED, permitiendo dos importaciones concurrentes al mismo proyecto vacío; usar un advisory lock por proyecto o una idempotency key en el endpoint de importación, con test de concurrencia real
 - [ ] Revisión de seguridad #4 (MEDIUM): pasar redirect: 'error' también en la construcción de StreamableHTTPClientTransport (mcp-client.ts y mcp-proxy.ts), no solo en los fetches de login/sync/import, con test de un servidor que redirige
 - [ ] Revisión de seguridad #4 (MEDIUM): agregar un bodyLimit explícito al endpoint de policy-docs para consistencia con el resto de las rutas nuevas
+- [ ] Revisión de seguridad #4 (HIGH, seguimiento de WO-234): commit-msg.ts y check-range.ts también leen project.id de .prdm.yaml sin cruzarlo contra el pin local; usar checkProjectPinMismatch (ya compartido por sync.ts y mcp-proxy.ts) en ambos, con test
 
 El cierre de PRD-005 con `prdm close PRD-005 --ack` no es una tarea: se ejecuta cuando todos los WOs de ADR-005, ADR-006 y SDD-006 a SDD-010 están terminados.
