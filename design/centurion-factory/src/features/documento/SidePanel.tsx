@@ -1,12 +1,22 @@
 /**
  * Desktop side panel of the Documento screen: tabs Agente | Comentarios (n) | Versiones |
- * Validación. WO-287 laid out the tabs; WO-289 wires the Agente tab; WO-290 wires the rest.
+ * Validación. WO-287 laid out the tabs; WO-289 wired Agente; WO-290 wires the rest.
  */
 import { useState, type ReactElement } from 'react';
-import { commentsForDocument, validationIssuesForDocument, type AgentProposal, type DocumentBlock, type ProjectDocument } from '../../data';
+import {
+  validationIssuesForDocument,
+  type AgentProposal,
+  type CommentThread,
+  type DocumentBlock,
+  type DocumentVersion,
+  type ProjectDocument,
+} from '../../data';
 import { AgentTab } from './AgentTab';
+import { CommentsTab } from './CommentsTab';
 import { Tabs } from './Tabs';
 import type { ProposalOutcome } from './useDocumentEditor';
+import { ValidationTab } from './ValidationTab';
+import { VersionsTab } from './VersionsTab';
 
 export interface SidePanelProps {
   readonly document: ProjectDocument;
@@ -14,11 +24,27 @@ export interface SidePanelProps {
   readonly proposals: readonly AgentProposal[];
   readonly onAcceptProposal: (proposalId: string) => ProposalOutcome;
   readonly onRejectProposal: (proposalId: string) => void;
+  readonly comments: readonly CommentThread[];
+  readonly onReply: (threadId: string, body: string) => void;
+  readonly onResolveThread: (threadId: string) => void;
+  readonly versions: readonly DocumentVersion[];
+  readonly onRestoreVersion: (versionNo: number) => string;
 }
 
-export function SidePanel({ document, blocks, proposals, onAcceptProposal, onRejectProposal }: SidePanelProps): ReactElement {
+export function SidePanel({
+  document,
+  blocks,
+  proposals,
+  onAcceptProposal,
+  onRejectProposal,
+  comments,
+  onReply,
+  onResolveThread,
+  versions,
+  onRestoreVersion,
+}: SidePanelProps): ReactElement {
   const [activeId, setActiveId] = useState('agente');
-  const openComments = commentsForDocument(document.id).filter((thread) => thread.status === 'open').length;
+  const openComments = comments.filter((thread) => thread.status === 'open').length;
   const validationIssues = validationIssuesForDocument(document.id);
 
   return (
@@ -42,14 +68,10 @@ export function SidePanel({ document, blocks, proposals, onAcceptProposal, onRej
               Comentarios <span className="num">({openComments})</span>
             </>
           ),
-          panel: <p>{openComments === 0 ? 'Sin comentarios abiertos.' : `${openComments} hilos de comentarios abiertos.`}</p>,
+          panel: <CommentsTab threads={comments} onReply={onReply} onResolve={onResolveThread} />,
         },
-        { id: 'versiones', label: 'Versiones', panel: <p>El historial de versiones se muestra acá.</p> },
-        {
-          id: 'validacion',
-          label: 'Validación',
-          panel: <p>{validationIssues.length === 0 ? 'Sin problemas de validación.' : `${validationIssues.length} problemas de validación.`}</p>,
-        },
+        { id: 'versiones', label: 'Versiones', panel: <VersionsTab versions={versions} onRestore={onRestoreVersion} /> },
+        { id: 'validacion', label: 'Validación', panel: <ValidationTab issues={validationIssues} /> },
       ]}
     />
   );

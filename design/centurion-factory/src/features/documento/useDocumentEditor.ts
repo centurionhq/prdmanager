@@ -5,12 +5,14 @@
  */
 import { useMemo, useState } from 'react';
 import {
+  commentsForDocument,
   getBlueprint,
   getDocument,
   getPerson,
   proposalsForDocument,
   versionsForDocument,
   type AgentProposal,
+  type CommentThread,
   type DocumentBlock,
   type DocumentVersion,
   type ProjectDocument,
@@ -59,6 +61,10 @@ export interface UseDocumentEditorResult {
   readonly transition: (kind: WorkflowTransition) => string;
   readonly acceptProposal: (proposalId: string) => ProposalOutcome;
   readonly rejectProposal: (proposalId: string) => void;
+  readonly comments: readonly CommentThread[];
+  readonly addReply: (threadId: string, body: string) => void;
+  readonly resolveThread: (threadId: string) => void;
+  readonly restoreVersion: (versionNo: number) => string;
 }
 
 function nextVersionNumber(versions: readonly DocumentVersion[]): number {
@@ -80,6 +86,7 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
   const [role, setRole] = useState<ProjectRole>('admin');
   const [blocks, setBlocks] = useState<readonly DocumentBlock[]>(() => document?.blocks ?? []);
   const [proposals, setProposals] = useState<readonly AgentProposal[]>(() => [...proposalsForDocument(id)]);
+  const [comments, setComments] = useState<readonly CommentThread[]>(() => [...commentsForDocument(id)]);
 
   function addVersion(reason: VersionReason, label?: string): void {
     if (!document) return;
@@ -132,6 +139,27 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
     setProposals((current) => current.map((item) => (item.id === proposalId ? { ...item, status: 'rejected', respondedBy: CURRENT_USER_ID } : item)));
   }
 
+  function addReply(threadId: string, body: string): void {
+    setComments((current) =>
+      current.map((thread) =>
+        thread.id === threadId
+          ? { ...thread, comments: [...thread.comments, { authorId: CURRENT_USER_ID, body, createdAt: new Date().toISOString() }] }
+          : thread,
+      ),
+    );
+  }
+
+  function resolveThread(threadId: string): void {
+    setComments((current) =>
+      current.map((thread) => (thread.id === threadId ? { ...thread, status: 'resolved', resolvedBy: CURRENT_USER_ID } : thread)),
+    );
+  }
+
+  function restoreVersion(versionNo: number): string {
+    addVersion('restore', `Restaurada de la versión ${versionNo}`);
+    return 'Versión restaurada';
+  }
+
   const metaLine = document ? metaLineFor(document, savedJustNow, now) : '';
 
   return {
@@ -148,5 +176,9 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
     transition,
     acceptProposal,
     rejectProposal,
+    comments,
+    addReply,
+    resolveThread,
+    restoreVersion,
   };
 }

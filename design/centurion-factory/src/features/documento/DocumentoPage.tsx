@@ -40,6 +40,10 @@ export function DocumentoPage(): ReactElement {
     transition,
     acceptProposal,
     rejectProposal,
+    comments,
+    addReply,
+    resolveThread,
+    restoreVersion,
   } = useDocumentEditor(id);
 
   if (!document || !workflowState) {
@@ -96,11 +100,33 @@ export function DocumentoPage(): ReactElement {
       <div className={styles.desktopLayout}>
         <FrontmatterForm document={document} workflowState={workflowState} architectOf={architectOf} latestVersion={latestOf(versions)} />
         <EditorColumn blocks={blocks} />
-        <SidePanel document={document} blocks={blocks} proposals={proposals} onAcceptProposal={acceptProposal} onRejectProposal={rejectProposal} />
+        <SidePanel
+          document={document}
+          blocks={blocks}
+          proposals={proposals}
+          onAcceptProposal={acceptProposal}
+          onRejectProposal={rejectProposal}
+          comments={comments}
+          onReply={addReply}
+          onResolveThread={resolveThread}
+          versions={versions}
+          onRestoreVersion={restoreVersion}
+        />
       </div>
 
       <div className={styles.mobileLayout}>
-        <MobileTabs document={document} blocks={blocks} proposals={proposals} onAcceptProposal={acceptProposal} onRejectProposal={rejectProposal} />
+        <MobileTabs
+          document={document}
+          blocks={blocks}
+          proposals={proposals}
+          onAcceptProposal={acceptProposal}
+          onRejectProposal={rejectProposal}
+          comments={comments}
+          onReply={addReply}
+          onResolveThread={resolveThread}
+          versions={versions}
+          onRestoreVersion={restoreVersion}
+        />
         <div className={styles.mobileActionBar}>
           <Button type="button" variant="secondary" onClick={handleSave}>
             Guardar

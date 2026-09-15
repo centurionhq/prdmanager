@@ -1,14 +1,15 @@
 /**
- * Mobile tab bar for the Documento screen (WO-287): Documento | Agente | Comentarios | Versiones,
- * shown under 768px instead of the desktop's three columns. WO-289 wires the Agente tab; WO-290
- * fills in comments and versions.
+ * Mobile tab bar for the Documento screen: Documento | Agente | Comentarios | Versiones, shown
+ * under 768px instead of the desktop's three columns.
  */
 import { useState, type ReactElement } from 'react';
-import { commentsForDocument, type AgentProposal, type DocumentBlock, type ProjectDocument } from '../../data';
+import type { AgentProposal, CommentThread, DocumentBlock, DocumentVersion, ProjectDocument } from '../../data';
 import { AgentTab } from './AgentTab';
+import { CommentsTab } from './CommentsTab';
 import { EditorColumn } from './EditorColumn';
 import { Tabs } from './Tabs';
 import type { ProposalOutcome } from './useDocumentEditor';
+import { VersionsTab } from './VersionsTab';
 
 export interface MobileTabsProps {
   readonly document: ProjectDocument;
@@ -16,11 +17,26 @@ export interface MobileTabsProps {
   readonly proposals: readonly AgentProposal[];
   readonly onAcceptProposal: (proposalId: string) => ProposalOutcome;
   readonly onRejectProposal: (proposalId: string) => void;
+  readonly comments: readonly CommentThread[];
+  readonly onReply: (threadId: string, body: string) => void;
+  readonly onResolveThread: (threadId: string) => void;
+  readonly versions: readonly DocumentVersion[];
+  readonly onRestoreVersion: (versionNo: number) => string;
 }
 
-export function MobileTabs({ document, blocks, proposals, onAcceptProposal, onRejectProposal }: MobileTabsProps): ReactElement {
+export function MobileTabs({
+  document,
+  blocks,
+  proposals,
+  onAcceptProposal,
+  onRejectProposal,
+  comments,
+  onReply,
+  onResolveThread,
+  versions,
+  onRestoreVersion,
+}: MobileTabsProps): ReactElement {
   const [activeId, setActiveId] = useState('documento');
-  const openComments = commentsForDocument(document.id).filter((thread) => thread.status === 'open').length;
 
   return (
     <Tabs
@@ -37,12 +53,8 @@ export function MobileTabs({ document, blocks, proposals, onAcceptProposal, onRe
             <AgentTab documentId={document.id} blocks={blocks} proposals={proposals} onAccept={onAcceptProposal} onReject={onRejectProposal} />
           ),
         },
-        {
-          id: 'comentarios',
-          label: 'Comentarios',
-          panel: <p>{openComments === 0 ? 'Sin comentarios abiertos.' : `${openComments} hilos de comentarios abiertos.`}</p>,
-        },
-        { id: 'versiones', label: 'Versiones', panel: <p>El historial de versiones se muestra acá.</p> },
+        { id: 'comentarios', label: 'Comentarios', panel: <CommentsTab threads={comments} onReply={onReply} onResolve={onResolveThread} /> },
+        { id: 'versiones', label: 'Versiones', panel: <VersionsTab versions={versions} onRestore={onRestoreVersion} /> },
       ]}
     />
   );
