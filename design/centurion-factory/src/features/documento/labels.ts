@@ -1,5 +1,23 @@
 /** Spanish label maps for the Documento screen (WO-287), local to this feature. */
-import type { VersionReason, WorkflowState } from '../../data';
+import type { ProjectRole, VersionReason, WorkflowState } from '../../data';
+
+// WO-288: the simulated "Ver como" role selector uses these labels as-is (not translated).
+const ROLE_LABELS: Readonly<Record<ProjectRole, string>> = {
+  admin: 'Admin',
+  editor: 'Editor',
+  developer: 'Developer',
+  commenter: 'Commenter',
+  viewer: 'Viewer',
+};
+
+export function roleLabel(role: ProjectRole): string {
+  return ROLE_LABELS[role];
+}
+
+/** The header's "Editás como …" phrase; admin keeps the exact canvas copy. */
+export function editingAsLabel(role: ProjectRole): string {
+  return role === 'admin' ? 'Admin de proyecto' : roleLabel(role);
+}
 
 const WORKFLOW_LABELS: Readonly<Record<WorkflowState, string>> = {
   draft: 'Borrador',

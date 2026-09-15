@@ -6,7 +6,7 @@
 import { X } from 'lucide-react';
 import { useId, useState, type FormEvent, type ReactElement } from 'react';
 import { IdTag } from '../../components';
-import { getBlueprint, getFeature, getPerson, type DocumentVersion, type ProjectDocument } from '../../data';
+import { getBlueprint, getFeature, getPerson, type DocumentVersion, type ProjectDocument, type WorkflowState } from '../../data';
 import styles from './FrontmatterForm.module.css';
 import { workflowLabel } from './labels';
 
@@ -19,6 +19,7 @@ function joinAuthorNames(contributorIds: readonly string[]): string {
 
 export interface FrontmatterFormProps {
   readonly document: ProjectDocument;
+  readonly workflowState: WorkflowState;
   readonly architectOf: string | undefined;
   readonly latestVersion: DocumentVersion | undefined;
 }
@@ -72,7 +73,7 @@ function ChipList({
   );
 }
 
-export function FrontmatterForm({ document, architectOf, latestVersion }: FrontmatterFormProps): ReactElement {
+export function FrontmatterForm({ document, workflowState, architectOf, latestVersion }: FrontmatterFormProps): ReactElement {
   const [title, setTitle] = useState(document.title);
   const [tags, setTags] = useState<readonly string[]>(document.tags);
   const [paths, setPaths] = useState<readonly string[]>(() => getBlueprint(document.id)?.impactsPaths ?? []);
@@ -91,8 +92,8 @@ export function FrontmatterForm({ document, architectOf, latestVersion }: Frontm
 
       <label className={styles.field} htmlFor={stateId}>
         <span className={styles.label}>Estado</span>
-        <select id={stateId} className={styles.input} value={document.workflowState} disabled>
-          <option value={document.workflowState}>{workflowLabel(document.workflowState)}</option>
+        <select id={stateId} className={styles.input} value={workflowState} disabled>
+          <option value={workflowState}>{workflowLabel(workflowState)}</option>
         </select>
       </label>
 
