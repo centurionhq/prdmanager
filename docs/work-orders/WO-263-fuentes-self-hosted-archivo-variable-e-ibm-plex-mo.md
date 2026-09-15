@@ -2,12 +2,17 @@
 id: "WO-263"
 type: "WO"
 title: "Fuentes self-hosted Archivo variable e IBM Plex Mono importadas desde base.css con pilas de respaldo y font-display swap, sin pedidos de red, con test que lo verifica"
-status: "pending"
+status: "done"
 created_at: "2026-09-15"
 implements: ["ADR-007"]
 impacts_paths: ["design/centurion-factory/*.json","design/centurion-factory/*.config.ts","design/centurion-factory/index.htm[l]","design/centurion-factory/src/styles/**"]
 source_task: "3ad1e5327a6664ea"
 tags: ["architecture-decision","design","frontend","mock"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T14:47:52.659Z"
+completed_at: "2026-09-15T14:48:40.066Z"
+resolved_by: ["10007d8c1a453603cf89d7c910455d3dc8979dd9"]
+blueprint_hashes: {"ADR-007":"c25d8a138b8055e630fe69d36c75e55fb8efbde74222cdf73e57c6e10e3a2540"}
 ---
 
 ## Objetivo

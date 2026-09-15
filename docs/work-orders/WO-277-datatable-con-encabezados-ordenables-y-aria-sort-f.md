@@ -2,12 +2,17 @@
 id: "WO-277"
 type: "WO"
 title: "DataTable con encabezados ordenables y aria-sort, filas apiladas bajo 640px, FilterBar y SearchField, con tests"
-status: "pending"
+status: "done"
 created_at: "2026-09-15"
 implements: ["SDD-011"]
 impacts_paths: ["design/centurion-factory/src/**","design/centurion-factory/tests/**","design/centurion-factory/scripts/**","design/centurion-factory/canvas/**","design/centurion-factory/CLAUDE.m[d]"]
 source_task: "72d8c38a41a4da0b"
 tags: ["design","frontend","mock","canvas","accessibility"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T14:52:17.057Z"
+completed_at: "2026-09-15T15:21:01.207Z"
+resolved_by: ["0550e0f7eb3042ea947b54ee441e4066e6de116c"]
+blueprint_hashes: {"SDD-011":"2ee1b9fd5af7ff28f10d0ebe5618c37c51cb693cda43e74115296d21c9d37a37"}
 ---
 
 ## Objetivo
