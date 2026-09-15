@@ -16,7 +16,7 @@
  */
 import { evaluateCommit, readCommitsInRange, type EvaluateCommitResult, type RemoteProjectFile } from '@prdm/core';
 import { CliError } from '../errors.js';
-import { loadCredentials } from './credentials.js';
+import { checkProjectPinMismatch, loadCredentials } from './credentials.js';
 import { syncGovernanceCache } from './governance-cache.js';
 import { scanPolicyDocs } from './policy-doc-scan.js';
 import { fetchPolicyDocs } from './policy-docs.js';
@@ -39,6 +39,14 @@ export interface RemoteCheckRangeDeps {
 
 export async function runRemoteCheckRange(root: string, file: RemoteProjectFile, range: string, deps: RemoteCheckRangeDeps): Promise<RemoteCheckRangeResult> {
   const origin = resolveRemoteServerOrigin(file.remote, deps.env);
+
+  // WO-234/WO-238: `.prdm.yaml`'s `project.id` is repo-tracked — a PR editing only that field would
+  // otherwise silently retarget this developer's/CI's range check at a different project. Mirrors the
+  // `remote.server` cross-check just above, against the local, non-repo-controlled pin `prdm link`
+  // recorded, the same way `sync.ts`/`mcp-proxy.ts` already do.
+  const pinMismatch = checkProjectPinMismatch(root, file.project.id, deps.env);
+  if (pinMismatch) throw new CliError(pinMismatch);
+
   const credentials = loadCredentials(deps.env);
   const credential = credentials[origin];
   if (!credential) throw new CliError(`not logged in to ${origin}; run "prdm login --server ${origin}" first`);

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { renderRemoteProjectFile, type RemoteProjectFile } from '@prdm/core';
 import { commitAll, gitInit, makeTmpDir, removeDir, writeFiles } from '@prdm/testkit';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { saveCredentials } from '../../src/remote/credentials.js';
+import { saveCredentials, saveProjectPin } from '../../src/remote/credentials.js';
 import { REFETCH_TIMEOUT_MS, runRemoteCommitMsg, STALE_CACHE_THRESHOLD_MS } from '../../src/remote/commit-msg.js';
 import { syncGovernanceCache } from '../../src/remote/governance-cache.js';
 
@@ -81,6 +81,7 @@ describe('runRemoteCommitMsg (WO-197)', () => {
 
   test('fresh cache: evaluates against it without attempting a refetch', async () => {
     saveCredentials({ 'https://app.example.test': { token: 't' } }, { XDG_CONFIG_HOME: xdgHome });
+    saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
     await syncGovernanceCache(root, 'https://app.example.test', 'prj_0123456789abcdef', 't', { fetchImpl: governanceFetch() });
     await stageAll();
 
@@ -102,6 +103,7 @@ describe('runRemoteCommitMsg (WO-197)', () => {
 
   test('stale cache, successful refetch: uses the refreshed docs, no warning', async () => {
     saveCredentials({ 'https://app.example.test': { token: 't' } }, { XDG_CONFIG_HOME: xdgHome });
+    saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
     await syncGovernanceCache(root, 'https://app.example.test', 'prj_0123456789abcdef', 't', { fetchImpl: governanceFetch() });
     setManifestFetchedAt(root, new Date(Date.now() - STALE_CACHE_THRESHOLD_MS - 1000).toISOString());
     await stageAll();
@@ -126,6 +128,7 @@ describe('runRemoteCommitMsg (WO-197)', () => {
 
   test('stale cache, refetch fails: falls back to the stale cache with a warning', async () => {
     saveCredentials({ 'https://app.example.test': { token: 't' } }, { XDG_CONFIG_HOME: xdgHome });
+    saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
     await syncGovernanceCache(root, 'https://app.example.test', 'prj_0123456789abcdef', 't', { fetchImpl: governanceFetch() });
     setManifestFetchedAt(root, new Date(Date.now() - STALE_CACHE_THRESHOLD_MS - 1000).toISOString());
     await stageAll();
@@ -145,4 +148,24 @@ describe('runRemoteCommitMsg (WO-197)', () => {
     // The stale cache still has WO-001 governing src/**, so the commit still passes.
     expect(result.ok).toBe(true);
   }, REFETCH_TIMEOUT_MS + 10_000);
+
+  test('stale cache, .prdm.yaml project.id disagrees with the local pin: refuses to refetch (WO-238)', async () => {
+    saveCredentials({ 'https://app.example.test': { token: 't' } }, { XDG_CONFIG_HOME: xdgHome });
+    // Simulates a PR that edited only .prdm.yaml's project.id after this repo was already linked.
+    saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_fedcba9876543210' }, { XDG_CONFIG_HOME: xdgHome });
+    await syncGovernanceCache(root, 'https://app.example.test', 'prj_0123456789abcdef', 't', { fetchImpl: governanceFetch() });
+    setManifestFetchedAt(root, new Date(Date.now() - STALE_CACHE_THRESHOLD_MS - 1000).toISOString());
+    await stageAll();
+
+    let refetchCalled = false;
+    const fetchImpl = (async (...args: Parameters<typeof fetch>) => {
+      refetchCalled = true;
+      return governanceFetch()(...args);
+    }) as typeof fetch;
+
+    await expect(
+      runRemoteCommitMsg(root, remoteFile('https://app.example.test'), 'chore: touch foo\n\nRefs: WO-001', {}, { env: { XDG_CONFIG_HOME: xdgHome }, fetchImpl }),
+    ).rejects.toThrow(/project.id/);
+    expect(refetchCalled).toBe(false);
+  });
 });

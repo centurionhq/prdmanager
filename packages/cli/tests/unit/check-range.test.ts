@@ -7,7 +7,7 @@ import { renderRemoteProjectFile, type RemoteProjectFile } from '@prdm/core';
 import { commitAll, gitInit, makeTmpDir, removeDir, writeFiles } from '@prdm/testkit';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { runRemoteCheckRange } from '../../src/remote/check-range.js';
-import { saveCredentials } from '../../src/remote/credentials.js';
+import { saveCredentials, saveProjectPin } from '../../src/remote/credentials.js';
 
 const SETTINGS = { folders: {}, ignore: [], git: { max_commits: 500, enforce_refs: true, enforce_refs_since: null }, triage: {}, lifecycle: {}, default_branch: 'main', github_repository: null, github_repository_id: null, github_owner_id: null, hash_algo_version: 1 };
 const SDD_DOC = '---\nid: SDD-001\ntype: SDD\ntitle: "Blueprint"\narchitects: ["PRD-001"]\nimpacts_paths: ["src/**"]\n---\nBody.\n';
@@ -28,6 +28,7 @@ beforeEach(() => {
   root = makeTmpDir('prdm-check-range-');
   xdgHome = makeTmpDir('prdm-check-range-xdg-');
   saveCredentials({ 'https://app.example.test': { token: 't' } }, { XDG_CONFIG_HOME: xdgHome });
+  saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
 });
 
 afterEach(() => {
@@ -107,5 +108,22 @@ describe('runRemoteCheckRange (WO-198)', () => {
     const fetchImpl = fakeFetch({});
     const check = await runRemoteCheckRange(root, remoteFile('https://app.example.test'), `${sha}..${sha}`, { env: { XDG_CONFIG_HOME: xdgHome }, fetchImpl });
     expect(check).toEqual({ ok: true, commits: [] });
+  });
+
+  test('.prdm.yaml project.id disagrees with the local pin: refuses without ever fetching (WO-238)', async () => {
+    gitInit(root);
+    writeFiles(root, { 'src/a.ts': 'a' });
+    const sha = commitAll(root, 'chore: init');
+    // Simulates a PR that edited only .prdm.yaml's project.id after this repo was already linked.
+    saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_fedcba9876543210' }, { XDG_CONFIG_HOME: xdgHome });
+
+    let fetchCalled = false;
+    const fetchImpl = (async (...args: Parameters<typeof fetch>) => {
+      fetchCalled = true;
+      return fakeFetch({})(...args);
+    }) as typeof fetch;
+
+    await expect(runRemoteCheckRange(root, remoteFile('https://app.example.test'), `${sha}..${sha}`, { env: { XDG_CONFIG_HOME: xdgHome }, fetchImpl })).rejects.toThrow(/project.id/);
+    expect(fetchCalled).toBe(false);
   });
 });

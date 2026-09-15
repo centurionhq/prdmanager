@@ -8,7 +8,7 @@
  */
 import { checkCommitMessage, type CommitMsgCheckOptions, type EvaluateCommitResult, type PolicyDoc, type RemoteProjectFile } from '@prdm/core';
 import { CliError } from '../errors.js';
-import { loadCredentials } from './credentials.js';
+import { checkProjectPinMismatch, loadCredentials } from './credentials.js';
 import { loadCachedGovernance, syncGovernanceCache, type GovernanceCacheResult } from './governance-cache.js';
 import { scanPolicyDocs } from './policy-doc-scan.js';
 import { resolveRemoteServerOrigin } from './server-origin.js';
@@ -82,6 +82,13 @@ export async function runRemoteCommitMsg(root: string, file: RemoteProjectFile, 
   const isStale = cached.ageMs === null || cached.ageMs > STALE_CACHE_THRESHOLD_MS;
   if (isStale) {
     const origin = resolveRemoteServerOrigin(file.remote, deps.env);
+
+    // WO-234/WO-238: `.prdm.yaml`'s `project.id` is repo-tracked — refuse to refetch governance for
+    // whatever project it currently names unless it still agrees with the local, non-repo-controlled pin
+    // `prdm link` recorded, the same way `sync.ts`/`mcp-proxy.ts`/`check-range.ts` already do.
+    const pinMismatch = checkProjectPinMismatch(root, file.project.id, deps.env);
+    if (pinMismatch) throw new CliError(pinMismatch);
+
     const credentials = loadCredentials(deps.env);
     const credential = credentials[origin];
     if (!credential) throw new CliError(`not logged in to ${origin}; run "prdm login --server ${origin}" first`);
