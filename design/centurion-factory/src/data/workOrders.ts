@@ -1,12 +1,14 @@
 /**
- * Work order mock data (WO-270): barrel over workOrdersCore.ts (real graph work orders) and
- * workOrdersSample.ts (the FR-002 set plus filler), with lookup helpers.
+ * Work order mock data (WO-270): barrel over workOrdersCore.ts (real graph work orders),
+ * workOrdersSample.ts (the FR-002 set) and workOrdersFiller.ts (the rest of the sample spread),
+ * with lookup helpers.
  */
 import type { WorkOrder } from './types';
 import { CORE_WORK_ORDERS } from './workOrdersCore';
-import { SAMPLE_WORK_ORDERS } from './workOrdersSample';
+import { FR002_WORK_ORDERS } from './workOrdersSample';
+import { FILLER_WORK_ORDERS } from './workOrdersFiller';
 
-export const WORK_ORDERS: readonly WorkOrder[] = [...CORE_WORK_ORDERS, ...SAMPLE_WORK_ORDERS];
+export const WORK_ORDERS: readonly WorkOrder[] = [...CORE_WORK_ORDERS, ...FR002_WORK_ORDERS, ...FILLER_WORK_ORDERS];
 
 export function getWorkOrder(id: string): WorkOrder | undefined {
   return WORK_ORDERS.find((wo) => wo.id === id);
