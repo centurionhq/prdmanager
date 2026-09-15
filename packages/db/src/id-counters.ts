@@ -60,3 +60,17 @@ export async function nextDocId(tx: PgDatabase, projectId: string, kind: Documen
   if (!row) throw new Error(`id_counters row for project ${projectId} kind ${kind} disappeared between seed and increment`);
   return formatDocId(kind, row.last_seq);
 }
+
+/**
+ * Seeds/bumps `id_counters(projectId, kind)` to at least `seq` (SDD-010 "Importador", WO-193: the next
+ * locally-created document after an import must never collide with an imported id). Idempotent and safe
+ * to call with a lower `seq` than what's already stored — `GREATEST` never moves the counter backwards,
+ * so a later, unrelated call can never resurrect an id that was already issued.
+ */
+export async function seedIdCounterAtLeast(tx: PgDatabase, projectId: string, kind: DocumentKind, seq: number): Promise<void> {
+  await tx.execute(sql`
+    INSERT INTO "id_counters" ("project_id", "org_id", "kind", "last_seq")
+    VALUES (${projectId}, NULLIF(current_setting('app.org_id', true), ''), ${kind}, ${seq})
+    ON CONFLICT ("project_id", "kind") DO UPDATE SET "last_seq" = GREATEST("id_counters"."last_seq", EXCLUDED."last_seq")
+  `);
+}

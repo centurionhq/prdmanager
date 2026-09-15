@@ -11,7 +11,7 @@
  * `project.id` inside the uploaded `.prdm.yaml` is never read for anything — which project this imports
  * into is determined solely by the URL's `graphProjectId` (SDD-010: "ignora el project.id local").
  */
-import { assertSafeImportSourcePath, parseProjectFile, scanContents, UnsafeImportSourcePathError, type FolderMap } from '@prdm/core';
+import { assertSafeImportSourcePath, parseBaselineJson, parseProjectFile, scanContents, UnsafeImportSourcePathError, type FolderMap } from '@prdm/core';
 import { can, importRequestSchema, MAX_IMPORT_BODY_BYTES, type ImportDocumentDto } from '@prdm/contracts';
 import { createTenantDb, findMembership, importDocuments, ProjectNotEmptyError, resolveProjectByGraphProjectId, type ImportDocumentInput } from '@prdm/db';
 import type { FastifyInstance } from 'fastify';
@@ -105,13 +105,62 @@ export function registerImportRoutes(app: FastifyInstance, opts: RegisterImportR
         throw err;
       }
 
+      let baseline: Record<string, unknown> | undefined;
+      if (body.baselineJson !== undefined) {
+        try {
+          baseline = parseBaselineJson(body.baselineJson) as unknown as Record<string, unknown>;
+        } catch (err) {
+          throw new ValidationError(`invalid .prdm/baseline.json: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+
       try {
-        const created = await importDocuments(pool, { orgId: resolved.orgId, projectId: resolved.projectId, documents: toImport });
-        return { imported: created.length, documents: created.map((d) => ({ id: d.docId, sourcePath: d.sourcePath })) };
+        const result = await importDocuments(pool, {
+          orgId: resolved.orgId,
+          projectId: resolved.projectId,
+          documents: toImport,
+          grandfathered: settings.lifecycle.grandfathered,
+          baseline,
+        });
+
+        // SDD-010 "Importador": resolved_by, blueprint_hashes and grandfathered are privileged fields
+        // normally only ever written by engine operations (WO completion, blueprint-hash reconciliation)
+        // or a project admin's own settings — imported verbatim here, so the act of importing them is
+        // audited explicitly rather than blending into an ordinary "document created" entry.
+        const privilegedWorkOrders = toImport
+          .filter((d) => d.kind === 'WO' && hasPrivilegedWorkOrderFields(d.frontmatter))
+          .map((d) => d.docId);
+
+        await createTenantDb(pool)
+          .forOrg(resolved.orgId)
+          .auditLog.record({
+            projectId: resolved.projectId,
+            actorType: 'user',
+            actorId: token.userId,
+            action: 'project.imported',
+            target: req.params.graphProjectId,
+            metadata: {
+              documentsImported: result.documents.length,
+              importedCommitShas: result.importedCommitShas.length,
+              grandfatheredImported: result.grandfatheredImported,
+              baselineImported: result.baselineImported,
+              privilegedWorkOrders,
+            },
+            ip: req.ip,
+            userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined,
+          });
+
+        return { imported: result.documents.length, documents: result.documents.map((d) => ({ id: d.docId, sourcePath: d.sourcePath })) };
       } catch (err) {
         if (err instanceof ProjectNotEmptyError) throw new ConflictError(err.message);
         throw err;
       }
     },
   );
+}
+
+function hasPrivilegedWorkOrderFields(frontmatter: Record<string, unknown>): boolean {
+  const resolvedBy = frontmatter.resolved_by;
+  const blueprintHashes = frontmatter.blueprint_hashes;
+  return (Array.isArray(resolvedBy) && resolvedBy.length > 0) || (typeof blueprintHashes === 'object' && blueprintHashes !== null && Object.keys(blueprintHashes).length > 0);
 }

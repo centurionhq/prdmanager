@@ -231,4 +231,159 @@ describe('POST /api/v1/projects/:graphProjectId/import (WO-192)', () => {
 
     await app.close();
   });
+
+  function woDoc(id: string, opts: { resolvedBy?: string[]; blueprintHashes?: Record<string, string> } = {}): string {
+    const resolvedBy = opts.resolvedBy ? `\nresolved_by: [${opts.resolvedBy.map((s) => `"${s}"`).join(', ')}]` : '';
+    const blueprintHashes = opts.blueprintHashes ? `\nblueprint_hashes: {${Object.entries(opts.blueprintHashes).map(([k, v]) => `"${k}": "${v}"`).join(', ')}}` : '';
+    return `---\nid: ${id}\ntype: WO\ntitle: "Imported work order"\nstatus: done\nimplements: ["SDD-001"]${resolvedBy}${blueprintHashes}\n---\nBody for ${id}.\n`;
+  }
+
+  function sddDoc(id: string): string {
+    return `---\nid: ${id}\ntype: SDD\ntitle: "Imported blueprint"\narchitects: ["PRD-001"]\n---\nBody for ${id}.\n`;
+  }
+
+  describe('WO-193 side effects', () => {
+    test('seeds id_counters from the imported ids, so the next locally-created document never collides', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { org, project, cookie } = await seedOwnerAndProject(app);
+      const secret = await issuePersonalToken(app, org, cookie, ['import:write']);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/projects/${project.graphProjectId}/import`,
+        headers: { authorization: `Bearer ${secret}` },
+        payload: {
+          schema_version: 1,
+          prdmYaml: validPrdmYaml(),
+          documents: [
+            { sourcePath: 'docs/prd/PRD-007.md', content: prdDoc('PRD-007') },
+            { sourcePath: 'docs/prd/PRD-003.md', content: prdDoc('PRD-003') },
+          ],
+        },
+      });
+      expect(res.statusCode).toBe(200);
+
+      const counters = (await pg.ownerPool.query(`SELECT kind, last_seq FROM id_counters WHERE project_id = $1`, [project.id])).rows;
+      expect(counters).toEqual([{ kind: 'PRD', last_seq: 7 }]);
+
+      await app.close();
+    });
+
+    test('imports lifecycle.grandfathered into projects.settings', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { org, project, cookie } = await seedOwnerAndProject(app);
+      const secret = await issuePersonalToken(app, org, cookie, ['import:write']);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/projects/${project.graphProjectId}/import`,
+        headers: { authorization: `Bearer ${secret}` },
+        payload: { schema_version: 1, prdmYaml: validPrdmYaml([{ id: 'PRD-001', hash: '0'.repeat(64) }]), documents: [{ sourcePath: 'docs/prd/PRD-001.md', content: prdDoc('PRD-001') }] },
+      });
+      expect(res.statusCode).toBe(200);
+
+      const rows = (await pg.ownerPool.query(`SELECT settings FROM projects WHERE id = $1`, [project.id])).rows;
+      expect(rows[0].settings.lifecycle.grandfathered).toEqual([{ id: 'PRD-001', hash: '0'.repeat(64) }]);
+
+      await app.close();
+    });
+
+    test('imports .prdm/baseline.json verbatim into project_baselines', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { org, project, cookie } = await seedOwnerAndProject(app);
+      const secret = await issuePersonalToken(app, org, cookie, ['import:write']);
+      const baselineJson = JSON.stringify({ version: 1, docs: { 'PRD-001': 'a'.repeat(64) }, governs: {} });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/projects/${project.graphProjectId}/import`,
+        headers: { authorization: `Bearer ${secret}` },
+        payload: { schema_version: 1, prdmYaml: validPrdmYaml(), baselineJson, documents: [{ sourcePath: 'docs/prd/PRD-001.md', content: prdDoc('PRD-001') }] },
+      });
+      expect(res.statusCode).toBe(200);
+
+      const rows = (await pg.ownerPool.query(`SELECT baseline FROM project_baselines WHERE project_id = $1`, [project.id])).rows;
+      expect(rows[0].baseline).toEqual({ version: 1, docs: { 'PRD-001': 'a'.repeat(64) }, governs: {} });
+
+      await app.close();
+    });
+
+    test('rejects an invalid .prdm/baseline.json rather than importing it', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { org, project, cookie } = await seedOwnerAndProject(app);
+      const secret = await issuePersonalToken(app, org, cookie, ['import:write']);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/projects/${project.graphProjectId}/import`,
+        headers: { authorization: `Bearer ${secret}` },
+        payload: { schema_version: 1, prdmYaml: validPrdmYaml(), baselineJson: 'not json', documents: [] },
+      });
+      expect(res.statusCode).toBe(400);
+
+      await app.close();
+    });
+
+    test('records every resolved_by sha with trust: import, never baseline', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { org, project, cookie } = await seedOwnerAndProject(app);
+      const secret = await issuePersonalToken(app, org, cookie, ['import:write']);
+      const sha = 'a'.repeat(40);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/projects/${project.graphProjectId}/import`,
+        headers: { authorization: `Bearer ${secret}` },
+        payload: {
+          schema_version: 1,
+          prdmYaml: validPrdmYaml(),
+          documents: [
+            { sourcePath: 'docs/prd/PRD-001.md', content: prdDoc('PRD-001') },
+            { sourcePath: 'docs/sdd/SDD-001.md', content: sddDoc('SDD-001') },
+            { sourcePath: 'docs/work-orders/WO-001.md', content: woDoc('WO-001', { resolvedBy: [sha] }) },
+          ],
+        },
+      });
+      expect(res.statusCode).toBe(200);
+
+      const rows = (await pg.ownerPool.query(`SELECT sha, trust FROM commits WHERE project_id = $1`, [project.id])).rows;
+      expect(rows).toEqual([{ sha, trust: 'import' }]);
+
+      // The project never got a baseline head from import — the first real, CI-verified report is still
+      // treated as this project's very first baseline (no force-push override needed).
+      const codeState = (await pg.ownerPool.query(`SELECT latest_baseline_head_sha FROM project_code_state WHERE project_id = $1`, [project.id])).rows;
+      expect(codeState).toEqual([]);
+
+      await app.close();
+    });
+
+    test('audits resolved_by/blueprint_hashes/grandfathered as a privileged import', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { org, project, cookie } = await seedOwnerAndProject(app);
+      const secret = await issuePersonalToken(app, org, cookie, ['import:write']);
+      const sha = 'b'.repeat(40);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/projects/${project.graphProjectId}/import`,
+        headers: { authorization: `Bearer ${secret}` },
+        payload: {
+          schema_version: 1,
+          prdmYaml: validPrdmYaml([{ id: 'PRD-001', hash: '0'.repeat(64) }]),
+          documents: [
+            { sourcePath: 'docs/prd/PRD-001.md', content: prdDoc('PRD-001') },
+            { sourcePath: 'docs/sdd/SDD-001.md', content: sddDoc('SDD-001') },
+            { sourcePath: 'docs/work-orders/WO-001.md', content: woDoc('WO-001', { resolvedBy: [sha], blueprintHashes: { 'SDD-001': 'c'.repeat(64) } }) },
+          ],
+        },
+      });
+      expect(res.statusCode).toBe(200);
+
+      const audit = (await pg.ownerPool.query(`SELECT action, metadata FROM audit_log WHERE project_id = $1 AND action = 'project.imported'`, [project.id])).rows;
+      expect(audit).toHaveLength(1);
+      expect(audit[0].metadata).toMatchObject({ grandfatheredImported: true, importedCommitShas: 1, privilegedWorkOrders: ['WO-001'] });
+
+      await app.close();
+    });
+  });
 });
