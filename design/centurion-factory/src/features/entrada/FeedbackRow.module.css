@@ -1,0 +1,195 @@
+.row {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  column-gap: var(--space-4);
+  align-items: start;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.titleButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: left;
+  font: inherit;
+}
+
+.title {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--apagado);
+  padding-left: 24px;
+}
+
+.dot {
+  color: var(--regla);
+}
+
+.overdue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: 24px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--apagado);
+}
+
+.overdueActive {
+  color: var(--andon-texto);
+}
+
+.andonDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--andon);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.informs {
+  flex: none;
+  padding-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--texto-secundario);
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-left: 88px;
+  margin-top: var(--space-4);
+}
+
+.quote {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--relleno);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--texto-secundario);
+}
+
+.candidates {
+  display: flex;
+  flex-direction: column;
+}
+
+.candidatesTitle {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.candidateRow {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 160px;
+  column-gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-2) 0;
+  border-bottom: var(--rule-row);
+}
+
+.candidateText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.candidateReason {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.bestMatch {
+  margin-left: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--cianotipo);
+}
+
+.scoreBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.scoreTrack {
+  flex: 1;
+  height: 2px;
+  background: var(--regla-fila);
+  display: flex;
+}
+
+.scoreFill {
+  height: 2px;
+  background: var(--apagado);
+}
+
+.scoreFillBest {
+  background: var(--cianotipo);
+}
+
+.scoreValue {
+  width: 32px;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: var(--texto-secundario);
+}
+
+.noCandidates {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+@media (max-width: 640px) {
+  .summary {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-2);
+  }
+
+  .actions {
+    width: 100%;
+  }
+
+  .detail {
+    margin-left: 0;
+  }
+}
