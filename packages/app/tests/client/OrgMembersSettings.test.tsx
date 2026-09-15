@@ -13,9 +13,20 @@ const MEMBERS = [
 
 const INVITATIONS = [{ id: 'inv1', email: 'pending@example.test', role: 'member' as const, status: 'pending', expiresAt: '2026-12-31T00:00:00.000Z' }];
 
-function renderPage(role: 'owner' | 'admin' | 'member') {
+function renderPage(
+  role: 'owner' | 'admin' | 'member',
+  options: {
+    projects?: import('@prdm/contracts').ProjectSummary[];
+    projectMembersBySlug?: Record<string, import('@prdm/contracts').ProjectMemberDto[]>;
+  } = {},
+) {
+  const { projects = [], projectMembersBySlug = {} } = options;
   vi.spyOn(client, 'listOrganizations').mockResolvedValue([{ id: 'org1', slug: 'acme', name: 'Acme', role }]);
-  vi.spyOn(client, 'listProjects').mockResolvedValue([]);
+  vi.spyOn(client, 'listProjects').mockResolvedValue(projects);
+  vi.spyOn(client, 'listProjectMembers').mockImplementation((_orgSlug, projectSlug) =>
+    Promise.resolve(projectMembersBySlug[projectSlug] ?? []),
+  );
+  vi.spyOn(client, 'getSession').mockResolvedValue({ user: { id: 'caller', email: 'caller@example.test', name: 'Caller' } });
   const router = createMemoryRouter(
     [{ path: '/o/:orgSlug', element: <OrgShell />, children: [{ path: 'settings/members', element: <OrgMembersSettings /> }] }],
     { initialEntries: ['/o/acme/settings/members'] },
@@ -81,5 +92,53 @@ describe('OrgMembersSettings', () => {
     const roleSelect = screen.getByLabelText('Rol en la organización') as HTMLSelectElement;
     const optionValues = Array.from(roleSelect.options).map((o) => o.value);
     expect(optionValues).not.toContain('owner');
+  });
+
+  it('blocks removing yourself, showing every other admin its own Quitar button', async () => {
+    vi.spyOn(client, 'listOrganizationMembers').mockResolvedValue([
+      { userId: 'caller', email: 'caller@example.test', name: 'Caller', role: 'admin' as const },
+      ...MEMBERS,
+    ]);
+    vi.spyOn(client, 'listOrganizationInvitations').mockResolvedValue([]);
+    renderPage('admin');
+
+    await screen.findByText('caller@example.test');
+    expect(screen.getByText('No podés quitarte')).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Quitar' })).toHaveLength(2);
+  });
+
+  it('shows how many projects each member belongs to', async () => {
+    vi.spyOn(client, 'listOrganizationMembers').mockResolvedValue(MEMBERS);
+    vi.spyOn(client, 'listOrganizationInvitations').mockResolvedValue([]);
+    renderPage('admin', {
+      projects: [
+        { id: 'p1', slug: 'web', name: 'Web', graphProjectId: 'prj_1', settings: {} as never, archivedAt: null },
+        { id: 'p2', slug: 'api', name: 'Api', graphProjectId: 'prj_2', settings: {} as never, archivedAt: null },
+      ],
+      projectMembersBySlug: {
+        web: [{ userId: 'u1', email: 'owner@example.test', name: 'Owner', role: 'admin' as const }],
+        api: [
+          { userId: 'u1', email: 'owner@example.test', name: 'Owner', role: 'admin' as const },
+          { userId: 'u2', email: 'member@example.test', name: 'Member', role: 'viewer' as const },
+        ],
+      },
+    });
+
+    const ownerRow = (await screen.findByText('owner@example.test')).closest('tr')!;
+    const memberRow = screen.getByText('member@example.test').closest('tr')!;
+    expect(ownerRow.textContent).toContain('2');
+    expect(memberRow.textContent).toContain('1');
+  });
+
+  it('resends a pending invitation and shows a confirmation', async () => {
+    vi.spyOn(client, 'listOrganizationMembers').mockResolvedValue(MEMBERS);
+    vi.spyOn(client, 'listOrganizationInvitations').mockResolvedValue(INVITATIONS);
+    const resend = vi.spyOn(client, 'resendInvitation').mockResolvedValue(undefined);
+    renderPage('admin');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Reenviar' }));
+
+    await waitFor(() => expect(resend).toHaveBeenCalledWith('acme', 'inv1'));
+    expect(await screen.findByText('Invitación reenviada')).toBeTruthy();
   });
 });

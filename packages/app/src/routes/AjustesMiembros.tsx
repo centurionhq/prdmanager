@@ -4,11 +4,14 @@
  * table + "add member" form, gated by `can(subject, 'manage_members')` — `subject` comes straight from
  * `ProjectShell`'s own `myRole`-derived permission subject, so no extra self-membership lookup is needed
  * here (unlike the old screen, which re-derived it from `listProjectMembers()` itself).
+ *
+ * WO-363: also fetches the caller's own session (`getSession`, `ProjectShell`'s own context carries no
+ * user id) purely so `ProjectMembersSection` can block removing yourself from the table.
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import { can, type OrganizationMember, type ProjectMemberDto } from '@prdm/contracts';
 import { LoadingState } from '@prdm/ui';
-import { listOrganizationMembers, listProjectMembers } from '../api/client.js';
+import { getSession, listOrganizationMembers, listProjectMembers } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
@@ -18,6 +21,7 @@ import { useProjectShellContext } from './ProjectShell.js';
 interface Loaded {
   members: ProjectMemberDto[];
   orgMembers: OrganizationMember[];
+  currentUserId: string | null;
 }
 
 export function AjustesMiembros(): ReactElement {
@@ -28,8 +32,12 @@ export function AjustesMiembros(): ReactElement {
 
   async function reload(): Promise<void> {
     try {
-      const [members, orgMembers] = await Promise.all([listProjectMembers(orgSlug, projectSlug), listOrganizationMembers(orgSlug)]);
-      setData({ members, orgMembers });
+      const [members, orgMembers, session] = await Promise.all([
+        listProjectMembers(orgSlug, projectSlug),
+        listOrganizationMembers(orgSlug),
+        getSession(),
+      ]);
+      setData({ members, orgMembers, currentUserId: session?.user.id ?? null });
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -52,6 +60,7 @@ export function AjustesMiembros(): ReactElement {
       members={data.members}
       orgMembers={data.orgMembers}
       canManage={can(subject, 'manage_members')}
+      currentUserId={data.currentUserId}
       onChanged={() => void reload()}
     />
   );

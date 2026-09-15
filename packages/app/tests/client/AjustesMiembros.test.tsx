@@ -7,7 +7,10 @@ import * as client from '../../src/api/client.js';
 import { AjustesMiembros } from '../../src/routes/AjustesMiembros.js';
 import { makeProjectShellContext } from './fixtures.js';
 
-const PROJECT_MEMBERS = [{ userId: 'u2', email: 'dev@example.test', name: 'Dev', role: 'developer' as const }];
+const PROJECT_MEMBERS = [
+  { userId: 'u1', email: 'me@example.test', name: 'Me', role: 'admin' as const },
+  { userId: 'u2', email: 'dev@example.test', name: 'Dev', role: 'developer' as const },
+];
 const ORG_MEMBERS = [
   { userId: 'u1', email: 'me@example.test', name: 'Me', role: 'member' as const },
   { userId: 'u2', email: 'dev@example.test', name: 'Dev', role: 'member' as const },
@@ -17,6 +20,7 @@ const ORG_MEMBERS = [
 function renderAjustesMiembros(orgRole: OrgRole, myRole?: ProjectRole): void {
   vi.spyOn(client, 'listProjectMembers').mockResolvedValue(PROJECT_MEMBERS);
   vi.spyOn(client, 'listOrganizationMembers').mockResolvedValue(ORG_MEMBERS);
+  vi.spyOn(client, 'getSession').mockResolvedValue({ user: { id: 'u1', email: 'me@example.test', name: 'Me' } });
 
   const router = createMemoryRouter(
     [
@@ -62,5 +66,22 @@ describe('AjustesMiembros', () => {
     renderAjustesMiembros('member', 'admin');
 
     expect(await screen.findByRole('combobox', { name: 'Rol de dev@example.test' })).toBeTruthy();
+  });
+
+  it('cannot remove yourself, but can remove someone else', async () => {
+    renderAjustesMiembros('admin');
+
+    await screen.findByRole('combobox', { name: 'Rol de dev@example.test' });
+    expect(screen.getByText('No podés quitarte')).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Quitar' })).toHaveLength(1);
+  });
+
+  it('shows the role capability matrix derived from the permission matrix', async () => {
+    renderAjustesMiembros('admin');
+
+    await screen.findByRole('heading', { name: 'Qué puede hacer cada rol' });
+    expect(screen.getByRole('columnheader', { name: 'admin' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'viewer' })).toBeTruthy();
+    expect(screen.getByRole('row', { name: /Gestionar miembros/ })).toBeTruthy();
   });
 });
