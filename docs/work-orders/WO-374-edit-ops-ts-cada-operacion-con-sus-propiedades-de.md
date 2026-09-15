@@ -2,7 +2,7 @@
 id: "WO-374"
 type: "WO"
 title: "`edit-ops.ts`: cada operación con sus propiedades de preservación de bytes"
-status: "in_progress"
+status: "done"
 created_at: "2026-09-15"
 implements: ["SDD-014"]
 impacts_paths: ["packages/app/src/**","packages/app/tests/**","packages/app/package.json","packages/collab/src/**","packages/collab/tests/**","packages/server/tests/e2e/**","packages/server/tests/learning/**","package.json","package-lock.json","vitest.config.ts"]
@@ -10,6 +10,9 @@ source_task: "f89f03ef063a2f0c"
 tags: ["editor","collab","yjs","accessibility"]
 assigned_to: "agent:claude"
 claimed_at: "2026-09-15T21:55:27.577Z"
+completed_at: "2026-09-15T22:15:05.425Z"
+resolved_by: ["7bf5e2f3a1a894a354bbb8f66edf0b271655dec6"]
+blueprint_hashes: {"SDD-014":"aa6eba6d8fecb8f4f2b1453724b6f1df520bd39267debdce18896734e6fd7291"}
 ---
 
 ## Objetivo
