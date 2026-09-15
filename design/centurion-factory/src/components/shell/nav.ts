@@ -16,6 +16,8 @@ export const PRIMARY_NAV: readonly NavItem[] = [
 ];
 
 export const APP_NAME = 'Centurion Factory';
+export const CURRENT_ORG = 'Centurion HQ';
+export const CURRENT_PROJECT = 'prdmanager';
 
 export function documentTitle(routeTitle: string | undefined): string {
   return routeTitle ? `${routeTitle} · ${APP_NAME}` : APP_NAME;
