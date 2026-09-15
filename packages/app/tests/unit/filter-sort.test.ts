@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterItems, normalize, searchItems, sortItems, toggleSort } from '../../src/lib/filter-sort';
+import { filterItems, normalize, searchItems, sortItems, toggleSort } from '../../src/lib/filter-sort.js';
 
 interface Order {
   readonly id: string;
