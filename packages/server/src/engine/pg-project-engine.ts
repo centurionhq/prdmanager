@@ -102,7 +102,12 @@ type DocumentKindValue = (typeof schema.documentKind.enumValues)[number];
  * different salts keep `withTx`'s per-transaction write lock and `projectIfDirty`'s session-scoped
  * projection lock from ever contending with each other for the same project (SDD-007: "un lock
  * distinto del transaccional" — a writer must never block behind an in-flight projection, or vice
- * versa). */
+ * versa).
+ *
+ * `WRITE_LOCK_SALT`'s literal value (0) is duplicated in `@prdm/db`'s
+ * `project-code-state-repository.ts` (WO-233: `recordBaselineHead`'s read-modify-write takes this exact
+ * same lock so it can never race a concurrent baseline report's own `impacts_hashes` merge) — keep both
+ * in sync by hand, same cross-package convention already used for `collab/`'s `DOC_UPDATES_LOCK_SALT`. */
 const WRITE_LOCK_SALT = 0;
 const PROJECTION_LOCK_SALT = 1;
 

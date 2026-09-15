@@ -45,6 +45,34 @@ export type RecordCodeReportOutcome =
   | { kind: 'replayed'; record: CodeReportRecord }
   | { kind: 'mismatch'; record: CodeReportRecord };
 
+export interface FindCodeReportByIdempotencyKeyInput {
+  projectId: string;
+  orgId: string;
+  tokenId: string;
+  idempotencyKey: string;
+}
+
+/**
+ * A pure lookup, no insert — lets the route (WO-233) decide whether this is a genuine idempotency
+ * violation (or a pure replay) *before* running any side effect (`upsertReportedCommits`,
+ * `recordBaselineHead`, `PgProjectEngine.refresh()`), instead of only discovering it at the very end via
+ * `recordCodeReport`'s own `INSERT ... ON CONFLICT DO NOTHING`. This alone cannot fully prevent two
+ * genuinely concurrent requests sharing a brand-new key from both running side effects once each (only
+ * the final `recordCodeReport` insert's unique index actually serializes that race, same as before) —
+ * but it does mean a *sequential* retry (the common case: a client retrying after a lost response) never
+ * redoes a baseline write or graph refresh, and a genuine same-key-different-body violation is rejected
+ * immediately rather than after wastefully repeating every side effect only to fail at the last step.
+ */
+export async function findCodeReportByIdempotencyKey(pool: Pool, input: FindCodeReportByIdempotencyKeyInput): Promise<CodeReportRecord | null> {
+  return withTenantTx(pool, input.orgId, async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(codeReports)
+      .where(and(eq(codeReports.projectId, input.projectId), eq(codeReports.tokenId, input.tokenId), eq(codeReports.idempotencyKey, input.idempotencyKey)));
+    return existing ?? null;
+  });
+}
+
 export async function recordCodeReport(pool: Pool, input: RecordCodeReportInput): Promise<RecordCodeReportOutcome> {
   return withTenantTx(pool, input.orgId, async (tx) => {
     const [inserted] = await tx

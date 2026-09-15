@@ -160,6 +160,37 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports (WO-180)', () => {
     await app.close();
   });
 
+  test('a same-key-different-body violation short-circuits before any side effect runs (WO-233)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { project, secret } = await seedOwnerAndCiToken(app);
+
+    const first = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'wo233-key' },
+      payload: baseReport(),
+    });
+    expect(first.statusCode).toBe(200);
+
+    // Same key, a different body naming a brand-new commit sha that was never part of the first
+    // request — if the idempotency violation were still detected only at the very end (the WO-233 bug),
+    // this sha would already be sitting in the commits ledger by the time the 422 is returned.
+    const neverReportedSha = 'e'.repeat(40);
+    const mismatch = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'wo233-key' },
+      payload: baseReport({ commits: [{ sha: neverReportedSha, parents: [], author: 'Mallory', date: '2026-09-14T00:00:00.000Z', subject: 'sneaked in', refs: [], files: [] }] }),
+    });
+    expect(mismatch.statusCode).toBe(422);
+    expect(mismatch.json().error).toBe('idempotency_mismatch');
+
+    const { rows } = await pg.ownerPool.query(`SELECT sha FROM "commits" WHERE project_id = $1 AND sha = $2`, [project.id, neverReportedSha]);
+    expect(rows).toHaveLength(0);
+
+    await app.close();
+  });
+
   test('two real concurrent requests with the same idempotency key: exactly one writes, both see the same committed result (front-running, WO-180)', async () => {
     const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
     const { project, secret } = await seedOwnerAndCiToken(app);

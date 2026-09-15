@@ -263,4 +263,48 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports baseline mode (WO-1
 
     await app.close();
   });
+
+  test('two distinct, genuinely concurrent baseline reports for the same project never lose either side\'s impacts_hashes contribution (WO-233 real-concurrency)', async () => {
+    const app = buildApp();
+    const { project, secret } = await setupProject(app);
+    // Same head_sha (e.g. two CI matrix jobs reporting on the exact same push, each covering a
+    // different subset of blueprints) — the scenario that actually exercises the lost-update bug in
+    // `recordBaselineHead`'s impacts_hashes merge, without also racing the force-push/regression gate.
+    const headSha = 'a'.repeat(40);
+    const [oidcA, oidcB] = await Promise.all([signOidcToken({}, headSha), signOidcToken({}, headSha)]);
+
+    const [resA, resB] = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+        headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'concurrent-a', 'x-prdm-github-oidc-token': oidcA },
+        payload: baseReport(headSha, {
+          impacts_hashes: { 'SDD-001': 'a'.repeat(64) },
+          commits: [{ sha: headSha, parents: [], author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'x', refs: [], files: [] }],
+        }),
+      }),
+      app.inject({
+        method: 'POST',
+        url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+        headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'concurrent-b', 'x-prdm-github-oidc-token': oidcB },
+        payload: baseReport(headSha, {
+          impacts_hashes: { 'SDD-002': 'b'.repeat(64) },
+          commits: [{ sha: headSha, parents: [], author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'x', refs: [], files: [] }],
+        }),
+      }),
+    ]);
+
+    expect(resA.statusCode).toBe(200);
+    expect(resB.statusCode).toBe(200);
+    expect(resA.json().mode).toBe('baseline');
+    expect(resB.json().mode).toBe('baseline');
+
+    const { rows } = await pg.ownerPool.query(`SELECT impacts_hashes, latest_baseline_head_sha FROM "project_code_state" WHERE project_id = $1`, [project.id]);
+    expect(rows).toHaveLength(1);
+    // Neither concurrent report's impacts_hashes entry was lost to the other's read-modify-write.
+    expect(rows[0].impacts_hashes).toEqual({ 'SDD-001': 'a'.repeat(64), 'SDD-002': 'b'.repeat(64) });
+    expect(rows[0].latest_baseline_head_sha).toBe(headSha);
+
+    await app.close();
+  }, 30_000);
 });

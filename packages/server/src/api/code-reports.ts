@@ -21,6 +21,14 @@
  * ledger at all — so a client that refetches and retries (SDD-010: "refetchea y reintenta una vez")
  * never collides with its own aborted first attempt, whether it reuses the same `Idempotency-Key` or
  * not.
+ *
+ * WO-233: the idempotency ledger is *read* (never written) as the very first thing this handler does —
+ * a same-key-different-body request is now a `422` before any side effect runs at all, and a same-key-
+ * same-body retry replays the stored result without redoing `upsertReportedCommits`/`recordBaselineHead`/
+ * `PgProjectEngine.refresh()`. `recordBaselineHead`'s own read-modify-write of `impacts_hashes` takes
+ * `PgProjectEngine`'s write-lock advisory lock (see `@prdm/db`'s `project-code-state-repository.ts`) so
+ * two distinct, genuinely concurrent baseline reports for this project can never interleave and lose one
+ * side's contribution.
  */
 import { randomUUID } from 'node:crypto';
 import { codeReportRequestSchema, GITHUB_OIDC_TOKEN_HEADER, MAX_CODE_REPORT_BODY_BYTES, projectSettingsSchema, type CodeReportResponse } from '@prdm/contracts';
@@ -28,6 +36,7 @@ import { detectDrift, emptyBaseline, scanContents, sha256, type Baseline, type N
 import {
   consumeForcePushOverride,
   createTenantDb,
+  findCodeReportByIdempotencyKey,
   getProjectCodeState,
   recordBaselineHead,
   recordCodeReport,
@@ -103,6 +112,28 @@ export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCod
           throw new ValidationError('missing Idempotency-Key header');
         }
 
+        // WO-233: checked *before* any side effect (upsertReportedCommits/recordBaselineHead/
+        // engine.refresh() below) — a same-key-different-body violation now short-circuits immediately
+        // instead of only failing at the very end after wastefully repeating every side effect, and a
+        // legitimate sequential retry (the common case: a client retrying after a lost response) never
+        // redoes a baseline write or graph refresh at all. This alone can't fully close a genuinely
+        // concurrent front-running race on a brand-new key — `recordCodeReport`'s own unique-index
+        // INSERT below still does that, unchanged.
+        const rawBodyForIdempotency = req.rawBody ?? JSON.stringify(req.body);
+        const bodySha256ForIdempotency = sha256(rawBodyForIdempotency);
+        const existingReport = await findCodeReportByIdempotencyKey(pool, {
+          projectId: resolved.projectId,
+          orgId: resolved.orgId,
+          tokenId: token.tokenId,
+          idempotencyKey: idempotencyKeyHeader,
+        });
+        if (existingReport) {
+          if (existingReport.bodySha256 !== bodySha256ForIdempotency) {
+            return reply.code(422).send({ error: 'idempotency_mismatch' });
+          }
+          return existingReport.result;
+        }
+
         const parsedBody = codeReportRequestSchema.safeParse(req.body);
         if (!parsedBody.success) throw new ValidationError('invalid code report body');
         const report = parsedBody.data;
@@ -137,9 +168,6 @@ export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCod
           return reply.code(409).send({ error: gate.code });
         }
         const mode = gate.mode;
-
-        const rawBody = req.rawBody ?? JSON.stringify(req.body);
-        const bodySha256 = sha256(rawBody);
 
         const published = await scope.documents.listPublished();
         const scanned = scanContents(published.map((doc) => ({ path: doc.sourcePath, content: doc.publishedRaw })));
@@ -188,7 +216,7 @@ export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCod
           orgId: resolved.orgId,
           tokenId: token.tokenId,
           idempotencyKey: idempotencyKeyHeader,
-          bodySha256,
+          bodySha256: bodySha256ForIdempotency,
           mode,
           headSha: report.head_sha,
           result,
