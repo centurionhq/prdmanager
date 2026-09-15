@@ -26,18 +26,31 @@ class FakeTransport implements Transport {
   onerror?: (error: Error) => void;
   readonly sent: JSONRPCMessage[] = [];
   started = false;
+  private pendingSend: (() => void) | null = null;
 
   async start(): Promise<void> {
     this.started = true;
   }
   async send(message: JSONRPCMessage): Promise<void> {
     this.sent.push(message);
+    this.pendingSend?.();
+    this.pendingSend = null;
   }
   async close(): Promise<void> {
     this.onclose?.();
   }
   receive(message: JSONRPCMessage): void {
     this.onmessage?.(message);
+  }
+  /** Resolves the next time `send` is called — the relay forwards a message to the real HTTP transport
+   * and back as a genuine fire-and-forget (the `Transport.onmessage` contract returns `void`, per
+   * `relay()` in `mcp-proxy.ts`), so a test awaiting the round trip has no promise to hook into. This
+   * waits on the actual completion signal instead of a fixed sleep, which was flaky on a loaded CI
+   * runner (the real round trip sometimes took longer than an arbitrary wait). */
+  nextSend(): Promise<void> {
+    return new Promise((resolve) => {
+      this.pendingSend = resolve;
+    });
   }
 }
 
@@ -149,6 +162,7 @@ describe('runMcpProxy relay (WO-189)', () => {
       createStdioTransport: () => stdio,
     });
 
+    const relayed = stdio.nextSend();
     stdio.receive({
       jsonrpc: '2.0',
       id: 1,
@@ -156,7 +170,7 @@ describe('runMcpProxy relay (WO-189)', () => {
       params: { protocolVersion: LATEST_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: 'editor', version: '0.0.0' } },
     });
 
-    await new Promise((r) => setTimeout(r, 50));
+    await relayed;
     expect(stdio.sent).toHaveLength(1);
     const response = stdio.sent[0] as { id: number; result?: { protocolVersion: string } };
     expect(response.id).toBe(1);
