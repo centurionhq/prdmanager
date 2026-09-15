@@ -128,46 +128,87 @@ export async function importDocuments(pool: Pool, input: ImportDocumentsInput): 
     const existing = await tx.select({ id: documents.id }).from(documents).where(eq(documents.projectId, input.projectId)).limit(1);
     if (existing.length > 0) throw new ProjectNotEmptyError();
 
-    const created: ImportedDocumentRecord[] = [];
     const shaSet = new Set<string>();
     for (const doc of input.documents) {
-      const [row] = await tx
-        .insert(documents)
-        .values({
-          orgId: input.orgId,
-          projectId: input.projectId,
-          docId: doc.docId,
-          kind: doc.kind,
-          title: doc.title,
-          sourcePath: doc.sourcePath,
-          origin: 'import',
-          workflowState: 'published',
-          publishedRaw: doc.renderedMarkdown,
-          publishedContentHash: doc.contentHash,
-          createdBy: null,
-        })
-        .returning();
-      if (!row) throw new Error(`failed to insert document row for ${doc.docId}`);
-
-      const [version] = await tx
-        .insert(documentVersions)
-        .values({
-          orgId: input.orgId,
-          documentId: row.id,
-          versionNo: 1,
-          reason: 'import',
-          renderedMarkdown: doc.renderedMarkdown,
-          frontmatter: doc.frontmatter,
-          contentHash: doc.contentHash,
-          contributors: [IMPORT_ACTOR_ID],
-          createdBy: null,
-        })
-        .returning();
-      if (!version) throw new Error(`failed to insert version row for ${doc.docId}`);
-
-      const [updated] = await tx.update(documents).set({ publishedVersionId: version.id }).where(eq(documents.id, row.id)).returning();
-      created.push(updated ?? row);
       for (const sha of resolvedByShas(doc)) shaSet.add(sha);
+    }
+
+    // WO-260: every document/version/publish-back used to be one sequential round trip per document
+    // (3 * N awaited statements holding this transaction's one pooled connection open for the whole
+    // import). Batched into three statements total, regardless of N, below.
+    let created: ImportedDocumentRecord[] = [];
+    if (input.documents.length > 0) {
+      const insertedDocs = await tx
+        .insert(documents)
+        .values(
+          input.documents.map((doc) => ({
+            orgId: input.orgId,
+            projectId: input.projectId,
+            docId: doc.docId,
+            kind: doc.kind,
+            title: doc.title,
+            sourcePath: doc.sourcePath,
+            origin: 'import' as const,
+            workflowState: 'published' as const,
+            publishedRaw: doc.renderedMarkdown,
+            publishedContentHash: doc.contentHash,
+            createdBy: null,
+          })),
+        )
+        .returning();
+      if (insertedDocs.length !== input.documents.length) throw new Error('failed to insert every document row');
+      const docRowByDocId = new Map(insertedDocs.map((row) => [row.docId, row]));
+
+      const insertedVersions = await tx
+        .insert(documentVersions)
+        .values(
+          input.documents.map((doc) => {
+            const row = docRowByDocId.get(doc.docId);
+            if (!row) throw new Error(`failed to insert document row for ${doc.docId}`);
+            return {
+              orgId: input.orgId,
+              documentId: row.id,
+              versionNo: 1,
+              reason: 'import' as const,
+              renderedMarkdown: doc.renderedMarkdown,
+              frontmatter: doc.frontmatter,
+              contentHash: doc.contentHash,
+              contributors: [IMPORT_ACTOR_ID],
+              createdBy: null,
+            };
+          }),
+        )
+        .returning();
+      if (insertedVersions.length !== input.documents.length) throw new Error('failed to insert every version row');
+      const versionIdByDocumentId = new Map(insertedVersions.map((version) => [version.documentId, version.id]));
+
+      // A single `UPDATE ... FROM (VALUES ...)` instead of one `UPDATE documents SET
+      // published_version_id = ...` per row (same `sql.join`-built `VALUES` list shape
+      // `packages/server/src/api/policy-docs.ts`'s `loadDocumentsAtInstants` already uses) — Drizzle's
+      // query builder has no ergonomic multi-row-update-from-values API, so this one statement is raw
+      // `sql`.
+      const updatePairs = insertedDocs.map((row) => {
+        const versionId = versionIdByDocumentId.get(row.id);
+        if (!versionId) throw new Error(`failed to insert version row for document ${row.docId}`);
+        return sql`(${row.id}::uuid, ${versionId}::uuid)`;
+      });
+      await tx.execute(sql`
+        UPDATE "documents" AS d
+        SET "published_version_id" = v.version_id
+        FROM (VALUES ${sql.join(updatePairs, sql`, `)}) AS v(id, version_id)
+        WHERE d.id = v.id
+      `);
+
+      // The rows above already carry every column this function needs to return — `published_version_id`
+      // is the only one the batched `UPDATE` just changed, and it's already known locally (just inserted
+      // it), so there's no need to round-trip a `RETURNING` off the raw `UPDATE` to reconstruct it.
+      created = input.documents.map((doc) => {
+        const row = docRowByDocId.get(doc.docId);
+        if (!row) throw new Error(`failed to insert document row for ${doc.docId}`);
+        const versionId = versionIdByDocumentId.get(row.id);
+        if (!versionId) throw new Error(`failed to insert version row for ${doc.docId}`);
+        return { ...row, publishedVersionId: versionId };
+      });
     }
 
     for (const [kind, seq] of maxSeqByKind(input.documents)) {
@@ -176,24 +217,25 @@ export async function importDocuments(pool: Pool, input: ImportDocumentsInput): 
 
     const importedCommitShas = [...shaSet].sort();
     if (importedCommitShas.length > 0) {
-      for (const sha of importedCommitShas) {
-        await tx
-          .insert(commits)
-          .values({
+      const importedAt = new Date();
+      await tx
+        .insert(commits)
+        .values(
+          importedCommitShas.map((sha) => ({
             projectId: input.projectId,
             orgId: input.orgId,
             sha,
-            trust: 'import',
+            trust: 'import' as const,
             reporterTokenId: null,
             author: IMPORT_ACTOR_ID,
-            date: new Date(),
+            date: importedAt,
             subject: '(imported)',
             refs: [],
             files: [],
             branches: [],
-          })
-          .onConflictDoNothing({ target: [commits.projectId, commits.sha] });
-      }
+          })),
+        )
+        .onConflictDoNothing({ target: [commits.projectId, commits.sha] });
     }
 
     let grandfatheredImported = false;
