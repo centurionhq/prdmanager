@@ -112,6 +112,36 @@ describe('FrontmatterForm', () => {
     expect((screen.getByLabelText('Título') as HTMLInputElement).value).toBe('Set by a peer');
   });
 
+  it('a remote fm.observe firing mid-edit (e.g. the initial full-doc sync on a fresh navigation) never clobbers an id-list field the user hasn\'t blurred yet (WO-243)', async () => {
+    const ydoc = new Y.Doc({ gc: false });
+    renderWithLocalDoc(ydoc);
+    render(<FrontmatterForm kind="PRD" />);
+
+    const input = screen.getByLabelText('Justificado por');
+    // Focuses and types, but never blurs — exactly the state Playwright's own `.fill()` leaves an input
+    // in (a separate, later `.blur()` call is what actually commits an id-list field, per this form's own
+    // `handleListCommit`).
+    await userEvent.click(input);
+    await userEvent.type(input, 'FB-001');
+    expect((input as HTMLInputElement).value).toBe('FB-001');
+
+    // A remote change to a *different* key lands while the user is still mid-edit — e.g. another
+    // collaborator's edit, or (per WO-243) the very first full-state sync a brand-new provider receives
+    // right after navigating to this document. `fm.observe` fires for every key, not just the one that
+    // changed, so the effect's own `sync()` must not blow away this field's not-yet-committed draft.
+    const peer = new Y.Doc({ gc: false });
+    Y.applyUpdate(peer, Y.encodeStateAsUpdate(ydoc));
+    peer.getMap('fm').set('tags', ['urgent']);
+    act(() => {
+      Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(peer));
+    });
+
+    expect((input as HTMLInputElement).value).toBe('FB-001');
+
+    await userEvent.tab(); // blur — commits the draft text to the Y.Map
+    expect(ydoc.getMap('fm').get('justified_by')).toEqual(['FB-001']);
+  });
+
   it('renders nothing for a kind with no frontmatter fields (WO)', () => {
     const ydoc = new Y.Doc({ gc: false });
     renderWithLocalDoc(ydoc);

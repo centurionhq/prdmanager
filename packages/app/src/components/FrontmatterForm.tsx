@@ -4,7 +4,7 @@
  * writes) a server-managed field (`id`/`type`/`status`/`closed_*`/...): those come from the document's
  * real Postgres columns and are shown elsewhere in the page chrome as read-only, not here.
  */
-import { useEffect, useState, type ChangeEvent, type FocusEvent, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FocusEvent, type ReactElement } from 'react';
 import type * as Y from 'yjs';
 import type { DocKind } from '@prdm/core/domain';
 import type { FrontmatterValue } from '@prdm/collab';
@@ -48,6 +48,20 @@ export function FrontmatterForm({ kind }: FrontmatterFormProps): ReactElement | 
   // save button, just a natural point to canonicalize "a, b" from whatever the user was typing.
   const [listDrafts, setListDrafts] = useState<Record<string, string>>({});
   const readOnly = state.scope === 'readonly';
+  // Which `id-list`/`string-list` field (if any) currently has focus, i.e. has draft keystrokes the user
+  // hasn't committed (blurred) yet — a `ref`, not state, since it's read from inside `fm.observe`'s
+  // callback and must never itself trigger a re-render. WO-243's own root cause: `fm.observe` fires for
+  // *any* key changing (a remote peer's edit to some other field, or — on a fresh navigation — the very
+  // first full-state sync a brand-new provider receives), and the old `sync()` unconditionally rebuilt
+  // *every* list field's draft from the just-synced snapshot, silently overwriting whatever the focused
+  // field's own controlled `<input>` was showing. On a slow enough connection (this codebase's own
+  // "never reproduced locally, only on the weaker CI runner" pattern), that initial sync can land in the
+  // exact window between a fast, automated `fill()` and its own later `blur()`, permanently wiping the
+  // just-typed value before it's ever committed — not a sync that merely arrives late, one that's actively
+  // discarded. Skipping the focused field's own draft here (it always still gets refreshed once it's
+  // blurred, either from this same sync a moment later or from the local commit's own `fm.observe` firing)
+  // fixes that without ever touching *when* a remote update is allowed to arrive.
+  const focusedListFieldRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!provider) return;
@@ -55,7 +69,15 @@ export function FrontmatterForm({ kind }: FrontmatterFormProps): ReactElement | 
     const sync = () => {
       const snapshot = readFmSnapshot(fm);
       setValues(snapshot);
-      setListDrafts(Object.fromEntries(fields.filter((f) => f.widget === 'id-list' || f.widget === 'string-list').map((f) => [f.key, toDisplayString(snapshot[f.key])])));
+      setListDrafts((prev) => {
+        const next = { ...prev };
+        for (const f of fields) {
+          if (f.widget !== 'id-list' && f.widget !== 'string-list') continue;
+          if (f.key === focusedListFieldRef.current) continue;
+          next[f.key] = toDisplayString(snapshot[f.key]);
+        }
+        return next;
+      });
     };
     sync();
     fm.observe(sync);
@@ -81,8 +103,20 @@ export function FrontmatterForm({ kind }: FrontmatterFormProps): ReactElement | 
     return (event: ChangeEvent<HTMLInputElement>) => setListDrafts((prev) => ({ ...prev, [key]: event.target.value }));
   }
 
+  function handleListFocus(key: string) {
+    return () => {
+      focusedListFieldRef.current = key;
+    };
+  }
+
   function handleListCommit(key: string) {
-    return (event: FocusEvent<HTMLInputElement>) => writeField(key, fromListInput(event.target.value));
+    return (event: FocusEvent<HTMLInputElement>) => {
+      // Clear focus tracking *before* writing: the write's own `fm.observe` (synchronous, WO-243's own
+      // fix above) must be free to refresh this field's draft from the just-committed, now-canonical
+      // value, same as every other field's remote-update path.
+      if (focusedListFieldRef.current === key) focusedListFieldRef.current = null;
+      writeField(key, fromListInput(event.target.value));
+    };
   }
 
   function handleBooleanChange(key: string) {
@@ -111,6 +145,7 @@ export function FrontmatterForm({ kind }: FrontmatterFormProps): ReactElement | 
                 disabled={readOnly}
                 value={listDrafts[field.key] ?? ''}
                 onChange={handleListDraftChange(field.key)}
+                onFocus={handleListFocus(field.key)}
                 onBlur={handleListCommit(field.key)}
               />
             ) : (
