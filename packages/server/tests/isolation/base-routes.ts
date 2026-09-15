@@ -282,6 +282,18 @@ export function registerBaseIsolationRoutes(): void {
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
   });
 
+  // WO-340: drift issues/report-detail, same tenant-scoped resolution as every other
+  // .../projects/:projectSlug/* read below.
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/drift/issues', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+  });
+
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/drift/reports/:reportId', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, reportId: '00000000-0000-0000-0000-000000000000' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, reportId: '00000000-0000-0000-0000-000000000000' } })),
+  });
+
   // WO-335: same tenant-scoped resolution as every other .../projects/:projectSlug/* read below.
   registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/line-board', {
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
