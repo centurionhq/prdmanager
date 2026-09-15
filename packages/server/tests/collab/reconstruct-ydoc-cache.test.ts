@@ -143,4 +143,48 @@ describe('reconstructLiveYDoc in-process cache (SDD-008, WO-223)', () => {
     expect(counting.listForDocumentCalls.length).toBe(2); // evicted -> full reconstruction again, not a catch-up
     expect(counting.listSinceSeqCalls).toEqual([]);
   });
+
+  test('WO-252: bounds the cache to maxEntries, evicting the least-recently-used document', async () => {
+    const docA = await insertCollabDocumentFixture(pg, { orgId: org.id, projectId: project.id });
+    const docB = await insertCollabDocumentFixture(pg, { orgId: org.id, projectId: project.id });
+    const docC = await insertCollabDocumentFixture(pg, { orgId: org.id, projectId: project.id });
+
+    const real = createTenantDb(pg.appPool).forOrg(org.id).docUpdates;
+    // Records every documentId a *full* (from-scratch) reconstruction ran for — an entry evicted from the
+    // cache produces one more of these on its next read, while a still-cached entry never does.
+    const fullReconstructions: string[] = [];
+    const trackingRepository: DocUpdatesRepository = {
+      listForDocument: async (documentId) => {
+        fullReconstructions.push(documentId);
+        return real.listForDocument(documentId);
+      },
+      listSinceSeq: (documentId, sinceSeq) => real.listSinceSeq(documentId, sinceSeq),
+      maxSeqForDocument: real.maxSeqForDocument,
+    };
+    const cache = createLiveYDocCache({ maxEntries: 2, docUpdatesRepositoryFor: () => trackingRepository });
+
+    await reconstructLiveYDoc(pg.appPool, org.id, docA, cache); // miss -> LRU order [A]
+    await reconstructLiveYDoc(pg.appPool, org.id, docB, cache); // miss -> LRU order [A, B]
+    await reconstructLiveYDoc(pg.appPool, org.id, docC, cache); // miss, exceeds cap(2) -> evicts A (LRU) -> [B, C]
+
+    expect(fullReconstructions.filter((id) => id === docA).length).toBe(1);
+    expect(fullReconstructions.filter((id) => id === docB).length).toBe(1);
+    expect(fullReconstructions.filter((id) => id === docC).length).toBe(1);
+
+    // B is still cached -> touching it (a hit) marks it most-recently-used, ahead of C -> LRU order [C, B].
+    await reconstructLiveYDoc(pg.appPool, org.id, docB, cache);
+    expect(fullReconstructions.filter((id) => id === docB).length).toBe(1); // cache hit, no new full reconstruction
+
+    // A was evicted earlier -> reading it again misses, inserts, and exceeds the cap again -> evicts the
+    // current LRU entry, which is now C (B was just protected above), not B.
+    await reconstructLiveYDoc(pg.appPool, org.id, docA, cache);
+    expect(fullReconstructions.filter((id) => id === docA).length).toBe(2);
+
+    // C was evicted just now -> reading it again must do a fresh full reconstruction too.
+    await reconstructLiveYDoc(pg.appPool, org.id, docC, cache);
+    expect(fullReconstructions.filter((id) => id === docC).length).toBe(2);
+
+    // B was never evicted throughout (protected by the earlier touch) -> still only its original read.
+    expect(fullReconstructions.filter((id) => id === docB).length).toBe(1);
+  });
 });

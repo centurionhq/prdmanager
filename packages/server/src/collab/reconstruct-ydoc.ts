@@ -30,6 +30,17 @@
  * `doc_updates` row (e.g. WO-139's `pending_editable_patch`, applied directly to the live document) and
  * this cache must not keep serving a stale reconstruction from before that happened; on unload, so a
  * document nobody has open doesn't linger here forever.
+ *
+ * WO-252 (performance review, HIGH): that load/unload eviction only fires for a document with a *live*
+ * Hocuspocus session. Blame (`./blame.js`), restore (`./restore.js`), version capture (`./versions.js`),
+ * comment-anchor resolution (`../api/documents-comments.js`), and the agent tools (`read_document`,
+ * `propose_edit`, `validate_document`) all read through this same cache without ever opening one — a
+ * document touched *only* through those paths would otherwise keep its full `Y.Doc` plus entire
+ * `doc_updates` history resident here for the process's entire lifetime, growing without bound across
+ * every document any agent or read-only endpoint has ever touched, in every org. `createLiveYDocCache`
+ * additionally bounds `entries` to `maxEntries` most-recently-used documents (a second, independent
+ * eviction path — see `get()`'s LRU bookkeeping below), evicting the least-recently-used one whenever a
+ * fresh read would exceed the cap. This is on top of, not instead of, the load/unload eviction above.
  */
 import { eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
@@ -76,7 +87,20 @@ export interface CreateLiveYDocCacheOptions {
    * count/bound how many rows a subsequent read fetches without needing to intercept the Postgres driver
    * directly. */
   docUpdatesRepositoryFor?: (pool: Pool, orgId: string) => DocUpdatesRepository;
+  /** WO-252: the maximum number of documents' reconstructions this cache holds at once, regardless of
+   * whether any of them ever had a live Hocuspocus session — see this module's own doc comment for why
+   * this bound exists. Defaults to {@link DEFAULT_MAX_CACHE_ENTRIES}; overridable per-instance (mainly a
+   * test seam, so a test can exercise eviction without seeding hundreds of documents). */
+  maxEntries?: number;
 }
+
+/** WO-252: default cap on `defaultLiveYDocCache`'s resident entries. Each entry holds a full `Y.Doc` plus
+ * its entire `doc_updates` history, so this is deliberately a document *count*, not a byte budget (the
+ * cache has no cheap way to know a `Y.Doc`'s in-memory size) — 500 is generous enough that active
+ * documents essentially never get evicted purely by this bound in normal usage, while still keeping the
+ * "every document any agent tool has ever read" case from growing without limit across a long-running
+ * server process. */
+const DEFAULT_MAX_CACHE_ENTRIES = 500;
 
 async function reconstructFromScratch(pool: Pool, orgId: string, documentId: string, repository: DocUpdatesRepository): Promise<CacheEntry> {
   const documentRow = await withTenantTx(pool, orgId, async (tx) => {
@@ -100,6 +124,10 @@ async function reconstructFromScratch(pool: Pool, orgId: string, documentId: str
 
 export function createLiveYDocCache(options: CreateLiveYDocCacheOptions = {}): LiveYDocCache {
   const repositoryFor = options.docUpdatesRepositoryFor ?? ((pool: Pool, orgId: string) => createTenantDb(pool).forOrg(orgId).docUpdates);
+  const maxEntries = options.maxEntries ?? DEFAULT_MAX_CACHE_ENTRIES;
+  // Iteration order of a `Map` is insertion order, so this doubles as an LRU list (WO-252): the oldest
+  // key is always whichever was least recently (re-)inserted. `touch()` moves a hit's key to the end by
+  // deleting and re-inserting it; a cache miss's fresh entry is naturally inserted at the end already.
   const entries = new Map<string, CacheEntry>();
   // Per-document serialization (WO-222's own pattern) — see this module's own doc comment.
   const chains = new Map<string, Promise<unknown>>();
@@ -117,6 +145,27 @@ export function createLiveYDocCache(options: CreateLiveYDocCacheOptions = {}): L
     return result;
   }
 
+  /** WO-252: marks `documentId` as most-recently-used by moving it to the end of `entries`'s iteration
+   * order — a no-op for correctness (the same `entry` object stays the value), just bookkeeping for
+   * `evictLeastRecentlyUsed`. */
+  function touch(documentId: string, entry: CacheEntry): void {
+    entries.delete(documentId);
+    entries.set(documentId, entry);
+  }
+
+  /** WO-252: drops entries in least-recently-used order until `entries` is back within `maxEntries` —
+   * mirrors the public `evict()` below (clearing both the entry and its serialization chain) since a
+   * dropped chain is, at worst, already-settled bookkeeping for a document nothing is concurrently
+   * reading (the same trade-off the explicit load/unload `evict()` calls already accept). */
+  function evictLeastRecentlyUsed(): void {
+    while (entries.size > maxEntries) {
+      const oldest = entries.keys().next().value;
+      if (oldest === undefined) break;
+      entries.delete(oldest);
+      chains.delete(oldest);
+    }
+  }
+
   return {
     get(pool, orgId, documentId) {
       return runExclusive(documentId, async () => {
@@ -125,8 +174,10 @@ export function createLiveYDocCache(options: CreateLiveYDocCacheOptions = {}): L
         if (!cached) {
           const fresh = await reconstructFromScratch(pool, orgId, documentId, repository);
           entries.set(documentId, fresh);
+          evictLeastRecentlyUsed();
           return { ydoc: fresh.ydoc, updates: fresh.updates, hasLiveHistory: fresh.hasLiveHistory };
         }
+        touch(documentId, cached);
 
         const newRows = await repository.listSinceSeq(documentId, cached.seq);
         if (newRows.length > 0) {
