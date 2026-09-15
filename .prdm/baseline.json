@@ -296,7 +296,7 @@
       "packages/web/vite.config.ts": "bafbe6bc381c457a48b6ea79ed4e73f487b0d01de1493a587c2ae1a83245baf7"
     },
     "ADR-005": {
-      ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
+      ".github/workflows/prdm-sync.yml": "f41f1b500bb1897fdb908c157eea4e5bf69b387780c087871f34cac63bd8e911",
       ".nvmrc": "07a8533ef4d8265fe6c7e676c7e8c265075888ba6046b5755df43b1cd9f6fb92",
       "package-lock.json": "eb12c4af89ef9000daa1d2242dfd49e896214722b09ce599cadde782da643e00",
       "package.json": "6dc072ddfb049d53ef130802c7522bf3a56e7a51f35cd5fb203bf4dfc5346778",
@@ -465,7 +465,7 @@
       "packages/mcp/src/tools.ts": "4353e818b362370b0c0fbe5a43917f7f2f4d1459bc6225cd7f5256e8d647fab4"
     },
     "SDD-002": {
-      ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
+      ".github/workflows/prdm-sync.yml": "f41f1b500bb1897fdb908c157eea4e5bf69b387780c087871f34cac63bd8e911",
       "package.json": "6dc072ddfb049d53ef130802c7522bf3a56e7a51f35cd5fb203bf4dfc5346778",
       "packages/app/package.json": "0633c3d3e7f438aace81e2882ec12ef23e75f7dd1ac572e07a3f40e5fb6c8822",
       "packages/app/tsconfig.json": "9938b65436a42125084981d96a36405e0c6c1974f70a8b50b54bc805e1f5037d",
@@ -656,7 +656,7 @@
     },
     "SDD-005": {
       ".env.example": "e4c7362153cbb8d31013fb2bdbb1db3fef48c9ebc214a4fb9a45b947caa9776f",
-      ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
+      ".github/workflows/prdm-sync.yml": "f41f1b500bb1897fdb908c157eea4e5bf69b387780c087871f34cac63bd8e911",
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
       "package-lock.json": "eb12c4af89ef9000daa1d2242dfd49e896214722b09ce599cadde782da643e00",
       "package.json": "6dc072ddfb049d53ef130802c7522bf3a56e7a51f35cd5fb203bf4dfc5346778",
@@ -730,7 +730,7 @@
     },
     "SDD-006": {
       ".env.example": "e4c7362153cbb8d31013fb2bdbb1db3fef48c9ebc214a4fb9a45b947caa9776f",
-      ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
+      ".github/workflows/prdm-sync.yml": "f41f1b500bb1897fdb908c157eea4e5bf69b387780c087871f34cac63bd8e911",
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
       "docker-compose.yml": "005201727bc885d15c18c36b8a6289bcd3e2a0acc80c48d0e10fa6f3fdf408d0",
       "docker/postgres/init/01-roles.sh": "debbcd64f4e3b5fcbd30c5ef6b35f6066d9239bb42c59844b9a2d2292d8fa6b9",
@@ -2862,7 +2862,7 @@
     },
     "SDD-010": {
       ".env.example": "e4c7362153cbb8d31013fb2bdbb1db3fef48c9ebc214a4fb9a45b947caa9776f",
-      ".github/workflows/prdm-sync.yml": "4a00957b0d62b2d2c9e02d6d145d0198ce87610b48d3e03eb2afcaf099245c49",
+      ".github/workflows/prdm-sync.yml": "f41f1b500bb1897fdb908c157eea4e5bf69b387780c087871f34cac63bd8e911",
       ".gitignore": "19b9c62555e09527fdefdad989cb0d1b993b137b6550dc311933d9097d2ccbda",
       "package-lock.json": "eb12c4af89ef9000daa1d2242dfd49e896214722b09ce599cadde782da643e00",
       "package.json": "6dc072ddfb049d53ef130802c7522bf3a56e7a51f35cd5fb203bf4dfc5346778",
