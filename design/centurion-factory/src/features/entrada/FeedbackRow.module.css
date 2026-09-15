@@ -179,6 +179,13 @@
   color: var(--apagado);
 }
 
+/* WO-298: 44px hit target for the row actions below the mobile breakpoint (padded, not resized). */
+@media (max-width: 767px) {
+  .actionButton {
+    min-height: var(--hit-target);
+  }
+}
+
 @media (max-width: 640px) {
   .summary {
     grid-template-columns: minmax(0, 1fr);

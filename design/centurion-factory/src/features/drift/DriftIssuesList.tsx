@@ -34,7 +34,10 @@ function ActionCell({ issue }: { readonly issue: DriftIssue }): ReactNode {
   const action = actionForIssue(issue);
   if (!action) return null;
   return (
-    <Link to={action.to} className={`${buttonStyles.button} ${buttonStyles.secondary} ${buttonStyles.sm}`}>
+    <Link
+      to={action.to}
+      className={`${buttonStyles.button} ${buttonStyles.secondary} ${buttonStyles.sm} ${styles.actionButton}`}
+    >
       {action.label}
     </Link>
   );

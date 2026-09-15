@@ -392,4 +392,25 @@
     flex-direction: column;
     align-items: flex-start;
   }
+
+  /* WO-298: 44px hit targets below the mobile breakpoint (padded, not resized visually). */
+  .segment {
+    min-height: var(--hit-target);
+  }
+
+  .switchRow {
+    min-height: var(--hit-target);
+  }
+
+  .roleSelect {
+    min-height: var(--hit-target);
+  }
+
+  .linkButton {
+    min-height: var(--hit-target);
+    padding: 0 var(--space-2);
+    margin: 0 calc(-1 * var(--space-2));
+    display: inline-flex;
+    align-items: center;
+  }
 }

@@ -143,3 +143,16 @@
   margin: 0;
   padding: 0;
 }
+
+/* WO-298: 44px hit targets below the mobile breakpoint (padded, not resized visually). */
+@media (max-width: 767px) {
+  .row {
+    min-height: var(--hit-target);
+  }
+
+  .toggleAll {
+    min-height: var(--hit-target);
+    display: inline-flex;
+    align-items: center;
+  }
+}

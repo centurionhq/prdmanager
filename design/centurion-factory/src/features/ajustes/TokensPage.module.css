@@ -285,4 +285,13 @@
   .actionsCell::before {
     content: none;
   }
+
+  /* WO-298: 44px hit targets below the mobile breakpoint (padded, not resized visually). */
+  .dangerLink {
+    min-height: var(--hit-target);
+    padding: 0 var(--space-2);
+    margin: 0 calc(-1 * var(--space-2));
+    display: inline-flex;
+    align-items: center;
+  }
 }

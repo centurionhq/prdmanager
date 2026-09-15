@@ -43,10 +43,10 @@ export function FeedbackRow({ item, expanded, onToggleExpand, onLink, onCreateFe
           </div>
         </div>
         <div className={styles.actions}>
-          <Button type="button" variant="primary" size="sm" onClick={onLink}>
+          <Button type="button" variant="primary" size="sm" className={styles.actionButton} onClick={onLink}>
             Enlazar a feature
           </Button>
-          <Button type="button" variant="secondary" size="sm" onClick={onCreateFeatureRequest}>
+          <Button type="button" variant="secondary" size="sm" className={styles.actionButton} onClick={onCreateFeatureRequest}>
             Crear feature request
           </Button>
         </div>

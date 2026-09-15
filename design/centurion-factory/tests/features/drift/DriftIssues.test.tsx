@@ -32,6 +32,13 @@ describe('DriftPage issues (WO-294)', () => {
     expect(screen.getAllByRole('link', { name: 'Triar feedback' }).length).toBeGreaterThan(0);
   });
 
+  it('pads the row action to a 44px mobile hit target (WO-298)', async () => {
+    renderAt('/drift');
+    await screen.findByText('Código fuera de sincronía');
+    const action = screen.getAllByRole('link', { name: 'Ver blueprint' })[0];
+    expect(action?.className).toContain('actionButton');
+  });
+
   it('filters issues to a feature and shows a removable chip', async () => {
     const router = renderAt('/drift?feature=FR-002');
     await screen.findByText('Código fuera de sincronía');

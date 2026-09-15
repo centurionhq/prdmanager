@@ -81,6 +81,13 @@ describe('EntradaPage', () => {
     expect(within(panel).getByText('ART-005')).toBeTruthy();
   });
 
+  it('pads the row actions to a 44px mobile hit target (WO-298)', async () => {
+    renderAt('/entrada?estado=listo');
+    await screen.findByText('FB-007');
+    const [link] = screen.getAllByRole('button', { name: 'Enlazar a feature' });
+    expect(link?.className).toContain('actionButton');
+  });
+
   it('"Enlazar a feature" preselects the best match and moves the item to Triados on confirm', async () => {
     const user = userEvent.setup();
     renderAt('/entrada?estado=listo');
