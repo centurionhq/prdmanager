@@ -40,6 +40,7 @@ import {
   getProjectCodeState,
   recordBaselineHead,
   recordCodeReport,
+  replaceProjectCodeRefs,
   resolveProjectByGraphProjectId,
   schema,
   upsertReportedCommits,
@@ -234,7 +235,24 @@ export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCod
             orgId: resolved.orgId,
             headSha: report.head_sha,
             impactsHashes: report.impacts_hashes,
+            governedWarnings: report.governed_warnings,
           });
+
+          // WO-333: persists this report's per-ref governed state before refresh() below reads it back
+          // (WO-334's `PgProjectEngine.buildDriftInput`) — one transactional replace per blueprint named
+          // in `governed[]`, never a merge (a blueprint absent from this report's `governed[]` keeps
+          // whatever it already had, exactly like `impacts_hashes`' own semantics).
+          for (const entry of report.governed) {
+            await replaceProjectCodeRefs(pool, {
+              projectId: resolved.projectId,
+              orgId: resolved.orgId,
+              blueprintId: entry.blueprintId,
+              reportId: result.reportId,
+              headSha: report.head_sha,
+              refs: entry.refs.map((ref) => ({ refKey: ref.key, path: ref.path, symbol: ref.symbol, hash: ref.hash, hashAlgoVersion: report.client.hash_algo_version })),
+            });
+          }
+
           const engine = resolvePgProjectEngine(pool, requireNeo4j(neo4j), resolved.orgId, project);
           await engine.refresh();
         }

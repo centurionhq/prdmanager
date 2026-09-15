@@ -44,6 +44,11 @@ export interface RecordBaselineHeadInput {
   orgId: string;
   headSha: string;
   impactsHashes: Record<string, string>;
+  /** WO-333: this report's own `governed_warnings[]` (`@prdm/contracts`' `governedWarningSchema`),
+   * stored verbatim — a full replace (not a merge, unlike `impactsHashes`), since a warning list only
+   * ever reflects the *latest* report's own findings. `undefined` leaves the column untouched, so a
+   * caller that hasn't adopted this field yet keeps its previous behavior exactly. */
+  governedWarnings?: readonly { blueprintId: string; message: string }[];
 }
 
 /** Merges `impactsHashes` into whatever is already stored (never a wholesale replace — a report only
@@ -62,9 +67,10 @@ export async function recordBaselineHead(pool: Pool, input: RecordBaselineHeadIn
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.projectId}::text, ${WRITE_LOCK_SALT}))`);
     const [existing] = await tx.select({ impactsHashes: projectCodeState.impactsHashes }).from(projectCodeState).where(eq(projectCodeState.projectId, input.projectId));
     const merged = { ...((existing?.impactsHashes as Record<string, string> | null) ?? {}), ...input.impactsHashes };
+    const governedWarnings = input.governedWarnings !== undefined ? [...input.governedWarnings] : undefined;
     await tx
       .insert(projectCodeState)
-      .values({ projectId: input.projectId, orgId: input.orgId, impactsHashes: merged, latestBaselineHeadSha: input.headSha })
-      .onConflictDoUpdate({ target: projectCodeState.projectId, set: { impactsHashes: merged, latestBaselineHeadSha: input.headSha } });
+      .values({ projectId: input.projectId, orgId: input.orgId, impactsHashes: merged, latestBaselineHeadSha: input.headSha, governedWarnings })
+      .onConflictDoUpdate({ target: projectCodeState.projectId, set: { impactsHashes: merged, latestBaselineHeadSha: input.headSha, ...(governedWarnings !== undefined ? { governedWarnings } : {}) } });
   });
 }
