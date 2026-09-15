@@ -2,11 +2,13 @@
 id: "PRD-005"
 type: "PRD"
 title: "Plataforma SaaS colaborativa de PRDs"
-status: "approved"
+status: "closed"
 created_at: "2026-09-13"
 evolves_from: ["PRD-002"]
 justified_by: ["FB-005"]
 tags: ["saas", "collaboration", "auth", "realtime", "agent", "remote-mcp"]
+closed_at: "2026-09-15T10:50:24.973Z"
+closed_by: "agent:claude"
 ---
 
 ## 1. Visión
