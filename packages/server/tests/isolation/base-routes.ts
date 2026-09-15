@@ -288,6 +288,25 @@ export function registerBaseIsolationRoutes(): void {
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
   });
 
+  // WO-338: work order context/claim/complete, same tenant-scoped resolution as every other
+  // .../projects/:projectSlug/* route — resolveVisibleProject() 404s before a real woId is ever looked up.
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/work-orders/:woId/context', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, woId: 'WO-001' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, woId: 'WO-001' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/work-orders/:woId/claim', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, woId: 'WO-001' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, woId: 'WO-001' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/work-orders/:woId/complete', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, woId: 'WO-001' }, body: { commitSha: 'a'.repeat(40) } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, woId: 'WO-001' }, body: { commitSha: 'a'.repeat(40) } })),
+  });
+
   registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/drift', {
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),

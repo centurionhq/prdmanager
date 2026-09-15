@@ -49,6 +49,7 @@ import { registerPolicyDocsRoutes } from './api/policy-docs.js';
 import { registerProjectMetricsRoutes } from './api/project-metrics.js';
 import { registerProjectOverviewRoutes } from './api/project-overview.js';
 import { registerProjectRoutes } from './api/projects.js';
+import { registerProjectWorkOrderRoutes } from './api/project-work-orders.js';
 import { registerTokenRoutes } from './api/tokens.js';
 import { registerV1MeRoute } from './api/v1-me.js';
 import { buildAuth, type Auth } from './auth/build-auth.js';
@@ -286,6 +287,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerGraphRoutes(app, { auth, pool, env, neo4j });
       registerLineBoardRoutes(app, { auth, pool, env, neo4j });
       registerProjectMetricsRoutes(app, { auth, pool, env, neo4j });
+      registerProjectWorkOrderRoutes(app, { auth, pool, env, neo4j });
       registerCloseFeatureRoutes(app, { auth, pool, env, neo4j, hocuspocus });
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
       registerTokenRoutes(app, { auth, pool, env, clock });
