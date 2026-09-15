@@ -82,3 +82,10 @@
     width: 100%;
   }
 }
+
+@media (max-width: 767px) {
+  .close {
+    width: var(--hit-target);
+    height: var(--hit-target);
+  }
+}

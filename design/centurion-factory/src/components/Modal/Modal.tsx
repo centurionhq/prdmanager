@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
-import { useId, type MouseEvent, type ReactElement, type ReactNode } from 'react';
-import { useDialogController } from '../../lib/use-dialog-controller';
+import { useId, type ReactElement, type ReactNode } from 'react';
+import { useDialogController, useScrimClose } from '../../lib/use-dialog-controller';
 import styles from './Modal.module.css';
 
 export type ModalSize = 'sm' | 'md';
@@ -23,12 +23,9 @@ const SIZE_CLASS: Record<ModalSize, string | undefined> = {
 /** Centered dialog, 520px wide by default. See the "Reconocer drift" plate on Drift.dc.html. */
 export function Modal({ open, title, description, onClose, children, footer, size = 'md' }: ModalProps): ReactElement {
   const { dialogRef } = useDialogController({ open, onClose });
+  const scrim = useScrimClose(onClose);
   const titleId = useId();
   const descriptionId = useId();
-
-  function handleScrimClick(event: MouseEvent<HTMLDialogElement>): void {
-    if (event.target === event.currentTarget) onClose();
-  }
 
   return (
     <dialog
@@ -37,7 +34,8 @@ export function Modal({ open, title, description, onClose, children, footer, siz
       className={styles.dialog}
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
-      onClick={handleScrimClick}
+      onMouseDown={scrim.onMouseDown}
+      onClick={scrim.onClick}
     >
       <div className={[styles.panel, SIZE_CLASS[size]].filter((value): value is string => Boolean(value)).join(' ')}>
         <div className={styles.header}>

@@ -1,5 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { Modal } from '../../src/components/Modal/Modal';
@@ -63,6 +65,33 @@ describe('Modal', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it('does not call onClose when a drag starting inside the panel is released over the scrim', () => {
+    const onClose = vi.fn();
+    renderModal(onClose);
+    const dialog = screen.getByRole('dialog');
+    const panelContent = screen.getByText('Contenido del modal');
+
+    act(() => {
+      panelContent.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      dialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('calls onClose only when both mousedown and click land on the scrim itself', () => {
+    const onClose = vi.fn();
+    renderModal(onClose);
+    const dialog = screen.getByRole('dialog');
+
+    act(() => {
+      dialog.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      dialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('calls onClose when the close button is clicked', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
@@ -98,5 +127,11 @@ describe('Modal', () => {
     });
 
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it('grows the close button to a 44px hit target below the mobile breakpoint', () => {
+    const css = readFileSync(resolve(import.meta.dirname, '../../src/components/Modal/Modal.module.css'), 'utf8');
+    expect(css).toMatch(/@media\s*\(max-width:\s*767px\)\s*\{[^}]*\.close\s*\{[^}]*width:\s*var\(--hit-target\)/s);
+    expect(css).toMatch(/@media\s*\(max-width:\s*767px\)\s*\{[^}]*\.close\s*\{[^}]*height:\s*var\(--hit-target\)/s);
   });
 });

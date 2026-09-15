@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
-import { useId, type CSSProperties, type MouseEvent, type ReactElement, type ReactNode } from 'react';
-import { useDialogController } from '../../lib/use-dialog-controller';
+import { useId, type CSSProperties, type ReactElement, type ReactNode } from 'react';
+import { useDialogController, useScrimClose } from '../../lib/use-dialog-controller';
 import styles from './Drawer.module.css';
 
 export interface DrawerProps {
@@ -15,16 +15,20 @@ export interface DrawerProps {
 /** Right-side panel, full screen under 640px. See the "Resumen del importador" aside on Ordenes.dc.html. */
 export function Drawer({ open, title, onClose, children, footer, width = 440 }: DrawerProps): ReactElement {
   const { dialogRef } = useDialogController({ open, onClose });
+  const scrim = useScrimClose(onClose);
   const titleId = useId();
-
-  function handleScrimClick(event: MouseEvent<HTMLDialogElement>): void {
-    if (event.target === event.currentTarget) onClose();
-  }
 
   const panelStyle = { '--drawer-width': `${width}px` } as CSSProperties;
 
   return (
-    <dialog ref={dialogRef} tabIndex={-1} className={styles.dialog} aria-labelledby={titleId} onClick={handleScrimClick}>
+    <dialog
+      ref={dialogRef}
+      tabIndex={-1}
+      className={styles.dialog}
+      aria-labelledby={titleId}
+      onMouseDown={scrim.onMouseDown}
+      onClick={scrim.onClick}
+    >
       <div className={styles.panel} style={panelStyle}>
         <div className={styles.header}>
           <h2 id={titleId} className={styles.title}>

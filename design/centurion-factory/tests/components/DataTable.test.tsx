@@ -1,8 +1,23 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { MemoryRouter } from 'react-router';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DataTable, type DataTableColumn } from '../../src/components/DataTable/DataTable';
 import type { SortState } from '../../src/lib/filter-sort';
+
+/** Simulates `window.matchMedia` matching (or not) the DataTable's 640px mobile breakpoint. */
+function mockMobileMediaQuery(matches: boolean): void {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
 
 interface Row {
   readonly id: string;
@@ -22,6 +37,10 @@ function makeColumns(): readonly DataTableColumn<Row>[] {
     { key: 'updated', header: 'Actualizada', render: (row) => row.updated, sortValue: (row) => row.updated, align: 'end' },
   ];
 }
+
+afterEach(() => {
+  Reflect.deleteProperty(window, 'matchMedia');
+});
 
 describe('DataTable', () => {
   it('renders a real table with a visually hidden caption as its accessible name', () => {
@@ -126,5 +145,134 @@ describe('DataTable', () => {
   it('renders no data rows when rows are empty and no emptyState is given', () => {
     const { container } = render(<DataTable caption="Órdenes" columns={makeColumns()} rows={[]} getRowId={(row) => row.id} />);
     expect(within(container).queryAllByRole('row')).toHaveLength(1); // just the header row
+  });
+
+  it('keeps a cell\'s plain text content as just the value, not the header, for existing consumers', () => {
+    render(<DataTable caption="Órdenes" columns={makeColumns()} rows={rows} getRowId={(row) => row.id} />);
+    const cell = screen.getByRole('cell', { name: 'WO-304' });
+    expect(cell.textContent).toBe('WO-304');
+    expect(cell.getAttribute('data-label')).toBe('Orden');
+  });
+
+  it('stacks the label above the value when a column sets stack: "block"', () => {
+    const columns = makeColumns().map((column) => (column.key === 'title' ? { ...column, stack: 'block' as const } : column));
+    render(<DataTable caption="Órdenes" columns={columns} rows={rows} getRowId={(row) => row.id} />);
+    const cell = screen.getByRole('cell', { name: 'Escaneo incremental por hash de archivo' });
+    expect(cell.className).toContain('cellBlock');
+  });
+
+  it('builds the mobile label from a generated ::before with a separator, in a two-column grid, never as a real text node', () => {
+    const css = readFileSync(resolve(import.meta.dirname, '../../src/components/DataTable/DataTable.module.css'), 'utf8');
+    expect(css).toMatch(/@media\s*\(max-width:\s*640px\)\s*\{[\s\S]*\.cell\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:[^;]*1fr[^}]*\}/);
+    expect(css).toMatch(/\.cell::before\s*\{[^}]*content:\s*attr\(data-label\)/);
+    expect(css).toMatch(/\.cellBlock\s*\{[^}]*flex-direction:\s*column/);
+  });
+
+  describe('mobile sorting', () => {
+    it('keeps the header sort button on desktop', () => {
+      mockMobileMediaQuery(false);
+      const onSortChange = vi.fn();
+      render(<DataTable caption="Órdenes" columns={makeColumns()} rows={rows} getRowId={(row) => row.id} onSortChange={onSortChange} />);
+      expect(screen.getByRole('button', { name: 'Orden' })).toBeTruthy();
+    });
+
+    it('replaces the header sort button with plain text on mobile, keeping aria-sort on the columnheader', () => {
+      mockMobileMediaQuery(true);
+      const sort: SortState<string> = { key: 'id', direction: 'asc' };
+      render(
+        <DataTable caption="Órdenes" columns={makeColumns()} rows={rows} getRowId={(row) => row.id} sort={sort} onSortChange={vi.fn()} />,
+      );
+      expect(screen.queryByRole('button', { name: 'Orden' })).toBeNull();
+      const header = screen.getByRole('columnheader', { name: 'Orden' });
+      expect(header.getAttribute('aria-sort')).toBe('ascending');
+    });
+
+    it('renders a native "Ordenar por" select and a direction toggle when sorting is enabled', async () => {
+      mockMobileMediaQuery(true);
+      const user = userEvent.setup();
+      const onSortChange = vi.fn();
+      render(<DataTable caption="Órdenes" columns={makeColumns()} rows={rows} getRowId={(row) => row.id} onSortChange={onSortChange} />);
+
+      const select = screen.getByRole('combobox', { name: 'Ordenar por' });
+      await user.selectOptions(select, 'updated');
+      expect(onSortChange).toHaveBeenCalledWith({ key: 'updated', direction: 'asc' });
+    });
+
+    it('toggles the sort direction from the direction button, keeping the same key', async () => {
+      mockMobileMediaQuery(true);
+      const user = userEvent.setup();
+      const onSortChange = vi.fn();
+      const sort: SortState<string> = { key: 'updated', direction: 'asc' };
+      render(
+        <DataTable
+          caption="Órdenes"
+          columns={makeColumns()}
+          rows={rows}
+          getRowId={(row) => row.id}
+          sort={sort}
+          onSortChange={onSortChange}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Invertir orden' }));
+      expect(onSortChange).toHaveBeenCalledWith({ key: 'updated', direction: 'desc' });
+    });
+
+    it('does not render the mobile sort controls when no column is sortable', () => {
+      mockMobileMediaQuery(true);
+      const columns: readonly DataTableColumn<Row>[] = [{ key: 'title', header: 'Título', render: (row) => row.title }];
+      render(<DataTable caption="Órdenes" columns={columns} rows={rows} getRowId={(row) => row.id} onSortChange={vi.fn()} />);
+      expect(screen.queryByRole('combobox', { name: 'Ordenar por' })).toBeNull();
+    });
+  });
+
+  describe('row links', () => {
+    function columnsWithRowLink(): readonly DataTableColumn<Row>[] {
+      return [
+        { key: 'id', header: 'Orden', render: (row) => row.id, sortValue: (row) => row.id, rowLink: (row) => `/ordenes/${row.id}` },
+        { key: 'title', header: 'Título', render: (row) => row.title },
+      ];
+    }
+
+    it('renders a real Link covering the row instead of a focusable tr', () => {
+      render(
+        <MemoryRouter>
+          <DataTable caption="Órdenes" columns={columnsWithRowLink()} rows={rows} getRowId={(row) => row.id} />
+        </MemoryRouter>,
+      );
+      const link = screen.getByRole('link', { name: 'WO-304' });
+      expect(link.getAttribute('href')).toBe('/ordenes/WO-304');
+      const row = link.closest('tr');
+      expect(row?.hasAttribute('tabindex')).toBe(false);
+    });
+
+    it('still calls onRowClick as a mouse shortcut when a rowLink column is present', async () => {
+      const user = userEvent.setup();
+      const onRowClick = vi.fn();
+      render(
+        <MemoryRouter>
+          <DataTable
+            caption="Órdenes"
+            columns={columnsWithRowLink()}
+            rows={rows}
+            getRowId={(row) => row.id}
+            onRowClick={onRowClick}
+          />
+        </MemoryRouter>,
+      );
+      await user.click(screen.getByRole('cell', { name: 'Escaneo incremental por hash de archivo' }));
+      expect(onRowClick).toHaveBeenCalledWith(rows[0]);
+    });
+
+    it('marks a column as primary to stretch its own rendered content across the row', () => {
+      const columns: readonly DataTableColumn<Row>[] = [
+        { key: 'id', header: 'Orden', render: (row) => <a href={`/ordenes/${row.id}`}>{row.id}</a>, primary: true },
+        { key: 'title', header: 'Título', render: (row) => row.title },
+      ];
+      render(<DataTable caption="Órdenes" columns={columns} rows={rows} getRowId={(row) => row.id} />);
+      const link = screen.getByRole('link', { name: 'WO-304' });
+      const row = link.closest('tr');
+      expect(row?.hasAttribute('tabindex')).toBe(false);
+    });
   });
 });

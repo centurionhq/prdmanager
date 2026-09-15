@@ -3,7 +3,7 @@
  * element (SDD-011). jsdom has no `showModal`/`close`, so both are guarded and fall back to
  * toggling the `open` property directly.
  */
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, type MouseEvent as ReactMouseEvent, type RefObject } from 'react';
 
 export interface UseDialogControllerOptions {
   readonly open: boolean;
@@ -59,4 +59,31 @@ export function useDialogController({ open, onClose }: UseDialogControllerOption
   }, [onClose]);
 
   return { dialogRef };
+}
+
+export interface ScrimCloseHandlers {
+  readonly onMouseDown: (event: ReactMouseEvent<HTMLDialogElement>) => void;
+  readonly onClick: (event: ReactMouseEvent<HTMLDialogElement>) => void;
+}
+
+/**
+ * Closes the dialog only when BOTH the mousedown and the click land on the scrim itself
+ * (the `<dialog>` element, not the panel inside it). Without this, a drag that starts on
+ * panel content — like selecting text in an input — and is released over the scrim would
+ * otherwise fire a click on the dialog and close it.
+ */
+export function useScrimClose(onClose: () => void): ScrimCloseHandlers {
+  const mouseDownOnScrim = useRef(false);
+
+  function onMouseDown(event: ReactMouseEvent<HTMLDialogElement>): void {
+    mouseDownOnScrim.current = event.target === event.currentTarget;
+  }
+
+  function onClick(event: ReactMouseEvent<HTMLDialogElement>): void {
+    const clickedScrim = event.target === event.currentTarget;
+    if (clickedScrim && mouseDownOnScrim.current) onClose();
+    mouseDownOnScrim.current = false;
+  }
+
+  return { onMouseDown, onClick };
 }
