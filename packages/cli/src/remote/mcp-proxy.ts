@@ -23,7 +23,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import { loadRemoteProjectConfig } from '@prdm/core';
-import { loadCredentials } from './credentials.js';
+import { checkProjectPinMismatch, loadCredentials } from './credentials.js';
 import { parseServerUrl } from './server-url.js';
 
 export class McpProxyAbortError extends Error {}
@@ -69,6 +69,13 @@ export function resolveMcpProxyTarget(root: string, env: NodeJS.ProcessEnv): Mcp
       throw new McpProxyAbortError(`.prdm.yaml points to ${configuredOrigin}, but PRDM_SERVER is ${expectedOrigin}; refusing to guess which one is correct`);
     }
   }
+
+  // WO-234: `.prdm.yaml`'s `project.id` is repo-tracked — a PR editing only that field would otherwise
+  // silently retarget this proxy at a different project. `prdm link` pinned the resolved id locally
+  // (never in the repo itself); a repo whose `.prdm.yaml` disagrees with that pin is refused, same as an
+  // `remote.server` mismatch above.
+  const pinMismatch = checkProjectPinMismatch(root, remote.project.id, env);
+  if (pinMismatch) throw new McpProxyAbortError(pinMismatch);
 
   const credentials = loadCredentials(env);
   const credential = credentials[configuredOrigin];

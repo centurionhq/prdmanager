@@ -14,7 +14,7 @@ import { renderRemoteProjectFile, type RemoteProjectFile } from '@prdm/core';
 import { makeTmpDir, removeDir, writeFiles } from '@prdm/testkit';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { assertNotInRepoNodeModules, McpProxyAbortError, resolveMcpProxyTarget, runMcpProxy } from '../../src/remote/mcp-proxy.js';
-import { saveCredentials } from '../../src/remote/credentials.js';
+import { saveCredentials, saveProjectPin } from '../../src/remote/credentials.js';
 
 function remoteFile(server: string): RemoteProjectFile {
   return { version: 2, project: { id: 'prj_0123456789abcdef', name: 'widgets' }, remote: { server, org: 'acme', project: 'widgets', offlinePolicy: 'warn' } };
@@ -99,17 +99,33 @@ describe('resolveMcpProxyTarget (WO-189)', () => {
 
   test('aborts when there is no stored credential for the configured origin', () => {
     writeFiles(root, { '.prdm.yaml': renderRemoteProjectFile(remoteFile('https://app.example.com')) });
+    saveProjectPin(root, { server: 'https://app.example.com', graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
     expect(() => resolveMcpProxyTarget(root, { XDG_CONFIG_HOME: xdgHome })).toThrow(McpProxyAbortError);
   });
 
   test('resolves origin/graphProjectId/token when everything agrees', () => {
     writeFiles(root, { '.prdm.yaml': renderRemoteProjectFile(remoteFile('https://app.example.com')) });
     saveCredentials({ 'https://app.example.com': { token: 'prdm_pat_x' } }, { XDG_CONFIG_HOME: xdgHome });
+    saveProjectPin(root, { server: 'https://app.example.com', graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
     expect(resolveMcpProxyTarget(root, { XDG_CONFIG_HOME: xdgHome, PRDM_SERVER: 'https://app.example.com' })).toEqual({
       origin: 'https://app.example.com',
       graphProjectId: 'prj_0123456789abcdef',
       token: 'prdm_pat_x',
     });
+  });
+
+  test('aborts when this repository was never linked from this machine (no local project pin at all)', () => {
+    writeFiles(root, { '.prdm.yaml': renderRemoteProjectFile(remoteFile('https://app.example.com')) });
+    saveCredentials({ 'https://app.example.com': { token: 'prdm_pat_x' } }, { XDG_CONFIG_HOME: xdgHome });
+    expect(() => resolveMcpProxyTarget(root, { XDG_CONFIG_HOME: xdgHome })).toThrow(McpProxyAbortError);
+  });
+
+  test('aborts when .prdm.yaml\'s project.id disagrees with the locally pinned graphProjectId (WO-234)', () => {
+    writeFiles(root, { '.prdm.yaml': renderRemoteProjectFile(remoteFile('https://app.example.com')) });
+    saveCredentials({ 'https://app.example.com': { token: 'prdm_pat_x' } }, { XDG_CONFIG_HOME: xdgHome });
+    // Simulates a PR that edited only .prdm.yaml's project.id after this repo was already linked.
+    saveProjectPin(root, { server: 'https://app.example.com', graphProjectId: 'prj_fedcba9876543210' }, { XDG_CONFIG_HOME: xdgHome });
+    expect(() => resolveMcpProxyTarget(root, { XDG_CONFIG_HOME: xdgHome })).toThrow(McpProxyAbortError);
   });
 });
 
@@ -144,6 +160,7 @@ describe('runMcpProxy relay (WO-189)', () => {
 
     writeFiles(root, { '.prdm.yaml': renderRemoteProjectFile(remoteFile(baseUrl)) });
     saveCredentials({ [baseUrl]: { token: 'prdm_pat_relay' } }, { XDG_CONFIG_HOME: xdgHome });
+    saveProjectPin(root, { server: baseUrl, graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
   });
 
   afterEach(async () => {
@@ -205,6 +222,28 @@ describe('runMcpProxy relay (WO-189)', () => {
         cwd: root,
         root,
         env: { XDG_CONFIG_HOME: xdgHome, PRDM_SERVER: 'https://not-this-one.example.com' },
+        stderr: () => undefined,
+        createStdioTransport: () => new FakeTransport(),
+        createHttpTransport: () => {
+          httpCreated = true;
+          return new FakeTransport();
+        },
+      }),
+    ).rejects.toBeInstanceOf(McpProxyAbortError);
+    expect(httpCreated).toBe(false);
+    expect(seenAuthorization).toEqual([]);
+  });
+
+  test('aborts (sends nothing) when .prdm.yaml\'s project.id disagrees with the locally pinned graphProjectId (WO-234)', async () => {
+    // Overwrites the beforeEach's matching pin, simulating a PR that edited only .prdm.yaml's project.id
+    // after this repo was already linked.
+    saveProjectPin(root, { server: baseUrl, graphProjectId: 'prj_fedcba9876543210' }, { XDG_CONFIG_HOME: xdgHome });
+    let httpCreated = false;
+    await expect(
+      runMcpProxy({
+        cwd: root,
+        root,
+        env: { XDG_CONFIG_HOME: xdgHome },
         stderr: () => undefined,
         createStdioTransport: () => new FakeTransport(),
         createHttpTransport: () => {

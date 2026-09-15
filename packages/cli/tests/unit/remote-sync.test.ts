@@ -8,7 +8,7 @@ import { renderRemoteProjectFile, type RemoteProjectFile } from '@prdm/core';
 import { createFixtureRepo, makeTmpDir, removeDir } from '@prdm/testkit';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { CliError } from '../../src/errors.js';
-import { saveCredentials } from '../../src/remote/credentials.js';
+import { saveCredentials, saveProjectPin } from '../../src/remote/credentials.js';
 import { runRemoteSync } from '../../src/remote/sync.js';
 
 const SETTINGS = { folders: {}, ignore: [], git: {}, triage: {}, lifecycle: {}, default_branch: 'main', github_repository: null, github_repository_id: null, github_owner_id: null, hash_algo_version: 1 };
@@ -46,6 +46,7 @@ afterEach(() => {
 describe('runRemoteSync (WO-195)', () => {
   test('prints the drift and does not throw when there are no blocking issues', async () => {
     saveCredentials({ 'https://app.example.test': { token: 't' } }, { XDG_CONFIG_HOME: xdgHome });
+    saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
     const lines: string[] = [];
     const fetchImpl = fakeServer(200, { mode: 'preview', reportId: 'r1', headSha: 'a'.repeat(40), issues: [], hasBlockingIssues: false });
 
@@ -57,6 +58,7 @@ describe('runRemoteSync (WO-195)', () => {
 
   test('--check throws when the server reports blocking issues', async () => {
     saveCredentials({ 'https://app.example.test': { token: 't' } }, { XDG_CONFIG_HOME: xdgHome });
+    saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
     const fetchImpl = fakeServer(200, {
       mode: 'preview',
       reportId: 'r1',
@@ -72,6 +74,7 @@ describe('runRemoteSync (WO-195)', () => {
 
   test('without --check, blocking issues are printed but do not throw', async () => {
     saveCredentials({ 'https://app.example.test': { token: 't' } }, { XDG_CONFIG_HOME: xdgHome });
+    saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
     const lines: string[] = [];
     const fetchImpl = fakeServer(200, {
       mode: 'preview',
@@ -86,12 +89,34 @@ describe('runRemoteSync (WO-195)', () => {
   });
 
   test('requires prior "prdm login" for the linked server', async () => {
+    saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
+    const fetchImpl = fakeServer(200, {});
+    await expect(runRemoteSync(root, remoteFile('https://app.example.test'), {}, { stdout: () => undefined, env: { XDG_CONFIG_HOME: xdgHome }, fetchImpl })).rejects.toThrow(CliError);
+  });
+
+  test('aborts (sends nothing) when .prdm.yaml\'s project.id disagrees with the locally pinned graphProjectId (WO-234)', async () => {
+    saveCredentials({ 'https://app.example.test': { token: 't' } }, { XDG_CONFIG_HOME: xdgHome });
+    // Simulates a PR that edited only .prdm.yaml's project.id after this repo was already linked.
+    saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_fedcba9876543210' }, { XDG_CONFIG_HOME: xdgHome });
+    let called = false;
+    const fetchImpl = (async () => {
+      called = true;
+      return new Response('should never be reached', { status: 200 });
+    }) as typeof fetch;
+
+    await expect(runRemoteSync(root, remoteFile('https://app.example.test'), {}, { stdout: () => undefined, env: { XDG_CONFIG_HOME: xdgHome }, fetchImpl })).rejects.toThrow(CliError);
+    expect(called).toBe(false);
+  });
+
+  test('aborts when this repository was never linked from this machine (no local project pin at all)', async () => {
+    saveCredentials({ 'https://app.example.test': { token: 't' } }, { XDG_CONFIG_HOME: xdgHome });
     const fetchImpl = fakeServer(200, {});
     await expect(runRemoteSync(root, remoteFile('https://app.example.test'), {}, { stdout: () => undefined, env: { XDG_CONFIG_HOME: xdgHome }, fetchImpl })).rejects.toThrow(CliError);
   });
 
   test('falls back to GITHUB_REF_NAME in detached HEAD', async () => {
     saveCredentials({ 'https://app.example.test': { token: 't' } }, { XDG_CONFIG_HOME: xdgHome });
+    saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
     execFileSync('git', ['checkout', '--detach', '-q'], { cwd: root });
 
     let sentBranch: string | undefined;

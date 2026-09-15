@@ -6,10 +6,21 @@
  * window), and refused outright if the file or directory turns out readable/writable by anyone else —
  * checked with `fs.statSync` *after* creation, since `umask` can still widen a mode passed to
  * `open`/`mkdir` beyond what was requested.
+ *
+ * WO-234 extends this same file (rather than inventing a second local-state file) with `projectPins`:
+ * the `graphProjectId` `prdm link` resolved for a given repo root, keyed by that root's absolute path.
+ * `.prdm.yaml`'s `project.id` is repo-tracked — a PR could edit it to silently retarget a developer's
+ * `sync`/`mcp-proxy` runs at a different project (SDD-010's threat model: nothing a repo controls should
+ * ever decide where a token/report goes) — so every subsequent run compares the *locally pinned* id
+ * against whatever `.prdm.yaml` currently claims, aborting on mismatch exactly like the existing
+ * `remote.server` cross-check already does. The on-disk shape is `{ tokens, projectPins }`; a
+ * pre-WO-234 file (a bare `Record<origin, StoredCredential>`, no `tokens` key at all) is transparently
+ * read as legacy `tokens` with empty `projectPins` — an existing logged-in user's credentials file is
+ * never blown away by this change.
  */
 import { closeSync, constants, existsSync, lstatSync, mkdirSync, openSync, readFileSync, statSync, writeSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 export class InsecureCredentialsPathError extends Error {
   constructor(message: string) {
@@ -25,6 +36,34 @@ export interface StoredCredential {
 /** Keyed by the exact origin (scheme + host + port) a credential was issued for — never a bare
  * hostname, so `https://a.example.com` and `https://a.example.com:8443` are never confused. */
 export type CredentialsFile = Record<string, StoredCredential>;
+
+/** The `graphProjectId` `prdm link` resolved for a repo, and the origin it was resolved against (kept
+ * alongside it purely for a clearer abort message — the origin mismatch itself is still
+ * `server-origin.ts`/`mcp-proxy.ts`'s own, separate check). */
+export interface ProjectPin {
+  server: string;
+  graphProjectId: string;
+}
+
+/** Keyed by a repo root's absolute, normalized path (`node:path`'s `resolve`) — never the bare string a
+ * caller happened to pass, so `.` and an equivalent absolute path always hit the same entry. */
+export type ProjectPinsFile = Record<string, ProjectPin>;
+
+interface CredentialsStore {
+  tokens: CredentialsFile;
+  projectPins: ProjectPinsFile;
+}
+
+function isStoreShape(value: unknown): value is CredentialsStore {
+  return typeof value === 'object' && value !== null && 'tokens' in value && 'projectPins' in value;
+}
+
+/** A pre-WO-234 file is a bare `CredentialsFile` (no `tokens` wrapper at all) — read as legacy `tokens`
+ * with no pins yet, never discarded. */
+function normalizeStore(parsed: unknown): CredentialsStore {
+  if (isStoreShape(parsed)) return { tokens: parsed.tokens, projectPins: parsed.projectPins };
+  return { tokens: (parsed as CredentialsFile) ?? {}, projectPins: {} };
+}
 
 function xdgConfigHome(env: NodeJS.ProcessEnv): string {
   const configured = env.XDG_CONFIG_HOME;
@@ -66,13 +105,14 @@ function ensurePrivateDir(dir: string): void {
   assertPrivateMode(dir, 'directory');
 }
 
-/** Returns `{}` when the file doesn't exist yet (a fresh install); throws `InsecureCredentialsPathError`
- * for a symlinked or group/other-readable existing file instead of silently trusting it. */
-export function loadCredentials(env: NodeJS.ProcessEnv = process.env): CredentialsFile {
+/** Returns an empty store when the file doesn't exist yet (a fresh install); throws
+ * `InsecureCredentialsPathError` for a symlinked or group/other-readable existing file instead of
+ * silently trusting it. */
+function loadStore(env: NodeJS.ProcessEnv): CredentialsStore {
   const dir = credentialsDir(env);
   if (existsSync(dir)) assertNotSymlink(dir);
   const path = credentialsPath(env);
-  if (!existsSync(path)) return {};
+  if (!existsSync(path)) return { tokens: {}, projectPins: {} };
 
   assertNotSymlink(path);
   assertPrivateMode(path, 'file');
@@ -81,7 +121,7 @@ export function loadCredentials(env: NodeJS.ProcessEnv = process.env): Credentia
   const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const raw = readFileSync(fd, 'utf8');
-    return JSON.parse(raw) as CredentialsFile;
+    return normalizeStore(JSON.parse(raw) as unknown);
   } finally {
     closeSync(fd);
   }
@@ -90,7 +130,7 @@ export function loadCredentials(env: NodeJS.ProcessEnv = process.env): Credentia
 /** Overwrites the whole credentials file (never a partial merge at the fs layer — callers read-modify-
  * write the in-memory object first). Refuses to overwrite an existing symlinked or insecurely-permissioned
  * file rather than silently replacing it. */
-export function saveCredentials(credentials: CredentialsFile, env: NodeJS.ProcessEnv = process.env): void {
+function saveStore(store: CredentialsStore, env: NodeJS.ProcessEnv): void {
   ensurePrivateDir(credentialsDir(env));
   const path = credentialsPath(env);
   if (existsSync(path)) {
@@ -98,7 +138,7 @@ export function saveCredentials(credentials: CredentialsFile, env: NodeJS.Proces
     assertPrivateMode(path, 'file');
   }
 
-  const contents = `${JSON.stringify(credentials, null, 2)}\n`;
+  const contents = `${JSON.stringify(store, null, 2)}\n`;
   // O_NOFOLLOW here too: a symlink swapped in between the checks above and this open is refused, not
   // followed. O_TRUNC|O_CREAT with an explicit 0o600 mode; re-verified below since umask can still
   // widen it.
@@ -109,4 +149,45 @@ export function saveCredentials(credentials: CredentialsFile, env: NodeJS.Proces
     closeSync(fd);
   }
   assertPrivateMode(path, 'file');
+}
+
+export function loadCredentials(env: NodeJS.ProcessEnv = process.env): CredentialsFile {
+  return loadStore(env).tokens;
+}
+
+/** Overwrites only the `tokens` section — `projectPins` (whatever `prdm link` has already recorded for
+ * any repo) is read back from disk first and carried through untouched, so a `login`/`logout` call can
+ * never silently wipe out an unrelated repo's pin. */
+export function saveCredentials(credentials: CredentialsFile, env: NodeJS.ProcessEnv = process.env): void {
+  const existing = loadStore(env);
+  saveStore({ tokens: credentials, projectPins: existing.projectPins }, env);
+}
+
+/** The `graphProjectId` `prdm link` last pinned for `root` (its absolute, normalized path), or
+ * `undefined` if this repo was never linked from this machine. */
+export function loadProjectPin(root: string, env: NodeJS.ProcessEnv = process.env): ProjectPin | undefined {
+  return loadStore(env).projectPins[resolve(root)];
+}
+
+/** Records (or overwrites) `root`'s pin — called once, at `prdm link` time. Preserves every other repo's
+ * pin and every stored token untouched. */
+export function saveProjectPin(root: string, pin: ProjectPin, env: NodeJS.ProcessEnv = process.env): void {
+  const existing = loadStore(env);
+  saveStore({ tokens: existing.tokens, projectPins: { ...existing.projectPins, [resolve(root)]: pin } }, env);
+}
+
+/**
+ * A pure check shared by every remote entry point that reads `.prdm.yaml`'s repo-tracked `project.id`
+ * (WO-234) — `null` when it agrees with the local, non-repo-controlled pin `prdm link` recorded;
+ * otherwise a ready-to-display reason a caller wraps in its own error type (`McpProxyAbortError` for
+ * `mcp-proxy.ts`, `CliError` for `sync.ts` and friends), mirroring how `server-origin.ts`'s
+ * `resolveRemoteServerOrigin` already cross-checks `remote.server` the same way.
+ */
+export function checkProjectPinMismatch(root: string, remoteProjectId: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const pin = loadProjectPin(root, env);
+  if (!pin) return 'no local project pin recorded for this repository; run "prdm link" first';
+  if (pin.graphProjectId !== remoteProjectId) {
+    return `.prdm.yaml's project.id is "${remoteProjectId}", but this repository was linked to "${pin.graphProjectId}"; refusing to guess which one is correct — run "prdm link" again if the project genuinely changed`;
+  }
+  return null;
 }

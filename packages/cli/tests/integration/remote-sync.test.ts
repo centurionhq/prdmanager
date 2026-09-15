@@ -14,7 +14,7 @@ import { FakeMailer } from '../../../server/src/mailer.js';
 import { mutationHeaders } from '../../../server/tests/helpers/csrf.js';
 import { seedUser } from '../../../server/tests/helpers/seed-auth.js';
 import { buildTestServerEnv } from '../../../server/tests/helpers/test-env.js';
-import { saveCredentials } from '../../src/remote/credentials.js';
+import { saveCredentials, saveProjectPin } from '../../src/remote/credentials.js';
 import { runRemoteSync } from '../../src/remote/sync.js';
 
 describe('prdm sync remote mode (SDD-010, WO-195)', () => {
@@ -90,6 +90,7 @@ describe('prdm sync remote mode (SDD-010, WO-195)', () => {
       writeFiles(root, { 'src/sync/monitor.ts': 'export function detect() { return 1; }\n' });
       initGitRepo(root);
       saveCredentials({ [baseUrl]: { token: secret } }, { XDG_CONFIG_HOME: xdgHome });
+      saveProjectPin(root, { server: baseUrl, graphProjectId: project.graphProjectId }, { XDG_CONFIG_HOME: xdgHome });
 
       const remoteFile: RemoteProjectFile = { version: 2, project: { id: project.graphProjectId, name: project.name }, remote: { server: baseUrl, org: org.slug, project: project.slug, offlinePolicy: 'warn' } };
 

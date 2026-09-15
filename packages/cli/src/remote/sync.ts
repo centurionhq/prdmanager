@@ -7,7 +7,7 @@ import { currentBranch, scanContents, type RemoteProjectFile } from '@prdm/core'
 import type { CodeReportIssueDto, CodeReportResponse } from '@prdm/contracts';
 import { CliError } from '../errors.js';
 import { buildCodeReportBody, sendCodeReport, type BlueprintLike } from './code-report.js';
-import { loadCredentials } from './credentials.js';
+import { checkProjectPinMismatch, loadCredentials } from './credentials.js';
 import { fetchGithubActionsOidcToken } from './github-oidc-token.js';
 import { syncGovernanceCache, type GovernanceCacheResult } from './governance-cache.js';
 import { resolveRemoteServerOrigin } from './server-origin.js';
@@ -55,6 +55,12 @@ function formatResponse(response: CodeReportResponse): string {
 export async function runRemoteSync(root: string, file: RemoteProjectFile, options: RemoteSyncOptions, deps: RemoteSyncDeps): Promise<void> {
   const origin = resolveRemoteServerOrigin(file.remote, deps.env);
   const graphProjectId = file.project.id;
+
+  // WO-234: `.prdm.yaml`'s `project.id` is repo-tracked — a PR editing only that field would otherwise
+  // silently retarget this developer's sync run at a different project. Mirrors the `remote.server`
+  // cross-check just above, against the local, non-repo-controlled pin `prdm link` recorded.
+  const pinMismatch = checkProjectPinMismatch(root, graphProjectId, deps.env);
+  if (pinMismatch) throw new CliError(pinMismatch);
 
   const credentials = loadCredentials(deps.env);
   const credential = credentials[origin];

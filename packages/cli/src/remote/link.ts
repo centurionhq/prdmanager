@@ -6,7 +6,7 @@
  */
 import { applyLink, planLink, type LinkFileWrite, type OfflinePolicy } from '@prdm/core';
 import { CliError } from '../errors.js';
-import { loadCredentials } from './credentials.js';
+import { loadCredentials, saveProjectPin } from './credentials.js';
 import { readLocalImportPayload, uploadImportPayload } from './import.js';
 import { resolveRemoteProject, type ResolveRemoteProjectDeps } from './mcp-client.js';
 import { parseServerUrl } from './server-url.js';
@@ -62,6 +62,11 @@ export async function runLink(root: string, options: LinkOptions, deps: LinkIoDe
     mcp: options.mcp,
   });
   await applyLink(root, plan);
+
+  // WO-234: pinned locally (never in the repo-tracked `.prdm.yaml` itself) so a later PR editing
+  // `project.id` can be detected as a mismatch by `mcp-proxy`/`sync`, instead of silently retargeting
+  // this repo's runs at a different project.
+  saveProjectPin(root, { server: url.origin, graphProjectId: resolved.graphProjectId }, deps.env);
 
   if (plan.writes.length === 0) deps.stdout('nothing to do: already linked');
   else for (const write of plan.writes) deps.stdout(`wrote ${write.path}`);

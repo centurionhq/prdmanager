@@ -11,7 +11,7 @@ import { parseRemoteProjectFile } from '@prdm/core';
 import { makeTmpDir, removeDir } from '@prdm/testkit';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { CliError } from '../../src/errors.js';
-import { saveCredentials } from '../../src/remote/credentials.js';
+import { loadProjectPin, saveCredentials } from '../../src/remote/credentials.js';
 import { runLink } from '../../src/remote/link.js';
 
 const PROJECTS = [{ id: 'prj_0123456789abcdef', name: 'Widgets', slug: 'widgets' }];
@@ -75,6 +75,12 @@ describe('runLink (SDD-010, WO-188)', () => {
     expect(remoteFile.project.id).toBe('prj_0123456789abcdef');
     expect(remoteFile.remote).toEqual({ server: baseUrl, org: 'acme', project: 'widgets', offlinePolicy: 'warn' });
     expect(lines.some((l) => l.includes('.prdm.yaml'))).toBe(true);
+  });
+
+  test('pins the resolved graphProjectId locally (WO-234), independent of the repo-tracked .prdm.yaml', async () => {
+    await runLink(root, { server: baseUrl, target: 'acme/widgets' }, { stdout: () => {}, env: { XDG_CONFIG_HOME: xdgHome } });
+
+    expect(loadProjectPin(root, { XDG_CONFIG_HOME: xdgHome })).toEqual({ server: baseUrl, graphProjectId: 'prj_0123456789abcdef' });
   });
 
   test('rejects when the token belongs to a different organization', async () => {

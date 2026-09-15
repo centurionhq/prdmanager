@@ -5,7 +5,7 @@ import { chmodSync, mkdirSync, statSync, symlinkSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { makeTmpDir, removeDir } from '@prdm/testkit';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { credentialsPath, InsecureCredentialsPathError, loadCredentials, saveCredentials } from '../../src/remote/credentials.js';
+import { credentialsPath, InsecureCredentialsPathError, loadCredentials, loadProjectPin, saveCredentials, saveProjectPin } from '../../src/remote/credentials.js';
 
 let xdgHome: string;
 let env: NodeJS.ProcessEnv;
@@ -59,6 +59,44 @@ describe('credentials (WO-187)', () => {
 
     expect(() => loadCredentials(env)).toThrow(InsecureCredentialsPathError);
     expect(() => saveCredentials({ x: { token: 'y' } }, env)).toThrow(InsecureCredentialsPathError);
+  });
+});
+
+describe('project pins (WO-234)', () => {
+  test('loadProjectPin returns undefined when this repo was never linked from this machine', () => {
+    expect(loadProjectPin('/repo/a', env)).toBeUndefined();
+  });
+
+  test('saveProjectPin round-trips, keyed by the resolved repo root, independent of stored tokens', () => {
+    saveCredentials({ 'https://a.example.test': { token: 'x' } }, env);
+    saveProjectPin('/repo/a', { server: 'https://a.example.test', graphProjectId: 'prj_0000000000000001' }, env);
+
+    expect(loadProjectPin('/repo/a', env)).toEqual({ server: 'https://a.example.test', graphProjectId: 'prj_0000000000000001' });
+    // Saving a pin never disturbs already-stored tokens.
+    expect(loadCredentials(env)).toEqual({ 'https://a.example.test': { token: 'x' } });
+  });
+
+  test('two different repos each get their own independent pin', () => {
+    saveProjectPin('/repo/a', { server: 'https://a.example.test', graphProjectId: 'prj_0000000000000001' }, env);
+    saveProjectPin('/repo/b', { server: 'https://a.example.test', graphProjectId: 'prj_0000000000000002' }, env);
+
+    expect(loadProjectPin('/repo/a', env)?.graphProjectId).toBe('prj_0000000000000001');
+    expect(loadProjectPin('/repo/b', env)?.graphProjectId).toBe('prj_0000000000000002');
+  });
+
+  test('saveCredentials (login/logout) never wipes out an already-recorded project pin', () => {
+    saveProjectPin('/repo/a', { server: 'https://a.example.test', graphProjectId: 'prj_0000000000000001' }, env);
+    saveCredentials({ 'https://a.example.test': { token: 'new-token' } }, env);
+
+    expect(loadProjectPin('/repo/a', env)).toEqual({ server: 'https://a.example.test', graphProjectId: 'prj_0000000000000001' });
+  });
+
+  test('a pre-WO-234 credentials file (bare token map, no "tokens" wrapper) is read as legacy tokens with no pins', () => {
+    mkdirSync(join(xdgHome, 'prdm'), { recursive: true, mode: 0o700 });
+    writeFileSync(credentialsPath(env), JSON.stringify({ 'https://a.example.test': { token: 'legacy' } }), { mode: 0o600 });
+
+    expect(loadCredentials(env)).toEqual({ 'https://a.example.test': { token: 'legacy' } });
+    expect(loadProjectPin('/repo/a', env)).toBeUndefined();
   });
 });
 
