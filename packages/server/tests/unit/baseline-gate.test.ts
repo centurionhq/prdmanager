@@ -134,13 +134,34 @@ describe('evaluateBaselineGate (WO-181)', () => {
     expect(result).toEqual({ mode: 'baseline' });
   });
 
-  test('a fast-forward (registered head present among reported commits) earns baseline mode', async () => {
+  test('a genuine fast-forward (registered head reachable via real parent-chain links) earns baseline mode', async () => {
     const oidcToken = await signToken();
+    const oldHead = 'b'.repeat(40);
     const result = await evaluateBaselineGate(
       baseInput({
         oidcToken,
-        registeredBaselineHeadSha: 'b'.repeat(40),
-        report: report({ commits: [{ sha: 'b'.repeat(40), author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'x', refs: [], files: [] }] }),
+        registeredBaselineHeadSha: oldHead,
+        // HEAD_SHA's own commit reports oldHead as its real parent — an unbroken ancestry chain.
+        report: report({ commits: [{ sha: HEAD_SHA, parents: [oldHead], author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'x', refs: [], files: [] }] }),
+      }),
+    );
+    expect(result).toEqual({ mode: 'baseline' });
+  });
+
+  test('a multi-hop fast-forward (registered head several commits back in the real chain) earns baseline mode', async () => {
+    const oidcToken = await signToken();
+    const oldHead = 'b'.repeat(40);
+    const middle = 'd'.repeat(40);
+    const result = await evaluateBaselineGate(
+      baseInput({
+        oidcToken,
+        registeredBaselineHeadSha: oldHead,
+        report: report({
+          commits: [
+            { sha: HEAD_SHA, parents: [middle], author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'x', refs: [], files: [] },
+            { sha: middle, parents: [oldHead], author: 'Alice', date: '2026-09-13T00:00:00.000Z', subject: 'w', refs: [], files: [] },
+          ],
+        }),
       }),
     );
     expect(result).toEqual({ mode: 'baseline' });
@@ -150,6 +171,39 @@ describe('evaluateBaselineGate (WO-181)', () => {
     const oidcToken = await signToken();
     const result = await evaluateBaselineGate(baseInput({ oidcToken, registeredBaselineHeadSha: 'c'.repeat(40) }));
     expect(result).toEqual({ mode: 'rejected', code: 'force_push_requires_admin_override' });
+  });
+
+  test('a rewritten history whose commits[] includes a flat, disconnected entry claiming to be the old head is caught as a regression (the exact bypass this WO closes)', async () => {
+    const oidcToken = await signToken();
+    const oldHead = 'c'.repeat(40);
+    const result = await evaluateBaselineGate(
+      baseInput({
+        oidcToken,
+        registeredBaselineHeadSha: oldHead,
+        // HEAD_SHA's real parent is some unrelated rewritten commit — oldHead is merely *present* in the
+        // reported commits[] array (e.g. a naive "last N commits" window, or fabricated deliberately),
+        // but it is not actually HEAD_SHA's ancestor: no parent-chain link connects them.
+        report: report({
+          commits: [
+            { sha: HEAD_SHA, parents: ['e'.repeat(40)], author: 'Mallory', date: '2026-09-14T00:00:00.000Z', subject: 'rewritten', refs: [], files: [] },
+            { sha: oldHead, parents: ['f'.repeat(40)], author: 'Alice', date: '2026-09-13T00:00:00.000Z', subject: 'old', refs: [], files: [] },
+          ],
+        }),
+      }),
+    );
+    expect(result).toEqual({ mode: 'rejected', code: 'force_push_requires_admin_override' });
+  });
+
+  test('the very first baseline registration ever (no previous registered head) is never a regression, even with disconnected commits', async () => {
+    const oidcToken = await signToken();
+    const result = await evaluateBaselineGate(
+      baseInput({
+        oidcToken,
+        registeredBaselineHeadSha: null,
+        report: report({ commits: [{ sha: HEAD_SHA, parents: [], author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'x', refs: [], files: [] }] }),
+      }),
+    );
+    expect(result).toEqual({ mode: 'baseline' });
   });
 
   test('a force-push with a matching, consumable override earns baseline mode', async () => {

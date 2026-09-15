@@ -14,7 +14,7 @@ const validReport = {
   impacts_hashes: { 'SDD-010': 'a'.repeat(64) },
   governed: [{ blueprintId: 'SDD-010', refs: [{ key: 'k', path: 'x.ts', symbol: null, hash: null }] }],
   governed_warnings: [],
-  commits: [{ sha: 'b'.repeat(40), author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'feat: x', refs: ['WO-177'], files: ['x.ts'] }],
+  commits: [{ sha: 'b'.repeat(40), parents: ['c'.repeat(40)], author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'feat: x', refs: ['WO-177'], files: ['x.ts'] }],
   dirty: [],
 };
 
@@ -42,6 +42,11 @@ describe('codeReportRequestSchema', () => {
 
   test('rejects an unknown top-level key (strict object)', () => {
     expect(() => codeReportRequestSchema.parse({ ...validReport, extra: true })).toThrow();
+  });
+
+  test('accepts a commit with zero parents (history root) and rejects a non-hex parent sha', () => {
+    expect(reportedCommitSchema.parse({ ...validReport.commits[0], parents: [] }).parents).toEqual([]);
+    expect(() => reportedCommitSchema.parse({ ...validReport.commits[0], parents: ['not-a-sha'] })).toThrow();
   });
 });
 

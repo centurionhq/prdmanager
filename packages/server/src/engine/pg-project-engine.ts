@@ -629,7 +629,9 @@ export class PgProjectEngine implements ProjectEngine {
       .from(schema.commits)
       .where(and(eq(schema.commits.projectId, this.projectId), eq(schema.commits.sha, sha), eq(schema.commits.trust, 'baseline')));
     if (!row) return null;
-    return { sha: row.sha, author: row.author, date: row.date.toISOString(), subject: row.subject, refs: row.refs, files: row.files };
+    // The `commits` table (SDD-007) has no parent-chain column; the WO-231 ancestry check consults
+    // `CodeReportRequest.commits[].parents` directly at report time and never round-trips through here.
+    return { sha: row.sha, parents: [], author: row.author, date: row.date.toISOString(), subject: row.subject, refs: row.refs, files: row.files };
   }
 
   private async loadBaseline(tx: PgDatabase): Promise<Baseline> {
@@ -650,7 +652,7 @@ export class PgProjectEngine implements ProjectEngine {
       .from(schema.commits)
       .where(and(eq(schema.commits.projectId, this.projectId), eq(schema.commits.trust, 'baseline')));
     return rows
-      .map((row): CommitInfo => ({ sha: row.sha, author: row.author, date: row.date.toISOString(), subject: row.subject, refs: row.refs, files: row.files }))
+      .map((row): CommitInfo => ({ sha: row.sha, parents: [], author: row.author, date: row.date.toISOString(), subject: row.subject, refs: row.refs, files: row.files }))
       .sort((a, b) => b.date.localeCompare(a.date));
   }
 

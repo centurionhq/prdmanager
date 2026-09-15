@@ -130,7 +130,8 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports baseline mode (WO-1
       method: 'POST',
       url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
       headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'k1', 'x-prdm-github-oidc-token': oidcToken },
-      payload: baseReport(headSha, { commits: [{ sha: headSha, author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'feat: x\n\nRefs: WO-181', refs: ['WO-181'], files: ['x.ts'] }] }),
+      payload: baseReport(headSha, { commits: [{ sha: headSha, parents: [],
+        author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'feat: x\n\nRefs: WO-181', refs: ['WO-181'], files: ['x.ts'] }] }),
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().mode).toBe('baseline');
@@ -190,7 +191,8 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports baseline mode (WO-1
       method: 'POST',
       url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
       headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'k4', 'x-prdm-github-oidc-token': firstOidc },
-      payload: baseReport(firstHead, { commits: [{ sha: firstHead, author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'x', refs: [], files: [] }] }),
+      payload: baseReport(firstHead, { commits: [{ sha: firstHead, parents: [],
+        author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'x', refs: [], files: [] }] }),
     });
     expect(first.json().mode).toBe('baseline');
 
@@ -202,7 +204,8 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports baseline mode (WO-1
       method: 'POST',
       url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
       headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'k5', 'x-prdm-github-oidc-token': regressedOidc },
-      payload: baseReport(regressedHead, { commits: [{ sha: regressedHead, author: 'Alice', date: '2026-09-14T01:00:00.000Z', subject: 'y', refs: [], files: [] }] }),
+      payload: baseReport(regressedHead, { commits: [{ sha: regressedHead, parents: [],
+        author: 'Alice', date: '2026-09-14T01:00:00.000Z', subject: 'y', refs: [], files: [] }] }),
     });
     expect(rejected.statusCode).toBe(409);
     expect(rejected.json().error).toBe('force_push_requires_admin_override');
@@ -221,7 +224,8 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports baseline mode (WO-1
       method: 'POST',
       url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
       headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'k6', 'x-prdm-github-oidc-token': overriddenOidc },
-      payload: baseReport(regressedHead, { commits: [{ sha: regressedHead, author: 'Alice', date: '2026-09-14T01:00:00.000Z', subject: 'y', refs: [], files: [] }] }),
+      payload: baseReport(regressedHead, { commits: [{ sha: regressedHead, parents: [],
+        author: 'Alice', date: '2026-09-14T01:00:00.000Z', subject: 'y', refs: [], files: [] }] }),
     });
     expect(succeeded.statusCode).toBe(200);
     expect(succeeded.json().mode).toBe('baseline');
@@ -234,7 +238,8 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports baseline mode (WO-1
       method: 'POST',
       url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
       headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'k7', 'x-prdm-github-oidc-token': secondOidc },
-      payload: baseReport(secondRegressedHead, { commits: [{ sha: secondRegressedHead, author: 'Alice', date: '2026-09-14T02:00:00.000Z', subject: 'z', refs: [], files: [] }] }),
+      payload: baseReport(secondRegressedHead, { commits: [{ sha: secondRegressedHead, parents: [],
+        author: 'Alice', date: '2026-09-14T02:00:00.000Z', subject: 'z', refs: [], files: [] }] }),
     });
     expect(rejectedAgain.statusCode).toBe(409);
 

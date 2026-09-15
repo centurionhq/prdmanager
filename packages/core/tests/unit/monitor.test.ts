@@ -35,7 +35,7 @@ function baselineOf(docs: ParsedDoc[], governs: Baseline['governs'] = { 'SDD-001
   return { version: 1, docs: Object.fromEntries(docs.map((d) => [d.node.id, d.node.contentHash])), governs };
 }
 
-const commit = (files: string[], refs: string[]): CommitInfo => ({ sha: 'abc1234', author: 'a', date: '2026-09-12T00:00:00Z', subject: 's', refs, files });
+const commit = (files: string[], refs: string[]): CommitInfo => ({ sha: 'abc1234', parents: [], author: 'a', date: '2026-09-12T00:00:00Z', subject: 's', refs, files });
 
 describe('detectDrift', () => {
   test('first run records unseen docs and code in the baseline and reports everything synced', () => {

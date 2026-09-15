@@ -49,7 +49,7 @@ function toReportedCommit(commit: CommitInfo): CodeReportRequest['commits'][numb
   // `offset: true`) only accepts a `Z`-suffixed UTC instant — `readCommits`'s own `%aI` format is a
   // numeric-offset ISO 8601 string (the committer's local offset), which that schema rejects outright.
   // Normalizing to UTC here is the one place that has to know about the mismatch.
-  return { sha: commit.sha, author: commit.author, date: new Date(commit.date).toISOString(), subject: commit.subject, refs: commit.refs, files: commit.files };
+  return { sha: commit.sha, parents: commit.parents, author: commit.author, date: new Date(commit.date).toISOString(), subject: commit.subject, refs: commit.refs, files: commit.files };
 }
 
 /** Gathers every local input the request body needs — never computes drift itself (the server does). */

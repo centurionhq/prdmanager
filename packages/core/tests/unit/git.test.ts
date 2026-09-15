@@ -25,9 +25,9 @@ describe('git integration', () => {
 
     const commits = await readCommits(root, 10);
     expect(commits.map((c) => c.sha)).toEqual([second, first]);
-    expect(commits[0]).toMatchObject({ subject: 'feat: implement parser', author: 'prdm-test', refs: ['WO-001', 'WO-002'], files: ['src/a.ts', 'src/b.ts'] });
+    expect(commits[0]).toMatchObject({ subject: 'feat: implement parser', author: 'prdm-test', refs: ['WO-001', 'WO-002'], files: ['src/a.ts', 'src/b.ts'], parents: [first] });
     expect(commits[0]?.date).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    expect(commits[1]).toMatchObject({ refs: [], files: ['README.md', 'src/a.ts'] });
+    expect(commits[1]).toMatchObject({ refs: [], files: ['README.md', 'src/a.ts'], parents: [] });
     expect(await readCommits(root, 1)).toHaveLength(1);
   });
 
@@ -57,6 +57,7 @@ describe('git integration', () => {
 
     const commit = await readCommit(pkgRoot, first);
     expect(commit?.files).toEqual(['src/a.ts']);
+    expect(commit?.parents).toEqual([]);
 
     expect(await dirtyPaths(pkgRoot)).toEqual(new Set(['src/a.ts']));
   });
@@ -91,8 +92,8 @@ describe('git integration', () => {
 
     const commits = await readCommitsInRange(root, `${base}..${head}`);
     expect(commits.map((c) => c.sha)).toEqual([middle, head]);
-    expect(commits[0]).toMatchObject({ subject: 'feat: touch a', refs: ['WO-001'], files: ['src/a.ts'] });
-    expect(commits[1]).toMatchObject({ subject: 'feat: add b', files: ['src/b.ts'] });
+    expect(commits[0]).toMatchObject({ subject: 'feat: touch a', refs: ['WO-001'], files: ['src/a.ts'], parents: [base] });
+    expect(commits[1]).toMatchObject({ subject: 'feat: add b', files: ['src/b.ts'], parents: [middle] });
   });
 
   test('readCommitsInRange returns [] outside a git repository', async () => {

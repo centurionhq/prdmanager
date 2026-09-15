@@ -32,6 +32,9 @@ export const MAX_REFS_PER_BLUEPRINT = 2000;
 export const MAX_GOVERNED_WARNINGS = 2000;
 export const MAX_COMMITS_PER_REPORT = 2000;
 export const MAX_DIRTY_PATHS = 5000;
+/** A normal commit has one parent, a merge two, an octopus merge more still — generous enough for any
+ * realistic history while remaining a hard operational cap (WO-231). */
+export const MAX_PARENTS_PER_COMMIT = 32;
 
 export const codeRefStateSchema = z.strictObject({
   key: z.string().min(1).max(500),
@@ -54,6 +57,11 @@ export const governedWarningSchema = z.strictObject({
 
 export const reportedCommitSchema = z.strictObject({
   sha: z.string().regex(SHA_PATTERN),
+  /** This commit's actual parent commit sha(s), exactly as `git log --format='%H %P'` reports them: one
+   * for a normal commit, two-plus for a merge, zero for history's very first commit. The server
+   * (`isHeadRegression`, WO-231) walks this real parent-chain data to verify genuine ancestry instead of
+   * trusting flat `sha` membership in `commits[]` alone. */
+  parents: z.array(z.string().regex(SHA_PATTERN)).max(MAX_PARENTS_PER_COMMIT),
   /** Display name only, never an email address (SDD-010: "autor solo nombre"). */
   author: z.string().min(1).max(200),
   date: z.iso.datetime(),

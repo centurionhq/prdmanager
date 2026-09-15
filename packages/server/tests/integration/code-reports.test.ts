@@ -200,7 +200,8 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports (WO-180)', () => {
       method: 'POST',
       url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
       headers: { authorization: `Bearer ${personalSecret}`, 'idempotency-key': 'personal-key' },
-      payload: baseReport({ commits: [{ sha, author: 'Mallory', date: '2026-09-14T00:00:00.000Z', subject: 'claims to be official', refs: [], files: [] }] }),
+      payload: baseReport({ commits: [{ sha, parents: [],
+        author: 'Mallory', date: '2026-09-14T00:00:00.000Z', subject: 'claims to be official', refs: [], files: [] }] }),
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().mode).toBe('preview');

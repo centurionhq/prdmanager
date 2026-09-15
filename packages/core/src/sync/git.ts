@@ -14,6 +14,11 @@ export interface CommitInfo {
   subject: string;
   refs: string[];
   files: string[];
+  /** This commit's actual parent commit sha(s), exactly as `git log --format='%P'` reports them: one
+   * parent for a normal commit, two-plus for a merge, zero for history's very first commit. Carried
+   * through to `CodeReportRequest.commits[].parents` (SDD-010, WO-231) so the server can verify a real
+   * ancestry chain instead of trusting flat `sha` membership alone. */
+  parents: string[];
 }
 
 async function git(root: string, args: string[]): Promise<string | null> {
@@ -37,7 +42,7 @@ async function repoPrefix(root: string): Promise<string> {
 export async function readCommit(root: string, sha: string): Promise<CommitInfo | null> {
   if (!/^[0-9a-f]{7,40}$/.test(sha)) return null;
   const prefix = await repoPrefix(root);
-  const format = `${RECORD}%H${FIELD}%an${FIELD}%aI${FIELD}%s${FIELD}%B${FIELD}`;
+  const format = `${RECORD}%H${FIELD}%P${FIELD}%an${FIELD}%aI${FIELD}%s${FIELD}%B${FIELD}`;
   const out = await git(root, ['log', '-1', '--name-only', '--no-renames', `--format=${format}`, `${sha}^{commit}`, '--']);
   const chunk = out?.split(RECORD).find((c) => c.trim() !== '');
   return chunk ? parseCommit(chunk, prefix) : null;
@@ -46,7 +51,7 @@ export async function readCommit(root: string, sha: string): Promise<CommitInfo 
 export async function readCommits(root: string, maxCount: number): Promise<CommitInfo[]> {
   if (!(await isGitRepo(root)) || (await git(root, ['rev-parse', '--verify', '--quiet', 'HEAD'])) === null) return [];
   const prefix = await repoPrefix(root);
-  const format = `${RECORD}%H${FIELD}%an${FIELD}%aI${FIELD}%s${FIELD}%B${FIELD}`;
+  const format = `${RECORD}%H${FIELD}%P${FIELD}%an${FIELD}%aI${FIELD}%s${FIELD}%B${FIELD}`;
   const out = await git(root, ['log', `--max-count=${Math.max(1, Math.floor(maxCount))}`, '--name-only', '--no-renames', `--format=${format}`]);
   if (!out) return [];
   return out
@@ -65,7 +70,7 @@ export async function readCommits(root: string, maxCount: number): Promise<Commi
 export async function readCommitsInRange(root: string, range: string): Promise<CommitInfo[]> {
   if (!(await isGitRepo(root))) return [];
   const prefix = await repoPrefix(root);
-  const format = `${RECORD}%H${FIELD}%an${FIELD}%aI${FIELD}%s${FIELD}%B${FIELD}`;
+  const format = `${RECORD}%H${FIELD}%P${FIELD}%an${FIELD}%aI${FIELD}%s${FIELD}%B${FIELD}`;
   const out = await git(root, ['log', '--reverse', '--name-only', '--no-renames', `--format=${format}`, range]);
   if (!out) return [];
   return out
@@ -75,14 +80,15 @@ export async function readCommitsInRange(root: string, range: string): Promise<C
 }
 
 function parseCommit(chunk: string, prefix: string): CommitInfo {
-  const [sha = '', author = '', date = '', subject = '', body = '', filesBlock = ''] = chunk.split(FIELD);
+  const [sha = '', parentsField = '', author = '', date = '', subject = '', body = '', filesBlock = ''] = chunk.split(FIELD);
   const files = filesBlock
     .split('\n')
     .map((f) => f.trim())
     .filter(Boolean)
     .filter((f) => f.startsWith(prefix))
     .map((f) => f.slice(prefix.length));
-  return { sha, author, date, subject, refs: parseRefs(body), files };
+  const parents = parentsField.split(' ').filter(Boolean);
+  return { sha, author, date, subject, refs: parseRefs(body), files, parents };
 }
 
 export function parseRefs(message: string): string[] {

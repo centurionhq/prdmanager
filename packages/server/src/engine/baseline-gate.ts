@@ -59,18 +59,45 @@ export interface EvaluateBaselineGateInput {
 }
 
 /**
+ * Walks `report.head_sha`'s real parent-chain (as reported in `commits[].parents`, WO-231) looking for
+ * `targetSha`. This is a genuine ancestry check, not flat-array membership: a `commits[]` entry whose
+ * `sha` happens to equal `targetSha` only counts if it is actually reachable by following `parents`
+ * links down from `head_sha` — a disconnected entry (e.g. a naive "last N commits" window, or a
+ * deliberately fabricated flat entry after a force-push/history-rewrite) does not satisfy this.
+ *
+ * Bounded by `report.commits`' own size (already capped by `MAX_COMMITS_PER_REPORT`); a registered head
+ * older than the reported window (or genuinely not an ancestor, e.g. after a real rewrite) is correctly
+ * *not* found — this is the conservative, intentional behavior a force-push must trigger.
+ */
+function isAncestor(headSha: string, targetSha: string, commitsBySha: ReadonlyMap<string, readonly string[]>): boolean {
+  const stack = [headSha];
+  const visited = new Set<string>();
+  while (stack.length > 0) {
+    const sha = stack.pop()!;
+    if (sha === targetSha) return true;
+    if (visited.has(sha)) continue;
+    visited.add(sha);
+    const parents = commitsBySha.get(sha);
+    if (parents) stack.push(...parents);
+  }
+  return false;
+}
+
+/**
  * A `head_sha` "regresses" when the project already has a registered baseline head that is neither the
- * new `head_sha` itself nor found among the newly reported `commits[]` — i.e. the new report's own
- * commit history (as it reported it) does not contain the previously-registered head, so it cannot be
- * a fast-forward of it. `CodeReportRequest.commits` carries no parent-chain data (only `sha`/`author`/
- * `date`/`subject`/`refs`/`files`, see `@prdm/contracts`), so this is a deliberately conservative
- * approximation of "ancestor of" rather than a true DAG walk — flagged for the security review as a
- * point worth re-checking against a richer commit-graph representation in a later phase.
+ * new `head_sha` itself nor a genuine ancestor of it, per the reported commits' real parent-chain links
+ * (see {@link isAncestor}) — i.e. the new report's own commit history does not actually descend from the
+ * previously-registered head, so it cannot be a fast-forward of it.
+ *
+ * This is a real ancestry check bounded by the reported commit window, not full independent corroboration
+ * against GitHub's own API — a residual limitation the security review explicitly accepted as out of
+ * scope for this fix (that would require a separate GitHub App installation/token-exchange flow).
  */
 function isHeadRegression(report: CodeReportRequest, registeredBaselineHeadSha: string | null): boolean {
   if (registeredBaselineHeadSha === null) return false;
   if (registeredBaselineHeadSha === report.head_sha) return false;
-  return !report.commits.some((commit) => commit.sha === registeredBaselineHeadSha);
+  const commitsBySha = new Map<string, readonly string[]>(report.commits.map((commit) => [commit.sha, commit.parents]));
+  return !isAncestor(report.head_sha, registeredBaselineHeadSha, commitsBySha);
 }
 
 export async function evaluateBaselineGate(input: EvaluateBaselineGateInput): Promise<BaselineGateResult> {

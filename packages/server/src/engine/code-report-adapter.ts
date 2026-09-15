@@ -13,8 +13,12 @@ export function codeReportToDriftInput(report: CodeReportRequest, docs: ParsedDo
   const governed = new Map<string, CodeRefState[]>();
   for (const entry of report.governed) governed.set(entry.blueprintId, entry.refs);
 
+  // `parents` (WO-231) is only ever consulted by the baseline gate's ancestry check directly against the
+  // wire-shaped `CodeReportRequest`, before this adapter ever runs — `@prdm/core`'s `DriftInput.commits`
+  // has no use for parent-chain data, so it is dropped here rather than threaded through unused.
   const commits: CommitInfo[] = report.commits.map((commit) => ({
     sha: commit.sha,
+    parents: [],
     author: commit.author,
     date: commit.date,
     subject: commit.subject,
