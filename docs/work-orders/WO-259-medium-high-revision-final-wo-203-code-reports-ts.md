@@ -2,7 +2,7 @@
 id: "WO-259"
 type: "WO"
 title: "MEDIUM/HIGH — revisión final WO-203: code-reports.ts e import.ts no tienen rate limit (@fastify/rate-limit está registrado con global:false y ninguna de las dos rutas se suma), y el modo baseline de code-reports dispara PgProjectEngine.refresh() (proyección completa contra el único Neo4j compartido)"
-status: "in_progress"
+status: "done"
 created_at: "2026-09-15"
 implements: ["SDD-010"]
 impacts_paths: ["packages/server/src/**","packages/server/tests/**","packages/server/*.json","packages/mcp/src/**","packages/cli/src/**","packages/cli/tests/**","packages/cli/package.json","packages/core/src/**","packages/contracts/src/**","packages/contracts/tests/**","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/app/src/**","packages/app/tests/**","packages/app/*.config.ts","packages/testkit/src/**",".github/workflows/prdm-sync.yml",".gitignore","vitest.config.ts","README.md",".env.example","package.json","package-lock.json"]
@@ -10,6 +10,9 @@ source_task: "64295eec74be6c2e"
 tags: ["saas","remote-mcp","sync","drift","cli","import","oidc"]
 assigned_to: "agent:claude"
 claimed_at: "2026-09-15T10:13:12.788Z"
+completed_at: "2026-09-15T10:45:37.062Z"
+resolved_by: ["cecbb959bacbe7a9515c8fdc88fabb0c3cc74cb6"]
+blueprint_hashes: {"SDD-010":"a40225b83b2e4989ac23e7ba309a3abafe0491bdaf5ebdbdc7802d034f80760a"}
 ---
 
 ## Objetivo
