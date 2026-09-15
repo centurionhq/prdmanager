@@ -1,0 +1,54 @@
+/* Documentos (SDD-013, WO-356): built from the Centurion Factory tokens (`../styles/tokens.css`), see
+   `design/centurion-factory/canvas/Documentos.dc.html`. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.search {
+  max-width: 20rem;
+}
+
+.stateField {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.stateLabel {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.stateSelect {
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--grafito);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+}
