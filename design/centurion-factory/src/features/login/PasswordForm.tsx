@@ -1,6 +1,8 @@
 import { useId, type ChangeEvent, type ReactElement, type RefObject } from 'react';
 import { Button } from '../../components';
 import styles from './LoginPage.module.css';
+import { PasswordErrorBanner } from './PasswordErrorBanner';
+import { PasswordField } from './PasswordField';
 
 export interface PasswordFormProps {
   readonly emailInputRef: RefObject<HTMLInputElement | null>;
@@ -32,27 +34,9 @@ export function PasswordForm({
 }: PasswordFormProps): ReactElement {
   const errorId = useId();
 
-  function handleEmailChange(event: ChangeEvent<HTMLInputElement>): void {
-    onEmailChange(event.target.value);
-  }
-
-  function handlePasswordChange(event: ChangeEvent<HTMLInputElement>): void {
-    onPasswordChange(event.target.value);
-  }
-
-  const passwordFieldClass = [styles.input, hasError ? styles.inputError : null].filter(Boolean).join(' ');
-
   return (
     <section className={styles.section}>
-      {hasError ? (
-        <div id={errorId} role="alert" className={styles.errorBox}>
-          <span className={styles.errorMark} aria-hidden="true" />
-          <span>
-            <span className={styles.errorLead}>Email o contraseña incorrectos.</span> Revisá los datos o pedí un nuevo
-            acceso a tu admin.
-          </span>
-        </div>
-      ) : null}
+      {hasError ? <PasswordErrorBanner errorId={errorId} /> : null}
 
       <div className={styles.fieldGroup}>
         <label htmlFor="password-email" className={styles.label}>
@@ -65,34 +49,20 @@ export function PasswordForm({
           autoComplete="email"
           className={styles.input}
           value={email}
-          onChange={handleEmailChange}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => onEmailChange(event.target.value)}
           aria-invalid={hasError ? true : undefined}
           aria-describedby={hasError ? errorId : undefined}
         />
       </div>
 
-      <div className={styles.fieldGroup}>
-        <div className={styles.passwordLabelRow}>
-          <label htmlFor="password-value" className={styles.label}>
-            Contraseña
-          </label>
-        </div>
-        <div className={passwordFieldClass}>
-          <input
-            id="password-value"
-            type={showPassword ? 'text' : 'password'}
-            autoComplete="current-password"
-            className={styles.passwordInput}
-            value={password}
-            aria-invalid={hasError}
-            aria-describedby={hasError ? errorId : undefined}
-            onChange={handlePasswordChange}
-          />
-          <button type="button" aria-pressed={showPassword} className={styles.toggleButton} onClick={onToggleShowPassword}>
-            {showPassword ? 'Ocultar' : 'Mostrar'}
-          </button>
-        </div>
-      </div>
+      <PasswordField
+        password={password}
+        onPasswordChange={onPasswordChange}
+        showPassword={showPassword}
+        onToggleShowPassword={onToggleShowPassword}
+        hasError={hasError}
+        errorId={errorId}
+      />
 
       <Button type="button" variant="primary" className={styles.submitButton} onClick={onSubmit}>
         Entrar

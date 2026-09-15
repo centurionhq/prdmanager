@@ -1,8 +1,7 @@
-import { Globe, Grid2x2, LoaderCircle } from 'lucide-react';
-import { useId, type ChangeEvent, type ReactElement, type RefObject } from 'react';
-import { Button } from '../../components';
-import { CENTURIONHQ_DOMAIN } from './lib';
+import type { ReactElement, RefObject } from 'react';
 import styles from './LoginPage.module.css';
+import { SsoEmailField } from './SsoEmailField';
+import { SsoProviderButtons } from './SsoProviderButtons';
 
 export type SsoProvider = 'okta' | 'google' | 'microsoft';
 
@@ -18,21 +17,6 @@ export interface SsoFormProps {
   readonly onSwitchToPassword: () => void;
 }
 
-function RedirectStatus({ label }: { readonly label: string }): ReactElement {
-  return (
-    <div role="status" className={styles.redirectStatus}>
-      <LoaderCircle aria-hidden="true" size={16} className={styles.spinner} />
-      {label}
-    </div>
-  );
-}
-
-const PROVIDER_LABEL: Record<SsoProvider, string> = {
-  okta: 'Redirigiendo a Okta de Centurion HQ…',
-  google: 'Redirigiendo a Google Workspace…',
-  microsoft: 'Redirigiendo a Microsoft Entra ID…',
-};
-
 /** Default login mode: work email + SSO, per canvas/Login.dc.html. */
 export function SsoForm({
   emailInputRef,
@@ -45,56 +29,19 @@ export function SsoForm({
   onContinueProvider,
   onSwitchToPassword,
 }: SsoFormProps): ReactElement {
-  const errorId = useId();
-
-  function handleEmailChange(event: ChangeEvent<HTMLInputElement>): void {
-    onEmailChange(event.target.value);
-  }
-
   return (
     <section className={styles.section}>
-      <div className={styles.fieldGroup}>
-        <label htmlFor="sso-email" className={styles.label}>
-          Email de trabajo
-        </label>
-        <input
-          id="sso-email"
-          ref={emailInputRef}
-          type="email"
-          autoComplete="email"
-          className={styles.input}
-          value={email}
-          onChange={handleEmailChange}
-          aria-invalid={validationError ? true : undefined}
-          aria-describedby={validationError ? errorId : undefined}
-        />
-        {validationError ? (
-          <p id={errorId} className={styles.fieldError} role="alert">
-            {validationError}
-          </p>
-        ) : null}
-        <Button type="button" variant="primary" className={styles.fullWidth} onClick={onContinueSso}>
-          Continuar con SSO
-        </Button>
-        {redirectingProvider === 'okta' ? <RedirectStatus label={PROVIDER_LABEL.okta} /> : null}
-        {domainMessage ? <p className={styles.domainMessage}>{domainMessage}</p> : null}
-        <p className={styles.helper}>
-          Si tu dominio tiene SSO ({CENTURIONHQ_DOMAIN}), te llevamos al proveedor de tu organización.
-        </p>
-      </div>
+      <SsoEmailField
+        emailInputRef={emailInputRef}
+        email={email}
+        onEmailChange={onEmailChange}
+        validationError={validationError}
+        domainMessage={domainMessage}
+        isRedirecting={redirectingProvider === 'okta'}
+        onContinueSso={onContinueSso}
+      />
 
-      <div className={styles.providerGroup}>
-        <Button type="button" variant="secondary" className={styles.fullWidth} onClick={() => onContinueProvider('google')}>
-          <Globe aria-hidden="true" size={18} />
-          Continuar con Google Workspace
-        </Button>
-        {redirectingProvider === 'google' ? <RedirectStatus label={PROVIDER_LABEL.google} /> : null}
-        <Button type="button" variant="secondary" className={styles.fullWidth} onClick={() => onContinueProvider('microsoft')}>
-          <Grid2x2 aria-hidden="true" size={18} />
-          Continuar con Microsoft Entra ID
-        </Button>
-        {redirectingProvider === 'microsoft' ? <RedirectStatus label={PROVIDER_LABEL.microsoft} /> : null}
-      </div>
+      <SsoProviderButtons redirectingProvider={redirectingProvider} onContinueProvider={onContinueProvider} />
 
       <div className={styles.dividerRow}>
         <div className={styles.divider}>

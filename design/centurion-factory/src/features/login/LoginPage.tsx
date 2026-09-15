@@ -1,99 +1,16 @@
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { useNavigate } from 'react-router';
 import { useToast } from '../../components';
 import styles from './LoginPage.module.css';
-import { CENTURIONHQ_DOMAIN, domainOf, isValidEmail, matchesDemoCredentials } from './lib';
 import { PasswordForm } from './PasswordForm';
-import { SsoForm, type SsoProvider } from './SsoForm';
-
-type LoginMode = 'sso' | 'password';
-
-const REDIRECT_DELAY_MS = 1200;
+import { SsoForm } from './SsoForm';
+import { useLoginForm } from './useLoginForm';
 
 /** /login, outside the app shell. See canvas/Login.dc.html and LoginMobile.dc.html (WO-302). */
 export function LoginPage(): ReactElement {
   const navigate = useNavigate();
   const toast = useToast();
-
-  const [mode, setMode] = useState<LoginMode>('sso');
-  const [email, setEmail] = useState('');
-  const [validationError, setValidationError] = useState<string>();
-  const [domainMessage, setDomainMessage] = useState<string>();
-  const [redirectingProvider, setRedirectingProvider] = useState<SsoProvider | null>(null);
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [passwordError, setPasswordError] = useState(false);
-
-  const ssoEmailRef = useRef<HTMLInputElement>(null);
-  const passwordEmailRef = useRef<HTMLInputElement>(null);
-  const isFirstRender = useRef(true);
-  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    const target = mode === 'sso' ? ssoEmailRef.current : passwordEmailRef.current;
-    target?.focus();
-  }, [mode]);
-
-  useEffect(() => {
-    return () => {
-      if (redirectTimer.current) clearTimeout(redirectTimer.current);
-    };
-  }, []);
-
-  function startRedirect(provider: SsoProvider): void {
-    setRedirectingProvider(provider);
-    if (redirectTimer.current) clearTimeout(redirectTimer.current);
-    redirectTimer.current = setTimeout(() => navigate('/proyectos'), REDIRECT_DELAY_MS);
-  }
-
-  function handleContinueSso(): void {
-    setDomainMessage(undefined);
-    if (!isValidEmail(email)) {
-      setValidationError('Escribí tu email de trabajo.');
-      ssoEmailRef.current?.focus();
-      return;
-    }
-    setValidationError(undefined);
-    const domain = domainOf(email);
-    if (domain === CENTURIONHQ_DOMAIN) {
-      startRedirect('okta');
-      return;
-    }
-    setDomainMessage(
-      `Tu organización no tiene SSO configurado para ${domain}. Entrá con email y contraseña o pedile acceso a tu admin.`,
-    );
-  }
-
-  function handleContinueProvider(provider: 'google' | 'microsoft'): void {
-    setValidationError(undefined);
-    setDomainMessage(undefined);
-    startRedirect(provider);
-  }
-
-  function handleSwitchToPassword(): void {
-    if (redirectTimer.current) clearTimeout(redirectTimer.current);
-    setRedirectingProvider(null);
-    setValidationError(undefined);
-    setDomainMessage(undefined);
-    setMode('password');
-  }
-
-  function handleSwitchToSso(): void {
-    setPasswordError(false);
-    setMode('sso');
-  }
-
-  function handleSubmitPassword(): void {
-    if (matchesDemoCredentials(email, password)) {
-      navigate('/proyectos');
-      return;
-    }
-    setPasswordError(true);
-  }
+  const form = useLoginForm(() => navigate('/proyectos'));
 
   return (
     <div className={styles.page}>
@@ -106,31 +23,31 @@ export function LoginPage(): ReactElement {
           </div>
         </div>
 
-        {mode === 'sso' ? (
+        {form.mode === 'sso' ? (
           <SsoForm
-            emailInputRef={ssoEmailRef}
-            email={email}
-            onEmailChange={setEmail}
-            validationError={validationError}
-            domainMessage={domainMessage}
-            redirectingProvider={redirectingProvider}
-            onContinueSso={handleContinueSso}
-            onContinueProvider={handleContinueProvider}
-            onSwitchToPassword={handleSwitchToPassword}
+            emailInputRef={form.ssoEmailRef}
+            email={form.email}
+            onEmailChange={form.setEmail}
+            validationError={form.validationError}
+            domainMessage={form.domainMessage}
+            redirectingProvider={form.redirectingProvider}
+            onContinueSso={form.handleContinueSso}
+            onContinueProvider={form.handleContinueProvider}
+            onSwitchToPassword={form.handleSwitchToPassword}
           />
         ) : (
           <PasswordForm
-            emailInputRef={passwordEmailRef}
-            email={email}
-            onEmailChange={setEmail}
-            password={password}
-            onPasswordChange={setPassword}
-            showPassword={showPassword}
-            onToggleShowPassword={() => setShowPassword((value) => !value)}
-            hasError={passwordError}
-            onSubmit={handleSubmitPassword}
+            emailInputRef={form.passwordEmailRef}
+            email={form.email}
+            onEmailChange={form.setEmail}
+            password={form.password}
+            onPasswordChange={form.setPassword}
+            showPassword={form.showPassword}
+            onToggleShowPassword={form.toggleShowPassword}
+            hasError={form.passwordError}
+            onSubmit={form.handleSubmitPassword}
             onForgotPassword={() => toast.show('Te mandamos un enlace para restablecerla')}
-            onSwitchToSso={handleSwitchToSso}
+            onSwitchToSso={form.handleSwitchToSso}
           />
         )}
       </main>
