@@ -38,3 +38,6 @@ export type { ModalProps, ModalSize } from './Modal/Modal';
 
 export { Drawer } from './Drawer/Drawer';
 export type { DrawerProps } from './Drawer/Drawer';
+
+export { ToastProvider, useToast } from './ToastProvider/ToastProvider';
+export type { ToastContextValue, ToastOptions, ToastProviderProps, ToastTone } from './ToastProvider/ToastProvider';
