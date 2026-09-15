@@ -307,6 +307,30 @@ export function registerBaseIsolationRoutes(): void {
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, woId: 'WO-001' }, body: { commitSha: 'a'.repeat(40) } })),
   });
 
+  // WO-339: feedback submit/inbox/candidates/triage, same tenant-scoped resolution as every other
+  // .../projects/:projectSlug/* route.
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug }, body: { text: 'probe', source: 'support' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug }, body: { text: 'probe', source: 'support' } })),
+  });
+
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/inbox', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+  });
+
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback/:docId/candidates', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback/:docId/triage', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' }, body: { root: true } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' }, body: { root: true } })),
+  });
+
   registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/drift', {
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),

@@ -47,6 +47,7 @@ import { registerLineBoardRoutes } from './api/line-board.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
 import { registerPolicyDocsRoutes } from './api/policy-docs.js';
 import { registerProjectMetricsRoutes } from './api/project-metrics.js';
+import { registerProjectFeedbackRoutes } from './api/project-feedback.js';
 import { registerProjectOverviewRoutes } from './api/project-overview.js';
 import { registerProjectRoutes } from './api/projects.js';
 import { registerProjectWorkOrderRoutes } from './api/project-work-orders.js';
@@ -288,6 +289,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerLineBoardRoutes(app, { auth, pool, env, neo4j });
       registerProjectMetricsRoutes(app, { auth, pool, env, neo4j });
       registerProjectWorkOrderRoutes(app, { auth, pool, env, neo4j });
+      registerProjectFeedbackRoutes(app, { auth, pool, env, neo4j });
       registerCloseFeatureRoutes(app, { auth, pool, env, neo4j, hocuspocus });
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
       registerTokenRoutes(app, { auth, pool, env, clock });
