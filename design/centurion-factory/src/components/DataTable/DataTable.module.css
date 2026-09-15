@@ -157,13 +157,18 @@
    * in the left column in apagado 12px, the value right-aligned in the right column. A colon
    * keeps assistive tech that reads generated content (some do) from announcing them as one
    * run-together word, e.g. "Orden: WO-304" instead of "OrdenWO-304". */
-  .cell {
+  .table .cell {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: baseline;
     gap: var(--space-3);
     padding: var(--space-1) 0;
     text-align: right;
+  }
+
+  /* Values keep their natural width (badges must not stretch across the value column). */
+  .table .cell > * {
+    justify-self: end;
   }
 
   .cell::before {
@@ -178,7 +183,7 @@
   }
 
   /* stack: 'block' puts the label above the value instead of side by side. */
-  .cellBlock {
+  .table .cellBlock {
     display: flex;
     flex-direction: column;
     align-items: flex-start;

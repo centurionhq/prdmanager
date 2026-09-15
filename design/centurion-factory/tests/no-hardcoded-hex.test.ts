@@ -46,6 +46,11 @@ describe('base styles', () => {
     expect(base).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/);
   });
 
+  it('keeps the hidden attribute stronger than component display rules', () => {
+    // Regression: Tabs panels set display: flex, so hidden panels still took space and cut the editor.
+    expect(base).toMatch(/\[hidden\]\s*\{[^}]*display:\s*none\s*!important/);
+  });
+
   it('uses tabular figures for the .num utility', () => {
     expect(base).toMatch(/\.num\s*\{[^}]*font-variant-numeric:\s*tabular-nums/);
   });

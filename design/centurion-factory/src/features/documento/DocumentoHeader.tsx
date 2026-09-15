@@ -3,7 +3,6 @@ import type { ReactElement } from 'react';
 import { Link } from 'react-router';
 import { Button, PageHeader, StatusBadge } from '../../components';
 import type { ProjectDocument, ProjectRole, WorkflowState } from '../../data';
-import { editingAsLabel } from './labels';
 import styles from './DocumentoPage.module.css';
 import { RoleSelect } from './RoleSelect';
 import type { WorkflowTransition } from './useDocumentEditor';
@@ -52,7 +51,6 @@ export function DocumentoHeader({
         isMobile ? undefined : (
           <div className={styles.desktopActions}>
             <RoleSelect role={role} onChange={onRoleChange} />
-            <span className={styles.editingAs}>Editás como {editingAsLabel(role)}</span>
             <Button type="button" variant="secondary" onClick={onSave}>
               Guardar
             </Button>

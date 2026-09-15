@@ -31,12 +31,6 @@
   gap: var(--space-3);
 }
 
-.editingAs {
-  font-size: var(--text-sm);
-  color: var(--apagado);
-  white-space: nowrap;
-}
-
 .desktopLayout {
   flex: 1;
   min-height: 0;

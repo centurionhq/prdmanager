@@ -95,6 +95,11 @@ a:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* Components set display on their own classes; the hidden attribute must still win. */
+[hidden] {
+  display: none !important;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

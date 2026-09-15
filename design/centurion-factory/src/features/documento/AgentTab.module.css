@@ -54,6 +54,12 @@
   line-height: 20px;
 }
 
+.diffLine span:last-child {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .diffRemoved {
   background: var(--diff-quitado);
 }

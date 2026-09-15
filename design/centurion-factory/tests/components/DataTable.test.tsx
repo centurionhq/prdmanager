@@ -276,3 +276,12 @@ describe('DataTable', () => {
     });
   });
 });
+
+describe('DataTable stacked layout CSS', () => {
+  it('scopes the stacked grid under .table so it beats the td display reset', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const css = readFileSync(resolve(import.meta.dirname, '../../src/components/DataTable/DataTable.module.css'), 'utf8');
+    expect(css).toMatch(/\.table \.cell\s*\{\s*display:\s*grid/);
+  });
+});

@@ -14,11 +14,6 @@ export function roleLabel(role: ProjectRole): string {
   return ROLE_LABELS[role];
 }
 
-/** The header's "Editás como …" phrase; admin keeps the exact canvas copy. */
-export function editingAsLabel(role: ProjectRole): string {
-  return role === 'admin' ? 'Admin de proyecto' : roleLabel(role);
-}
-
 const WORKFLOW_LABELS: Readonly<Record<WorkflowState, string>> = {
   draft: 'Borrador',
   in_review: 'En revisión',

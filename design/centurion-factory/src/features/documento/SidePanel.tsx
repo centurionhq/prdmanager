@@ -65,7 +65,7 @@ export function SidePanel({
           id: 'comentarios',
           label: (
             <>
-              Comentarios <span className="num">({openComments})</span>
+              Comentarios{'\u00A0'}<span className="num">({openComments})</span>
             </>
           ),
           panel: <CommentsTab threads={comments} onReply={onReply} onResolve={onResolveThread} />,
