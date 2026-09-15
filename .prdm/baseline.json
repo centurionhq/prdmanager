@@ -3624,6 +3624,11 @@
       "README.md": "a5dbb8713b0b0fe77887f5bfdc0c1fa5dcef79edc27721722edc8d52aab6a7c3",
       "vitest.config.ts": "21313309875e5a8f151d2da2ccac6c4046cb2a0ed5df05c706edb520cdcd29e2"
     },
-    "SDD-011": {}
+    "SDD-011": {
+      "design/centurion-factory/canvas/canvas.json": "382ab83331083c4dbb9aad96a73b6d06f5eb08b34db0ba3ccd0a4bc0e0ba3118",
+      "design/centurion-factory/canvas/Main.dc.html": "f4fd518bb0af84a7e1adf95fcd545613d6e0b26747afe616096b5379d340e0e4",
+      "design/centurion-factory/canvas/PliegoCianotipo.dc.html": "9080e6d3c1bc20172608c6e3656ca2ab32cd280e9eac464c75745bca58abfc3f",
+      "design/centurion-factory/canvas/SalaDeControl.dc.html": "1834a86e554aadd5d0220d8b1de5e0201dce47af66cc7dd1359b4849a3632f0f"
+    }
   }
 }
