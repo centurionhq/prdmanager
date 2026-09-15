@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 import { migrateDocs, type MigrateDocsResult } from '@prdm/core';
 import { formatRefreshReport } from '../format.js';
 import { withContext, type CliDeps } from '../program.js';
+import { assertLocalMutationAllowed } from '../remote/guard.js';
 
 function formatMigrateDocsResult(result: MigrateDocsResult): string {
   const lines = [`dryRun: ${result.dryRun}`];
@@ -17,6 +18,7 @@ function formatMigrateDocsResult(result: MigrateDocsResult): string {
 }
 
 async function runMigrateDocs(deps: CliDeps, options: { dryRun?: boolean; json?: boolean }): Promise<void> {
+  assertLocalMutationAllowed(deps.root, 'migrate docs');
   await withContext(deps, async (ctx) => {
     const result = await migrateDocs(ctx.engine, { dryRun: options.dryRun });
     deps.stdout(options.json ? JSON.stringify(result, null, 2) : formatMigrateDocsResult(result));

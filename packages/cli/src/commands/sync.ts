@@ -4,6 +4,7 @@ import { formatRefreshReport, summarizeRefresh } from '../format.js';
 import { CliError, messageOf } from '../errors.js';
 import { createDebouncedRunner } from '../scheduler.js';
 import { withContext, type CliDeps } from '../program.js';
+import { assertLocalMutationAllowed } from '../remote/guard.js';
 import { createIgnoreMatcher } from '../watch-ignore.js';
 
 const DEFAULT_DEBOUNCE_MS = 300;
@@ -23,6 +24,7 @@ async function runSync(deps: CliDeps, options: { check?: boolean; json?: boolean
 }
 
 async function runAck(deps: CliDeps, target: string): Promise<void> {
+  assertLocalMutationAllowed(deps.root, 'sync ack');
   await withContext(deps, async (ctx) => {
     const report = await ctx.engine.acknowledge(target);
     deps.stdout(formatRefreshReport(report));

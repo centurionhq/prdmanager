@@ -16,6 +16,7 @@ import {
 import { formatIssues } from '../format.js';
 import { CliError } from '../errors.js';
 import { withContext, type CliDeps } from '../program.js';
+import { assertLocalMutationAllowed } from '../remote/guard.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -44,6 +45,7 @@ async function resolveHead(root: string): Promise<string> {
 }
 
 async function runGenerate(deps: CliDeps, blueprintId: string): Promise<void> {
+  assertLocalMutationAllowed(deps.root, 'wo generate');
   await withContext(deps, async (ctx) => {
     const result = await generateWorkOrders(ctx.engine, blueprintId);
     if (result.created.length === 0) deps.stdout('created: (none)');
@@ -93,6 +95,7 @@ async function runContext(deps: CliDeps, id: string, options: { json?: boolean }
 }
 
 async function runClaim(deps: CliDeps, id: string, options: { as?: string }): Promise<void> {
+  assertLocalMutationAllowed(deps.root, 'wo claim');
   await withContext(deps, async (ctx) => {
     const actor = resolveActor(options.as);
     const result = await claimWorkOrder(ctx.engine, id, actor);
@@ -101,6 +104,7 @@ async function runClaim(deps: CliDeps, id: string, options: { as?: string }): Pr
 }
 
 async function runComplete(deps: CliDeps, id: string, options: { commit?: string }): Promise<void> {
+  assertLocalMutationAllowed(deps.root, 'wo complete');
   await withContext(deps, async (ctx) => {
     const commitSha = options.commit === 'HEAD' ? await resolveHead(deps.root) : options.commit;
     const result = await completeWorkOrder(ctx.engine, id, { commitSha });

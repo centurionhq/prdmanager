@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 import { InvalidArgumentError } from 'commander';
 import { ARTIFACT_SOURCES, ingestArtifactFile, type ArtifactSource } from '@prdm/core';
 import { withContext, type CliDeps } from '../program.js';
+import { assertLocalMutationAllowed } from '../remote/guard.js';
 
 function parseSource(value: string): ArtifactSource {
   if (!(ARTIFACT_SOURCES as readonly string[]).includes(value)) {
@@ -22,6 +23,7 @@ interface IngestOptions {
 }
 
 async function runIngestArtifact(deps: CliDeps, file: string, options: IngestOptions): Promise<void> {
+  assertLocalMutationAllowed(deps.root, 'ingest artifact');
   await withContext(deps, async (ctx) => {
     const result = await ingestArtifactFile(ctx.engine, {
       filePath: file,
