@@ -2,12 +2,17 @@
 id: "WO-234"
 type: "WO"
 title: "Revisión de seguridad #4 (HIGH): project.id en .prdm.yaml es controlado por el repo y se usa sin un pin local no controlado por el repo, permitiendo que un PR redirija sync/mcp-proxy a otro proyecto; grabar el graphProjectId vinculado en el almacén local de credenciales al hacer prdm link y abortar "
-status: "pending"
+status: "done"
 created_at: "2026-09-15"
 implements: ["SDD-010"]
 impacts_paths: ["packages/server/src/**","packages/server/tests/**","packages/server/*.json","packages/mcp/src/**","packages/cli/src/**","packages/cli/tests/**","packages/cli/package.json","packages/core/src/**","packages/contracts/src/**","packages/contracts/tests/**","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/app/src/**","packages/app/tests/**","packages/app/*.config.ts","packages/testkit/src/**",".github/workflows/prdm-sync.yml",".gitignore","vitest.config.ts","README.md",".env.example","package.json","package-lock.json"]
 source_task: "6af1582d0bf2661a"
 tags: ["saas","remote-mcp","sync","drift","cli","import","oidc"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T02:59:40.879Z"
+completed_at: "2026-09-15T03:07:25.607Z"
+resolved_by: ["71a75e0a0e778c6480c1aa8568d1478d9f8c1cb3"]
+blueprint_hashes: {"SDD-010":"a40225b83b2e4989ac23e7ba309a3abafe0491bdaf5ebdbdc7802d034f80760a"}
 ---
 
 ## Objetivo
