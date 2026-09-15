@@ -54,12 +54,12 @@
       </div>
       <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em; white-space: nowrap;">Frontend de diseño de Centurion Factory</h1>
       <div style="display: flex; align-items: center; gap: 12px; margin-top: 4px; height: 24px;">
-        <span style="height: 24px; display: inline-flex; align-items: center; padding: 0 8px; border-radius: 2px; font-size: 12px; font-weight: 600; background: #FBFCFB; border: 1px solid #1F4FA0; color: #1F4FA0;">En revisión</span>
+        <span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #1F4FA0;"><span style="width: 8px; height: 8px; background: #1F4FA0;"></span>En revisión</span>
         <span style="font-size: 14px; color: #565D63;">{{ metaLine }}</span>
       </div>
     </header>
 
-    <section style="flex: 1; min-height: 0; display: grid; grid-template-columns: 280px minmax(0, 1fr) 360px; gap: 24px;">
+    <section style="flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr) 320px; gap: 20px;">
 
       <!-- Frontmatter -->
       <div style="display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow: hidden;">
@@ -109,31 +109,76 @@
 
       <!-- Editor -->
       <div style="display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
-        <div style="height: 44px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid #C9CFCD;">
-          <div style="display: flex; align-items: center; gap: 2px; padding: 2px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px;">
-            <div style="height: 28px; display: flex; align-items: center; padding: 0 10px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600;">Markdown</div>
-            <div style="height: 28px; display: flex; align-items: center; padding: 0 10px; color: #33383D;">Vista previa</div>
+        <div style="height: 44px; flex: none; display: flex; align-items: stretch; justify-content: space-between; padding: 0 8px; border-bottom: 1px solid #C9CFCD; font-size: 14px;">
+          <div role="tablist" aria-label="Modo del editor" style="display: flex; align-items: stretch;">
+            <div role="tab" aria-selected="{{ isPreview }}" onClick="{{ onPreview }}" style="{{ previewTabStyle }}">Vista previa</div>
+            <div role="tab" aria-selected="{{ isMarkdown }}" onClick="{{ onMarkdown }}" style="{{ markdownTabStyle }}">Markdown</div>
           </div>
-          <span style="font-size: 12px; color: #565D63;">Autoría por línea</span>
+          <span style="display: flex; align-items: center; font-size: 12px; color: #565D63;">Autoría por bloque</span>
         </div>
-        <div style="flex: 1; min-height: 0; overflow: hidden; padding: 8px 0;">
-          <sc-for list="{{ lines }}" as="line" hint-placeholder-count="18">
-            <div style="{{ line.rowStyle }}">
-              <div style="width: 60px; flex: none; display: flex; align-items: flex-start; padding-left: 8px;">
-                <sc-if value="{{ line.showPerson }}" hint-placeholder-val="{{ true }}">
-                  <span style="font-size: 12px; font-weight: 600; line-height: 22px; color: #565D63;">{{ line.author }}</span>
-                </sc-if>
-                <sc-if value="{{ line.isAgent }}" hint-placeholder-val="{{ false }}">
-                  <span style="margin-top: 3px; height: 16px; display: inline-flex; align-items: center; padding: 0 4px; border: 1px solid #C9CFCD; background: #F1F3F2; border-radius: 2px; font-size: 12px; line-height: 1; font-weight: 600; color: #33383D;">Agente</span>
-                </sc-if>
-              </div>
-              <div class="num" style="width: 28px; flex: none; padding-right: 10px; text-align: right; font-size: 12px; line-height: 22px; color: #565D63;">{{ line.n }}</div>
-              <div class="id" style="{{ line.textStyle }}">{{ line.text }}</div>
+
+        <sc-if value="{{ isPreview }}" hint-placeholder-val="{{ true }}">
+          <div role="toolbar" aria-label="Formato" style="height: 48px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 8px; border-bottom: 1px solid #DDE1DF;">
+            <div style="display: flex; align-items: center; gap: 2px; padding: 2px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px;">
+              <sc-for list="{{ blockButtons }}" as="btn" hint-placeholder-count="4">
+                <div onClick="{{ btn.pick }}" title="{{ btn.title }}" style="{{ btn.style }}">{{ btn.label }}</div>
+              </sc-for>
             </div>
-          </sc-for>
-        </div>
+            <span style="width: 1px; height: 24px; margin: 0 4px; background: #C9CFCD;"></span>
+            <div onClick="{{ onBold }}" title="Negrita" style="{{ boldStyle }}"><span style="font-weight: 800; font-size: 15px;">B</span></div>
+            <div title="Cursiva" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 2px; color: #33383D;"><span style="font-style: italic; font-size: 15px; font-weight: 500; font-family: Georgia, 'Times New Roman', serif;">I</span></div>
+            <div title="Tachado" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 2px; color: #33383D;"><span style="text-decoration: line-through; font-size: 15px; font-weight: 500;">S</span></div>
+            <span style="width: 1px; height: 24px; margin: 0 4px; background: #C9CFCD;"></span>
+            <div title="Lista con viñetas" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 2px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"></path><circle cx="4.5" cy="6" r="1"></circle><circle cx="4.5" cy="12" r="1"></circle><circle cx="4.5" cy="18" r="1"></circle></svg></div>
+            <div title="Lista numerada" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 2px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10"></path><path d="M4 4.5l1.5-1V9"></path><path d="M3.5 14.5a1.5 1.5 0 0 1 3 .3c0 1-3 2.2-3 3.7h3"></path></svg></div>
+            <div title="Lista de tareas" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 2px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="6" height="6" rx="1"></rect><path d="M4.5 7l1 1 2-2"></path><rect x="3" y="14" width="6" height="6" rx="1"></rect><path d="M13 7h8M13 17h8"></path></svg></div>
+            <span style="width: 1px; height: 24px; margin: 0 4px; background: #C9CFCD;"></span>
+            <div title="Enlace" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 2px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path></svg></div>
+          </div>
+          <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 16px 24px 16px 0;">
+            <sc-for list="{{ blocks }}" as="block" hint-placeholder-count="14">
+              <div style="{{ block.rowStyle }}">
+                <div style="width: 76px; flex: none; display: flex; justify-content: flex-end; padding: 0 12px 0 0;">
+                  <sc-if value="{{ block.showPerson }}" hint-placeholder-val="{{ true }}">
+                    <span style="{{ block.authorStyle }}">{{ block.author }}</span>
+                  </sc-if>
+                  <sc-if value="{{ block.isAgent }}" hint-placeholder-val="{{ false }}">
+                    <span style="{{ block.agentStyle }}">Agente</span>
+                  </sc-if>
+                </div>
+                <sc-if value="{{ block.isBullet }}" hint-placeholder-val="{{ false }}">
+                  <span style="width: 20px; flex: none; display: flex; justify-content: center; padding-top: 10px;"><span style="width: 5px; height: 5px; border-radius: 3px; background: #33383D;"></span></span>
+                </sc-if>
+                <sc-if value="{{ block.isTask }}" hint-placeholder-val="{{ false }}">
+                  <span style="width: 24px; flex: none; display: flex; justify-content: flex-start; padding-top: 4px;"><span style="width: 16px; height: 16px; border: 1.5px solid #565D63; border-radius: 2px; background: #FBFCFB;"></span></span>
+                </sc-if>
+                <div style="{{ block.textStyle }}"><span>{{ block.before }}</span><span style="{{ block.selStyle }}">{{ block.sel }}</span><span>{{ block.after }}</span></div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isMarkdown }}" hint-placeholder-val="{{ false }}">
+          <div style="flex: 1; min-height: 0; overflow: hidden; padding: 8px 0;">
+            <sc-for list="{{ lines }}" as="line" hint-placeholder-count="18">
+              <div style="{{ line.rowStyle }}">
+                <div style="width: 60px; flex: none; display: flex; align-items: flex-start; padding-left: 8px;">
+                  <sc-if value="{{ line.showPerson }}" hint-placeholder-val="{{ true }}">
+                    <span style="font-size: 12px; font-weight: 600; line-height: 22px; color: #565D63;">{{ line.author }}</span>
+                  </sc-if>
+                  <sc-if value="{{ line.isAgent }}" hint-placeholder-val="{{ false }}">
+                    <span style="margin-top: 3px; height: 16px; display: inline-flex; align-items: center; padding: 0 4px; border: 1px solid #C9CFCD; background: #F1F3F2; border-radius: 2px; font-size: 12px; line-height: 1; font-weight: 600; color: #33383D;">Agente</span>
+                  </sc-if>
+                </div>
+                <div class="num" style="width: 28px; flex: none; padding-right: 10px; text-align: right; font-size: 12px; line-height: 22px; color: #565D63;">{{ line.n }}</div>
+                <div class="id" style="{{ line.textStyle }}">{{ line.text }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
         <div style="height: 32px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-top: 1px solid #DDE1DF; font-size: 12px; color: #565D63;">
-          <span class="num">{{ lineCount }}</span>
+          <span class="num">{{ footerLeft }}</span>
           <span>{{ saveStatus }}</span>
         </div>
       </div>
@@ -216,39 +261,100 @@
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { saved: false, decision: 'pending' };
+    this.state = { saved: false, decision: 'pending', mode: 'preview', blockType: 'p', bold: false };
   }
 
   renderVals() {
     const decision = this.state.decision;
     const isAccepted = decision === 'accepted';
-    const baseRow = 'display: flex; align-items: flex-start; min-height: 22px; padding-right: 12px;';
-    const textBase = 'flex: 1; min-width: 0; white-space: pre-wrap; line-height: 22px; font-size: 12px;';
+    const isPreview = this.state.mode === 'preview';
+    const blockType = this.state.blockType;
+    const bold = this.state.bold;
 
-    const source = [
-      { author: 'AR', text: '# Frontend de diseño de Centurion Factory', heading: true },
-      { author: 'AR', text: '' },
-      { author: 'AR', text: '## Contexto', heading: true },
-      { author: 'JP', text: 'El paquete design/centurion-factory aísla el rediseño de packages/app y trabaja solo con datos mock.' },
-      { author: 'JP', text: '' },
-      { author: 'JP', text: '## Decisiones', heading: true },
-      { author: 'JP', text: '- Archivo para todo el texto; IBM Plex Mono solo para ids, SHAs y rutas.' },
-      { author: 'AR', text: '- Tokens en tokens.css: color, tipo, espaciado, radios y motion.' },
-      { author: 'agent', text: '- Barra inferior mobile de 64 px con cinco destinos y Más.' },
-      { author: 'JP', text: '' },
-      { author: 'JP', text: '## Tareas', heading: true },
-      { author: 'AR', text: '- [ ] WO-267 tokens.css con color, tipo y espaciado' },
-      { author: 'AR', text: '- [ ] WO-275 Router y AppShell con skip link' },
+    const selBefore = 'El paquete design/centurion-factory aísla el rediseño de packages/app y trabaja ';
+    const selText = 'solo con datos mock';
+    const selAfter = '.';
+
+    // Source of truth: a list of blocks. The preview renders them; the Markdown tab serializes them.
+    const blocks = [
+      { author: 'AR', type: 'h1', text: 'Frontend de diseño de Centurion Factory' },
+      { author: 'AR', type: 'h2', text: 'Contexto' },
+      { author: 'JP', type: blockType, text: selBefore + selText + selAfter, selected: true },
+      { author: 'JP', type: 'h2', text: 'Decisiones' },
+      { author: 'JP', type: 'li', text: 'Archivo para todo el texto; IBM Plex Mono solo para ids, SHAs y rutas.' },
+      { author: 'AR', type: 'li', text: 'Tokens en tokens.css: color, tipo, espaciado, radios y motion.' },
+      { author: 'agent', type: 'li', text: 'Barra inferior mobile de 64 px con cinco destinos y Más.' },
+      { author: 'JP', type: 'h2', text: 'Tareas' },
+      { author: 'AR', type: 'task', text: 'WO-267 tokens.css con color, tipo y espaciado' },
+      { author: 'AR', type: 'task', text: 'WO-275 Router y AppShell con skip link' },
       isAccepted
-        ? { author: 'agent', text: '- [ ] Capturas de cada vista a 375 px', added: true }
-        : { author: 'JP', text: '- [ ] Revisión visual manual en mobile' },
-      { author: 'JP', text: '- [ ] Tests de accesibilidad con axe en cada vista' },
-      { author: 'JP', text: '' },
-      { author: 'AR', text: '## Riesgos', heading: true },
-      { author: 'AR', text: '- Portar a packages/app implica retematizar el Stark HUD.' }
+        ? { author: 'agent', type: 'task', text: 'Capturas de cada vista a 375 px', added: true }
+        : { author: 'JP', type: 'task', text: 'Revisión visual manual en mobile' },
+      { author: 'JP', type: 'task', text: 'Tests de accesibilidad con axe en cada vista' },
+      { author: 'AR', type: 'h2', text: 'Riesgos' },
+      { author: 'AR', type: 'li', text: 'Portar a packages/app implica retematizar el Stark HUD.' }
     ];
 
-    const lines = source.map((line, index) => {
+    const typeText = {
+      h1: 'flex: 1; min-width: 0; font-size: 28px; line-height: 34px; font-weight: 800; font-stretch: 108%; letter-spacing: -0.01em; color: #17191C; padding: 2px 0 6px;',
+      h2: 'flex: 1; min-width: 0; font-size: 20px; line-height: 28px; font-weight: 700; color: #17191C; padding: 14px 0 4px;',
+      h3: 'flex: 1; min-width: 0; font-size: 16px; line-height: 24px; font-weight: 700; color: #17191C; padding: 10px 0 2px;',
+      p: 'flex: 1; min-width: 0; font-size: 16px; line-height: 24px; color: #33383D; padding: 2px 0 4px;',
+      li: 'flex: 1; min-width: 0; font-size: 16px; line-height: 24px; color: #33383D; padding: 1px 0;',
+      task: 'flex: 1; min-width: 0; font-size: 16px; line-height: 24px; color: #33383D; padding: 1px 0;'
+    };
+    const authorPad = { h1: 8, h2: 18, h3: 12, p: 4, li: 3, task: 3 };
+
+    const previewBlocks = blocks.map((b) => {
+      const isAgent = b.author === 'agent';
+      const hasSel = !!b.selected;
+      const pad = authorPad[b.type];
+      return {
+        author: isAgent ? '' : b.author,
+        isAgent: isAgent,
+        showPerson: !isAgent,
+        authorStyle: 'font-size: 12px; font-weight: 600; line-height: 18px; color: #565D63; padding-top: ' + pad + 'px;',
+        agentStyle: 'height: 18px; display: inline-flex; align-items: center; padding: 0 4px; margin-top: ' + pad + 'px; border: 1px solid #C9CFCD; background: #F1F3F2; border-radius: 2px; font-size: 11px; font-weight: 600; color: #33383D;',
+        isBullet: b.type === 'li',
+        isTask: b.type === 'task',
+        rowStyle: 'display: flex; align-items: flex-start;' + (b.added ? ' background: #E1F0E8;' : '') + (hasSel ? ' box-shadow: inset 2px 0 0 #C9CFCD;' : ''),
+        textStyle: typeText[b.type],
+        before: hasSel ? selBefore : b.text,
+        sel: hasSel ? selText : '',
+        after: hasSel ? selAfter : '',
+        selStyle: hasSel ? 'background: #D5E0F1; color: #17191C;' + (bold ? ' font-weight: 700;' : '') : ''
+      };
+    });
+
+    const btnBase = 'height: 30px; display: flex; align-items: center; padding: 0 8px; border-radius: 2px; font-size: 13px; cursor: pointer; white-space: nowrap;';
+    const btnOn = btnBase + ' background: #17191C; color: #FFFFFF; font-weight: 600;';
+    const btnOff = btnBase + ' color: #33383D;';
+    const blockButtons = [
+      { key: 'p', label: 'Párrafo', title: 'Texto normal' },
+      { key: 'h1', label: 'Título 1', title: 'Título 1' },
+      { key: 'h2', label: 'Título 2', title: 'Título 2' },
+      { key: 'h3', label: 'Título 3', title: 'Título 3' }
+    ].map((b) => ({ ...b, style: blockType === b.key ? btnOn : btnOff, pick: () => this.setState({ blockType: b.key }) }));
+
+    const toMarkdown = (b) => {
+      const text = b.selected ? selBefore + (bold ? '**' + selText + '**' : selText) + selAfter : b.text;
+      if (b.type === 'h1') return '# ' + text;
+      if (b.type === 'h2') return '## ' + text;
+      if (b.type === 'h3') return '### ' + text;
+      if (b.type === 'li') return '- ' + text;
+      if (b.type === 'task') return '- [ ] ' + text;
+      return text;
+    };
+    const mdSource = [];
+    blocks.forEach((b, i) => {
+      if (i > 0 && (b.type === 'h1' || b.type === 'h2' || b.type === 'h3' || b.type === 'p' || blocks[i - 1].type === 'p')) {
+        mdSource.push({ author: '', text: '' });
+      }
+      mdSource.push({ author: b.author, text: toMarkdown(b), heading: b.type.charAt(0) === 'h', added: b.added });
+    });
+    const baseRow = 'display: flex; align-items: flex-start; min-height: 22px; padding-right: 12px;';
+    const textBase = 'flex: 1; min-width: 0; white-space: pre-wrap; line-height: 22px; font-size: 12px;';
+    const lines = mdSource.map((line, index) => {
       const isAgent = line.author === 'agent';
       return {
         n: String(index + 1),
@@ -261,9 +367,22 @@ class Component extends DCLogic {
       };
     });
 
+    const tabBase = 'display: flex; align-items: center; padding: 0 12px; cursor: pointer; margin-bottom: -1px;';
+    const toolBase = 'width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 2px; cursor: pointer;';
+
     return {
+      isPreview: isPreview,
+      isMarkdown: !isPreview,
+      previewTabStyle: tabBase + (isPreview ? ' font-weight: 600; color: #17191C; border-bottom: 2px solid #17191C;' : ' color: #33383D; border-bottom: 2px solid transparent;'),
+      markdownTabStyle: tabBase + (!isPreview ? ' font-weight: 600; color: #17191C; border-bottom: 2px solid #17191C;' : ' color: #33383D; border-bottom: 2px solid transparent;'),
+      onPreview: () => this.setState({ mode: 'preview' }),
+      onMarkdown: () => this.setState({ mode: 'markdown' }),
+      blockButtons: blockButtons,
+      boldStyle: toolBase + (bold ? ' background: #17191C; color: #FFFFFF;' : ' color: #33383D;'),
+      onBold: () => this.setState({ bold: !bold }),
+      blocks: previewBlocks,
       lines: lines,
-      lineCount: 'Markdown · ' + lines.length + ' líneas',
+      footerLeft: isPreview ? 'Probá Negrita y los títulos sobre la selección' : 'Markdown · ' + lines.length + ' líneas',
       saveStatus: this.state.saved ? 'Guardado ahora por Ana Ríos' : 'Cambios sin guardar',
       metaLine: this.state.saved
         ? 'Guardado por Ana Ríos ahora · arquitecta de PRD-006'
