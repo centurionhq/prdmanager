@@ -81,35 +81,33 @@ export async function openTestPg(config: PgTestConfig = testPgConfig()): Promise
  * table lives in a separate `drizzle` schema (see `packages/db/src/migrate.ts`), so it's never in this list.
  * A no-op today: there are no tables yet (WO-090 only scaffolds the harness).
  *
- * WO-242 (genuine CI-only Postgres deadlock, `error: deadlock detected` / `40P01`, never reproduced
- * locally): a single multi-table `TRUNCATE t1, t2, ...` statement acquires an `AccessExclusiveLock` on
- * every listed table, one at a time, *in the order listed* — Postgres never reorders a `TRUNCATE`'s own
- * target list. The previous version of this query had no `ORDER BY`, so `pg_catalog.pg_tables`' row order
- * was whatever the planner's own scan of `pg_class`/`pg_namespace` happened to return — not guaranteed
- * stable, and with no relationship whatsoever to the order any *application* transaction touches those
- * same tables in. `packages/server/src/collab/doc-update-writer.ts`'s `writeDocUpdateBatch` is exactly
- * such a transaction: it always `INSERT`s into `doc_updates` first, then (conditionally) `doc_client_
- * bindings` — two different tables' `RowExclusiveLock`s acquired in one fixed order, every single time.
- * Whenever this function's own unordered scan happened to list those same two tables in the *opposite*
- * relative order, a `TRUNCATE` racing a still-committing `writeDocUpdateBatch` transaction produced a
- * textbook AB-BA lock-order deadlock: `TRUNCATE` holds table A's lock waiting on table B, while the write
- * holds table B's lock waiting on table A. Ordering by `pg_class.oid` (creation order — a table's oid is
- * assigned once, at `CREATE TABLE` time, and never changes) fixes this the same way any deadlock-avoidance
- * scheme does: by giving *every* caller (this function included) one single, stable, agreed-upon lock
- * order to follow. `doc_updates` (migration 0009) was created before `doc_client_bindings` (migration
- * 0010), so ordering by creation order here happens to line up exactly with `writeDocUpdateBatch`'s own
- * insert order — see `packages/db/tests/integration/truncate-all-lock-order.test.ts` for a deterministic,
- * non-timing-based proof (real concurrent connections: a `writeDocUpdateBatch`-shaped transaction never
- * deadlocks against a concurrent `truncateAll`). This local Postgres instance's own `pg_tables` catalog
- * scan happens to already return these two tables in creation order even *without* this fix (small,
- * never-vacuumed catalog, stable physical layout) — consistent with WO-242's own finding that this
- * deadlock never reproduced locally and only ever hit the weaker CI runner, whose catalog scan apparently
- * did return a different (colliding) order at least once.
+ * WO-242/WO-244 (genuine CI-only Postgres deadlock, `error: deadlock detected` / `40P01`, never reproduced
+ * locally under normal timing): a single multi-table `TRUNCATE t1, t2, ...` statement acquires an
+ * `AccessExclusiveLock` on every *listed* table, one at a time, strictly in the textual order the
+ * statement lists them — confirmed directly (two real concurrent connections, `pg_locks` inspected mid-
+ * statement) rather than assumed; Postgres does not reorder a `TRUNCATE`'s own target list by oid or
+ * anything else. Ordering this query's own table list by `pg_class.oid` (creation order, stable for a
+ * table's lifetime) exists so that *some* single, agreed-upon lock order exists for every caller to match —
+ * `truncateAll` itself is one of only two things fighting over each pair of tables it truncates; the other
+ * is whatever application transaction ever touches more than one of the same tables in one transaction.
  *
- * A retry-on-deadlock loop was deliberately not added: creation-order locking eliminates the actual
- * lock-order race between this function and every known multi-table writer in this codebase (there is
- * exactly one, `writeDocUpdateBatch`, and its own fixed order now matches) rather than merely tolerating
- * it, so a retry here would be masking a race this fix already closes.
+ * WO-242 originally (and wrongly) identified the CI failure's two relation OIDs as `doc_updates`/
+ * `doc_client_bindings` and only checked that pair's ordering. The very next real CI run reproduced the
+ * *same* deadlock with the *same* OIDs, proving that theory false: those OIDs are actually `documents`
+ * and `doc_updates` (`doc_client_bindings` was never involved). The real conflicting transaction was
+ * `packages/server/src/collab/persistence.ts`'s `onStoreDocument`, which used to `SELECT` from
+ * `doc_updates` and only then `UPDATE documents` — the exact reverse of `truncateAll`'s own oid order
+ * (`documents`, oid 16935, was created before `doc_updates`, oid 17071, in this schema). WO-244 fixed
+ * `onStoreDocument` itself to touch `documents` first (see that file's own comment) rather than changing
+ * anything here — this function's oid ordering was already correct, and reproducing the deadlock (real,
+ * induced-delay, concurrent connections; see `packages/db/tests/integration/
+ * documents-doc-updates-lock-order.test.ts`) confirmed it was the *other* side that had to change.
+ *
+ * A retry-on-deadlock loop was deliberately not added: fixing the one offending transaction's own lock
+ * order eliminates the race rather than merely tolerating it, so a retry here would mask a bug this fix
+ * already closes. Any *future* multi-table writer added to this codebase must follow the same rule —
+ * acquire locks on more than one of these tables in ascending `pg_class.oid` order — or it will deadlock
+ * against this function the same way.
  */
 export async function truncateAll(pool: Pool): Promise<void> {
   const { rows } = await pool.query<{ tablename: string }>(

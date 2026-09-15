@@ -142,6 +142,19 @@ export function createCollabPersistenceExtension(deps: CollabPersistenceDeps): C
 
       const state = Buffer.from(Y.encodeStateAsUpdate(document));
       await withTenantTx(pool, resolved.orgId, async (tx) => {
+        // Touch `documents` before `doc_updates` (see WO-244): `truncateAll` (`packages/testkit/src/
+        // pg.ts`) truncates every `public` table in one statement, listed in ascending `pg_class.oid`
+        // (creation order), and `documents` (oid 16935 in this schema) was created strictly before
+        // `doc_updates` (oid 17071) — so `truncateAll` always takes `documents`'s `AccessExclusiveLock`
+        // before `doc_updates`'s. This transaction used to do the exact opposite (SELECT `doc_updates`
+        // first, then UPDATE `documents`), a fixed AB-BA lock order that deadlocked against a concurrent
+        // `truncateAll` under CI's tighter timing — reproduced locally (see `packages/db/tests/
+        // integration/documents-doc-updates-lock-order.test.ts`) by racing this exact statement order
+        // against a real `truncateAll`. This throwaway `SELECT` exists purely to acquire `documents`'s
+        // table-level lock first, establishing the same order every other multi-table writer in this
+        // codebase must also follow.
+        await tx.select({ id: schema.documents.id }).from(schema.documents).where(eq(schema.documents.id, parsed.documentId)).limit(1);
+
         // Highest `seq` written for this document so far: `working_state` (about to be overwritten
         // below) already reflects every `doc_updates` row up to and including it, so it becomes the
         // new `snapshotSeq` this document's next `onLoadDocument` replay starts strictly after.
