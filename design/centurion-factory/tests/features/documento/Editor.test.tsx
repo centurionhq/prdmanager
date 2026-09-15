@@ -124,3 +124,26 @@ describe('Editor: WYSIWYG inline formatting', () => {
     expect(field.textContent).not.toContain('**');
   });
 });
+
+describe('Editor: link href sanitizing', () => {
+  it('inserting a javascript: URL through the Enlace popover never sets it as the href', async () => {
+    const user = userEvent.setup();
+    renderAt('/documentos/SDD-011');
+    await screen.findByText(/Versión 7/);
+
+    const field = firstFieldContaining('El paquete design/centurion-factory');
+    field.focus();
+    selectTextWithin(field, 'solo con datos mock');
+
+    await user.click(firstButton('Enlace'));
+    const urlInput = firstOf(screen.getAllByLabelText('URL del enlace'));
+    await user.type(urlInput, 'javascript:alert(1)');
+    await user.click(firstButton('Insertar'));
+
+    const anchor = field.querySelector('a');
+    expect(anchor).toBeTruthy();
+    expect(anchor?.getAttribute('href')).toBe('#');
+    expect(anchor?.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(field.innerHTML).not.toContain('javascript:');
+  });
+});

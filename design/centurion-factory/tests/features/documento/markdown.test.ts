@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { DocumentBlock } from '../../../src/data';
-import { htmlToInline, inlineToHtml, parseLine, parseMarkdown, reconcileBlocks, serializeBlocks } from '../../../src/features/documento/markdown';
+import {
+  htmlToInline,
+  inlineToHtml,
+  parseLine,
+  parseMarkdown,
+  reconcileBlocks,
+  sanitizeHref,
+  serializeBlocks,
+} from '../../../src/features/documento/markdown';
 
 function block(id: string, type: DocumentBlock['type'], text: string, extra?: Partial<DocumentBlock>): DocumentBlock {
   return { id, type, text, author: 'ana-rios', ...extra };
@@ -114,7 +122,9 @@ describe('inlineToHtml', () => {
     expect(inlineToHtml('**negrita**')).toBe('<strong>negrita</strong>');
     expect(inlineToHtml('_cursiva_')).toBe('<em>cursiva</em>');
     expect(inlineToHtml('~~tachado~~')).toBe('<del>tachado</del>');
-    expect(inlineToHtml('[prdmanager](https://example.com)')).toBe('<a href="https://example.com">prdmanager</a>');
+    expect(inlineToHtml('[prdmanager](https://example.com)')).toBe(
+      '<a href="https://example.com" rel="noopener noreferrer">prdmanager</a>',
+    );
   });
 
   it('nests bold and italic', () => {
@@ -128,6 +138,49 @@ describe('inlineToHtml', () => {
 
   it('leaves plain text untouched', () => {
     expect(inlineToHtml('Texto normal sin formato.')).toBe('Texto normal sin formato.');
+  });
+});
+
+describe('sanitizeHref', () => {
+  it('keeps http, https, mailto and relative/fragment hrefs untouched', () => {
+    expect(sanitizeHref('https://example.com')).toBe('https://example.com');
+    expect(sanitizeHref('http://example.com')).toBe('http://example.com');
+    expect(sanitizeHref('mailto:ana@centurionhq.com')).toBe('mailto:ana@centurionhq.com');
+    expect(sanitizeHref('#seccion')).toBe('#seccion');
+    expect(sanitizeHref('/documentos/SDD-011')).toBe('/documentos/SDD-011');
+    expect(sanitizeHref('docs/relativo.md')).toBe('docs/relativo.md');
+  });
+
+  it('rejects script-executing schemes, including mixed case and embedded whitespace', () => {
+    expect(sanitizeHref('javascript:alert(1)')).toBe('#');
+    expect(sanitizeHref('JavaScript:alert(1)')).toBe('#');
+    expect(sanitizeHref('java\tscript:alert(1)')).toBe('#');
+    expect(sanitizeHref('  javascript:alert(1)')).toBe('#');
+    expect(sanitizeHref('data:text/html,<script>alert(1)</script>')).toBe('#');
+    expect(sanitizeHref('vbscript:msgbox(1)')).toBe('#');
+  });
+
+  it('treats an empty href as safe but pointing nowhere', () => {
+    expect(sanitizeHref('')).toBe('#');
+    expect(sanitizeHref('   ')).toBe('#');
+  });
+});
+
+describe('inlineToHtml href sanitizing', () => {
+  it('renders a javascript: link as a safe # href instead of executing it', () => {
+    // The literal example from the audit finding; WO-309 later fixes the unrelated
+    // paren-in-href parsing limitation, so this only asserts the scheme never leaks through.
+    const html = inlineToHtml('[click](javascript:alert(1))');
+    expect(html).not.toContain('javascript:');
+    expect(html).toContain('<a href="#" rel="noopener noreferrer">click</a>');
+  });
+
+  it('renders a data: link as a safe # href', () => {
+    expect(inlineToHtml('[x](data:text/html,evil)')).toBe('<a href="#" rel="noopener noreferrer">x</a>');
+  });
+
+  it('adds rel="noopener noreferrer" to every generated link', () => {
+    expect(inlineToHtml('[prdmanager](https://prdmanager.dev)')).toContain('rel="noopener noreferrer"');
   });
 });
 

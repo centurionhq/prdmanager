@@ -7,7 +7,7 @@ import { useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import type { BlockType, DocumentBlock } from '../../data';
 import styles from './EditorColumn.module.css';
 import { MarkdownEditor } from './MarkdownEditor';
-import { htmlToInline, parseMarkdown, reconcileBlocks, serializeBlocks } from './markdown';
+import { htmlToInline, parseMarkdown, reconcileBlocks, sanitizeHref, serializeBlocks } from './markdown';
 import { PreviewEditor } from './PreviewEditor';
 import { Toolbar, type InlineFormat } from './Toolbar';
 import { CURRENT_USER_ID } from './useDocumentEditor';
@@ -137,7 +137,8 @@ export function EditorColumn({ blocks, onBlocksChange, saveStatus }: EditorColum
     if (!root) return;
 
     const anchor = document.createElement('a');
-    anchor.setAttribute('href', url);
+    anchor.setAttribute('href', sanitizeHref(url));
+    anchor.setAttribute('rel', 'noopener noreferrer');
     if (captured.range.collapsed) {
       anchor.textContent = 'texto';
       captured.range.insertNode(anchor);
