@@ -24,6 +24,7 @@ export * from './sync/legacy-extractor.js';
 export * from './sync/tree-sitter-extractor.js';
 export * from './sync/symbol-cache.js';
 export * from './sync/git.js';
+export * from './sync/issue-attribution.js';
 export * from './sync/monitor.js';
 export * from './lifecycle/check.js';
 export * from './lifecycle/close.js';

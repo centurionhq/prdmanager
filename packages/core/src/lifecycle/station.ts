@@ -20,6 +20,9 @@ export interface FeatureLine {
   title: string;
   status: string;
   station: Station;
+  /** The earliest station with an unresolved error-severity issue attributed to this feature (WO-329's
+   * `computeAndon`); absent when this feature has none. */
+  andonStation?: Station;
   progress: FeatureLineProgress;
 }
 
