@@ -2,34 +2,30 @@
  * Local, mutable state for the Documento screen. Seeded from the mock data and never mutating it.
  * WO-287 added the document/versions/save baseline; WO-288 adds the simulated role and the
  * workflow transitions; WO-289/WO-290 add agent proposals, comments and version restore.
+ *
+ * Composes four focused hooks (WO-319): `useVersionHistory`, `useEditorModeSync`,
+ * `useProposalActions` and `useCommentThreads`.
  */
 import { useMemo, useState } from 'react';
 import {
-  commentsForDocument,
   getBlueprint,
   getDocument,
   getPerson,
-  proposalsForDocument,
-  versionsForDocument,
-  type AgentProposal,
-  type CommentThread,
   type DocumentBlock,
-  type DocumentVersion,
   type ProjectDocument,
   type ProjectRole,
   type VersionReason,
   type WorkflowState,
 } from '../../data';
-import { reconcileBlocks } from './blockReconciliation';
+import { CURRENT_USER_ID, CURRENT_USER_NAME } from './documentEditorConstants';
 import { formatRelative } from './format';
-import { parseMarkdown, serializeBlocks } from './markdown';
-import { findMatchingBlock, stripLinePrefix } from './proposalEdits';
+import { useCommentThreads, type UseCommentThreadsResult } from './useCommentThreads';
+import { useEditorModeSync, type EditorMode, type UseEditorModeSyncResult } from './useEditorModeSync';
+import { useProposalActions, type ProposalOutcome, type UseProposalActionsResult } from './useProposalActions';
+import { useVersionHistory, type UseVersionHistoryResult } from './useVersionHistory';
 
-/** "Editás como Admin de proyecto" in the header: the simulated current session. */
-export const CURRENT_USER_ID = 'ana-rios';
-export const CURRENT_USER_NAME = 'Ana Ríos';
-
-export type EditorMode = 'preview' | 'markdown';
+export { CURRENT_USER_ID, CURRENT_USER_NAME };
+export type { EditorMode, ProposalOutcome };
 
 export type WorkflowTransition = 'request_review' | 'publish' | 'back_to_draft' | 'archive' | 'restore_to_draft';
 
@@ -49,37 +45,21 @@ const TRANSITIONS: Readonly<Record<WorkflowTransition, TransitionConfig>> = {
   restore_to_draft: { next: 'draft', reason: 'restore', toast: 'Restaurado como borrador' },
 };
 
-export type ProposalOutcome = { readonly toast: string; readonly stale?: boolean };
-
-export interface UseDocumentEditorResult {
-  readonly document: ProjectDocument | undefined;
-  readonly workflowState: WorkflowState | undefined;
-  readonly blocks: readonly DocumentBlock[];
-  readonly versions: readonly DocumentVersion[];
-  readonly proposals: readonly AgentProposal[];
-  readonly metaLine: string;
-  readonly architectOf: string | undefined;
-  readonly role: ProjectRole;
-  readonly setRole: (role: ProjectRole) => void;
-  readonly save: () => void;
-  readonly transition: (kind: WorkflowTransition) => string;
-  readonly acceptProposal: (proposalId: string) => ProposalOutcome;
-  readonly rejectProposal: (proposalId: string) => void;
-  readonly comments: readonly CommentThread[];
-  readonly addReply: (threadId: string, body: string) => void;
-  readonly resolveThread: (threadId: string) => void;
-  readonly restoreVersion: (versionNo: number) => string;
-  readonly updateBlocks: (next: readonly DocumentBlock[]) => void;
-  readonly editorMode: EditorMode;
-  readonly setEditorMode: (mode: EditorMode) => void;
-  readonly markdownDraft: string;
-  readonly setMarkdownDraft: (draft: string) => void;
-  readonly markdownLineBlockIds: readonly (string | undefined)[];
-}
-
-function nextVersionNumber(versions: readonly DocumentVersion[]): number {
-  return versions.reduce((max, version) => Math.max(max, version.versionNo), 0) + 1;
-}
+export type UseDocumentEditorResult = UseProposalActionsResult &
+  UseCommentThreadsResult &
+  Omit<UseVersionHistoryResult, 'addVersion'> &
+  UseEditorModeSyncResult & {
+    readonly document: ProjectDocument | undefined;
+    readonly workflowState: WorkflowState | undefined;
+    readonly blocks: readonly DocumentBlock[];
+    readonly metaLine: string;
+    readonly architectOf: string | undefined;
+    readonly role: ProjectRole;
+    readonly setRole: (role: ProjectRole) => void;
+    readonly save: () => void;
+    readonly transition: (kind: WorkflowTransition) => string;
+    readonly updateBlocks: (next: readonly DocumentBlock[]) => void;
+  };
 
 function metaLineFor(document: ProjectDocument, savedJustNow: boolean, now: Date): string {
   const author = savedJustNow ? CURRENT_USER_NAME : (getPerson(document.updatedBy)?.name ?? document.updatedBy);
@@ -90,52 +70,18 @@ function metaLineFor(document: ProjectDocument, savedJustNow: boolean, now: Date
 export function useDocumentEditor(id: string, now: Date = new Date()): UseDocumentEditorResult {
   const document = useMemo(() => getDocument(id), [id]);
   const architectOf = useMemo(() => getBlueprint(id)?.architects[0], [id]);
-  const [versions, setVersions] = useState<readonly DocumentVersion[]>(() => [...versionsForDocument(id)]);
   const [savedJustNow, setSavedJustNow] = useState(false);
   const [workflowState, setWorkflowState] = useState<WorkflowState | undefined>(() => document?.workflowState);
   const [role, setRole] = useState<ProjectRole>('admin');
   const [blocks, setBlocks] = useState<readonly DocumentBlock[]>(() => document?.blocks ?? []);
-  const [proposals, setProposals] = useState<readonly AgentProposal[]>(() => [...proposalsForDocument(id)]);
-  const [comments, setComments] = useState<readonly CommentThread[]>(() => [...commentsForDocument(id)]);
-  const [editorMode, setEditorModeState] = useState<EditorMode>('preview');
-  const [markdownDraft, setMarkdownDraft] = useState('');
-  const [markdownLineBlockIds, setMarkdownLineBlockIds] = useState<readonly (string | undefined)[]>([]);
 
-  /** `blocks` folded with any pending Markdown-tab edit, without touching state (pure read). */
-  function effectiveBlocks(): readonly DocumentBlock[] {
-    if (editorMode !== 'markdown') return blocks;
-    return reconcileBlocks(blocks, parseMarkdown(markdownDraft), CURRENT_USER_ID);
-  }
-
-  /** Switching tabs seeds the draft from the model, and leaving Markdown folds the draft back in. */
-  function setEditorMode(next: EditorMode): void {
-    if (next === editorMode) return;
-    if (next === 'markdown') {
-      const serialized = serializeBlocks(blocks);
-      setMarkdownDraft(serialized.source);
-      setMarkdownLineBlockIds(serialized.lineBlockIds);
-    } else {
-      setBlocks(effectiveBlocks());
-    }
-    setEditorModeState(next);
-  }
-
-  function addVersion(reason: VersionReason, label?: string): void {
-    if (!document) return;
-    const version: DocumentVersion = {
-      documentId: id,
-      versionNo: nextVersionNumber(versions),
-      reason,
-      createdBy: CURRENT_USER_ID,
-      createdAt: new Date().toISOString(),
-      contributors: [CURRENT_USER_ID],
-      ...(label ? { label } : {}),
-    };
-    setVersions((current) => [...current, version]);
-  }
+  const { versions, addVersion, restoreVersion } = useVersionHistory(id, document);
+  const editorModeSync = useEditorModeSync({ blocks, setBlocks });
+  const proposalActions = useProposalActions({ id, effectiveBlocks: editorModeSync.effectiveBlocks, setBlocks, addVersion });
+  const commentThreads = useCommentThreads(id);
 
   function save(): void {
-    setBlocks(effectiveBlocks());
+    setBlocks(editorModeSync.effectiveBlocks());
     addVersion('manual');
     setSavedJustNow(true);
   }
@@ -145,56 +91,6 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
     setWorkflowState(config.next);
     addVersion(config.reason);
     return config.toast;
-  }
-
-  function acceptProposal(proposalId: string): ProposalOutcome {
-    const proposal = proposals.find((candidate) => candidate.id === proposalId);
-    if (!proposal || proposal.status !== 'pending') return { toast: 'Propuesta aceptada' };
-
-    // Fold in any pending Markdown-tab edit first, so the staleness check (and the eventual
-    // replacement) never operates on text the user has already changed but not yet saved.
-    const currentBlocks = effectiveBlocks();
-    const edit = proposal.edits[0];
-    const target = edit ? findMatchingBlock(currentBlocks, edit.expectedText) : undefined;
-    if (!edit || !target) {
-      setBlocks(currentBlocks);
-      setProposals((current) => current.map((item) => (item.id === proposalId ? { ...item, status: 'stale' } : item)));
-      return { toast: 'Esta propuesta quedó vieja', stale: true };
-    }
-
-    setBlocks(
-      currentBlocks.map((block) =>
-        block.id === target.id ? { ...block, text: stripLinePrefix(edit.replacement), author: 'agent', acceptedBy: CURRENT_USER_NAME } : block,
-      ),
-    );
-    setProposals((current) => current.map((item) => (item.id === proposalId ? { ...item, status: 'accepted', respondedBy: CURRENT_USER_ID } : item)));
-    addVersion('agent_accept');
-    return { toast: 'Propuesta aceptada' };
-  }
-
-  function rejectProposal(proposalId: string): void {
-    setProposals((current) => current.map((item) => (item.id === proposalId ? { ...item, status: 'rejected', respondedBy: CURRENT_USER_ID } : item)));
-  }
-
-  function addReply(threadId: string, body: string): void {
-    setComments((current) =>
-      current.map((thread) =>
-        thread.id === threadId
-          ? { ...thread, comments: [...thread.comments, { authorId: CURRENT_USER_ID, body, createdAt: new Date().toISOString() }] }
-          : thread,
-      ),
-    );
-  }
-
-  function resolveThread(threadId: string): void {
-    setComments((current) =>
-      current.map((thread) => (thread.id === threadId ? { ...thread, status: 'resolved', resolvedBy: CURRENT_USER_ID } : thread)),
-    );
-  }
-
-  function restoreVersion(versionNo: number): string {
-    addVersion('restore', `Restaurada de la versión ${versionNo}`);
-    return 'Versión restaurada';
   }
 
   function updateBlocks(next: readonly DocumentBlock[]): void {
@@ -208,24 +104,16 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
     workflowState,
     blocks,
     versions,
-    proposals,
     metaLine,
     architectOf,
     role,
     setRole,
     save,
     transition,
-    acceptProposal,
-    rejectProposal,
-    comments,
-    addReply,
-    resolveThread,
     restoreVersion,
     updateBlocks,
-    editorMode,
-    setEditorMode,
-    markdownDraft,
-    setMarkdownDraft,
-    markdownLineBlockIds,
+    ...editorModeSync,
+    ...proposalActions,
+    ...commentThreads,
   };
 }
