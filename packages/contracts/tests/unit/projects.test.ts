@@ -3,7 +3,7 @@
  * schemas.
  */
 import { describe, expect, test } from 'vitest';
-import { createProjectInputSchema, projectSlugSchema, updateProjectSettingsInputSchema } from '../../src/projects.js';
+import { createProjectInputSchema, projectMemberSchema, projectSlugSchema, updateProjectSettingsInputSchema } from '../../src/projects.js';
 
 describe('projectSlugSchema', () => {
   test('accepts lowercase alphanumeric with single hyphens', () => {
@@ -36,5 +36,22 @@ describe('updateProjectSettingsInputSchema', () => {
     expect(() => updateProjectSettingsInputSchema.parse({})).toThrow();
     const parsed = updateProjectSettingsInputSchema.parse({ settings: {} });
     expect(parsed.settings.hash_algo_version).toBe(1);
+  });
+});
+
+describe('projectMemberSchema', () => {
+  const valid = { userId: 'user-1', email: 'a@example.com', name: 'Ada', role: 'admin' as const, lastActiveAt: '2026-09-01T00:00:00.000Z' };
+
+  test('accepts a member with a lastActiveAt timestamp', () => {
+    expect(projectMemberSchema.parse(valid)).toEqual(valid);
+  });
+
+  test('accepts a null lastActiveAt (never active)', () => {
+    expect(projectMemberSchema.parse({ ...valid, lastActiveAt: null }).lastActiveAt).toBeNull();
+  });
+
+  test('may omit lastActiveAt entirely (older server response)', () => {
+    const { lastActiveAt: _lastActiveAt, ...withoutLastActiveAt } = valid;
+    expect(projectMemberSchema.parse(withoutLastActiveAt).lastActiveAt).toBeUndefined();
   });
 });

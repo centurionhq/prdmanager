@@ -50,6 +50,9 @@ export const projectMemberSchema = z.object({
   email: z.string(),
   name: z.string(),
   role: projectRoleSchema,
+  /** ISO 8601 of this member's most recent activity on the project, `null` if they never have; optional
+   * (rather than required) so an older server response missing this SDD-012 addition still parses. */
+  lastActiveAt: z.string().nullable().optional(),
 });
 export type ProjectMemberDto = z.infer<typeof projectMemberSchema>;
 

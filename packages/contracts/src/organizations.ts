@@ -21,6 +21,10 @@ export const organizationMemberSchema = z.object({
   email: z.string(),
   name: z.string(),
   role: orgRoleSchema,
+  /** ISO 8601 of this member's most recent activity in the organization, `null` if they never have;
+   * optional (rather than required) so an older server response missing this SDD-012 addition still
+   * parses. */
+  lastActiveAt: z.string().nullable().optional(),
 });
 export type OrganizationMember = z.infer<typeof organizationMemberSchema>;
 
