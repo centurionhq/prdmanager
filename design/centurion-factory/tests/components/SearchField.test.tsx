@@ -1,5 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { SearchField } from '../../src/components/SearchField/SearchField';
 
@@ -40,5 +42,10 @@ describe('SearchField', () => {
     render(<SearchField label="Buscar órdenes" value="drift" onChange={onChange} />);
     await user.click(screen.getByRole('button', { name: 'Borrar búsqueda' }));
     expect(onChange).toHaveBeenCalledWith('');
+  });
+
+  it('sizes its control from --control-height, which grows to 44px below the mobile breakpoint', () => {
+    const css = readFileSync(resolve(import.meta.dirname, '../../src/components/SearchField/SearchField.module.css'), 'utf8');
+    expect(css).toMatch(/\.control\s*\{[^}]*height:\s*var\(--control-height\)/);
   });
 });

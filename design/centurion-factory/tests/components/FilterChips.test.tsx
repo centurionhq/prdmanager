@@ -1,5 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { FilterChips } from '../../src/components/FilterChips/FilterChips';
 
@@ -66,5 +68,10 @@ describe('FilterChips', () => {
     render(<FilterChips label="Filtrar por estado" options={options} value="pending" onChange={vi.fn()} />);
     expect(screen.getByRole('radio', { name: /Pendientes/ }).getAttribute('tabindex')).toBe('0');
     expect(screen.getByRole('radio', { name: /Todas/ }).getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('already grows each chip to a 44px hit target below the mobile breakpoint', () => {
+    const css = readFileSync(resolve(import.meta.dirname, '../../src/components/FilterChips/FilterChips.module.css'), 'utf8');
+    expect(css).toMatch(/@media[^{]*\{[^}]*\.chip\s*\{[^}]*height:\s*var\(--hit-target\)/);
   });
 });

@@ -88,4 +88,8 @@ describe('design tokens', () => {
   it('keeps the andon yellow off light backgrounds as text', () => {
     expect(contrast(hex('andon'), hex('acero'))).toBeLessThan(3);
   });
+
+  it('grows --control-height to the 44px hit target below the 767px mobile breakpoint', () => {
+    expect(css).toMatch(/@media\s*\(max-width:\s*767px\)\s*\{\s*:root\s*\{[^}]*--control-height:\s*var\(--hit-target\)/);
+  });
 });

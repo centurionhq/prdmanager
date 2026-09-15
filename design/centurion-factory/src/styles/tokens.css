@@ -79,3 +79,10 @@
   --duration-reveal: 420ms;
   --focus-ring: 0 0 0 2px var(--superficie), 0 0 0 4px var(--cianotipo);
 }
+
+/* Every control needs a 44px hit target below the mobile breakpoint (SDD-011 WO-298). */
+@media (max-width: 767px) {
+  :root {
+    --control-height: var(--hit-target);
+  }
+}

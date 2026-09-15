@@ -1,5 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { Button } from '../../src/components/Button/Button';
 
@@ -62,5 +64,11 @@ describe('Button', () => {
   it('merges a caller-provided className', () => {
     render(<Button className="mi-clase">Guardar</Button>);
     expect(screen.getByRole('button', { name: 'Guardar' }).className).toContain('mi-clase');
+  });
+
+  it('grows the small size and the ghost variant to a 44px hit target below 767px', () => {
+    const css = readFileSync(resolve(import.meta.dirname, '../../src/components/Button/Button.module.css'), 'utf8');
+    expect(css).toMatch(/@media\s*\(max-width:\s*767px\)\s*\{[^]*\.sm\s*\{[^}]*min-height:\s*var\(--hit-target\)/);
+    expect(css).toMatch(/@media\s*\(max-width:\s*767px\)\s*\{[^]*\.ghost\s*\{[^}]*min-height:\s*var\(--hit-target\)/);
   });
 });

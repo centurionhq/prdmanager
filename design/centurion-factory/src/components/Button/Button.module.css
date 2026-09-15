@@ -62,3 +62,13 @@
   color: var(--apagado);
   cursor: not-allowed;
 }
+
+@media (max-width: 767px) {
+  .sm {
+    min-height: var(--hit-target);
+  }
+
+  .ghost {
+    min-height: var(--hit-target);
+  }
+}
