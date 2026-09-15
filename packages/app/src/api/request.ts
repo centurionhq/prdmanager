@@ -36,6 +36,16 @@ function isAppErrorBody(body: unknown): body is AppErrorBody {
   return typeof code === 'string' && typeof message === 'string';
 }
 
+/** The flat `{error: '<code>', message}` shape a few routes use instead of the nested envelope above —
+ * see the doc comment on `FlatApiErrorCode` in `./api-client-error.ts`. Checked only after
+ * {@link isAppErrorBody} rejects the body, since a nested `error` object would otherwise also satisfy
+ * `typeof error !== 'string'` here and fall through correctly either way. */
+function isFlatErrorBody(body: unknown): body is { error: string; message: string } {
+  if (typeof body !== 'object' || body === null) return false;
+  const { error, message } = body as { error?: unknown; message?: unknown };
+  return typeof error === 'string' && typeof message === 'string';
+}
+
 interface AuthErrorBody {
   message: string;
   code?: string;
@@ -132,6 +142,9 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     if (response.status === 401) redirectToLogin();
     if (isAppErrorBody(body)) {
       throw new ApiClientError(response.status, body.error.code as ApiErrorCode, body.error.message);
+    }
+    if (isFlatErrorBody(body)) {
+      throw new ApiClientError(response.status, body.error, body.message);
     }
     throw new ApiClientError(response.status, 'unknown', `request to ${path} failed with status ${response.status}`);
   }

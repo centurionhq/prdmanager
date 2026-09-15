@@ -15,6 +15,6 @@ const CODE_MESSAGE_OVERRIDES: Partial<Record<ApiErrorCode | 'unknown', string>> 
  * failure, an unexpected throw) gets a fixed, generic fallback rather than an `Error`'s raw `.message`,
  * which might not be end-user-appropriate. */
 export function errorMessage(error: unknown): string {
-  if (error instanceof ApiClientError) return CODE_MESSAGE_OVERRIDES[error.code] ?? error.message;
+  if (error instanceof ApiClientError) return CODE_MESSAGE_OVERRIDES[error.code as ApiErrorCode | 'unknown'] ?? error.message;
   return 'Ocurrió un error inesperado. Probá de nuevo.';
 }
