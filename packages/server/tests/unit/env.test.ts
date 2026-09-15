@@ -21,6 +21,7 @@ describe('resolveServerEnv', () => {
       publicUrl: 'https://app.example.test',
       betterAuthSecret: 'a'.repeat(32),
       databaseUrl: 'postgres://prdm_app:secret@127.0.0.1:55433/prdm',
+      databaseMaxConnections: 20,
       trustedOrigins: ['https://app.example.test'],
       trustProxy: false,
       collabMaxPayloadBytes: 1_048_576,
@@ -79,6 +80,13 @@ describe('resolveServerEnv', () => {
   test('requires DATABASE_URL to be a postgres connection string', () => {
     expect(() => resolveServerEnv({ ...VALID_RAW_ENV, DATABASE_URL: 'mysql://x/y' })).toThrow(/DATABASE_URL/);
     expect(() => resolveServerEnv({ ...VALID_RAW_ENV, DATABASE_URL: '' })).toThrow(/DATABASE_URL/);
+  });
+
+  test('WO-246: PRDM_DATABASE_MAX_CONNECTIONS defaults to 20 and is respected when set', () => {
+    expect(resolveServerEnv(VALID_RAW_ENV).databaseMaxConnections).toBe(20);
+    expect(resolveServerEnv({ ...VALID_RAW_ENV, PRDM_DATABASE_MAX_CONNECTIONS: '50' }).databaseMaxConnections).toBe(50);
+    expect(() => resolveServerEnv({ ...VALID_RAW_ENV, PRDM_DATABASE_MAX_CONNECTIONS: '0' })).toThrow(/PRDM_DATABASE_MAX_CONNECTIONS/);
+    expect(() => resolveServerEnv({ ...VALID_RAW_ENV, PRDM_DATABASE_MAX_CONNECTIONS: 'not-a-number' })).toThrow(/PRDM_DATABASE_MAX_CONNECTIONS/);
   });
 
   test('parses PRDM_TRUSTED_ORIGINS as a comma-separated list and rejects wildcards', () => {

@@ -20,7 +20,7 @@ const APP_DIST = new URL('../../app/dist', import.meta.url);
 
 async function main(): Promise<void> {
   const env = resolveServerEnv(process.env);
-  const pool = createPool({ connectionString: env.databaseUrl });
+  const pool = createPool({ connectionString: env.databaseUrl, maxConnections: env.databaseMaxConnections });
   const mailer = new NodemailerMailer(env.smtp);
   // SDD-007 "PgProjectEngine" (WO-137): connects lazily (the driver itself never opens a socket up
   // front) and applies the graph's own schema migrations, idempotent and safe on every boot exactly

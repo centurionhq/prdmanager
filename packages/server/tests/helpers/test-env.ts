@@ -8,6 +8,7 @@ export function buildTestServerEnv(overrides: Partial<ServerEnv> = {}): ServerEn
     publicUrl: 'https://app.example.test',
     betterAuthSecret: 'a'.repeat(32),
     databaseUrl: 'postgres://prdm_app:secret@127.0.0.1:55433/prdm',
+    databaseMaxConnections: 20,
     trustedOrigins: ['https://app.example.test'],
     trustProxy: false,
     collabMaxPayloadBytes: 1_048_576,

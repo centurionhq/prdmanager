@@ -79,6 +79,13 @@ function positiveIntegerSchema(defaultValue: number, envName: string) {
 
 const collabMaxRenderedBytesSchema = positiveIntegerSchema(512 * 1024, 'PRDM_COLLAB_MAX_RENDERED_BYTES');
 const collabMaxEncodedStateBytesSchema = positiveIntegerSchema(20 * 1024 * 1024, 'PRDM_COLLAB_MAX_ENCODED_STATE_BYTES');
+// WO-246 (performance review, MEDIUM): the same Postgres pool serves both HTTP request handling and every
+// live Hocuspocus document's persistence (onLoadDocument/onStoreDocument) — under enough concurrent collab
+// sessions the fixed default of 10 (packages/db's own `createPool` fallback) can starve ordinary HTTP
+// handlers of a connection. Configurable so a deployment can size it to its real collab concurrency
+// (`PRDM_COLLAB_MAX_CONNECTIONS_PER_USER`/`_PER_DOCUMENT` above, which cap *WebSocket* connections, not
+// Postgres ones) without a code change.
+const databaseMaxConnectionsSchema = positiveIntegerSchema(20, 'PRDM_DATABASE_MAX_CONNECTIONS');
 const collabMaxConnectionsPerUserSchema = positiveIntegerSchema(20, 'PRDM_COLLAB_MAX_CONNECTIONS_PER_USER');
 const collabMaxConnectionsPerDocumentSchema = positiveIntegerSchema(50, 'PRDM_COLLAB_MAX_CONNECTIONS_PER_DOCUMENT');
 const collabMaxUpdatesPerSecPerUserSchema = positiveIntegerSchema(30, 'PRDM_COLLAB_MAX_UPDATES_PER_SEC_PER_USER');
@@ -112,6 +119,7 @@ const rawServerEnvSchema = z.object({
   PRDM_PUBLIC_URL: z.string().url('PRDM_PUBLIC_URL must be a valid absolute URL'),
   BETTER_AUTH_SECRET: betterAuthSecretSchema,
   DATABASE_URL: databaseUrlSchema,
+  PRDM_DATABASE_MAX_CONNECTIONS: databaseMaxConnectionsSchema,
   PRDM_TRUSTED_ORIGINS: trustedOriginsSchema,
   PRDM_TRUST_PROXY: trustProxySchema,
   PRDM_COLLAB_MAX_PAYLOAD_BYTES: collabMaxPayloadBytesSchema,
@@ -193,6 +201,7 @@ export interface ServerEnv {
   publicUrl: string;
   betterAuthSecret: string;
   databaseUrl: string;
+  databaseMaxConnections: number;
   trustedOrigins: string[];
   trustProxy: boolean;
   collabMaxPayloadBytes: number;
@@ -227,6 +236,7 @@ export function resolveServerEnv(env: NodeJS.ProcessEnv): ServerEnv {
     publicUrl: data.PRDM_PUBLIC_URL,
     betterAuthSecret: data.BETTER_AUTH_SECRET,
     databaseUrl: data.DATABASE_URL,
+    databaseMaxConnections: Number.parseInt(data.PRDM_DATABASE_MAX_CONNECTIONS, 10),
     trustedOrigins: data.PRDM_TRUSTED_ORIGINS,
     trustProxy: data.PRDM_TRUST_PROXY,
     collabMaxPayloadBytes: Number.parseInt(data.PRDM_COLLAB_MAX_PAYLOAD_BYTES, 10),
