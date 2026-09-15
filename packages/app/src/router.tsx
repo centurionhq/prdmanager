@@ -6,6 +6,7 @@ import { createBrowserRouter, type RouteObject } from 'react-router';
 import { AdminOrganizations } from './routes/AdminOrganizations.js';
 import { DocumentDetail } from './routes/DocumentDetail.js';
 import { DocumentsList } from './routes/DocumentsList.js';
+import { DriftDashboard } from './routes/DriftDashboard.js';
 import { InviteAccept } from './routes/InviteAccept.js';
 import { Login } from './routes/Login.js';
 import { OrgMembersSettings } from './routes/OrgMembersSettings.js';
@@ -34,6 +35,7 @@ export const routes: RouteObject[] = [
       { path: 'p/:projectSlug/documents', element: <DocumentsList /> },
       { path: 'p/:projectSlug/documents/:docId', element: <DocumentDetail /> },
       { path: 'p/:projectSlug/graph', element: <ProjectGraph /> },
+      { path: 'p/:projectSlug/drift', element: <DriftDashboard /> },
     ],
   },
 ];

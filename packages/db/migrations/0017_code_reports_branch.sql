@@ -1,0 +1,1 @@
+ALTER TABLE "code_reports" ADD COLUMN "branch" text;

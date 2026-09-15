@@ -9,8 +9,9 @@
  * or rolls back, so by the time the loser's own fallback `SELECT` runs, the winner's row (result
  * included) is already fully committed.
  */
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
+import { apiTokens } from './schema/tokens.js';
 import { codeReports } from './schema/code-reports.js';
 import { withTenantTx } from './tenant.js';
 
@@ -37,6 +38,9 @@ export interface RecordCodeReportInput {
   bodySha256: string;
   mode: CodeReportMode;
   headSha: string;
+  /** WO-199: the branch the report was taken on, kept for the drift dashboard's history/preview-by-branch
+   * views — `null` only for rows written before this column existed. */
+  branch: string | null;
   result: unknown;
 }
 
@@ -85,6 +89,7 @@ export async function recordCodeReport(pool: Pool, input: RecordCodeReportInput)
         bodySha256: input.bodySha256,
         mode: input.mode,
         headSha: input.headSha,
+        branch: input.branch,
         result: input.result,
       })
       .onConflictDoNothing({ target: [codeReports.projectId, codeReports.tokenId, codeReports.idempotencyKey] })
@@ -97,5 +102,50 @@ export async function recordCodeReport(pool: Pool, input: RecordCodeReportInput)
       .where(and(eq(codeReports.projectId, input.projectId), eq(codeReports.tokenId, input.tokenId), eq(codeReports.idempotencyKey, input.idempotencyKey)));
     if (!existing) throw new Error('code_reports: insert conflicted but no existing row was found');
     return existing.bodySha256 === input.bodySha256 ? { kind: 'replayed', record: existing } : { kind: 'mismatch', record: existing };
+  });
+}
+
+/** WO-199 (SDD-010 §Dashboard): one row per report ever recorded for the project, newest first, with
+ * the reporting token's own (non-secret) `name` joined in — exactly what the drift dashboard's
+ * official/preview/history views need and nothing else (never the token's `secretHash`/`prefix`).
+ * `result` travels back as `unknown` (same as {@link CodeReportRecord}) — this package has no dependency
+ * on `@prdm/contracts`, so parsing it into `CodeReportResponse` (for `issues`/`hasBlockingIssues`) is the
+ * caller's job. */
+export interface CodeReportListItem {
+  id: string;
+  mode: CodeReportMode;
+  headSha: string;
+  branch: string | null;
+  tokenName: string;
+  result: unknown;
+  createdAt: Date;
+}
+
+export interface ListCodeReportsInput {
+  projectId: string;
+  orgId: string;
+  /** Caps how many rows come back — this is a dashboard read, not an export; SDD-010 doesn't pin an
+   * exact number, so 200 is a judgment call generous enough for any realistic history. */
+  limit?: number;
+}
+
+export async function listCodeReports(pool: Pool, input: ListCodeReportsInput): Promise<CodeReportListItem[]> {
+  return withTenantTx(pool, input.orgId, async (tx) => {
+    const rows = await tx
+      .select({
+        id: codeReports.id,
+        mode: codeReports.mode,
+        headSha: codeReports.headSha,
+        branch: codeReports.branch,
+        result: codeReports.result,
+        createdAt: codeReports.createdAt,
+        tokenName: apiTokens.name,
+      })
+      .from(codeReports)
+      .innerJoin(apiTokens, eq(codeReports.tokenId, apiTokens.id))
+      .where(eq(codeReports.projectId, input.projectId))
+      .orderBy(desc(codeReports.createdAt))
+      .limit(input.limit ?? 200);
+    return rows;
   });
 }

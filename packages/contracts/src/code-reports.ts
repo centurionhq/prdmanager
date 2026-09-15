@@ -110,3 +110,37 @@ export const codeReportResponseSchema = z.strictObject({
   hasBlockingIssues: z.boolean(),
 });
 export type CodeReportResponse = z.infer<typeof codeReportResponseSchema>;
+
+/**
+ * `GET .../drift/reports` (WO-199, SDD-010 §Dashboard): one entry per code report ever recorded for the
+ * project, server-shaped from `@prdm/db`'s `CodeReportListItem` (never the raw row — `tokenId` and every
+ * other non-display field stay server-side). `branch` is `null` only for a report recorded before
+ * WO-199 added the column. A plain interface, not a zod schema, like `GovernanceDocumentDto`: this is an
+ * outbound-only shape the server builds itself, never parsed from untrusted input.
+ */
+export interface DriftReportSummaryDto {
+  id: string;
+  mode: CodeReportMode;
+  headSha: string;
+  branch: string | null;
+  tokenName: string;
+  issueCount: number;
+  hasBlockingIssues: boolean;
+  createdAt: string;
+}
+
+/**
+ * `GET /api/app/organizations/:orgSlug/projects/:projectSlug/drift/reports` response (WO-199):
+ * - `official`: the most recent `mode: 'baseline'` report — SDD-010 "rama por defecto (oficial, con
+ *   token y head_sha)" — or `null` if the default branch has never had a baseline report at all (e.g. a
+ *   freshly imported or freshly linked project). Never a preview, even the newest one.
+ * - `previews`: the single newest non-baseline report per distinct branch — SDD-010 "vistas previas por
+ *   rama" — explicitly excluding whichever report is `official` above so a branch's only preview report
+ *   never also gets relisted as if it might be official.
+ * - `history`: every report (baseline and preview both), newest first — SDD-010 "historial de reportes".
+ */
+export interface DriftDashboardDto {
+  official: DriftReportSummaryDto | null;
+  previews: DriftReportSummaryDto[];
+  history: DriftReportSummaryDto[];
+}

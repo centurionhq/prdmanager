@@ -6,7 +6,7 @@
  * `@prdm/ui` components (all of which only take injected fetcher props, never call a concrete backend).
  */
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import type { RefreshReport, Subgraph } from '@prdm/core';
 import { can, type PermissionSubject } from '@prdm/contracts';
 import {
@@ -81,6 +81,11 @@ function GraphShell({ orgSlug, projectSlug, canAcknowledge }: { orgSlug: string;
 
   return (
     <div className={styles.shell}>
+      <p>
+        <Link className={formStyles.link} to={`/o/${orgSlug}/p/${projectSlug}/drift`}>
+          Ver drift verificado por CI (oficial, vistas previas e historial)
+        </Link>
+      </p>
       {drift.status === 'ready' && drift.data && <DriftBanner report={drift.data} />}
       {drift.status === 'error' && <ErrorState error={drift.error} onRetry={drift.refetch} />}
 

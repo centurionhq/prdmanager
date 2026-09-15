@@ -32,6 +32,12 @@ export const codeReports = pgTable(
     bodySha256: text('body_sha256').notNull(),
     mode: codeReportMode('mode').notNull(),
     headSha: text('head_sha').notNull(),
+    /** WO-199: the branch the report was taken on (`CodeReportRequest.branch`), stored purely for the
+     * dashboard's "preview drift by branch" and history views (SDD-010 §Dashboard) — nullable so rows
+     * written before this column existed still read back cleanly rather than failing a NOT NULL
+     * backfill. Never used for any authorization or baseline decision (that's `head_sha` alone, guarded
+     * by `../engine/baseline-gate.js`). */
+    branch: text('branch'),
     /** The full `codeReportResponseSchema`-shaped response returned the first time, replayed verbatim
      * on a legitimate retry. */
     result: jsonb('result').notNull(),

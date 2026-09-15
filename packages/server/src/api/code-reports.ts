@@ -219,6 +219,7 @@ export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCod
           bodySha256: bodySha256ForIdempotency,
           mode,
           headSha: report.head_sha,
+          branch: report.branch,
           result,
         });
 
