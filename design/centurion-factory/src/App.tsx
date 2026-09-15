@@ -1,3 +1,8 @@
+import { createBrowserRouter, RouterProvider } from 'react-router';
+import { routes } from './router';
+
+const router = createBrowserRouter(routes);
+
 export function App() {
-  return <h1>Centurion Factory</h1>;
+  return <RouterProvider router={router} />;
 }
