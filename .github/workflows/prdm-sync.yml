@@ -202,6 +202,15 @@ jobs:
           --health-retries 30
           --health-start-period 10s
 
+      # WO-241: `packages/server/tests/integration/password-reset.test.ts`'s real-SMTP-delivery case
+      # needs an actual mailpit reachable at 127.0.0.1:1025 — the same image/ports `docker-compose.yml`'s
+      # local `mailpit` service already uses, so behavior matches local dev exactly.
+      mailpit:
+        image: axllent/mailpit:v1.31.1@sha256:98b916bd3c8d61f7633a52d3ea2f58d00620cb01ca57ab59edde68c347a95365
+        ports:
+          - 1025:1025
+          - 8025:8025
+
     env:
       # `NEO4J_URI` deliberately left unset (defaults to 7687, matching `loadConfig`'s own default) —
       # `testConfig` only ever needs it to *differ* from `NEO4J_TEST_URI` below; nothing in this job ever
@@ -237,6 +246,13 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends postgresql-client
           bash docker/postgres/init/01-roles.sh
+
+      # WO-241: `packages/cli/tests/e2e/isolation-and-authoring.test.ts` (pre-existing, PRD-002-era) reads
+      # `NEO4J_PASSWORD` straight from a real `.env` file rather than `process.env` — this is the first CI
+      # job to ever run it, since `sync-check`'s own `npm run test:unit` never touches `tests/e2e/`. Writes
+      # only the one line that helper needs, mirroring the value already set above via `env:`.
+      - name: "Write the .env line packages/cli/tests/e2e/helpers.ts reads directly"
+        run: echo "NEO4J_PASSWORD=${{ secrets.NEO4J_PASSWORD || 'prdm-ci-ephemeral-neo4j' }}" > .env
 
       # A handful of this suite's own unit tests (e.g. `packages/cli/tests/unit/mcp-proxy.test.ts`) spawn
       # `packages/cli/dist/index.js` directly, same as `sync-check`'s own build-before-test order.
