@@ -398,6 +398,142 @@ En un Postgres nuevo (o tras cada migración agregada), aplicá el esquema una s
 npm run db:migrate                           # drizzle-kit migrate contra DATABASE_MIGRATION_URL
 ```
 
+## SaaS multi-organización: MCP remoto y sync verificado por CI (SDD-010)
+
+Para organizaciones que corren prdm como SaaS multi-tenant, los developers trabajan con repositorios **vinculados en remoto**: la documentación y la política de `Refs:` viven en el servidor, no en el repo. La CLI reenvía al code assistant vía un proxy MCP local, y el workflow de CI acredita el estado del código con un token OIDC de GitHub Actions firmado, sin guardar secretos de larga vida accesibles desde cualquier rama.
+
+### Login y vinculación
+
+Primero, autenticate contra tu servidor prdm con tu token personal:
+
+```bash
+prdm login --server https://tu-org.prdm.example
+# Pide el token por prompt oculto; lo guarda en $XDG_CONFIG_HOME/prdm/credentials.json (modo 0600)
+```
+
+Después vinculá el repo a un proyecto remoto:
+
+```bash
+prdm link acme/widgets --server https://tu-org.prdm.example --mcp
+# Escribe version: 2 en .prdm.yaml con la sección remote (server/org/project)
+# Graba localmente (nunca en el repo) el graphProjectId vinculado, para detectar un .prdm.yaml editado
+# Agrega la entrada stdio de prdm mcp-proxy a .mcp.json
+```
+
+Tu `.prdm.yaml` queda así:
+
+```yaml
+version: 2
+project:
+  id: prj_...
+  name: widgets
+remote:
+  server: https://tu-org.prdm.example
+  org: acme
+  project: widgets
+  offline_policy: warn  # o 'block' si exigís red para cada commit
+```
+
+`.prdm/remote/` (la caché de los documentos de governance del servidor) se agrega a `.gitignore`.
+
+### Uso con un code assistant
+
+Después de `prdm link --mcp`, tu `.mcp.json` incluye:
+
+```json
+{
+  "prdm-remote": {
+    "type": "stdio",
+    "command": "prdm",
+    "args": ["mcp-proxy"]
+  }
+}
+```
+
+Esta entrada es **segura de commitear** — no contiene secretos. `prdm mcp-proxy` resuelve servidor, proyecto y token en tiempo de ejecución desde tu login local y `.prdm.yaml` de este repo exacto, y reenvía cada request de tu code assistant por Streamable HTTP. Se niega a correr si se invoca desde dentro de un `node_modules` (nunca confía en un binario que el propio repo podría controlar), y aborta sin enviar nada si `.prdm.yaml` no coincide con lo que vinculaste (servidor u otro proyecto).
+
+### Workflow de CI: GitHub Actions con OIDC
+
+El CI en modo remoto no corre Neo4j: reporta el estado del código al servidor, y es el servidor quien calcula el drift. Un token OIDC de GitHub Actions prueba que el reporte viene de verdad de tu repo, en la rama por defecto, en un push real.
+
+Ejemplo de `.github/workflows/prdm-sync.yml`:
+
+```yaml
+name: prdm-remote-sync
+
+on:
+  push:
+    branches: [main]  # Solo la rama por defecto puede volverse baseline oficial
+
+permissions:
+  contents: read
+  id-token: write  # Necesario para pedirle a GitHub el token OIDC
+
+jobs:
+  sync-check:
+    runs-on: ubuntu-latest
+    environment: prdm-ci  # Un Environment de GitHub protegido: solo la rama por defecto llega a estos secrets
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+
+      # En CI, PRDM_TOKEN es obligatorio (nunca se lee del archivo local de credenciales, que en un
+      # runner limpio no existe) y PRDM_SERVER debe coincidir con remote.server de .prdm.yaml.
+      - run: node packages/cli/dist/index.js sync --check
+        env:
+          PRDM_SERVER: ${{ secrets.PRDM_SERVER }}
+          PRDM_TOKEN: ${{ secrets.PRDM_TOKEN }}
+```
+
+**Puntos clave:**
+- `permissions: id-token: write` habilita al job a pedir el token OIDC de GitHub Actions.
+- `environment: prdm-ci` (o el nombre que uses) es un [Environment de GitHub](https://docs.github.com/actions/deployment/targeting-different-environments/using-environments-for-deployment) con reglas de protección — así `PRDM_SERVER`/`PRDM_TOKEN` solo son visibles para jobs que corren en la rama por defecto, nunca para un PR de un fork.
+- `PRDM_SERVER` y `PRDM_TOKEN` son obligatorios en CI: si falta cualquiera de los dos, `prdm sync` aborta con un error claro en vez de intentar adivinar o caer a un archivo local.
+- Nunca uses `pull_request_target` para este job: le daría a código de un fork acceso a estos secretos protegidos.
+- El token OIDC se adjunta al reporte automáticamente; el servidor verifica su firma contra el JWKS real de GitHub.
+
+### Git hooks: validación del mensaje de commit
+
+Los developers habilitan el hook `commit-msg` igual que en modo local:
+
+```bash
+prdm hooks install
+```
+
+El hook valida el trailer `Refs: WO-xxx` en los commits que tocan código gobernado, usando la caché de política del servidor. Si la caché tiene más de 10 minutos, intenta un refetch corto antes de evaluar; sin red, cae al `offline_policy` de `.prdm.yaml`:
+
+```yaml
+remote:
+  offline_policy: warn  # 'warn' = permite el commit con aviso; 'block' = lo impide
+```
+
+### Importar un repo prdm existente
+
+Para adoptar el modo remoto en un repo que ya tiene `.prdm.yaml` y documentos locales:
+
+```bash
+# El proyecto remoto de destino debe estar vacío
+prdm link acme/widgets --server https://tu-org.prdm.example --import
+# Lee y valida docs/, .prdm.yaml y .prdm/baseline.json localmente
+# Sube todo al servidor preservando ids, estados y Work Orders
+# La baseline importada queda marcada "no verificada por CI" hasta el primer reporte real con OIDC
+```
+
+La importación (una sola vez) exige:
+- que el proyecto remoto de destino esté vacío;
+- permiso de administrador de proyecto;
+- que el conjunto de documentos pase la misma validación que corre el servidor al recibirlos.
+
+Una vez importado, el primer push a la rama por defecto con un workflow de CI configurado convierte esa baseline en "verificada".
+
 ## Skills (Claude Code)
 
 Plugin **`neo4j-skills@neo4j-skills-marketplace`** v1.0.1 (declarado en `.claude/settings.json`):
