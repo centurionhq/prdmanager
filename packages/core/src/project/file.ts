@@ -180,6 +180,64 @@ function mergeFolders(docsDir: string, overrides: Partial<FolderMap>): FolderMap
   return { ...defaultFoldersForDocsDir(docsDir), ...overrides } as FolderMap;
 }
 
+/** Same shape as `rawProjectFileSchema`'s `folders`/`ignore`/`git`/`triage`/`lifecycle` fields, minus
+ * `version`/`project`/`docs_dir`/`authoring` — what a server's `governance` response (SDD-010, WO-190)
+ * carries (`@prdm/contracts`'s `projectSettingsSchema`, which mirrors this exact snake_case shape). */
+const governedSubsetSchema = z.strictObject({
+  folders: z.strictObject(folderShape).prefault({}),
+  ignore: z.array(z.string().min(1)).default([]),
+  git: gitFileSchema,
+  triage: triageFileSchema,
+  lifecycle: lifecycleFileSchema,
+});
+
+export interface GovernedSettings {
+  docsDir: string;
+  folders: FolderMap;
+  ignore: string[];
+  git: GitSettings;
+  triage: TriageSettings;
+  lifecycle: LifecycleSettings;
+}
+
+/**
+ * Validates settings that arrive already parsed as JS — never raw YAML text — with the *exact same*
+ * rules `.prdm.yaml`'s own `folders`/`ignore`/`git`/`triage`/`lifecycle` fields get (SDD-010, WO-190:
+ * "la CLI los valida con las mismas reglas que .prdm.yaml"). Used for a remote project's server-sent
+ * `governance` settings, which a compromised/malicious server could in principle mis-shape — re-running
+ * them through the identical schema this module already applies to a local, untrusted `.prdm.yaml` means
+ * there is no second, potentially looser, validator to keep in sync.
+ *
+ * `docsDir` defaults to `'docs'`: the wire format this validates (`@prdm/contracts`'s
+ * `projectSettingsSchema`) has no `docs_dir` field at all (a project-identity concern the server settings
+ * blob deliberately excludes) — every published document's exact `sourcePath` already travels with it in
+ * the same `governance` response, so nothing downstream actually needs `folders`/`docsDir` to *locate* a
+ * document; they are validated here purely because SDD-010 names them among the server-authoritative
+ * fields.
+ */
+export function parseGovernedSettings(raw: unknown, docsDir = 'docs'): GovernedSettings {
+  const result = governedSubsetSchema.safeParse(raw);
+  if (!result.success) throw new Error(`invalid governed settings: ${result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')}`);
+  const data = result.data;
+
+  const folders = mergeFolders(docsDir, data.folders as Partial<FolderMap>);
+  for (const kind of DOC_KINDS) assertFolderPath(kind, folders[kind], docsDir);
+
+  return {
+    docsDir,
+    folders,
+    ignore: data.ignore,
+    git: { maxCommits: data.git.max_commits, enforceRefs: data.git.enforce_refs, enforceRefsSince: data.git.enforce_refs_since },
+    triage: {
+      autoLinkMinScore: data.triage.auto_link_min_score,
+      autoLinkMargin: data.triage.auto_link_margin,
+      maxCandidates: data.triage.max_candidates,
+      minMatchedTerms: data.triage.min_matched_terms,
+    },
+    lifecycle: { grandfathered: data.lifecycle.grandfathered },
+  };
+}
+
 function toSettings(raw: RawProjectFile): ProjectFileSettings {
   const folders = mergeFolders(raw.docs_dir, raw.folders as Partial<FolderMap>);
   assertSafeRelativePath('docs_dir', raw.docs_dir);
