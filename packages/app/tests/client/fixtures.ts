@@ -1,7 +1,7 @@
 /** Shared test fixtures for the new SDD-013 shell/router screens: a full `ProjectOverviewDto` and the
  * `ProjectShellContext` built from it, so every screen under `ProjectShell` can be tested in isolation
  * with `<Outlet context={...}>` instead of going through `ProjectShell`'s own data fetching. */
-import type { OrganizationSummary, OrgRole, ProjectOverviewDto, ProjectRole } from '@prdm/contracts';
+import { projectSettingsSchema, type OrganizationSummary, type OrgRole, type ProjectOverviewDto, type ProjectRole } from '@prdm/contracts';
 import type { ProjectShellContext } from '../../src/routes/ProjectShell.js';
 
 export function makeOrgSummary(overrides: Partial<OrganizationSummary> = {}): OrganizationSummary {
@@ -14,7 +14,7 @@ export function makeProjectOverview(overrides: Partial<ProjectOverviewDto> = {})
     slug: 'web',
     name: 'Web',
     graphProjectId: 'prj_abc',
-    settings: {} as never,
+    settings: projectSettingsSchema.parse({}),
     archivedAt: null,
     docCount: 0,
     furthestStation: 'ingesta',
