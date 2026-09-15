@@ -8,7 +8,10 @@ import {
   getBlueprint,
   getDocument,
   getPerson,
+  proposalsForDocument,
   versionsForDocument,
+  type AgentProposal,
+  type DocumentBlock,
   type DocumentVersion,
   type ProjectDocument,
   type ProjectRole,
@@ -16,6 +19,7 @@ import {
   type WorkflowState,
 } from '../../data';
 import { formatRelative } from './format';
+import { findMatchingBlock, stripLinePrefix } from './proposalEdits';
 
 /** "Editás como Admin de proyecto" in the header: the simulated current session. */
 export const CURRENT_USER_ID = 'ana-rios';
@@ -39,16 +43,22 @@ const TRANSITIONS: Readonly<Record<WorkflowTransition, TransitionConfig>> = {
   restore_to_draft: { next: 'draft', reason: 'restore', toast: 'Restaurado como borrador' },
 };
 
+export type ProposalOutcome = { readonly toast: string; readonly stale?: boolean };
+
 export interface UseDocumentEditorResult {
   readonly document: ProjectDocument | undefined;
   readonly workflowState: WorkflowState | undefined;
+  readonly blocks: readonly DocumentBlock[];
   readonly versions: readonly DocumentVersion[];
+  readonly proposals: readonly AgentProposal[];
   readonly metaLine: string;
   readonly architectOf: string | undefined;
   readonly role: ProjectRole;
   readonly setRole: (role: ProjectRole) => void;
   readonly save: () => void;
   readonly transition: (kind: WorkflowTransition) => string;
+  readonly acceptProposal: (proposalId: string) => ProposalOutcome;
+  readonly rejectProposal: (proposalId: string) => void;
 }
 
 function nextVersionNumber(versions: readonly DocumentVersion[]): number {
@@ -68,6 +78,8 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
   const [savedJustNow, setSavedJustNow] = useState(false);
   const [workflowState, setWorkflowState] = useState<WorkflowState | undefined>(() => document?.workflowState);
   const [role, setRole] = useState<ProjectRole>('admin');
+  const [blocks, setBlocks] = useState<readonly DocumentBlock[]>(() => document?.blocks ?? []);
+  const [proposals, setProposals] = useState<readonly AgentProposal[]>(() => [...proposalsForDocument(id)]);
 
   function addVersion(reason: VersionReason, label?: string): void {
     if (!document) return;
@@ -95,7 +107,46 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
     return config.toast;
   }
 
+  function acceptProposal(proposalId: string): ProposalOutcome {
+    const proposal = proposals.find((candidate) => candidate.id === proposalId);
+    if (!proposal || proposal.status !== 'pending') return { toast: 'Propuesta aceptada' };
+
+    const edit = proposal.edits[0];
+    const target = edit ? findMatchingBlock(blocks, edit.expectedText) : undefined;
+    if (!edit || !target) {
+      setProposals((current) => current.map((item) => (item.id === proposalId ? { ...item, status: 'stale' } : item)));
+      return { toast: 'Esta propuesta quedó vieja', stale: true };
+    }
+
+    setBlocks((current) =>
+      current.map((block) =>
+        block.id === target.id ? { ...block, text: stripLinePrefix(edit.replacement), author: 'agent', acceptedBy: CURRENT_USER_NAME } : block,
+      ),
+    );
+    setProposals((current) => current.map((item) => (item.id === proposalId ? { ...item, status: 'accepted', respondedBy: CURRENT_USER_ID } : item)));
+    addVersion('agent_accept');
+    return { toast: 'Propuesta aceptada' };
+  }
+
+  function rejectProposal(proposalId: string): void {
+    setProposals((current) => current.map((item) => (item.id === proposalId ? { ...item, status: 'rejected', respondedBy: CURRENT_USER_ID } : item)));
+  }
+
   const metaLine = document ? metaLineFor(document, savedJustNow, now) : '';
 
-  return { document, workflowState, versions, metaLine, architectOf, role, setRole, save, transition };
+  return {
+    document,
+    workflowState,
+    blocks,
+    versions,
+    proposals,
+    metaLine,
+    architectOf,
+    role,
+    setRole,
+    save,
+    transition,
+    acceptProposal,
+    rejectProposal,
+  };
 }

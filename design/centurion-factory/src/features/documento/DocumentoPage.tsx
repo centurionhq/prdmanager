@@ -26,7 +26,21 @@ export function DocumentoPage(): ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { show } = useToast();
-  const { document, workflowState, versions, metaLine, architectOf, role, setRole, save, transition } = useDocumentEditor(id);
+  const {
+    document,
+    workflowState,
+    blocks,
+    versions,
+    proposals,
+    metaLine,
+    architectOf,
+    role,
+    setRole,
+    save,
+    transition,
+    acceptProposal,
+    rejectProposal,
+  } = useDocumentEditor(id);
 
   if (!document || !workflowState) {
     return (
@@ -81,12 +95,12 @@ export function DocumentoPage(): ReactElement {
 
       <div className={styles.desktopLayout}>
         <FrontmatterForm document={document} workflowState={workflowState} architectOf={architectOf} latestVersion={latestOf(versions)} />
-        <EditorColumn blocks={document.blocks} />
-        <SidePanel document={document} />
+        <EditorColumn blocks={blocks} />
+        <SidePanel document={document} blocks={blocks} proposals={proposals} onAcceptProposal={acceptProposal} onRejectProposal={rejectProposal} />
       </div>
 
       <div className={styles.mobileLayout}>
-        <MobileTabs document={document} blocks={document.blocks} />
+        <MobileTabs document={document} blocks={blocks} proposals={proposals} onAcceptProposal={acceptProposal} onRejectProposal={rejectProposal} />
         <div className={styles.mobileActionBar}>
           <Button type="button" variant="secondary" onClick={handleSave}>
             Guardar
