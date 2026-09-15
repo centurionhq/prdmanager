@@ -52,6 +52,14 @@ export function buildProjectSettings(project: ProjectRecord): ProjectSettings {
   };
 }
 
+/** The project's current `hash_algo_version` setting (SDD-012, WO-334): read separately from
+ * `buildProjectSettings` since core's own `ProjectSettings` deliberately has no such field (see
+ * `PgProjectEngineOptions.hashAlgoVersion`'s own doc comment for why `PgProjectEngine` takes it as a
+ * distinct constructor option instead). */
+export function projectHashAlgoVersion(project: ProjectRecord): number {
+  return projectSettingsSchema.parse(project.settings ?? {}).hash_algo_version;
+}
+
 /** The full `PrdmConfig` a `PrdmDeps`-shaped MCP tool handler expects (SDD-010's remote MCP profile,
  * WO-184): `buildProjectSettings` plus the two fields `ProjectSettings` deliberately omits
  * (`root`/`neo4j` — SDD-007 "PgProjectEngine": neither is ever dereferenced for real disk/network I/O

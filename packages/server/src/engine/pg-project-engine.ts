@@ -16,16 +16,17 @@
  * correctly returns `null` for every sha, matching "commit_not_verified_by_ci" for anything not yet
  * baseline-trusted).
  *
- * `refresh()`/`inspect()`/`acknowledge()` are implemented here in a real but intentionally minimal
- * form: `governed` is always empty and `dirty` is always empty, since no per-code-ref state exists
- * anywhere in Postgres yet (SDD-010's CI-report ingestion owns populating that) and PgProjectEngine has
- * no local git working tree to read `dirty` from at all. What WO-134 *can* honestly do without that
- * data is reconciliation-by-hash at the `impacts_paths`-signature level: `project_code_state`'s stored
- * hash per blueprint (from the last report that covered it) is compared against each published
- * blueprint's current `impacts_paths`; a mismatch (including "never reported") produces a non-blocking
- * `awaiting_ci_report` issue and leaves that blueprint's `baseline.governs` entry untouched by this
- * refresh, rather than fabricating a reconciliation the CI report hasn't actually happened. See
- * `reconcileByHash`/`preserveStaleGoverns`.
+ * `refresh()`/`inspect()`/`acknowledge()`: `dirty` is always empty — PgProjectEngine has no local git
+ * working tree to read it from at all. `governed` (WO-334, SDD-012) is loaded from `project_code_refs`,
+ * the per-blueprint state a baseline code report persists (WO-333); see `buildDriftInput`/`loadGoverned`.
+ * Independently, reconciliation-by-hash at the `impacts_paths`-signature level (WO-134) still guards
+ * `governed` against a blueprint whose design changed since the report that produced its refs:
+ * `project_code_state`'s stored hash per blueprint (from the last report that covered it) is compared
+ * against each published blueprint's current `impacts_paths`; a mismatch (including "never reported")
+ * produces a non-blocking `awaiting_ci_report` issue, excludes that blueprint's rows from `governed`
+ * entirely for this refresh (see `loadGoverned`'s `excludeBlueprintIds`), and leaves its
+ * `baseline.governs` entry untouched, rather than fabricating a reconciliation the CI report hasn't
+ * actually happened. See `reconcileByHash`/`preserveStaleGoverns`.
  *
  * **Outbox projection (WO-133):** every write inside `withTx` only ever touches Postgres plus
  * `projects.graph_version`/`graph_dirty` (SDD-007: "dentro de la transacción solo se escribe
@@ -89,6 +90,7 @@ import {
   setFrontmatterFields,
   sha256,
   type Baseline,
+  type CodeRefState,
   type CommitInfo,
   type DriftInput,
   type DriftIssue,
@@ -220,6 +222,13 @@ export interface PgProjectEngineOptions {
   projectId: string;
   settings: ProjectSettings;
   store: GraphStore;
+  /** WO-334: the project's current `hash_algo_version` setting (`@prdm/contracts`'
+   * `projectSettingsSchema`, not part of core's own `ProjectSettings`, hence a separate option) —
+   * `buildDriftInput` never treats a `project_code_refs` row computed under a since-changed hash
+   * algorithm as current, the same "never trust a stale signature" reasoning `awaiting_ci_report`
+   * already applies to `impacts_paths` hashes. Defaults to `1` (`projectSettingsSchema`'s own default)
+   * for callers (mostly tests) that construct a `PgProjectEngine` without a real project settings row. */
+  hashAlgoVersion?: number;
   /** WO-250: the server's live `Hocuspocus` instance, used only to apply a server-managed collab-field
    * write (see `isServerManagedField`) to a document's live `Y.Doc` once the underlying Postgres write has
    * committed (`applyServerManagedFieldsToLiveDoc`). Optional: `undefined` in any context that never
@@ -297,6 +306,7 @@ export class PgProjectEngine implements ProjectEngine {
   private readonly onProjectionError: (err: unknown) => void;
   private readonly onLiveDocSyncError: (err: unknown) => void;
   private readonly hocuspocus: Hocuspocus | undefined;
+  private readonly hashAlgoVersion: number;
   /** WO-250: server-managed collab-field writes queued by `writeServerManagedCollabFields` during the
    * current `withTx` call, applied to each document's live `Y.Doc` only *after* the enclosing Postgres
    * transaction actually commits (see `withTx`). Reset at the start of every `withTx` call; safe as a
@@ -312,6 +322,7 @@ export class PgProjectEngine implements ProjectEngine {
     this.settings = opts.settings;
     this.store = opts.store;
     this.hocuspocus = opts.hocuspocus;
+    this.hashAlgoVersion = opts.hashAlgoVersion ?? 1;
     this.onProjectionError = opts.onProjectionError ?? defaultProjectionErrorHandler;
     this.onLiveDocSyncError = opts.onLiveDocSyncError ?? defaultLiveDocSyncErrorHandler;
     this.config = {
@@ -886,19 +897,40 @@ export class PgProjectEngine implements ProjectEngine {
   }
 
   /**
-   * `governed`/`governWarnings` stay empty: no per-code-ref state exists yet anywhere in Postgres (that
-   * table is SDD-010's CI-report-ingestion job) — `detectDrift` treats an empty `governed` map as
-   * "nothing to check", never as "everything is fine", so this never fabricates a synced/out-of-sync
-   * verdict it cannot actually verify. `dirty` (uncommitted local changes) has no SaaS equivalent at
-   * all (there is no local working tree), so it is always empty too. What real reconciliation *is*
-   * possible today — `awaiting_ci_report` and baseline preservation — lives in
-   * {@link PgProjectEngine.reconcileByHash}, applied around this input in `doRefreshOrInspect`.
+   * `governed` (WO-334, SDD-012): loaded from `project_code_refs` — the per-blueprint replacement a
+   * baseline code report writes (WO-333) — grouped by `blueprint_id`, excluding (a) any blueprint id in
+   * `excludeBlueprintIds` (`doRefreshOrInspect`'s own `staleBlueprintIds`, from `reconcileByHash`: a
+   * blueprint whose `impacts_paths` changed since the report that produced these refs must never be
+   * reconciled against them) and (b) any row whose `hash_algo_version` no longer matches
+   * `this.hashAlgoVersion` — the same "never trust a stale signature" reasoning `awaiting_ci_report`
+   * already applies one level up, at the `impacts_paths`-hash level. A blueprint with zero surviving
+   * rows is simply absent from the returned map (never an empty array), matching `detectDrift`'s own
+   * "not present" vs "present but empty" distinction used by `reconcileBaseline`.
    */
-  private async buildDriftInput(tx: PgDatabase, scan: ScanResult): Promise<DriftInput> {
-    const [baseline, commits] = await Promise.all([this.loadBaseline(tx), this.loadBaselineCommits(tx)]);
+  private async loadGoverned(tx: PgDatabase, excludeBlueprintIds: ReadonlySet<string>): Promise<Map<string, CodeRefState[]>> {
+    const rows = await tx.select().from(schema.projectCodeRefs).where(eq(schema.projectCodeRefs.projectId, this.projectId));
+    const governed = new Map<string, CodeRefState[]>();
+    for (const row of rows) {
+      if (excludeBlueprintIds.has(row.blueprintId) || row.hashAlgoVersion !== this.hashAlgoVersion) continue;
+      const state: CodeRefState = { key: row.refKey, path: row.path, symbol: row.symbol, hash: row.hash };
+      const existing = governed.get(row.blueprintId);
+      if (existing) existing.push(state);
+      else governed.set(row.blueprintId, [state]);
+    }
+    return governed;
+  }
+
+  /** `governWarnings`/`dirty` stay empty (SDD-007): a SaaS project has no local working tree to compute
+   * `dirty` from, and `governWarnings` (a report's `governed_warnings[]`, WO-333) is a persisted, purely
+   * informational list surfaced separately rather than fed back through `detectDrift`'s own
+   * `impacts_warning` issue path. `excludeBlueprintIds` defaults to none for callers without a
+   * reconciliation context of their own (`acknowledge()`, `buildSnapshot()`) — see {@link loadGoverned}.
+   */
+  private async buildDriftInput(tx: PgDatabase, scan: ScanResult, excludeBlueprintIds: ReadonlySet<string> = new Set()): Promise<DriftInput> {
+    const [baseline, commits, governed] = await Promise.all([this.loadBaseline(tx), this.loadBaselineCommits(tx), this.loadGoverned(tx, excludeBlueprintIds)]);
     return {
       docs: scan.docs,
-      governed: new Map(),
+      governed,
       governWarnings: [],
       baseline,
       commits,
@@ -956,9 +988,12 @@ export class PgProjectEngine implements ProjectEngine {
 
   private async doRefreshOrInspect(tx: PgDatabase, persist: boolean): Promise<RefreshReport> {
     const scan = await loadScanState(tx, this.projectId);
-    const input = await this.buildDriftInput(tx, scan);
+    // WO-334: the reconciled-by-hash verdict must exist *before* buildDriftInput loads `governed`, so a
+    // stale blueprint's project_code_refs rows are excluded from this refresh entirely rather than fed
+    // into detectDrift only to have their resulting baseline entry overwritten afterward.
     const reportedHashes = await this.loadImpactsHashes(tx);
     const { warnings, staleBlueprintIds } = this.reconcileByHash(scan, reportedHashes);
+    const input = await this.buildDriftInput(tx, scan, new Set(staleBlueprintIds));
     const built = buildRefreshReport(input);
     const issues: DriftIssue[] = [...built.issues, ...warnings];
 
