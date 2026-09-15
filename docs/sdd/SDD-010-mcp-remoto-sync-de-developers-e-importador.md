@@ -103,5 +103,6 @@ Unitarios de contratos, adaptador de drift, verificación de claims OIDC con JWK
 - [ ] Revisión de seguridad #4 (MEDIUM): pasar redirect: 'error' también en la construcción de StreamableHTTPClientTransport (mcp-client.ts y mcp-proxy.ts), no solo en los fetches de login/sync/import, con test de un servidor que redirige
 - [ ] Revisión de seguridad #4 (MEDIUM): agregar un bodyLimit explícito al endpoint de policy-docs para consistencia con el resto de las rutas nuevas
 - [ ] Revisión de seguridad #4 (HIGH, seguimiento de WO-234): commit-msg.ts y check-range.ts también leen project.id de .prdm.yaml sin cruzarlo contra el pin local; usar checkProjectPinMismatch (ya compartido por sync.ts y mcp-proxy.ts) en ambos, con test
+- [ ] Implementar PRDM_TOKEN en CI: sync.ts, commit-msg.ts y check-range.ts solo leen credenciales del archivo local, así que CI (sin ese archivo) nunca puede autenticarse a pesar de que el SDD y server-origin.ts ya asumen PRDM_TOKEN; agregar resolveRemoteCredential (obligatorio en CI, igual que PRDM_SERVER en server-origin.ts) y usarlo en los tres call sites, con test
 
 El cierre de PRD-005 con `prdm close PRD-005 --ack` no es una tarea: se ejecuta cuando todos los WOs de ADR-005, ADR-006 y SDD-006 a SDD-010 están terminados.
