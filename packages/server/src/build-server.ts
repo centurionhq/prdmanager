@@ -12,6 +12,7 @@ import { injectCspNonce } from './spa-html.js';
 import { installBearerAccessPreHandler } from './access/bearer-access-prehandler.js';
 import { installRouteAccessRegistry, type RouteRegistry } from './access/route-registry.js';
 import { registerAdminOrganizationRoutes } from './api/admin-organizations.js';
+import { registerAuditLogRoutes } from './api/audit-log.js';
 import { registerCiTokenRoutes } from './api/ci-tokens.js';
 import { registerCodeReportRoutes } from './api/code-reports.js';
 import { buildCodeReportRateLimiter } from './rate-limit/code-report-rate-limits.js';
@@ -294,6 +295,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerProjectFeedbackRoutes(app, { auth, pool, env, neo4j });
       registerProjectDriftIssueRoutes(app, { auth, pool, env, neo4j });
       registerProjectCodeHistoryRoutes(app, { auth, pool, env, neo4j });
+      registerAuditLogRoutes(app, { auth, pool, env });
       registerCloseFeatureRoutes(app, { auth, pool, env, neo4j, hocuspocus });
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
       registerTokenRoutes(app, { auth, pool, env, clock });

@@ -282,6 +282,16 @@ export function registerBaseIsolationRoutes(): void {
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
   });
 
+  // WO-342: project/org audit log, same tenant-scoped resolution as every other route in each family.
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/audit-log', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+  });
+
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/audit-log', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug } })),
+  });
+
   // WO-341: commits/code-refs, same tenant-scoped resolution as every other
   // .../projects/:projectSlug/* read below.
   registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/commits', {
