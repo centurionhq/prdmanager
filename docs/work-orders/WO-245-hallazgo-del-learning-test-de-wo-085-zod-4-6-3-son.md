@@ -2,12 +2,17 @@
 id: "WO-245"
 type: "WO"
 title: "Hallazgo del learning test de WO-085: zod 4.6.3 sondea `new Function('')` para decidir si compila validadores rápidos, y ese sondeo dispara una violación real de `script-src` (sin `unsafe-eval`) aunque el throw quede atrapado — deshabilitar el sondeo con `config({ jitless: true })` al inicio de `pac"
-status: "pending"
+status: "done"
 created_at: "2026-09-15"
 implements: ["SDD-006"]
 impacts_paths: ["packages/contracts/src/**","packages/contracts/tests/**","packages/contracts/*.json","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/db/*.json","packages/db/*.config.ts","packages/server/src/**","packages/server/tests/**","packages/server/scripts/**","packages/server/*.json","packages/server/Docker[f]ile","packages/server/Dockerfile.dockerignor[e]","packages/app/src/**","packages/app/tests/**","packages/app/*.json","packages/app/*.config.ts","packages/app/index.htm[l]","packages/ui/src/**","packages/ui/tests/**","packages/ui/*.json","packages/web/src/**","packages/web/tests/**","packages/web/package.json","packages/web/tsconfig*.json","packages/web/vite.config.ts","packages/testkit/src/**","packages/testkit/package.json","docker/**","docker-compose.yml","package.json","package-lock.json","tsconfig.json","tsconfig.base.json","tsconfig.test.json","vitest.config.ts",".env.example",".gitignore","README.md",".github/workflows/prdm-sync.yml"]
 source_task: "6775eea8ab5921d0"
 tags: ["saas","tenancy","auth","rbac","dashboard"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T09:48:54.094Z"
+completed_at: "2026-09-15T09:55:43.634Z"
+resolved_by: ["d6bc1b8962ccf94a02b5e13d4b6f70c00fa39835"]
+blueprint_hashes: {"SDD-006":"91cccdb3cd90181cfcb9b66af72f0851afe979cb7abc5b1ec374b20658ff0ca4"}
 ---
 
 ## Objetivo
