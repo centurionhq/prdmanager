@@ -12,6 +12,10 @@ export default defineConfig({
   // same way the rest of the repo does in dev/test — without requiring a `tsc -b` build of every dependency first.
   resolve: {
     conditions: ['@prdm/source'],
+    // ADR-006 / ADR-008: Yjs breaks its own instanceof-based struct/type checks if two "equivalent"
+    // copies ever load side-by-side — same reason the root vitest.config.ts dedupes it for every package
+    // that imports yjs directly.
+    dedupe: ['yjs'],
   },
   build: {
     outDir: 'dist',

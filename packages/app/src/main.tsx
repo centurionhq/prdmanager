@@ -4,7 +4,10 @@ import './zod-jitless';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router';
-import '@prdm/ui/styles/tokens.css';
+// ADR-008: Centurion Factory's own tokens/base styles (design/centurion-factory/src/styles), the
+// canvas-approved visual source of truth, replace @prdm/ui's tokens as this SPA's design system.
+import './styles/tokens.css';
+import './styles/base.css';
 import { router } from './router';
 
 const container = document.getElementById('root');
