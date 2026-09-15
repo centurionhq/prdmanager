@@ -2,12 +2,17 @@
 id: "WO-377"
 type: "WO"
 title: "Entrada: `beforeinput` a operaciones, mapeo de selección DOM ↔ fuente, restauración del cursor"
-status: "pending"
+status: "done"
 created_at: "2026-09-15"
 implements: ["SDD-014"]
 impacts_paths: ["packages/app/src/**","packages/app/tests/**","packages/app/package.json","packages/collab/src/**","packages/collab/tests/**","packages/server/tests/e2e/**","packages/server/tests/learning/**","package.json","package-lock.json","vitest.config.ts"]
 source_task: "81a220a039f9942c"
 tags: ["editor","collab","yjs","accessibility"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T23:14:23.365Z"
+completed_at: "2026-09-15T23:49:37.768Z"
+resolved_by: ["ab9c4f09710e1841b6969ef3fc5366308a6f7a10"]
+blueprint_hashes: {"SDD-014":"aa6eba6d8fecb8f4f2b1453724b6f1df520bd39267debdce18896734e6fd7291"}
 ---
 
 ## Objetivo
