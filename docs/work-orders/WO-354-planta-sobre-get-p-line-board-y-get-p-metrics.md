@@ -2,12 +2,17 @@
 id: "WO-354"
 type: "WO"
 title: "Planta, sobre `GET P/line-board` y `GET P/metrics`"
-status: "pending"
+status: "done"
 created_at: "2026-09-15"
 implements: ["SDD-013"]
 impacts_paths: ["packages/app/src/**","packages/app/tests/**","packages/app/*.json","packages/app/*.config.ts","packages/app/index.htm[l]","packages/server/tests/e2e/**","packages/server/tests/learning/**","packages/server/src/spa-html.ts","packages/server/src/security-headers.ts","design/centurion-factory/canvas/**","package.json","package-lock.json","tsconfig.json","tsconfig.test.json","vitest.config.ts",".github/workflows/prdm-sync.yml","README.md"]
 source_task: "11d81250a0a71628"
 tags: ["saas","frontend","design","canvas","e2e"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T23:12:58.576Z"
+completed_at: "2026-09-15T23:41:01.977Z"
+resolved_by: ["8da7e4d20d2e052c79a1161b11b56235604bdd9b"]
+blueprint_hashes: {"SDD-013":"35e9b00d09ec28b2045d5c60a54198cc1675cb272d6fc0aa35e56802d046e0b0"}
 ---
 
 ## Objetivo
