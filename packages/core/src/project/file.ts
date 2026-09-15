@@ -60,8 +60,8 @@ function isPrintableName(name: string): boolean {
   return true;
 }
 
-const projectIdSchema = z.string().regex(PROJECT_ID_PATTERN, 'invalid project id (expected prj_ followed by 16 hex chars)');
-const projectNameSchema = z
+export const projectIdSchema = z.string().regex(PROJECT_ID_PATTERN, 'invalid project id (expected prj_ followed by 16 hex chars)');
+export const projectNameSchema = z
   .string()
   .min(1)
   .max(100)
@@ -206,7 +206,12 @@ function toSettings(raw: RawProjectFile): ProjectFileSettings {
   };
 }
 
-function parseProjectFileUnsafe(src: string): ProjectFileSettings {
+/**
+ * Shared, hardened YAML-to-JS step (ADR-002 D7/D8: size limit, no custom tags/anchors/aliases, secret-key
+ * scan) reused by both the v1 (`parseProjectFile`) and v2/`remote` (`project/remote-file.ts`) parsers, so
+ * a future format never has to re-derive this hardening from scratch.
+ */
+export function parseProjectYamlRoot(src: string): unknown {
   if (Buffer.byteLength(src, 'utf8') > MAX_PROJECT_FILE_BYTES) throw new Error(`file exceeds ${MAX_PROJECT_FILE_BYTES} bytes`);
 
   const doc = parseDocument(src, YAML_PARSE_OPTIONS);
@@ -217,6 +222,25 @@ function parseProjectFileUnsafe(src: string): ProjectFileSettings {
   const root: unknown = doc.toJS(YAML_TO_JS_OPTIONS);
   if (root === null || typeof root !== 'object' || Array.isArray(root)) throw new Error('root must be a mapping');
   assertNoSecretKeys(root);
+  return root;
+}
+
+/** `.prdm.yaml`'s `version` field, read leniently (no full schema validation) purely to decide which
+ * parser applies — `undefined`/anything else falls through to {@link rawProjectFileSchema}'s own error
+ * for that case, unchanged from before `version: 2` existed. */
+function peekVersion(root: unknown): unknown {
+  return (root as { version?: unknown }).version;
+}
+
+function parseProjectFileUnsafe(src: string): ProjectFileSettings {
+  const root = parseProjectYamlRoot(src);
+
+  // WO-188: a `version: 2` (`remote`) file is a different, valid format this function was never meant to
+  // parse — surfaced as one clear, actionable message (SDD-010) instead of `rawProjectFileSchema`'s
+  // generic "invalid literal" error a `version: z.literal(1)` mismatch would otherwise produce.
+  if (peekVersion(root) === 2) {
+    throw new Error('.prdm.yaml has "version: 2" (a remote project), which requires a version of prdm that supports "remote" projects; upgrade the prdm CLI');
+  }
 
   const result = rawProjectFileSchema.safeParse(root);
   if (!result.success) throw new Error(result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; '));

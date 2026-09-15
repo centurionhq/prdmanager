@@ -2,6 +2,7 @@
 export * from './config.js';
 export * from './project/discover.js';
 export * from './project/file.js';
+export * from './project/remote-file.js';
 export * from './project/types.js';
 export * from './engine.js';
 export * from './domain/schema.js';
@@ -46,6 +47,7 @@ export * from './scaffold/folders.js';
 export * from './scaffold/gitignore.js';
 export * from './scaffold/hooks.js';
 export * from './scaffold/init.js';
+export * from './scaffold/link.js';
 export * from './scaffold/mcp-config.js';
 export * from './scaffold/shell-quote.js';
 export * from './sync/commit-policy.js';
