@@ -89,6 +89,9 @@ const DEFAULT_AUDIT_LOG_LIST_LIMIT = 50;
 
 export interface AuditLogListInput {
   action?: string;
+  /** Restricts to entries recorded against one project (WO-336/WO-342) — omitted for the org-wide audit
+   * log, which lists every entry regardless of `project_id` (including org-level actions with none). */
+  projectId?: string;
   limit?: number;
   cursor?: string | null;
 }
@@ -227,6 +230,7 @@ function buildAuditLogRepository(pool: Pool, orgId: string): AuditLogRepository 
       return withTenantTx(pool, orgId, async (tx) => {
         const conditions = [];
         if (input.action) conditions.push(eq(auditLog.action, input.action));
+        if (input.projectId) conditions.push(eq(auditLog.projectId, input.projectId));
         if (cursor) conditions.push(or(lt(auditLog.createdAt, cursor.timestamp), and(eq(auditLog.createdAt, cursor.timestamp), lt(auditLog.id, cursor.id))!)!);
         const rows = await tx
           .select()

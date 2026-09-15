@@ -76,6 +76,14 @@ export function registerBaseIsolationRoutes(): void {
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug } })),
   });
 
+  // WO-336: aggregates only the caller's own visible projects in this org — org B's owner sees org A's
+  // slug resolve to nothing (no `projectA1`-shaped id ever appears in an org-B-scoped call), so this is
+  // the same crossOrg-only shape as `GET .../projects` right below (no "other project" case: the whole
+  // point of this route is aggregating every visible project at once, not scoping to one).
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/overview', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug } })),
+  });
+
   registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects', {
     mutating: true,
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug }, body: { slug: 'probe-project', name: 'Probe' } })),

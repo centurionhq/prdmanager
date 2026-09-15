@@ -46,6 +46,7 @@ import { registerGraphRoutes } from './api/graph.js';
 import { registerLineBoardRoutes } from './api/line-board.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
 import { registerPolicyDocsRoutes } from './api/policy-docs.js';
+import { registerProjectOverviewRoutes } from './api/project-overview.js';
 import { registerProjectRoutes } from './api/projects.js';
 import { registerTokenRoutes } from './api/tokens.js';
 import { registerV1MeRoute } from './api/v1-me.js';
@@ -249,6 +250,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerAdminOrganizationRoutes(app, { auth, pool, mailer, env });
       registerOrganizationInvitationRoutes(app, { auth, pool, mailer, env });
       registerProjectRoutes(app, { auth, pool, env, collabRevocationHub });
+      registerProjectOverviewRoutes(app, { auth, pool, env, neo4j });
       registerDocumentRoutes(app, { auth, pool, env, collabRevocationHub });
       const hocuspocus = registerCollabRoute(app, {
         auth,
