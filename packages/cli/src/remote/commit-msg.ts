@@ -8,7 +8,7 @@
  */
 import { checkCommitMessage, type CommitMsgCheckOptions, type EvaluateCommitResult, type PolicyDoc, type RemoteProjectFile } from '@prdm/core';
 import { CliError } from '../errors.js';
-import { checkProjectPinMismatch, loadCredentials } from './credentials.js';
+import { checkProjectPinMismatch, resolveRemoteCredential } from './credentials.js';
 import { loadCachedGovernance, syncGovernanceCache, type GovernanceCacheResult } from './governance-cache.js';
 import { scanPolicyDocs } from './policy-doc-scan.js';
 import { resolveRemoteServerOrigin } from './server-origin.js';
@@ -89,11 +89,9 @@ export async function runRemoteCommitMsg(root: string, file: RemoteProjectFile, 
     const pinMismatch = checkProjectPinMismatch(root, file.project.id, deps.env);
     if (pinMismatch) throw new CliError(pinMismatch);
 
-    const credentials = loadCredentials(deps.env);
-    const credential = credentials[origin];
-    if (!credential) throw new CliError(`not logged in to ${origin}; run "prdm login --server ${origin}" first`);
+    const token = resolveRemoteCredential(origin, deps.env);
 
-    const refreshed = await attemptRefetch(root, origin, file.project.id, credential.token, deps);
+    const refreshed = await attemptRefetch(root, origin, file.project.id, token, deps);
     if (refreshed) {
       effective = refreshed;
     } else {

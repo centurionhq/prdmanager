@@ -7,7 +7,7 @@ import { currentBranch, scanContents, type RemoteProjectFile } from '@prdm/core'
 import type { CodeReportIssueDto, CodeReportResponse } from '@prdm/contracts';
 import { CliError } from '../errors.js';
 import { buildCodeReportBody, sendCodeReport, type BlueprintLike } from './code-report.js';
-import { checkProjectPinMismatch, loadCredentials } from './credentials.js';
+import { checkProjectPinMismatch, resolveRemoteCredential } from './credentials.js';
 import { fetchGithubActionsOidcToken } from './github-oidc-token.js';
 import { syncGovernanceCache, type GovernanceCacheResult } from './governance-cache.js';
 import { resolveRemoteServerOrigin } from './server-origin.js';
@@ -62,12 +62,10 @@ export async function runRemoteSync(root: string, file: RemoteProjectFile, optio
   const pinMismatch = checkProjectPinMismatch(root, graphProjectId, deps.env);
   if (pinMismatch) throw new CliError(pinMismatch);
 
-  const credentials = loadCredentials(deps.env);
-  const credential = credentials[origin];
-  if (!credential) throw new CliError(`not logged in to ${origin}; run "prdm login --server ${origin}" first`);
+  const token = resolveRemoteCredential(origin, deps.env);
 
   const cacheDeps = { fetchImpl: deps.fetchImpl };
-  const cache = await syncGovernanceCache(root, origin, graphProjectId, credential.token, cacheDeps);
+  const cache = await syncGovernanceCache(root, origin, graphProjectId, token, cacheDeps);
   const { blueprints, scanErrors } = blueprintsOf(cache);
   if (scanErrors.length > 0) throw new CliError(`governance cache has invalid document(s): ${scanErrors.join('; ')}`);
 
@@ -77,11 +75,11 @@ export async function runRemoteSync(root: string, file: RemoteProjectFile, optio
 
   const githubOidcToken = await fetchGithubActionsOidcToken(origin, { env: deps.env, fetchImpl: deps.fetchImpl });
 
-  const result = await sendCodeReport(origin, graphProjectId, credential.token, body, buildInput, branch, {
+  const result = await sendCodeReport(origin, graphProjectId, token, body, buildInput, branch, {
     fetchImpl: deps.fetchImpl,
     githubOidcToken,
     refetch: async () => {
-      const refreshedCache = await syncGovernanceCache(root, origin, graphProjectId, credential.token, cacheDeps);
+      const refreshedCache = await syncGovernanceCache(root, origin, graphProjectId, token, cacheDeps);
       const refreshed = blueprintsOf(refreshedCache);
       if (refreshed.scanErrors.length > 0) throw new CliError(`governance cache has invalid document(s): ${refreshed.scanErrors.join('; ')}`);
       return { docsGraphVersion: refreshedCache.graphVersion, blueprints: refreshed.blueprints };

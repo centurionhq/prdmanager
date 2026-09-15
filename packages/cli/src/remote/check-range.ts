@@ -16,7 +16,7 @@
  */
 import { evaluateCommit, readCommitsInRange, type EvaluateCommitResult, type RemoteProjectFile } from '@prdm/core';
 import { CliError } from '../errors.js';
-import { checkProjectPinMismatch, loadCredentials } from './credentials.js';
+import { checkProjectPinMismatch, resolveRemoteCredential } from './credentials.js';
 import { syncGovernanceCache } from './governance-cache.js';
 import { scanPolicyDocs } from './policy-doc-scan.js';
 import { fetchPolicyDocs } from './policy-docs.js';
@@ -47,16 +47,14 @@ export async function runRemoteCheckRange(root: string, file: RemoteProjectFile,
   const pinMismatch = checkProjectPinMismatch(root, file.project.id, deps.env);
   if (pinMismatch) throw new CliError(pinMismatch);
 
-  const credentials = loadCredentials(deps.env);
-  const credential = credentials[origin];
-  if (!credential) throw new CliError(`not logged in to ${origin}; run "prdm login --server ${origin}" first`);
+  const token = resolveRemoteCredential(origin, deps.env);
 
   const commits = await readCommitsInRange(root, range);
   if (commits.length === 0) return { ok: true, commits: [] };
 
-  const cache = await syncGovernanceCache(root, origin, file.project.id, credential.token, { fetchImpl: deps.fetchImpl });
+  const cache = await syncGovernanceCache(root, origin, file.project.id, token, { fetchImpl: deps.fetchImpl });
   // One request for the whole range (SDD-010: "en un único request"), never one per commit.
-  const policyResults = await fetchPolicyDocs(origin, file.project.id, credential.token, commits.map((c) => c.sha), { fetchImpl: deps.fetchImpl });
+  const policyResults = await fetchPolicyDocs(origin, file.project.id, token, commits.map((c) => c.sha), { fetchImpl: deps.fetchImpl });
   const documentsBySha = new Map(policyResults.map((r) => [r.sha, r.documents]));
 
   const entries: RemoteCheckRangeEntry[] = commits.map((commit) => {

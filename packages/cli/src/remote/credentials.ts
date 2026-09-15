@@ -21,6 +21,8 @@
 import { closeSync, constants, existsSync, lstatSync, mkdirSync, openSync, readFileSync, statSync, writeSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { CliError } from '../errors.js';
+import { isCi } from './server-origin.js';
 
 export class InsecureCredentialsPathError extends Error {
   constructor(message: string) {
@@ -190,4 +192,25 @@ export function checkProjectPinMismatch(root: string, remoteProjectId: string, e
     return `.prdm.yaml's project.id is "${remoteProjectId}", but this repository was linked to "${pin.graphProjectId}"; refusing to guess which one is correct — run "prdm link" again if the project genuinely changed`;
   }
   return null;
+}
+
+/**
+ * Resolves the token to use for `origin`, or throws `CliError` (WO-239). Mirrors
+ * `resolveRemoteServerOrigin`'s own CI-mandatory shape exactly:
+ *  - In CI, `PRDM_TOKEN` is mandatory (SDD-010: "en CI ... el token de PRDM_TOKEN") — the on-disk store
+ *    is never consulted in CI, since a fresh runner has no such file and a stale one baked into a
+ *    self-hosted runner image must never be trusted over the workflow's own explicit secret.
+ *  - Outside CI, `PRDM_TOKEN` (when set) takes precedence over the local store — useful for scripting —
+ *    otherwise falls back to whatever `prdm login` already recorded for this exact origin.
+ */
+export function resolveRemoteCredential(origin: string, env: NodeJS.ProcessEnv = process.env): string {
+  const prdmToken = env.PRDM_TOKEN;
+  if (isCi(env)) {
+    if (!prdmToken) throw new CliError('PRDM_TOKEN is required in CI for a remote-mode project (it was not set)');
+    return prdmToken;
+  }
+  if (prdmToken) return prdmToken;
+  const stored = loadCredentials(env)[origin];
+  if (!stored) throw new CliError(`not logged in to ${origin}; run "prdm login --server ${origin}" first`);
+  return stored.token;
 }
