@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { App } from '../src/App';
 
 describe('scaffold', () => {
-  it('renders the app root', () => {
+  it('boots the router and renders the Planta at the root route', async () => {
+    window.history.replaceState(null, '', '/');
     render(<App />);
-    expect(screen.getByRole('heading', { name: 'Centurion Factory' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Planta' })).toBeTruthy();
   });
 });
