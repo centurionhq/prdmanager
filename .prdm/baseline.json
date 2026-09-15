@@ -334,7 +334,15 @@
     "WO-296": "e98cbf49c117afcef6323bcc2ad82364cc2fa67568da580bdbbc6dd749971397",
     "WO-297": "678e61adc78bc7e4af500096c9dc106b021fc29b4329a82f59735ec301abd1a6",
     "WO-298": "b4e2e9dbcc8be43d93af1f5a9180d6421e8aa933723e21b8132994a47ca1fe05",
-    "WO-299": "ee538ee7d7978cf2d26976c24abc46a36031b6314084fe4900aca3ea92b4bb58"
+    "WO-299": "ee538ee7d7978cf2d26976c24abc46a36031b6314084fe4900aca3ea92b4bb58",
+    "WO-300": "7053dc393965f1906c886be88fbe0278dcf930ad7af0219687ae0f5c3869677e",
+    "WO-301": "a026e3d063f3d12d6a276b3b8a576384fdeaadba4927e03d17509014362b198b",
+    "WO-302": "1218137137c8b5e76ca7bb9617edf42567e959d53b06acef06dcd9a9e54de58b",
+    "WO-303": "91a04651da73600155b8738e3cee37a24f9e275c0e6abc37d7ff987a5a9eebc1",
+    "WO-304": "9016dbff8bca243d96755ec858642cac25b8f229482f84cd7b6d9526e571e6fa",
+    "WO-305": "d2c281b3ee92c001aa63aaba8702471cbc2fd05f546315301a727408b1544e70",
+    "WO-306": "6168ca8e4569b050680da8e406303f980c5eac014261fdde17f531dbe57ff9c5",
+    "WO-307": "e9ece78078338ed73dd066f362432e82185fe439492e14052918d6fe7d34a057"
   },
   "governs": {
     "ADR-001": {
@@ -3625,6 +3633,9 @@
       "vitest.config.ts": "21313309875e5a8f151d2da2ccac6c4046cb2a0ed5df05c706edb520cdcd29e2"
     },
     "SDD-011": {
+      "design/centurion-factory/canvas/AjustesMiembros.dc.html": "b6eddaeaed156d860806d9664179fd59b2a37a3a44668ffe8ca47c272904f0f2",
+      "design/centurion-factory/canvas/AjustesSSO.dc.html": "02b69026858f6b2906e087bf5d33d06d3d14dc685ab4538de3ccbf169543abd4",
+      "design/centurion-factory/canvas/AjustesTokens.dc.html": "501422f6e605d510c9d7bed22fd5710beeff69ea70706a92783a3955710d36b3",
       "design/centurion-factory/canvas/Arbol.dc.html": "a89d10e5679d603c490ef7d900b56a812681360b800c102c3e0db213b70e4f9c",
       "design/centurion-factory/canvas/canvas.json": "decfdcbb46640fc183a3de2d8a83b491f7cdcb0dd7c1758037ed3a1d2646f113",
       "design/centurion-factory/canvas/Componentes.dc.html": "0ee86359958f8a8b329028a3f510a77eb904b2e63ddff4ecaa68057ae6c16e2c",
@@ -3633,11 +3644,14 @@
       "design/centurion-factory/canvas/Documentos.dc.html": "585db4964540bdeac937f62f9a82fff49268ba3ab719823ab140c4c442a03a5b",
       "design/centurion-factory/canvas/Drift.dc.html": "ed063199cd817551e44f6c94a76261f535b274847fd3ef4efde795669a45ae2a",
       "design/centurion-factory/canvas/Entrada.dc.html": "15e3c83aa9736ab91908c802175ea16464d184ba102005483603fcdaeb288d47",
+      "design/centurion-factory/canvas/Login.dc.html": "3e6fd0ca70f53e0240ccbe935bb3895e2fbb1e566daeaee4c550b5361c0462ae",
+      "design/centurion-factory/canvas/LoginMobile.dc.html": "0ba00deb3ae0d5b79ebcc7d6b5975563fcda6d48ea123b5bddb22d9f5a73bf3b",
       "design/centurion-factory/canvas/Main.dc.html": "3c180c23f1b37cfc8ef21040b965ee71c526cb65b6d9243050c15ec8dd698676",
       "design/centurion-factory/canvas/Ordenes.dc.html": "f0300e116110d3225f7fb5767c80d2a006f0044155f58c077dd6420ae28fe7c0",
       "design/centurion-factory/canvas/OrdenesMobile.dc.html": "f850b4b95c1a2864c869873fb8160de4806a9165e0459cdbfb4e9a635809c004",
       "design/centurion-factory/canvas/PlantaMobile.dc.html": "28d2752f3002b5611c15fca6eedd7baa183c4dbb290074f4641ff6b043836ea1",
       "design/centurion-factory/canvas/PliegoCianotipo.dc.html": "5083b019fd1cc595a22ba39656bbee39860cb8aa9a2f026f95d0b5e0987a49e6",
+      "design/centurion-factory/canvas/Proyectos.dc.html": "bb48e1a9fd5c2515f0699720d0ff94014bc6da6f667153d6c405c951738da355",
       "design/centurion-factory/canvas/SalaDeControl.dc.html": "89c7806a3be353102a1e04af48d5efe8433de748fb0e7aadac4209d666084a18"
     }
   }

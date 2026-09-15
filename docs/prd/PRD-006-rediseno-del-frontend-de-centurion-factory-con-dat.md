@@ -26,7 +26,8 @@ Este PRD rediseña el frontend **solo con datos mock**, usando el mundo de una p
 
 **En alcance**
 
-- **Siete vistas navegables** en un paquete aislado (`design/centurion-factory`, ADR-007): Planta, Árbol de features, Documentos, Documento, Órdenes de trabajo, Drift y Bandeja de entrada.
+- **Siete vistas de trabajo** en un paquete aislado (`design/centurion-factory`, ADR-007): Planta, Árbol de features, Documentos, Documento, Órdenes de trabajo, Drift y Bandeja de entrada.
+- **Acceso y ajustes:** login con SSO primero (email de trabajo, Google Workspace, Microsoft Entra ID) y contraseña como alternativa, selección de proyectos de la organización, y ajustes de miembros y roles, tokens de CI y autenticación/SSO de la organización.
 - **Interactividad sin backend:** navegación, búsqueda, filtros, orden, modales, drawers, toasts y cambios de estado en memoria.
 - **Datos mock realistas** con ids y títulos reales del grafo y estados de muestra, más estados de interfaz cargando, vacío y error en todas las vistas.
 - **Diseño iterado primero en un canvas** con el usuario (direcciones, alta fidelidad y aprobación). El código React implementa el canvas aprobado.
@@ -34,7 +35,7 @@ Este PRD rediseña el frontend **solo con datos mock**, usando el mundo de una p
 
 **Fuera de alcance**
 
-- Backend, APIs, base de datos, autenticación real y permisos reales. El rol del usuario se simula con un selector.
+- Backend, APIs, base de datos, autenticación real, SSO real y permisos reales. El rol del usuario se simula con un selector. SSO no existe en el backend de PRD-005 (quedó fuera de su alcance): acá es solo diseño, y conectarlo pertenece al PRD posterior.
 - Colaboración en tiempo real y LLM real: las propuestas del agente son datos mock.
 - Portar las pantallas a `packages/app` o reemplazar el dashboard actual.
 - Despliegue, notificaciones, billing e i18n (la interfaz es solo en español).
@@ -84,7 +85,7 @@ La vista raíz muestra la línea con las features en curso como filas que avanza
 
 La vista Documento reúne en una pantalla:
 
-- el editor Markdown y el formulario de frontmatter,
+- el editor, que abre en **Vista previa** editable como un editor de texto común (párrafo, títulos 1 a 3, negrita, cursiva, tachado, listas, tareas y enlace) y ofrece **Markdown** como segundo tab para tocar el fuente directo, junto al formulario de frontmatter,
 - el flujo `draft → in_review → published → archived`,
 - la propuesta del agente con diff,
 - los hilos de comentarios,
@@ -98,6 +99,7 @@ La lista de Documentos permite buscar, filtrar por tipo y estado, ordenar y crea
 - La admin abre un SDD en `in_review`, ve cero errores de validación y lo publica. El documento muestra una nueva versión con motivo "published".
 
 **Criterios de aceptación**
+- [ ] El editor abre en "Vista previa". La barra de formato aplica párrafo, título 1 a 3, negrita, cursiva, tachado, listas, tareas y enlace sobre la selección, y el tab "Markdown" muestra el mismo contenido como fuente, sincronizado en ambos sentidos.
 - [ ] "Guardar" muestra el toast "Guardado", anunciado por una región `aria-live`, y agrega una versión manual al historial.
 - [ ] Las acciones de flujo dependen del estado y del rol simulado. Un `viewer` no ve "Publicar" y un `editor` no puede publicar. Toda transición muestra un toast con el resultado.
 - [ ] La propuesta del agente muestra un resumen y un diff por edición, con "Aceptar" y "Rechazar". Al aceptarla, el texto cambia y la autoría figura como "Agente (aceptado por Ana)". Una propuesta `stale` explica que el texto cambió y no se puede aceptar.
@@ -124,6 +126,23 @@ La vista Órdenes lista las work orders con filtros, búsqueda y orden. El detal
 - [ ] "Cerrar feature" lista `feature_exists`, `feature_approved`, `blueprints_have_work_orders`, `work_orders_done` y `project_clean` con su detalle. Solo habilita el cierre cuando todos pasan.
 - [ ] En 375 px, la tabla se apila en filas legibles y el drawer ocupa la pantalla completa.
 
+### 4.4 Acceso y ajustes
+
+Antes de la línea hay una puerta: la persona entra a su organización, elige un proyecto y, si es admin, gestiona quién accede y cómo.
+
+**Casos de uso**
+- Julia escribe su email de trabajo, elige "Continuar con SSO" y la app la manda al proveedor de Centurion HQ. Después ve sus proyectos con la salud de cada línea y entra a prdmanager.
+- Ana invita a una persona como developer, crea un token de CI para la rama por defecto y exige SSO para toda la organización.
+
+**Criterios de aceptación**
+- [ ] El login ofrece SSO primero (email de trabajo, Google Workspace, Microsoft Entra ID) y "Usar email y contraseña" como alternativa. Credenciales inválidas muestran "Email o contraseña incorrectos" con cómo seguir, y el SSO muestra a qué proveedor redirige.
+- [ ] La selección de proyectos lista los proyectos de la organización con estado de la línea, drift, órdenes en curso, rol y última actividad, filtra activos y archivados, y se navega con teclado.
+- [ ] El sidebar tiene selector de proyecto y acceso a Ajustes, con subnavegación de proyecto, organización y cuenta.
+- [ ] Miembros permite cambiar el rol, quitar a otra persona (no a uno mismo), reenviar o revocar invitaciones e invitar con un modal que confirma "Invitación enviada". La matriz de roles coincide con los permisos del producto.
+- [ ] Tokens de CI muestra el secreto una sola vez al crearlo, con alcance, rama, vencimiento (máximo 90 días), último uso y revocación.
+- [ ] Autenticación y SSO configura proveedor OIDC o SAML, dominios verificados con su registro TXT, reglas de acceso (exigir SSO, alta automática con rol por defecto, acceso de emergencia) y "Probar conexión"; "Guardar cambios" confirma "Guardado".
+- [ ] Login, selección de proyectos y ajustes funcionan a 375 px.
+
 ## 5. Mapa de pantallas
 
 | Vista | Ruta | Qué resuelve |
@@ -135,8 +154,13 @@ La vista Órdenes lista las work orders con filtros, búsqueda y orden. El detal
 | Órdenes de trabajo | `/ordenes` | Encontrar, tomar y completar órdenes con su contexto |
 | Drift | `/drift` | Reporte oficial, previews por rama, historial, issues por tipo y reconocimiento |
 | Bandeja de entrada | `/entrada` | Triar feedback y artifacts nuevos y enlazarlos a una feature |
+| Login | `/login` | Entrar a la organización con SSO o contraseña |
+| Proyectos | `/proyectos` | Elegir proyecto viendo la salud de cada línea |
+| Ajustes · miembros | `/ajustes/miembros` | Roles, invitaciones y qué puede hacer cada rol |
+| Ajustes · tokens de CI | `/ajustes/tokens` | Crear, ver una vez y revocar tokens de CI |
+| Ajustes · autenticación y SSO | `/ajustes/sso` | Proveedor de identidad, dominios y reglas de acceso de la organización |
 
-Todas comparten el shell: sidebar en desktop, barra inferior en mobile, búsqueda global y selector de rol simulado.
+Las vistas de trabajo y los ajustes comparten el shell: sidebar con selector de proyecto en desktop, barra inferior en mobile, búsqueda global y selector de rol simulado. Login y Proyectos quedan fuera del shell de proyecto.
 
 ## 6. Flujos principales
 
@@ -207,9 +231,9 @@ Todas comparten el shell: sidebar en desktop, barra inferior en mobile, búsqued
 
 - **Canvas aprobado** por el usuario antes de escribir código de pantallas.
 - **Prueba de pasillo:** alguien que no conoce la app responde "¿dónde se frenó la línea y por qué?" en menos de 5 s desde la Planta.
-- **Criterios demostrables:** el 100 % de los criterios de 4.1, 4.2 y 4.3 se demuestra en el navegador sin backend.
-- **Estados:** las 7 vistas tienen estado cargando, vacío y error.
-- **Calidad medida:** Lighthouse Accessibility ≥ 95 en las 7 vistas, 0 fallos de contraste AA y 0 hex fuera de tokens.
+- **Criterios demostrables:** el 100 % de los criterios de 4.1 a 4.4 se demuestra en el navegador sin backend.
+- **Estados:** las vistas de trabajo tienen estado cargando, vacío y error.
+- **Calidad medida:** Lighthouse Accessibility ≥ 95 en todas las vistas, 0 fallos de contraste AA y 0 hex fuera de tokens.
 - **Verificación del paquete:** `npm run typecheck`, `npm test` y `npm run build` pasan dentro del paquete, y el drift del proyecto sigue en 0.
 
 ## 10. Orden de ejecución
@@ -217,7 +241,7 @@ Todas comparten el shell: sidebar en desktop, barra inferior en mobile, búsqued
 1. **Gobernanza.** Se registran FB-006, este PRD, ADR-007 (paquete aislado, estilos y fuentes) y SDD-011 (sistema visual, pantallas, datos, orquestación y tareas).
 2. **Canvas.** Tres direcciones de la Planta (Planta de acero, Sala de control, Pliego de cianotipo). El usuario elige una, se lleva a alta fidelidad con las 7 vistas y se itera hasta que la aprueba. Si cambian tokens o pantallas, se actualiza SDD-011.
 3. **Base.** Scaffold, tokens, datos mock, utilidades y componentes compartidos.
-4. **Pantallas.** Las siete vistas, implementadas en paralelo por órdenes capilares.
+4. **Pantallas.** Las vistas de trabajo, acceso y ajustes, implementadas en paralelo por órdenes capilares.
 5. **Revisión.** Code review, auditoría de accesibilidad, capturas a 1440 y 375 px y autocrítica, incluida la regla de sacar un elemento de más.
 6. **Cierre.** Todas las órdenes en `done`, drift en 0 y cierre humano con `prdm close PRD-006 --ack`.
 
@@ -226,6 +250,6 @@ Todas comparten el shell: sidebar en desktop, barra inferior en mobile, búsqued
 PRD-006 se cierra cuando se cumplen todas estas condiciones:
 
 - el usuario aprobó el canvas,
-- las siete vistas corren en `design/centurion-factory` con datos mock y cumplen los criterios de las tres features y la calidad no negociable,
+- todas las vistas corren en `design/centurion-factory` con datos mock y cumplen los criterios de 4.1 a 4.4 y la calidad no negociable,
 - todas las órdenes de ADR-007 y SDD-011 están en `done` con commits trazados,
 - `get_closure_readiness PRD-006` pasa sus cinco checks.

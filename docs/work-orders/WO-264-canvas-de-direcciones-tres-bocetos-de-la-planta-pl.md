@@ -2,7 +2,7 @@
 id: "WO-264"
 type: "WO"
 title: "Canvas de direcciones: tres bocetos de la Planta (Planta de acero, Sala de control, Pliego de cianotipo) con nota de tokens y crítica, guardado y compartido, hasta que el usuario elige dirección"
-status: "done"
+status: "out_of_sync"
 created_at: "2026-09-15"
 implements: ["SDD-011"]
 impacts_paths: ["design/centurion-factory/src/**","design/centurion-factory/tests/**","design/centurion-factory/scripts/**","design/centurion-factory/canvas/**","design/centurion-factory/CLAUDE.m[d]"]

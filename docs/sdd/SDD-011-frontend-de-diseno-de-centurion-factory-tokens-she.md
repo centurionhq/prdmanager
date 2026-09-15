@@ -31,7 +31,7 @@ Centurion Factory es una fábrica de software, y el diseño toma el vocabulario 
 - **Cianotipo:** el color de los blueprints (SDD y ADR, que literalmente lo son).
 - **Trazabilidad de lote:** la cadena Feedback/Artifact → Feature → Blueprint → WO → Commit → CodeRef.
 
-## Sistema visual (propuesta inicial; el canvas aprobado manda)
+## Sistema visual (aprobado en el canvas el 15/09/2026)
 
 ### Color
 
@@ -44,7 +44,26 @@ Centurion Factory es una fábrica de software, y el diseño toma el vocabulario 
 | `--senal` | `#1E7F4F` | OK, sincronizado, hecho |
 | `--paro` | `#B8322A` | Error, bloqueante |
 
-Neutros derivados: `--superficie #FBFCFB`, `--regla #C9CFCD`, `--apagado #565D63`. Todo par de texto se verifica contra WCAG AA (≥4.5:1, o ≥3:1 para texto grande) con un test.
+Tokens derivados, aprobados en el canvas:
+
+| Token | Hex | Rol |
+|---|---|---|
+| `--superficie` | `#FBFCFB` | Inputs, tablas seleccionadas, paneles |
+| `--regla` | `#C9CFCD` | Bordes y reglas principales |
+| `--regla-fila` | `#DDE1DF` | Separación entre filas, skeleton |
+| `--relleno` | `#F1F3F2` | Fondos sutiles (hover, segmentados) |
+| `--texto-secundario` | `#33383D` | Texto de cuerpo secundario |
+| `--apagado` | `#565D63` | Texto apagado, labels |
+| `--cianotipo-hover` | `#173C7A` | Hover de enlaces y primarios |
+| `--andon-texto` | `#7A5A00` | Texto de aviso sobre fondo claro, junto a un punto andon |
+| `--seleccion` | `#D5E0F1` | Selección de texto en el editor |
+| `--diff-quitado` / `--diff-agregado` | `#F6E3E1` / `#E1F0E8` | Diff de propuestas y líneas aceptadas |
+| `--linea-regla` / `--linea-apagado` / `--linea-texto` | `#2E3338` / `#8E979F` / `#C4CAD0` | Reglas y textos dentro de la banda de línea |
+| `--linea-hecho` / `--linea-pendiente` | `#6FCF9A` / `#3A4046` | Marcadores y segmentos dentro de la banda de línea |
+| `--sombra-overlay` | `0 12px 32px rgba(23,25,28,0.18)` | Modal, drawer y toast |
+| `--scrim` | `rgba(23,25,28,0.45)` | Fondo detrás de modales |
+
+Todo par de texto se verifica contra WCAG AA (≥4.5:1, o ≥3:1 para texto grande) con un test.
 
 ### Tipografía
 
@@ -64,8 +83,9 @@ Neutros derivados: `--superficie #FBFCFB`, `--regla #C9CFCD`, `--apagado #565D63
 
 La planta se lee de izquierda a derecha: las estaciones son columnas fijas y cada feature es una fila que avanza.
 
-- **Estructura:** grilla de 12 columnas, con las estaciones alineadas con las columnas de las tablas de abajo y un sidebar de 224 px.
-- **Mobile (375 px):** barra inferior con cinco destinos más "Más", y el tablero se apila en estaciones verticales.
+- **Estructura:** grilla de 12 columnas, con las estaciones alineadas con las columnas de las tablas de abajo y un sidebar de 224 px con wordmark, selector de proyecto (organización y proyecto), navegación de trabajo y, abajo, Ajustes y la persona.
+- **Mobile (375 px):** barra inferior de 64 px con Planta, Árbol, Docs, Órdenes, Drift y Más (activo con regla superior grafito), y el tablero se apila en estaciones verticales.
+- **Badges de estado:** placa de superficie con regla, texto de 12 px en el color del estado y un cuadrado de 8 px (lleno para estados activos, hueco para pendiente o borrador).
 
 ### Hero y motion
 
@@ -96,6 +116,8 @@ El canvas es la fuente de verdad visual, y su working set vive en `design/centur
 2. **Hi-fi:** las 7 vistas en desktop (1440×900); Planta, Documento y Órdenes en mobile (390×844); una página de componentes; y las interacciones clave clickeables.
 3. **Iteración hasta que el usuario aprueba.** Si cambian tokens o pantallas, este SDD se actualiza antes de implementar.
 
+**Resultado (aprobado el 15/09/2026):** dirección A. Las rondas de iteración agregaron el editor en vista previa con Markdown como segundo tab, y las pantallas de login con SSO, selección de proyectos y ajustes. El canvas vive en `design/centurion-factory/canvas/`; ante cualquier duda de medida, color o copy, manda el artboard.
+
 ## Pantallas
 
 | Ruta | Vista | Contenido |
@@ -103,10 +125,15 @@ El canvas es la fuente de verdad visual, y su working set vive en `design/centur
 | `/` | Planta | Tablero de línea, KPIs de `get_metrics`, drift reciente, órdenes activas |
 | `/arbol/:id?` | Árbol de features | Árbol navegable por teclado (`role="tree"`), panel de trazabilidad, modal "Cerrar feature" con los 5 checks de closure readiness |
 | `/documentos` | Documentos | Tabla con búsqueda, filtros (tipo, estado de flujo) y orden; modal "Nuevo documento" |
-| `/documentos/:id` | Documento | Editor Markdown, formulario de frontmatter, acciones de flujo, propuesta del agente con diff, comentarios, versiones y validación. "Guardar" muestra el toast "Guardado". |
+| `/documentos/:id` | Documento | Editor que abre en "Vista previa" editable (párrafo, título 1 a 3, negrita, cursiva, tachado, listas, tareas, enlace) con "Markdown" como segundo tab sincronizado; formulario de frontmatter, acciones de flujo, propuesta del agente con diff, comentarios, versiones y validación. "Guardar" muestra el toast "Guardado". |
 | `/ordenes` | Órdenes de trabajo | Filtros (estado, blueprint, agente o dev), búsqueda, orden, drawer de detalle, modales "Tomar orden" y "Completar" |
 | `/drift` | Drift | Reporte oficial, previews por rama, historial, issues por tipo y severidad, modal "Reconocer drift" |
 | `/entrada` | Bandeja de entrada | Feedback y artifacts, triage `new → triaged`, enlace a feature |
+| `/login` | Login | SSO primero (email de trabajo, Google Workspace, Microsoft Entra ID), contraseña como alternativa, estado de error y de redirección; sin shell |
+| `/proyectos` | Proyectos | Proyectos de la organización con mini línea de 6 estaciones, drift, órdenes en curso, rol y actividad; filtros activos/archivados; barra superior de organización, sin sidebar de proyecto |
+| `/ajustes/miembros` | Ajustes · miembros | Roles por persona, invitaciones pendientes, modal "Invitar persona" y matriz de permisos por rol |
+| `/ajustes/tokens` | Ajustes · tokens de CI | Secreto mostrado una vez, tabla de tokens con alcance, rama, vencimiento y revocación |
+| `/ajustes/sso` | Ajustes · autenticación y SSO | Proveedor OIDC/SAML, dominios verificados, reglas de acceso con toggles, probar conexión y guardar |
 
 ## Datos mock
 
@@ -200,3 +227,11 @@ Todo corre dentro de `design/centurion-factory`:
 - [ ] CLAUDE.md del paquete con tokens, escala de espaciado, convención de componentes, regla de nunca hardcodear hex, comandos y estados de demo
 - [ ] Correcciones de accesibilidad y responsive surgidas de la revisión (foco, contraste AA, 375px, teclado)
 - [ ] Pulido desde la autocrítica de capturas, incluida la regla de Chanel de sacar un elemento
+- [ ] Editor del documento en Vista previa editable como tab por defecto, con barra de formato (párrafo, título 1 a 3, negrita, cursiva, tachado, listas, tareas, enlace) y Markdown como segundo tab sincronizado, con tests
+- [ ] Selector de proyecto y acceso a Ajustes en el sidebar, y barra inferior mobile con Docs y Más
+- [ ] Login con SSO primero, alternativa de email y contraseña, estados de error y de redirección, en desktop y mobile, con tests
+- [ ] Selección de proyectos de la organización con mini línea, drift, órdenes en curso, rol, filtros de activos y archivados y foco por teclado, con tests
+- [ ] Shell de Ajustes con subnavegación de proyecto, organización y cuenta
+- [ ] Ajustes de miembros con cambio de rol, invitaciones pendientes, modal Invitar persona con toast y matriz de permisos por rol, con tests
+- [ ] Ajustes de tokens de CI con secreto mostrado una sola vez, alcance, rama, vencimiento y revocación
+- [ ] Ajustes de autenticación y SSO con proveedor OIDC o SAML, dominios verificados, reglas de acceso, probar conexión y Guardar cambios, con tests
