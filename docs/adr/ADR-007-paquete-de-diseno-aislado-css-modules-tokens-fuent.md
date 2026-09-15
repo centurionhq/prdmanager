@@ -1,6 +1,6 @@
 ---
 architects: ["PRD-006"]
-impacts_paths: ["design/centurion-factory/*.json","design/centurion-factory/*.config.ts","design/centurion-factory/index.htm[l]","design/centurion-factory/src/styles/**"]
+impacts_paths: ["design/centurion-factory/*.json","design/centurion-factory/*.config.ts","design/centurion-factory/index.htm[l]","design/centurion-factory/src/styles/**","design/centurion-factory/src/main.tsx","design/centurion-factory/tests/setup.ts","design/centurion-factory/tests/isolation.test.ts","design/centurion-factory/tests/fonts.test.ts"]
 tags: ["architecture-decision","design","frontend","mock"]
 id: "ADR-007"
 type: "ADR"

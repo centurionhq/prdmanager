@@ -12,7 +12,7 @@ assigned_to: "agent:claude"
 claimed_at: "2026-09-15T14:44:57.347Z"
 completed_at: "2026-09-15T14:46:18.038Z"
 resolved_by: ["6acdaafdc585fb39d317b9ce07095353718bdfde"]
-blueprint_hashes: {"ADR-007":"c25d8a138b8055e630fe69d36c75e55fb8efbde74222cdf73e57c6e10e3a2540"}
+blueprint_hashes: {"ADR-007":"38c26dbea160994ffd8638d7d18d22e5cfd8afe30315a46f9125cc680c21061f"}
 ---
 
 ## Objetivo
