@@ -5,8 +5,10 @@ tags: ["design","frontend","mock","canvas"]
 id: "PRD-006"
 type: "PRD"
 title: "Rediseño del frontend de Centurion Factory con datos mock"
-status: "approved"
+status: "closed"
 created_at: "2026-09-15"
+closed_at: "2026-09-15T19:07:28.110Z"
+closed_by: "dev:tano"
 ---
 
 ## 1. Visión
