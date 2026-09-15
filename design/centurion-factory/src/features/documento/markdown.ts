@@ -84,6 +84,128 @@ export function parseMarkdown(source: string): readonly ParsedLine[] {
     .filter((line): line is ParsedLine => line !== null);
 }
 
+// ── Inline formatting (WYSIWYG round-trip between Markdown and the contentEditable DOM) ────────
+
+type InlineNode =
+  | { readonly kind: 'text'; readonly value: string }
+  | { readonly kind: 'bold'; readonly children: readonly InlineNode[] }
+  | { readonly kind: 'italic'; readonly children: readonly InlineNode[] }
+  | { readonly kind: 'strike'; readonly children: readonly InlineNode[] }
+  | { readonly kind: 'link'; readonly href: string; readonly children: readonly InlineNode[] };
+
+const LINK_PATTERN = /^\[([^\]]*)\]\(([^)]*)\)/;
+
+/** Recursive-descent inline parser: `**`, `_`, `~~` and `[text](url)`, nestable inside each other. */
+function parseInline(source: string): readonly InlineNode[] {
+  const nodes: InlineNode[] = [];
+  let buffer = '';
+  let cursor = 0;
+
+  function flush(): void {
+    if (buffer) {
+      nodes.push({ kind: 'text', value: buffer });
+      buffer = '';
+    }
+  }
+
+  while (cursor < source.length) {
+    if (source.startsWith('**', cursor)) {
+      const close = source.indexOf('**', cursor + 2);
+      if (close !== -1) {
+        flush();
+        nodes.push({ kind: 'bold', children: parseInline(source.slice(cursor + 2, close)) });
+        cursor = close + 2;
+        continue;
+      }
+    }
+    if (source.startsWith('~~', cursor)) {
+      const close = source.indexOf('~~', cursor + 2);
+      if (close !== -1) {
+        flush();
+        nodes.push({ kind: 'strike', children: parseInline(source.slice(cursor + 2, close)) });
+        cursor = close + 2;
+        continue;
+      }
+    }
+    if (source[cursor] === '_') {
+      const close = source.indexOf('_', cursor + 1);
+      if (close !== -1) {
+        flush();
+        nodes.push({ kind: 'italic', children: parseInline(source.slice(cursor + 1, close)) });
+        cursor = close + 1;
+        continue;
+      }
+    }
+    if (source[cursor] === '[') {
+      const match = LINK_PATTERN.exec(source.slice(cursor));
+      if (match) {
+        flush();
+        nodes.push({ kind: 'link', href: match[2] ?? '', children: parseInline(match[1] ?? '') });
+        cursor += match[0].length;
+        continue;
+      }
+    }
+    buffer += source[cursor];
+    cursor += 1;
+  }
+  flush();
+  return nodes;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function escapeAttribute(value: string): string {
+  return escapeHtml(value).replace(/"/g, '&quot;');
+}
+
+function renderInlineNode(node: InlineNode): string {
+  if (node.kind === 'text') return escapeHtml(node.value);
+  const inner = node.children.map(renderInlineNode).join('');
+  if (node.kind === 'bold') return `<strong>${inner}</strong>`;
+  if (node.kind === 'italic') return `<em>${inner}</em>`;
+  if (node.kind === 'strike') return `<del>${inner}</del>`;
+  return `<a href="${escapeAttribute(node.href)}">${inner}</a>`;
+}
+
+/** A single block's plain Markdown text (may contain `**`/`_`/`~~`/links) to safe inline HTML. */
+export function inlineToHtml(text: string): string {
+  return parseInline(text)
+    .map(renderInlineNode)
+    .join('');
+}
+
+const INLINE_TAGS: Readonly<Record<string, string>> = {
+  STRONG: '**',
+  B: '**',
+  EM: '_',
+  I: '_',
+  DEL: '~~',
+  S: '~~',
+  STRIKE: '~~',
+};
+
+function domNodeToInline(node: ChildNode): string {
+  if (node.nodeType === 3 /* Node.TEXT_NODE */) return node.textContent ?? '';
+  if (node.nodeType !== 1 /* Node.ELEMENT_NODE */) return '';
+
+  const element = node as Element;
+  const inner = Array.from(element.childNodes).map(domNodeToInline).join('');
+  const marker = INLINE_TAGS[element.tagName];
+  if (marker) return `${marker}${inner}${marker}`;
+  if (element.tagName === 'A') return `[${inner}](${element.getAttribute('href') ?? ''})`;
+  if (element.tagName === 'BR') return '\n';
+  // Browsers sometimes wrap content in <div>/<p> (e.g. after Enter); flatten them.
+  return inner;
+}
+
+/** The inverse of `inlineToHtml`: a contentEditable block's `innerHTML` back to plain Markdown. */
+export function htmlToInline(html: string): string {
+  const parsedDocument = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  return Array.from(parsedDocument.body.childNodes).map(domNodeToInline).join('');
+}
+
 let nextGeneratedId = 0;
 
 /** Test-only escape hatch so id generation stays deterministic across unit tests. */

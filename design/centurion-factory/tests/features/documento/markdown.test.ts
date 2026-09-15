@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DocumentBlock } from '../../../src/data';
-import { parseLine, parseMarkdown, reconcileBlocks, serializeBlocks } from '../../../src/features/documento/markdown';
+import { htmlToInline, inlineToHtml, parseLine, parseMarkdown, reconcileBlocks, serializeBlocks } from '../../../src/features/documento/markdown';
 
 function block(id: string, type: DocumentBlock['type'], text: string, extra?: Partial<DocumentBlock>): DocumentBlock {
   return { id, type, text, author: 'ana-rios', ...extra };
@@ -106,6 +106,62 @@ describe('round-trip: serializeBlocks -> parseMarkdown', () => {
       const [parsed] = parseMarkdown(serializeBlocks([b]));
       expect(parsed).toEqual({ type: b.type, text: b.text, checked: b.checked });
     }
+  });
+});
+
+describe('inlineToHtml', () => {
+  it('renders bold, italic, strikethrough and links as real markup', () => {
+    expect(inlineToHtml('**negrita**')).toBe('<strong>negrita</strong>');
+    expect(inlineToHtml('_cursiva_')).toBe('<em>cursiva</em>');
+    expect(inlineToHtml('~~tachado~~')).toBe('<del>tachado</del>');
+    expect(inlineToHtml('[prdmanager](https://example.com)')).toBe('<a href="https://example.com">prdmanager</a>');
+  });
+
+  it('nests bold and italic', () => {
+    expect(inlineToHtml('**negrita _e itálica_**')).toBe('<strong>negrita <em>e itálica</em></strong>');
+  });
+
+  it('escapes < and & so raw markup never leaks into the DOM', () => {
+    expect(inlineToHtml('A < B & C')).toBe('A &lt; B &amp; C');
+    expect(inlineToHtml('**A < B & C**')).toBe('<strong>A &lt; B &amp; C</strong>');
+  });
+
+  it('leaves plain text untouched', () => {
+    expect(inlineToHtml('Texto normal sin formato.')).toBe('Texto normal sin formato.');
+  });
+});
+
+describe('htmlToInline', () => {
+  it('is the inverse of inlineToHtml for every supported mark', () => {
+    expect(htmlToInline('<strong>negrita</strong>')).toBe('**negrita**');
+    expect(htmlToInline('<em>cursiva</em>')).toBe('_cursiva_');
+    expect(htmlToInline('<del>tachado</del>')).toBe('~~tachado~~');
+    expect(htmlToInline('<a href="https://example.com">prdmanager</a>')).toBe('[prdmanager](https://example.com)');
+  });
+
+  it('un-escapes entities back to plain characters', () => {
+    expect(htmlToInline('A &lt; B &amp; C')).toBe('A < B & C');
+  });
+
+  it('flattens a stray wrapping <div> (some browsers add one on Enter)', () => {
+    expect(htmlToInline('<div>algo</div>')).toBe('algo');
+  });
+});
+
+describe('round-trip: inlineToHtml <-> htmlToInline', () => {
+  const samples = [
+    'Texto normal.',
+    '**negrita**',
+    '_cursiva_',
+    '~~tachado~~',
+    '[prdmanager](https://example.com)',
+    '**negrita _e itálica_** y **~~tachado~~** con [un link](https://prdmanager.dev)',
+    'Texto con < y & sin escapar en el modelo.',
+    'El paquete design/centurion-factory aísla el rediseño de packages/app y trabaja **solo con datos mock**.',
+  ];
+
+  it.each(samples)('recovers %s exactly', (text) => {
+    expect(htmlToInline(inlineToHtml(text))).toBe(text);
   });
 });
 

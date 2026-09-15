@@ -23,6 +23,36 @@ function firstButton(name: RegExp | string): HTMLElement {
   return firstOf(screen.getAllByRole('button', { name }));
 }
 
+/** The first contentEditable preview field whose rendered text contains `text`. */
+function firstFieldContaining(text: string): HTMLElement {
+  const field = screen
+    .getAllByRole('textbox')
+    .find((element) => element.textContent?.includes(text) && element.getAttribute('contenteditable') === 'true');
+  if (!field) throw new Error(`No contentEditable field contains: ${text}`);
+  return field;
+}
+
+function firstMarkdownTextarea(): HTMLTextAreaElement {
+  return firstOf(screen.getAllByLabelText('Fuente en Markdown del documento')) as HTMLTextAreaElement;
+}
+
+/** Selects the first occurrence of `needle` inside `container`'s text, like a user drag-select. */
+function selectTextWithin(container: HTMLElement, needle: string): void {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const index = (node.textContent ?? '').indexOf(needle);
+    if (index === -1) continue;
+    const range = document.createRange();
+    range.setStart(node, index);
+    range.setEnd(node, index + needle.length);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    return;
+  }
+  throw new Error(`Text not found in container: ${needle}`);
+}
+
 async function switchToMarkdown(user: ReturnType<typeof userEvent.setup>) {
   await user.click(firstTab('Markdown'));
 }
@@ -42,47 +72,55 @@ describe('Editor: preview/Markdown tabs', () => {
     expect(firstOf(screen.getAllByText(/Vista previa · \d+ bloques/))).toBeTruthy();
   });
 
-  it('changing a block to Título 2 updates the model and the Markdown source', async () => {
+  it('changing the focused block to Título 2 updates the model and the Markdown source', async () => {
     const user = userEvent.setup();
     renderAt('/documentos/SDD-011');
     await screen.findByText(/Versión 7/);
 
-    const field = firstOf(screen.getAllByDisplayValue(/El paquete design\/centurion-factory/)) as HTMLInputElement;
-    await user.click(field);
+    const field = firstFieldContaining('El paquete design/centurion-factory');
+    field.focus();
     await user.click(firstButton('Título 2'));
 
     expect(firstButton('Título 2').getAttribute('aria-pressed')).toBe('true');
 
     await switchToMarkdown(user);
-    const markdown = firstOf(screen.getAllByLabelText('Fuente en Markdown del documento')) as HTMLTextAreaElement;
-    expect(markdown.value).toContain('## El paquete design/centurion-factory');
+    expect(firstMarkdownTextarea().value).toContain('## El paquete design/centurion-factory');
   });
+});
 
-  it('Negrita on a selection wraps it in ** inside the block model', async () => {
+describe('Editor: WYSIWYG inline formatting', () => {
+  it('Negrita on a selection renders <strong>, never literal **, and serializes to ** in Markdown', async () => {
     const user = userEvent.setup();
     renderAt('/documentos/SDD-011');
     await screen.findByText(/Versión 7/);
 
-    const field = firstOf(screen.getAllByDisplayValue(/El paquete design\/centurion-factory/)) as HTMLInputElement;
-    await user.click(field);
-    const start = field.value.indexOf('solo con datos mock');
-    field.setSelectionRange(start, start + 'solo con datos mock'.length);
+    const field = firstFieldContaining('El paquete design/centurion-factory');
+    field.focus();
+    selectTextWithin(field, 'solo con datos mock');
 
     await user.click(firstButton('Negrita'));
 
-    expect(field.value).toContain('**solo con datos mock**');
+    expect(field.querySelector('strong')?.textContent).toBe('solo con datos mock');
+    expect(field.textContent).not.toContain('**');
+    expect(firstButton('Negrita').getAttribute('aria-pressed')).toBe('true');
+
+    await switchToMarkdown(user);
+    expect(firstMarkdownTextarea().value).toContain('**solo con datos mock**');
   });
 
-  it('editing the Markdown tab and switching back updates the preview', async () => {
+  it('editing the Markdown tab and switching back renders real formatting, not literal markup', async () => {
     const user = userEvent.setup();
     renderAt('/documentos/MRD-001');
     await screen.findByText(/Versión 3/);
 
     await switchToMarkdown(user);
-    const markdown = firstOf(screen.getAllByLabelText('Fuente en Markdown del documento')) as HTMLTextAreaElement;
-    await user.type(markdown, '\n\nUna línea nueva desde Markdown.');
+    const markdown = firstMarkdownTextarea();
+    await user.type(markdown, '\n\nUna línea con **negrita** desde Markdown.');
 
     await switchToPreview(user);
-    expect(firstOf(screen.getAllByDisplayValue('Una línea nueva desde Markdown.'))).toBeTruthy();
+
+    const field = firstFieldContaining('Una línea con negrita desde Markdown.');
+    expect(field.querySelector('strong')?.textContent).toBe('negrita');
+    expect(field.textContent).not.toContain('**');
   });
 });

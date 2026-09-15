@@ -1,10 +1,12 @@
 /**
- * Vista previa content (WO-300): each block is a controlled, single-line text field styled per
- * its type, with an author gutter (initials or the Agente mark) and a bullet/number/checkbox
- * marker. Keyboard-accessible per the shared convention: every control is a native form element.
+ * Vista previa content (WO-300 follow-up): each block is a `contentEditable` field rendering its
+ * inline Markdown as real formatting (bold/italic/strikethrough/links), never literal `**`/`_`/
+ * `~~`/`[]()`. The block model is always the source of truth: the DOM is only re-synced when the
+ * incoming `block.text` did not originate from this same field's own edit (see `Block` below).
  */
-import type { ChangeEvent, ReactElement } from 'react';
-import { getPerson, type DocumentBlock } from '../../data';
+import { useEffect, useRef, type KeyboardEvent, type ReactElement } from 'react';
+import { getPerson, type BlockType, type DocumentBlock } from '../../data';
+import { htmlToInline, inlineToHtml } from './markdown';
 import styles from './PreviewEditor.module.css';
 
 export interface PreviewEditorProps {
@@ -12,7 +14,9 @@ export interface PreviewEditorProps {
   readonly onFocusBlock: (id: string) => void;
   readonly onChangeText: (id: string, text: string) => void;
   readonly onToggleChecked: (id: string) => void;
-  readonly registerField: (id: string, element: HTMLInputElement | null) => void;
+  readonly onFormatShortcut: (marker: '**' | '_') => void;
+  readonly onSelectionChange: (blockId: string) => void;
+  readonly registerField: (id: string, element: HTMLDivElement | null) => void;
 }
 
 function gutterFor(block: DocumentBlock): { readonly text: string; readonly isAgent: boolean } {
@@ -29,7 +33,17 @@ function orderedNumberAt(blocks: readonly DocumentBlock[], index: number): numbe
   return count;
 }
 
-const TYPE_CLASS: Record<DocumentBlock['type'], string> = {
+const BLOCK_LABELS: Readonly<Record<BlockType, string>> = {
+  h1: 'Título 1',
+  h2: 'Título 2',
+  h3: 'Título 3',
+  p: 'Párrafo',
+  li: 'Elemento de lista',
+  ol: 'Elemento de lista numerada',
+  task: 'Texto de la tarea',
+};
+
+const TYPE_CLASS: Record<BlockType, string> = {
   h1: styles.h1 ?? '',
   h2: styles.h2 ?? '',
   h3: styles.h3 ?? '',
@@ -39,11 +53,82 @@ const TYPE_CLASS: Record<DocumentBlock['type'], string> = {
   task: styles.p ?? '',
 };
 
-export function PreviewEditor({ blocks, onFocusBlock, onChangeText, onToggleChecked, registerField }: PreviewEditorProps): ReactElement {
-  function handleChange(id: string, event: ChangeEvent<HTMLInputElement>): void {
-    onChangeText(id, event.target.value);
+interface BlockFieldProps {
+  readonly block: DocumentBlock;
+  readonly index: number;
+  readonly onFocusBlock: (id: string) => void;
+  readonly onChangeText: (id: string, text: string) => void;
+  readonly onFormatShortcut: (marker: '**' | '_') => void;
+  readonly onSelectionChange: (blockId: string) => void;
+  readonly registerField: (id: string, element: HTMLDivElement | null) => void;
+}
+
+/** One contentEditable field. Syncs from `block.text` only when the DOM disagrees with it. */
+function BlockField({ block, index, onFocusBlock, onChangeText, onFormatShortcut, onSelectionChange, registerField }: BlockFieldProps): ReactElement {
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const currentModelText = htmlToInline(element.innerHTML);
+    if (currentModelText !== block.text) {
+      element.innerHTML = inlineToHtml(block.text);
+    }
+    // Runs once on mount (initial paint) and again only when an external change updates block.text.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [block.text]);
+
+  function handleInput(): void {
+    const element = ref.current;
+    if (!element) return;
+    onChangeText(block.id, htmlToInline(element.innerHTML));
   }
 
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    if (!(event.ctrlKey || event.metaKey)) return;
+    if (event.key.toLowerCase() === 'b') {
+      event.preventDefault();
+      onFormatShortcut('**');
+    } else if (event.key.toLowerCase() === 'i') {
+      event.preventDefault();
+      onFormatShortcut('_');
+    }
+  }
+
+  return (
+    <div
+      id={`block-field-${block.id}`}
+      ref={(element) => {
+        ref.current = element;
+        registerField(block.id, element);
+      }}
+      role="textbox"
+      aria-multiline={false}
+      aria-label={`${BLOCK_LABELS[block.type]} ${index + 1}`}
+      contentEditable
+      suppressContentEditableWarning
+      className={`${styles.field} ${TYPE_CLASS[block.type]}`}
+      onFocus={() => {
+        onFocusBlock(block.id);
+        onSelectionChange(block.id);
+      }}
+      onInput={handleInput}
+      onKeyUp={() => onSelectionChange(block.id)}
+      onMouseUp={() => onSelectionChange(block.id)}
+      onKeyDown={handleKeyDown}
+    />
+  );
+}
+
+export function PreviewEditor({
+  blocks,
+  onFocusBlock,
+  onChangeText,
+  onToggleChecked,
+  onFormatShortcut,
+  onSelectionChange,
+  registerField,
+}: PreviewEditorProps): ReactElement {
   return (
     <div className={styles.content}>
       {blocks.map((block, index) => {
@@ -70,16 +155,14 @@ export function PreviewEditor({ blocks, onFocusBlock, onChangeText, onToggleChec
                 aria-label={`Tarea: ${block.text}`}
               />
             ) : null}
-            <label className="visually-hidden" htmlFor={`block-field-${block.id}`}>
-              {`Texto del bloque ${index + 1}`}
-            </label>
-            <input
-              id={`block-field-${block.id}`}
-              ref={(element) => registerField(block.id, element)}
-              className={`${styles.field} ${TYPE_CLASS[block.type]}`}
-              value={block.text}
-              onFocus={() => onFocusBlock(block.id)}
-              onChange={(event) => handleChange(block.id, event)}
+            <BlockField
+              block={block}
+              index={index}
+              onFocusBlock={onFocusBlock}
+              onChangeText={onChangeText}
+              onFormatShortcut={onFormatShortcut}
+              onSelectionChange={onSelectionChange}
+              registerField={registerField}
             />
           </div>
         );
