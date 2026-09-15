@@ -7,6 +7,7 @@
 import { applyLink, planLink, type LinkFileWrite, type OfflinePolicy } from '@prdm/core';
 import { CliError } from '../errors.js';
 import { loadCredentials } from './credentials.js';
+import { readLocalImportPayload, uploadImportPayload } from './import.js';
 import { resolveRemoteProject, type ResolveRemoteProjectDeps } from './mcp-client.js';
 import { parseServerUrl } from './server-url.js';
 
@@ -36,7 +37,6 @@ export function splitOrgProject(target: string): { org: string; project: string 
   return { org: parts[0]!, project: parts[1]! };
 }
 
-/** Everything but `--import` (WO-194 wires that in, once the importer exists). */
 export async function runLink(root: string, options: LinkOptions, deps: LinkIoDeps): Promise<LinkResult> {
   const { org, project } = splitOrgProject(options.target);
   const url = parseServerUrl(options.server);
@@ -46,6 +46,11 @@ export async function runLink(root: string, options: LinkOptions, deps: LinkIoDe
   if (!credential) throw new CliError(`not logged in to ${url.origin}; run "prdm login --server ${url.origin}" first`);
 
   const resolved = await resolveRemoteProject(url.origin, credential.token, org, project, { fetchImpl: deps.fetchImpl });
+
+  // Read (and client-side validate) the *current*, still-local `.prdm.yaml`/docs before `planLink`/
+  // `applyLink` below ever overwrites `.prdm.yaml` with the `version: 2` remote file — otherwise there
+  // would be nothing left of the original local project to import from.
+  const importPayload = options.import ? await readLocalImportPayload(root) : null;
 
   const plan = await planLink(root, {
     projectId: resolved.graphProjectId,
@@ -61,8 +66,8 @@ export async function runLink(root: string, options: LinkOptions, deps: LinkIoDe
   if (plan.writes.length === 0) deps.stdout('nothing to do: already linked');
   else for (const write of plan.writes) deps.stdout(`wrote ${write.path}`);
 
-  if (options.import) {
-    throw new CliError('--import is not implemented yet; run "prdm link" without it, then re-run once import support lands');
+  if (importPayload) {
+    await uploadImportPayload(importPayload, { server: url.origin, graphProjectId: resolved.graphProjectId, token: credential.token }, { stdout: deps.stdout, fetchImpl: deps.fetchImpl });
   }
 
   return { graphProjectId: resolved.graphProjectId, writes: plan.writes };

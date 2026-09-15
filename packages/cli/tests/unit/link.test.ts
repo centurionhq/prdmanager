@@ -2,7 +2,7 @@
  * `runLink` (SDD-010, WO-188): resolves `<org>/<project>` against a fake server exposing `GET
  * /api/v1/me` and the bare `POST /mcp`'s `list_projects` tool, then writes `.prdm.yaml` (version 2).
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -94,9 +94,12 @@ describe('runLink (SDD-010, WO-188)', () => {
     }
   });
 
-  test('--import is not implemented yet in this WO', async () => {
+  test('--import reads the local .prdm.yaml before it gets overwritten by the version 2 remote file', async () => {
+    // No local .prdm.yaml exists in this fixture root at all: --import must fail clearly, and must
+    // never get the chance to overwrite it with the remote link first.
     await expect(
       runLink(root, { server: baseUrl, target: 'acme/widgets', import: true }, { stdout: () => undefined, env: { XDG_CONFIG_HOME: xdgHome } }),
-    ).rejects.toThrow(/not implemented yet/);
+    ).rejects.toThrow(/\.prdm\.yaml not found/);
+    expect(existsSync(join(root, '.prdm.yaml'))).toBe(false);
   });
 });
