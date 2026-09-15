@@ -53,3 +53,4 @@ export * from './scaffold/mcp-config.js';
 export * from './scaffold/shell-quote.js';
 export * from './sync/commit-policy.js';
 export * from './sync/commit-policy-git.js';
+export * from './sync/policy-docs-source.js';
