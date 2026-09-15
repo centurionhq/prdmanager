@@ -27,7 +27,7 @@ import { OrgAjustesAuditoria } from './routes/OrgAjustesAuditoria.js';
 import { OrgMembersSettings } from './routes/OrgMembersSettings.js';
 import { OrgShell } from './routes/OrgShell.js';
 import { PersonalTokensSettings } from './routes/PersonalTokensSettings.js';
-import { PlantaPlaceholder } from './routes/PlantaPlaceholder.js';
+import { Planta } from './routes/Planta.js';
 import { ProjectGraph } from './routes/ProjectGraph.js';
 import { ProjectShell } from './routes/ProjectShell.js';
 import { ProjectsDashboard } from './routes/ProjectsDashboard.js';
@@ -55,7 +55,7 @@ export const routes: RouteObject[] = [
     path: '/o/:orgSlug/p/:projectSlug',
     element: <ProjectShell />,
     children: [
-      { index: true, element: <PlantaPlaceholder /> },
+      { index: true, element: <Planta /> },
       { path: 'arbol/:id?', element: <ProjectGraph /> },
       { path: 'documents', element: <DocumentsList /> },
       { path: 'documents/:docId', element: <DocumentDetail /> },
