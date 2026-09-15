@@ -66,6 +66,37 @@ export interface KeyboardMoveResult {
   readonly nextExpanded?: ReadonlySet<string>;
 }
 
+function moveToIndex(ids: readonly string[], index: number): KeyboardMoveResult | undefined {
+  const next = ids[index];
+  return next ? { nextFocusedId: next } : undefined;
+}
+
+/** Arrow Right: expands a collapsed branch in place, or moves into its already-expanded first child. */
+function expandOrMoveIntoChild(
+  row: VisibleRow | undefined,
+  focusedId: string,
+  features: readonly Feature[],
+  expanded: ReadonlySet<string>,
+): KeyboardMoveResult | undefined {
+  if (!row || !row.hasChildren) return undefined;
+  if (!expanded.has(focusedId)) {
+    return { nextFocusedId: focusedId, nextExpanded: new Set([...expanded, focusedId]) };
+  }
+  const firstChildId = features.find((feature) => feature.evolvesFrom === focusedId)?.id;
+  return firstChildId ? { nextFocusedId: firstChildId } : undefined;
+}
+
+/** Arrow Left: collapses an expanded branch in place, or moves up to its parent. */
+function collapseOrMoveToParent(focusedId: string, features: readonly Feature[], expanded: ReadonlySet<string>): KeyboardMoveResult | undefined {
+  if (expanded.has(focusedId)) {
+    const next = new Set(expanded);
+    next.delete(focusedId);
+    return { nextFocusedId: focusedId, nextExpanded: next };
+  }
+  const parentId = parentIdOf(features, focusedId);
+  return parentId ? { nextFocusedId: parentId } : undefined;
+}
+
 /**
  * Applies the ARIA treeview keyboard model for a single keydown: Arrow Up/Down move focus among
  * visible rows, Arrow Right expands or moves into the first child, Arrow Left collapses or moves
@@ -79,46 +110,11 @@ export function applyKeyboardMove(options: KeyboardMoveOptions): KeyboardMoveRes
   const index = ids.indexOf(focusedId);
   if (index === -1) return undefined;
 
-  if (key === 'ArrowDown') {
-    const next = ids[Math.min(index + 1, ids.length - 1)];
-    return next ? { nextFocusedId: next } : undefined;
-  }
-
-  if (key === 'ArrowUp') {
-    const next = ids[Math.max(index - 1, 0)];
-    return next ? { nextFocusedId: next } : undefined;
-  }
-
-  if (key === 'Home') {
-    const next = ids[0];
-    return next ? { nextFocusedId: next } : undefined;
-  }
-
-  if (key === 'End') {
-    const next = ids[ids.length - 1];
-    return next ? { nextFocusedId: next } : undefined;
-  }
-
-  if (key === 'ArrowRight') {
-    const row = rows[index];
-    if (!row) return undefined;
-    if (!row.hasChildren) return undefined;
-    if (!expanded.has(focusedId)) {
-      return { nextFocusedId: focusedId, nextExpanded: new Set([...expanded, focusedId]) };
-    }
-    const firstChildId = features.find((feature) => feature.evolvesFrom === focusedId)?.id;
-    return firstChildId ? { nextFocusedId: firstChildId } : undefined;
-  }
-
-  if (key === 'ArrowLeft') {
-    if (expanded.has(focusedId)) {
-      const next = new Set(expanded);
-      next.delete(focusedId);
-      return { nextFocusedId: focusedId, nextExpanded: next };
-    }
-    const parentId = parentIdOf(features, focusedId);
-    return parentId ? { nextFocusedId: parentId } : undefined;
-  }
-
+  if (key === 'ArrowDown') return moveToIndex(ids, Math.min(index + 1, ids.length - 1));
+  if (key === 'ArrowUp') return moveToIndex(ids, Math.max(index - 1, 0));
+  if (key === 'Home') return moveToIndex(ids, 0);
+  if (key === 'End') return moveToIndex(ids, ids.length - 1);
+  if (key === 'ArrowRight') return expandOrMoveIntoChild(rows[index], focusedId, features, expanded);
+  if (key === 'ArrowLeft') return collapseOrMoveToParent(focusedId, features, expanded);
   return undefined;
 }
