@@ -1,0 +1,283 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 960px; overflow: hidden; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+
+  <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
+      <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+      <div style="font-size: 13px; color: #565D63;">Proyecto prdmanager</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Planta</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Árbol de features</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600; font-size: 15px;">Documentos</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Órdenes de trabajo</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Drift <span class="num" style="min-width: 22px; height: 20px; padding: 0 6px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 12px; font-weight: 700; border-radius: 2px;">3</span></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Bandeja de entrada <span class="num" style="font-size: 13px; color: #565D63;">2</span></div>
+    </div>
+    <div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+      <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">AR</div>
+      <div style="display: flex; flex-direction: column;"><span style="font-size: 14px; font-weight: 600;">Ana Ríos</span><span style="font-size: 12px; color: #565D63;">Admin de proyecto</span></div>
+    </div>
+  </nav>
+
+  <main style="position: relative; display: flex; flex-direction: column; gap: 24px; padding: 24px 32px; min-width: 0; min-height: 0;">
+    <header style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 24px; height: 40px;">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #565D63;">
+          <a style="font-size: 14px;">Documentos</a>
+          <span>/</span>
+          <span class="id" style="color: #17191C;">SDD-011</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 14px; color: #565D63;">Editas como Admin de proyecto</span>
+          <div onClick="{{ onSave }}" style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px; cursor: pointer;">Guardar</div>
+          <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px; cursor: pointer;">Publicar</div>
+        </div>
+      </div>
+      <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em; white-space: nowrap;">Frontend de diseño de Centurion Factory</h1>
+      <div style="display: flex; align-items: center; gap: 12px; margin-top: 4px; height: 24px;">
+        <span style="height: 24px; display: inline-flex; align-items: center; padding: 0 8px; border-radius: 2px; font-size: 12px; font-weight: 600; background: #FBFCFB; border: 1px solid #1F4FA0; color: #1F4FA0;">En revisión</span>
+        <span style="font-size: 14px; color: #565D63;">{{ metaLine }}</span>
+      </div>
+    </header>
+
+    <section style="flex: 1; min-height: 0; display: grid; grid-template-columns: 280px minmax(0, 1fr) 360px; gap: 24px;">
+
+      <!-- Frontmatter -->
+      <div style="display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow: hidden;">
+        <h2 style="margin: 0; font-size: 16px; font-weight: 700; line-height: 24px;">Frontmatter</h2>
+        <label style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 14px; color: #565D63;">Título</span>
+          <div style="padding: 8px 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; line-height: 22px;">Frontend de diseño de Centurion Factory</div>
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 14px; color: #565D63;">Estado</span>
+          <div style="height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px;">
+            En revisión
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+          </div>
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 14px; color: #565D63;">Arquitecta de</span>
+          <div style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; min-width: 0;">
+            <span class="id" style="flex: none; color: #1F4FA0;">PRD-006</span>
+            <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Rediseño del frontend con datos mock</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M6 9l6 6 6-6"></path></svg>
+          </div>
+        </label>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 14px; color: #565D63;">Rutas impactadas <span class="id">impacts_paths</span></span>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px;">
+            <span class="id" style="height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #F1F3F2; border: 1px solid #DDE1DF; border-radius: 2px;">design/centurion-factory/**<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+            <span class="id" style="height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #F1F3F2; border: 1px solid #DDE1DF; border-radius: 2px;">packages/app/src/styles/**<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+            <span class="id" style="height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #F1F3F2; border: 1px solid #DDE1DF; border-radius: 2px;">packages/app/src/router.tsx<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+            <span style="height: 28px; display: inline-flex; align-items: center; padding: 0 4px; font-size: 14px; color: #1F4FA0;">Agregar ruta</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 14px; color: #565D63;">Tags</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px;">
+            <span style="height: 28px; display: inline-flex; align-items: center; padding: 0 8px; background: #F1F3F2; border: 1px solid #DDE1DF; border-radius: 2px; font-size: 14px;">diseño</span>
+            <span style="height: 28px; display: inline-flex; align-items: center; padding: 0 8px; background: #F1F3F2; border: 1px solid #DDE1DF; border-radius: 2px; font-size: 14px;">frontend</span>
+            <span style="height: 28px; display: inline-flex; align-items: center; padding: 0 8px; background: #F1F3F2; border: 1px solid #DDE1DF; border-radius: 2px; font-size: 14px;">datos mock</span>
+            <span style="height: 28px; display: inline-flex; align-items: center; padding: 0 4px; font-size: 14px; color: #1F4FA0;">Agregar tag</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px; padding-top: 12px; border-top: 1px solid #C9CFCD; font-size: 14px; color: #565D63;">
+          <span>Archivo <span class="id" style="color: #33383D;">docs/sdds/SDD-011.md</span></span>
+          <span>Versión 7 · autores Julia Paz y Ana Ríos</span>
+        </div>
+      </div>
+
+      <!-- Editor -->
+      <div style="display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+        <div style="height: 44px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid #C9CFCD;">
+          <div style="display: flex; align-items: center; gap: 2px; padding: 2px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px;">
+            <div style="height: 28px; display: flex; align-items: center; padding: 0 10px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600;">Markdown</div>
+            <div style="height: 28px; display: flex; align-items: center; padding: 0 10px; color: #33383D;">Vista previa</div>
+          </div>
+          <span style="font-size: 12px; color: #565D63;">Autoría por línea</span>
+        </div>
+        <div style="flex: 1; min-height: 0; overflow: hidden; padding: 8px 0;">
+          <sc-for list="{{ lines }}" as="line" hint-placeholder-count="18">
+            <div style="{{ line.rowStyle }}">
+              <div style="width: 60px; flex: none; display: flex; align-items: flex-start; padding-left: 8px;">
+                <sc-if value="{{ line.showPerson }}" hint-placeholder-val="{{ true }}">
+                  <span style="font-size: 12px; font-weight: 600; line-height: 22px; color: #565D63;">{{ line.author }}</span>
+                </sc-if>
+                <sc-if value="{{ line.isAgent }}" hint-placeholder-val="{{ false }}">
+                  <span style="margin-top: 3px; height: 16px; display: inline-flex; align-items: center; padding: 0 4px; border: 1px solid #C9CFCD; background: #F1F3F2; border-radius: 2px; font-size: 12px; line-height: 1; font-weight: 600; color: #33383D;">Agente</span>
+                </sc-if>
+              </div>
+              <div class="num" style="width: 28px; flex: none; padding-right: 10px; text-align: right; font-size: 12px; line-height: 22px; color: #565D63;">{{ line.n }}</div>
+              <div class="id" style="{{ line.textStyle }}">{{ line.text }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="height: 32px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-top: 1px solid #DDE1DF; font-size: 12px; color: #565D63;">
+          <span class="num">{{ lineCount }}</span>
+          <span>{{ saveStatus }}</span>
+        </div>
+      </div>
+
+      <!-- Panel -->
+      <div style="display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+        <div style="height: 44px; flex: none; display: flex; align-items: stretch; padding: 0 4px; border-bottom: 1px solid #C9CFCD; font-size: 14px;">
+          <div style="display: flex; align-items: center; padding: 0 7px; font-weight: 600; color: #17191C; border-bottom: 2px solid #17191C; margin-bottom: -1px;">Agente</div>
+          <div style="display: flex; align-items: center; gap: 4px; padding: 0 7px; color: #33383D;">Comentarios <span class="num">(2)</span></div>
+          <div style="display: flex; align-items: center; padding: 0 7px; color: #33383D;">Versiones</div>
+          <div style="display: flex; align-items: center; padding: 0 7px; color: #33383D;">Validación</div>
+        </div>
+
+        <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 24px; padding: 16px;">
+
+          <sc-if value="{{ isPending }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #C9CFCD; border-radius: 2px; background: #FBFCFB;">
+              <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #565D63;">
+                <span><span class="id" style="color: #33383D;">agent:claude</span> propone un cambio</span>
+                <span>hace 2 min</span>
+              </div>
+              <div style="font-size: 16px; font-weight: 600; line-height: 22px;">Agregar la tarea de capturas a 375 px</div>
+              <div style="display: flex; flex-direction: column; border: 1px solid #DDE1DF; border-radius: 2px; overflow: hidden;">
+                <div style="height: 28px; display: flex; align-items: center; padding: 0 8px; font-size: 12px; color: #565D63; background: #F1F3F2; border-bottom: 1px solid #DDE1DF;">Sección Tareas · línea 14</div>
+                <div class="id" style="display: flex; gap: 8px; padding: 4px 8px; line-height: 20px; background: #F6E3E1; color: #17191C;"><span style="flex: none; color: #B8322A; font-weight: 500;">-</span><span>- [ ] Revisión visual manual en mobile</span></div>
+                <div class="id" style="display: flex; gap: 8px; padding: 4px 8px; line-height: 20px; background: #E1F0E8; color: #17191C;"><span style="flex: none; color: #1E7F4F; font-weight: 500;">+</span><span>- [ ] Capturas de cada vista a 375 px</span></div>
+              </div>
+              <div style="display: flex; gap: 8px; margin-top: 4px;">
+                <div onClick="{{ onAccept }}" style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px; cursor: pointer;">Aceptar</div>
+                <div onClick="{{ onReject }}" style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px; cursor: pointer;">Rechazar</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isAccepted }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; gap: 10px; padding: 16px; border: 1px solid #C9CFCD; border-radius: 2px; background: #FBFCFB;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-size: 14px; font-weight: 600; line-height: 20px;">Aceptada · Agente (aceptado por Ana Ríos)</span>
+                <span style="font-size: 14px; color: #565D63;">La línea 14 ya está en el editor. Guarda para crear la versión 8.</span>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isRejected }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; gap: 10px; padding: 16px; border: 1px solid #C9CFCD; border-radius: 2px; background: #FBFCFB;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" style="flex: none;"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-size: 14px; font-weight: 600; line-height: 20px;">Rechazada</span>
+                <span style="font-size: 14px; color: #565D63;">El documento no cambió. Pide otra propuesta si la necesitas.</span>
+              </div>
+            </div>
+          </sc-if>
+
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <span style="font-size: 14px; font-weight: 600;">Pedir un cambio al agente</span>
+            <div style="height: 72px; padding: 8px 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; line-height: 20px; color: #565D63;">Describe qué debe cambiar en <span class="id">SDD-011</span></div>
+            <div style="display: flex; justify-content: flex-end;">
+              <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Enviar pedido</div>
+            </div>
+          </div>
+
+          
+        </div>
+      </div>
+    </section>
+
+    <div style="position: absolute; right: 32px; bottom: 24px;">
+      <sc-if value="{{ saved }}" hint-placeholder-val="{{ false }}">
+        <div role="status" style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px; background: #17191C; color: #FFFFFF; font-size: 14px; font-weight: 600; border-radius: 2px; box-shadow: 0 12px 32px rgba(23,25,28,0.18);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+          Guardado
+        </div>
+      </sc-if>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { saved: false, decision: 'pending' };
+  }
+
+  renderVals() {
+    const decision = this.state.decision;
+    const isAccepted = decision === 'accepted';
+    const baseRow = 'display: flex; align-items: flex-start; min-height: 22px; padding-right: 12px;';
+    const textBase = 'flex: 1; min-width: 0; white-space: pre-wrap; line-height: 22px; font-size: 12px;';
+
+    const source = [
+      { author: 'AR', text: '# Frontend de diseño de Centurion Factory', heading: true },
+      { author: 'AR', text: '' },
+      { author: 'AR', text: '## Contexto', heading: true },
+      { author: 'JP', text: 'El paquete design/centurion-factory aísla el rediseño de packages/app y trabaja solo con datos mock.' },
+      { author: 'JP', text: '' },
+      { author: 'JP', text: '## Decisiones', heading: true },
+      { author: 'JP', text: '- Archivo para todo el texto; IBM Plex Mono solo para ids, SHAs y rutas.' },
+      { author: 'AR', text: '- Tokens en tokens.css: color, tipo, espaciado, radios y motion.' },
+      { author: 'agent', text: '- Barra inferior mobile de 64 px con cinco destinos y Más.' },
+      { author: 'JP', text: '' },
+      { author: 'JP', text: '## Tareas', heading: true },
+      { author: 'AR', text: '- [ ] WO-267 tokens.css con color, tipo y espaciado' },
+      { author: 'AR', text: '- [ ] WO-275 Router y AppShell con skip link' },
+      isAccepted
+        ? { author: 'agent', text: '- [ ] Capturas de cada vista a 375 px', added: true }
+        : { author: 'JP', text: '- [ ] Revisión visual manual en mobile' },
+      { author: 'JP', text: '- [ ] Tests de accesibilidad con axe en cada vista' },
+      { author: 'JP', text: '' },
+      { author: 'AR', text: '## Riesgos', heading: true },
+      { author: 'AR', text: '- Portar a packages/app implica retematizar el Stark HUD.' }
+    ];
+
+    const lines = source.map((line, index) => {
+      const isAgent = line.author === 'agent';
+      return {
+        n: String(index + 1),
+        text: line.text,
+        author: isAgent ? '' : line.author,
+        isAgent: isAgent,
+        showPerson: !isAgent && line.text !== '',
+        rowStyle: baseRow + (line.added ? ' background: #E1F0E8;' : ''),
+        textStyle: textBase + (line.heading ? ' font-weight: 500; color: #17191C;' : ' color: #33383D;')
+      };
+    });
+
+    return {
+      lines: lines,
+      lineCount: 'Markdown · ' + lines.length + ' líneas',
+      saveStatus: this.state.saved ? 'Guardado ahora por Ana Ríos' : 'Cambios sin guardar',
+      metaLine: this.state.saved
+        ? 'Guardado por Ana Ríos ahora · arquitecta de PRD-006'
+        : 'Editado por Julia Paz hace 9 min · arquitecta de PRD-006',
+      saved: this.state.saved,
+      isPending: decision === 'pending',
+      isAccepted: isAccepted,
+      isRejected: decision === 'rejected',
+      onSave: () => this.setState({ saved: true }),
+      onAccept: () => this.setState({ decision: 'accepted' }),
+      onReject: () => this.setState({ decision: 'rejected' })
+    };
+  }
+}
+</script>
+</body>
+</html>

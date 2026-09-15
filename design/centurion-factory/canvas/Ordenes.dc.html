@@ -1,0 +1,261 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 960px; overflow: hidden; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+
+  <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
+      <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+      <div style="font-size: 13px; color: #565D63;">Proyecto prdmanager</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Planta</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Árbol de features</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Documentos</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600; font-size: 15px;">Órdenes de trabajo</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Drift <span class="num" style="min-width: 22px; height: 20px; padding: 0 6px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 12px; font-weight: 700; border-radius: 2px;">3</span></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Bandeja de entrada <span class="num" style="font-size: 13px; color: #565D63;">2</span></div>
+    </div>
+    <div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+      <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">AR</div>
+      <div style="display: flex; flex-direction: column;"><span style="font-size: 14px; font-weight: 600;">Ana Ríos</span><span style="font-size: 12px; color: #565D63;">Admin de proyecto</span></div>
+    </div>
+  </nav>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 440px; min-width: 0; height: 960px;">
+
+    <main style="display: flex; flex-direction: column; gap: 24px; padding: 24px 32px; min-width: 0;">
+      <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;">
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+          <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em; white-space: nowrap;">Órdenes de trabajo</h1>
+          <div style="font-size: 14px; color: #565D63;">40 órdenes en 16 blueprints</div>
+        </div>
+        <div style="flex: none; width: 200px; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; color: #565D63; font-size: 14px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          Buscar órdenes
+        </div>
+      </header>
+
+      <section style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <sc-for list="{{ chips }}" as="chip" hint-placeholder-count="6">
+            <button type="button" onClick="{{ chip.pick }}" style="{{ chip.style }}">{{ chip.label }} <span class="num" style="{{ chip.countStyle }}">{{ chip.count }}</span></button>
+          </sc-for>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <div style="width: 200px; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">
+            Blueprint: todos
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+          </div>
+          <div style="width: 200px; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">
+            Asignada a: todos
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+          </div>
+        </div>
+      </section>
+
+      <section style="display: flex; flex-direction: column;">
+        <div style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 60px 120px 104px 80px; column-gap: 12px; padding: 8px; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD;">
+          <div>Orden</div><div>Título</div><div>Blueprint</div><div>Estado</div><div>Asignada a</div><div style="text-align: right;">Actualizada</div>
+        </div>
+        <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ true }}">
+          <sc-for list="{{ rows }}" as="row" hint-placeholder-count="10">
+            <div style="{{ row.rowStyle }}">
+              <div class="id">{{ row.id }}</div>
+              <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ row.title }}</div>
+              <div class="id" style="color: #1F4FA0;">{{ row.blueprint }}</div>
+              <div><span style="{{ row.badgeStyle }}"><span style="{{ row.markStyle }}"></span>{{ row.statusLabel }}</span></div>
+              <div style="{{ row.assigneeStyle }}">{{ row.assignee }}</div>
+              <div class="num" style="text-align: right; color: #565D63; white-space: nowrap;">{{ row.updated }}</div>
+            </div>
+          </sc-for>
+          <div class="num" style="padding: 12px 8px 0; font-size: 13px; color: #565D63;">{{ footer }}</div>
+        </sc-if>
+        <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 48px 8px; border-bottom: 1px solid #DDE1DF;">
+            <div style="font-size: 20px; font-weight: 700;">Ninguna orden coincide con estos filtros.</div>
+            <div style="font-size: 14px; line-height: 20px; color: #565D63; max-width: 440px;">No tenés órdenes tomadas en este proyecto. Quitá los filtros para ver las 40 órdenes.</div>
+            <button type="button" onClick="{{ resetFilters }}" style="margin-top: 8px; height: 40px; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-family: inherit; font-size: 14px; font-weight: 600; color: #17191C; cursor: pointer;">Quitar filtros</button>
+          </div>
+        </sc-if>
+      </section>
+    </main>
+
+    <aside style="position: relative; z-index: 1; height: 960px; display: flex; flex-direction: column; background: #FBFCFB; border-left: 1px solid #C9CFCD; box-shadow: 0 12px 32px rgba(23,25,28,0.18);">
+      <div style="display: flex; flex-direction: column; gap: 12px; padding: 20px 24px 16px; border-bottom: 1px solid #DDE1DF;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #565D63;"><span class="id" style="color: #17191C;">WO-310</span>·<span class="id" style="color: #1F4FA0;">FR-002</span>·<span class="id" style="color: #1F4FA0;">SDD-012</span></div>
+          <div style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 2px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg>
+          </div>
+        </div>
+        <h2 style="margin: 0; font-size: 28px; line-height: 1.12; font-weight: 800; font-stretch: 112%; letter-spacing: -0.01em;">Resumen del importador en la CLI</h2>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #B8322A;"><span style="width: 8px; height: 8px; background: #B8322A;"></span>Fuera de sincronía</span>
+          <span style="font-size: 14px; color: #565D63;">Asignada a <span class="id" style="color: #17191C;">agent:claude</span></span>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: baseline; padding: 12px; background: #F1F3F2; border-radius: 2px; font-size: 14px; line-height: 20px; color: #33383D;">
+          <span style="flex: none; width: 8px; height: 8px; background: #B8322A;"></span>
+          <span><span class="id">SDD-012</span> cambió el 15/09 a las 10:02. Revisá los criterios antes de retomar.</span>
+        </div>
+      </div>
+
+      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 24px;">
+        <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px 0; border-bottom: 1px solid #DDE1DF;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Objetivo</h3>
+          <p style="margin: 0; font-size: 14px; line-height: 20px; color: #33383D;">Al terminar una importación, la CLI muestra cuántos archivos entraron nuevos, cambiaron, se borraron o se omitieron, y cuánto tardó el escaneo.</p>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px 0; border-bottom: 1px solid #DDE1DF;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Criterios de aceptación</h3>
+          <div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 20px;">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <span style="flex: none; margin-top: 2px; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; background: #1E7F4F; border-radius: 2px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg></span>
+              <span style="color: #33383D;">El resumen separa archivos nuevos, modificados, borrados y omitidos</span>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <span style="flex: none; margin-top: 2px; width: 16px; height: 16px; border: 1px solid #C9CFCD; background: #FBFCFB; border-radius: 2px;"></span>
+              <span>Los conteos coinciden con la tabla de hashes que define <span class="id">SDD-012</span></span>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <span style="flex: none; margin-top: 2px; width: 16px; height: 16px; border: 1px solid #C9CFCD; background: #FBFCFB; border-radius: 2px;"></span>
+              <span>Commit con el trailer <span class="id">Refs: WO-310</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 0; border-bottom: 1px solid #DDE1DF;">
+          <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 700;">Código gobernado</h3>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0;">
+            <span class="id" style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">packages/cli/src/commands/import.ts</span>
+            <span style="flex: none; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #1E7F4F; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #1E7F4F;"></span>Sincronizado</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0;">
+            <span class="id" style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">packages/server/src/import/scan.ts</span>
+            <span style="flex: none; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #B8322A; font-weight: 600;"><span style="width: 8px; height: 8px; background: #B8322A;"></span>Fuera de sincronía</span>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 0;">
+          <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 700;">Commits</h3>
+          <div style="display: grid; grid-template-columns: 64px minmax(0, 1fr); column-gap: 12px; row-gap: 2px; padding: 6px 0; font-size: 14px;">
+            <span class="id" style="color: #1F4FA0; line-height: 20px;">3c1a5af</span>
+            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Agrega el resumen de importación a la CLI</span>
+            <span></span>
+            <span style="font-size: 13px; color: #565D63;"><span class="id">agent:claude</span> · 14/09/2026</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; padding: 16px 24px 24px; border-top: 1px solid #DDE1DF;">
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Retomar orden</div>
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Ver blueprint</div>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { filter: 'all' };
+  }
+
+  renderVals() {
+    const filters = [
+      { key: 'all', label: 'Todas', count: 40, total: 40 },
+      { key: 'pending', label: 'Pendientes', count: 26, total: 26 },
+      { key: 'in_progress', label: 'En curso', count: 9, total: 9 },
+      { key: 'out_of_sync', label: 'Fuera de sincronía', count: 3, total: 3 },
+      { key: 'done', label: 'Hechas', count: 2, total: 2 },
+      { key: 'mine', label: 'Tomadas por mí', count: 0, total: 0 }
+    ];
+
+    const orders = [
+      { id: 'WO-304', title: 'Escaneo incremental por hash de archivo', blueprint: 'SDD-012', status: 'in_progress', assignee: 'agent:claude', updated: 'hace 4 min' },
+      { id: 'WO-310', title: 'Resumen del importador en la CLI', blueprint: 'SDD-012', status: 'out_of_sync', assignee: 'agent:claude', updated: 'hace 12 min' },
+      { id: 'WO-307', title: 'Reintento de subida con idempotencia', blueprint: 'SDD-012', status: 'in_progress', assignee: 'dev:martin', updated: 'hace 38 min' },
+      { id: 'WO-311', title: 'Test de importación de 2.000 documentos', blueprint: 'SDD-012', status: 'pending', assignee: '', updated: 'hace 2 h' },
+      { id: 'WO-276', title: 'Componentes StatusBadge, IdTag, Skeleton, EmptyState y ErrorState, con tests', blueprint: 'SDD-011', status: 'pending', assignee: '', updated: 'hace 3 h' },
+      { id: 'WO-277', title: 'DataTable con encabezados ordenables y aria-sort…', blueprint: 'SDD-011', status: 'pending', assignee: '', updated: 'hace 3 h' },
+      { id: 'WO-275', title: 'Router con createBrowserRouter y AppShell con sidebar desktop, barra inferior mobile, skip link y título por ruta, con tests', blueprint: 'SDD-011', status: 'pending', assignee: '', updated: 'hace 3 h' },
+      { id: 'WO-267', title: 'tokens.css con color, tipografía, espaciado, radios y motion…', blueprint: 'SDD-011', status: 'pending', assignee: '', updated: 'hace 3 h' },
+      { id: 'WO-301', title: 'Tabla de hashes por archivo en Postgres', blueprint: 'SDD-012', status: 'done', assignee: 'agent:claude', updated: '12/09/2026' },
+      { id: 'WO-302', title: 'Detección de archivos borrados', blueprint: 'SDD-012', status: 'done', assignee: 'agent:deepseek', updated: '11/09/2026' }
+    ];
+
+    const badgeBase = 'height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap;';
+    const badges = {
+      pending: { label: 'Pendiente', style: badgeBase + ' color: #33383D;', mark: 'width: 8px; height: 8px; border: 1.5px solid #565D63;' },
+      in_progress: { label: 'En curso', style: badgeBase + ' color: #1F4FA0;', mark: 'width: 8px; height: 8px; background: #1F4FA0;' },
+      out_of_sync: { label: 'Fuera de sincronía', style: badgeBase + ' color: #B8322A;', mark: 'width: 8px; height: 8px; background: #B8322A;' },
+      done: { label: 'Hecha', style: badgeBase + ' color: #1E7F4F;', mark: 'width: 8px; height: 8px; background: #1E7F4F;' }
+    };
+
+    const current = filters.find((f) => f.key === this.state.filter) || filters[0];
+    const matches = (order) => {
+      if (current.key === 'all') return true;
+      if (current.key === 'mine') return false;
+      return order.status === current.key;
+    };
+
+    const chipBase = 'height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 2px; font-family: inherit; font-size: 14px; cursor: pointer; white-space: nowrap;';
+    const chips = filters.map((f) => {
+      const isSelected = f.key === current.key;
+      return {
+        label: f.label,
+        count: f.count,
+        style: isSelected
+          ? chipBase + ' background: #17191C; color: #E9ECEB; border: 1px solid #17191C; font-weight: 600;'
+          : chipBase + ' background: #FBFCFB; color: #17191C; border: 1px solid #C9CFCD; font-weight: 400;',
+        countStyle: isSelected ? 'font-size: 13px; color: #C9CFCD;' : 'font-size: 13px; color: #565D63;',
+        pick: () => this.setState({ filter: f.key })
+      };
+    });
+
+    const rowBase = 'display: grid; grid-template-columns: 56px minmax(0, 1fr) 60px 120px 104px 80px; column-gap: 12px; align-items: center; padding: 10px 8px; border-bottom: 1px solid #DDE1DF; font-size: 14px;';
+    const rows = orders.filter(matches).map((o) => ({
+      id: o.id,
+      title: o.title,
+      blueprint: o.blueprint,
+      statusLabel: badges[o.status].label,
+      badgeStyle: badges[o.status].style,
+      markStyle: badges[o.status].mark,
+      assignee: o.assignee || 'Sin asignar',
+      assigneeStyle: o.assignee
+        ? "font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+        : 'white-space: nowrap; color: #565D63;',
+      updated: o.updated,
+      rowStyle: o.id === 'WO-310' ? rowBase + ' background: #FBFCFB;' : rowBase
+    }));
+
+    return {
+      chips,
+      rows,
+      hasRows: rows.length > 0,
+      isEmpty: rows.length === 0,
+      footer: 'Mostrando ' + rows.length + ' de ' + current.total + ' órdenes',
+      resetFilters: () => this.setState({ filter: 'all' })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 960px; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+
+  <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
+      <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+      <div style="font-size: 13px; color: #565D63;">Proyecto prdmanager</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Planta</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Árbol de features</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Documentos</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Órdenes de trabajo</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Drift <span class="num" style="min-width: 22px; height: 20px; padding: 0 6px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 12px; font-weight: 700; border-radius: 2px;">3</span></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600; font-size: 15px;">Bandeja de entrada <span class="num" style="font-size: 13px; color: #565D63;">2</span></div>
+    </div>
+    <div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+      <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">AR</div>
+      <div style="display: flex; flex-direction: column;"><span style="font-size: 14px; font-weight: 600;">Ana Ríos</span><span style="font-size: 12px; color: #565D63;">Admin de proyecto</span></div>
+    </div>
+  </nav>
+
+  <main style="display: flex; flex-direction: column; gap: 24px; padding: 24px 32px; min-width: 0; min-height: 0;">
+    <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Bandeja de entrada</h1>
+        <div style="font-size: 14px; color: #565D63;">Feedback y artifacts que todavía no justifican una feature</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Registrar feedback</div>
+      </div>
+    </header>
+
+    <section style="flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 32px;">
+      <div style="display: flex; flex-direction: column; min-width: 0;">
+        <div role="tablist" style="display: flex; gap: 24px; border-bottom: 1px solid #C9CFCD;">
+          <div role="tab" aria-selected="true" style="height: 40px; display: flex; align-items: center; font-size: 14px; font-weight: 600; border-bottom: 2px solid #17191C; margin-bottom: -1px;">Sin triar <span class="num" style="margin-left: 4px;">(2)</span></div>
+          <div role="tab" style="height: 40px; display: flex; align-items: center; font-size: 14px; color: #565D63;">Triados</div>
+          <div role="tab" style="height: 40px; display: flex; align-items: center; font-size: 14px; color: #565D63;">Artifacts</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; padding: 16px; margin-top: 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+          <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; column-gap: 16px; align-items: start;">
+            <span class="id" style="padding-top: 3px;">FB-007</span>
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+              <span style="font-size: 16px; font-weight: 600;">Los developers quieren ver el drift de su rama antes del merge</span>
+              <span style="display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 14px; color: #565D63;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><path d="M9 4L7 20M17 4l-2 16M4 9h16M3 15h16"></path></svg>
+                Slack, Equipo plataforma
+                <span style="color: #C9CFCD;">·</span>
+                <span class="num">hace 3 d</span>
+              </span>
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #7A5A00; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #F5C400;"></span>Lleva 3 días sin triar</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="height: 32px; display: flex; align-items: center; padding: 0 12px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px; white-space: nowrap;">Enlazar a feature</div>
+              <div style="height: 32px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px; white-space: nowrap;">Crear feature request</div>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 16px; margin: 16px 0 0 88px;">
+            <blockquote style="margin: 0; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; background: #F1F3F2; border-radius: 2px;">
+              <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #33383D;">En la daily de plataforma pidieron poder correr el chequeo de drift sobre su rama antes de abrir el merge. Hoy se enteran cuando el reporte de CI de <span class="id">main</span> ya falló y tienen que volver atrás. Les alcanzaría con ver en la PR qué órdenes y qué archivos quedarían fuera de sincronía.</p>
+              <span style="font-size: 12px; color: #565D63;">Mensaje en #plataforma, 12/09/2026</span>
+            </blockquote>
+
+            <div style="display: flex; flex-direction: column;">
+              <h3 style="margin: 0 0 4px; font-size: 14px; font-weight: 700;">Candidatas</h3>
+              <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr) 160px; column-gap: 16px; align-items: center; padding: 10px 0; border-top: 1px solid #C9CFCD; border-bottom: 1px solid #DDE1DF;">
+                <span class="id">FR-003</span>
+                <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                  <span style="font-size: 14px; font-weight: 600;">Avisos de drift por rama <span style="margin-left: 6px; font-size: 12px; font-weight: 600; color: #1F4FA0;">Mejor coincidencia</span></span>
+                  <span style="font-size: 14px; color: #565D63;">menciona drift por rama</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;"><span style="flex: 1; height: 2px; background: #DDE1DF; display: flex;"><span style="width: 92%; height: 2px; background: #1F4FA0;"></span></span><span class="num" style="font-size: 12px; color: #33383D; width: 28px; text-align: right;">0,92</span></div>
+              </div>
+              <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr) 160px; column-gap: 16px; align-items: center; padding: 10px 0; border-bottom: 1px solid #DDE1DF;">
+                <span class="id">PRD-004</span>
+                <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                  <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Explorador web del Feature Tree y del drift</span>
+                  <span style="font-size: 14px; color: #565D63;">menciona drift, pero la feature está cerrada</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;"><span style="flex: 1; height: 2px; background: #DDE1DF; display: flex;"><span style="width: 61%; height: 2px; background: #565D63;"></span></span><span class="num" style="font-size: 12px; color: #33383D; width: 28px; text-align: right;">0,61</span></div>
+              </div>
+              <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr) 160px; column-gap: 16px; align-items: center; padding: 10px 0; border-bottom: 1px solid #DDE1DF;">
+                <a class="id">SDD-010</a>
+                <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                  <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">MCP remoto, sync de developers e importador</span>
+                  <span style="font-size: 14px; color: #565D63;">menciona sync de developers</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;"><span style="flex: 1; height: 2px; background: #DDE1DF; display: flex;"><span style="width: 44%; height: 2px; background: #565D63;"></span></span><span class="num" style="font-size: 12px; color: #33383D; width: 28px; text-align: right;">0,44</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; column-gap: 16px; align-items: start; padding: 16px 17px; border-bottom: 1px solid #DDE1DF;">
+          <span class="id" style="padding-top: 3px;">FB-008</span>
+          <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+            <span style="font-size: 16px; font-weight: 600;">El importador tarda 9 minutos en repos grandes</span>
+            <span style="display: flex; align-items: center; gap: 6px; font-size: 14px; color: #565D63;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="1"></rect><path d="M3 7l9 6 9-6"></path></svg>
+              Email, Equipo de datos
+              <span style="color: #C9CFCD;">·</span>
+              <span class="num">hace 1 d</span>
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="height: 32px; display: flex; align-items: center; padding: 0 12px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px; white-space: nowrap;">Enlazar a feature</div>
+            <div style="height: 32px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px; white-space: nowrap;">Crear feature request</div>
+          </div>
+        </div>
+
+        <h2 style="margin: 32px 0 0; padding-bottom: 8px; font-size: 14px; font-weight: 600; color: #565D63; border-bottom: 1px solid #C9CFCD;">Triados recientemente</h2>
+        <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; column-gap: 16px; align-items: start; padding: 16px 17px; border-bottom: 1px solid #DDE1DF; color: #565D63;">
+          <span class="id" style="padding-top: 3px;">FB-006</span>
+          <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+            <span style="font-size: 16px;">Cuesta ver de un vistazo qué feature está parada y por qué</span>
+            <span style="display: flex; align-items: center; gap: 6px; font-size: 14px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"></circle><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5"></path><path d="M16 5.5a3 3 0 010 5M21 19c0-2.2-1.4-3.9-3.5-4.6"></path></svg>
+              Reunión, Dirección de producto
+              <span style="color: #C9CFCD;">·</span>
+              <span class="num">10/09/2026</span>
+            </span>
+          </div>
+          <span style="font-size: 14px; padding-top: 3px;">Informa a <span class="id" style="color: #33383D;">PRD-006</span></span>
+        </div>
+      </div>
+
+      <aside style="display: flex; flex-direction: column; gap: 12px; padding-left: 32px; border-left: 1px solid #C9CFCD;">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 700;">Cómo llega lo nuevo</h2>
+        <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #33383D;">Los asistentes lo registran por MCP con <span class="id">submit_feedback</span> mientras trabajan.</p>
+        <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #33383D;">Desde la terminal, cualquier persona del equipo corre <span class="id">prdm feedback add</span>.</p>
+      </aside>
+    </section>
+  </main>
+</div>
+</x-dc>
+</body>
+</html>

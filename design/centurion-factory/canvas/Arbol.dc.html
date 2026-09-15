@@ -1,0 +1,284 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<div style="position: relative; overflow: hidden; width: 1440px; height: 960px; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+
+  <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
+      <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+      <div style="font-size: 13px; color: #565D63;">Proyecto prdmanager</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Planta</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600; font-size: 15px;">Árbol de features</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Documentos</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Órdenes de trabajo</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Drift <span class="num" style="min-width: 22px; height: 20px; padding: 0 6px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 12px; font-weight: 700; border-radius: 2px;">3</span></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Bandeja de entrada <span class="num" style="font-size: 13px; color: #565D63;">2</span></div>
+    </div>
+    <div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+      <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">AR</div>
+      <div style="display: flex; flex-direction: column;"><span style="font-size: 14px; font-weight: 600;">Ana Ríos</span><span style="font-size: 12px; color: #565D63;">Admin de proyecto</span></div>
+    </div>
+  </nav>
+
+  <main style="display: flex; flex-direction: column; gap: 24px; padding: 24px 32px; min-width: 0; min-height: 0;">
+    <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Árbol de features</h1>
+        <div style="font-size: 14px; color: #565D63;">De la visión de mercado a cada feature request de prdmanager</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 320px; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; color: #565D63; font-size: 14px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          Buscar por id o título
+        </div>
+      </div>
+    </header>
+
+    <section style="flex: 1; min-height: 0; display: grid; grid-template-columns: 420px minmax(0, 1fr); border-top: 1px solid #C9CFCD;">
+
+      <div style="display: flex; flex-direction: column; gap: 12px; padding: 16px 24px 0 0; border-right: 1px solid #C9CFCD; min-width: 0;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; font-size: 14px;">
+          <span style="color: #565D63;"><span class="num">10</span> features, <span class="num">4</span> cerradas</span>
+          <a style="font-size: 14px;">Contraer todo</a>
+        </div>
+
+        <div role="tree" style="display: flex; flex-direction: column;">
+          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
+            <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">MRD-001</span>
+            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mercado: contexto de producto para asistentes de código</span>
+          </div>
+
+          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">PRD-001</span>
+            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Product &amp; Context Graph Engine para Asistentes de Código</span>
+          </div>
+
+          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+            <span class="id" style="flex: none; margin-left: 6px; color: #565D63;">PRD-002</span>
+            <span style="margin-left: 10px; font-size: 14px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Multi-Project Governance &amp; Conversational Authoring</span>
+          </div>
+
+          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; height: 20px;"></span>
+            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">FR-001</span>
+            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Persistencia stateful de borradores</span>
+          </div>
+
+          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; height: 20px;"></span>
+            <span class="id" style="flex: none; margin-left: 6px; color: #565D63;">PRD-003</span>
+            <span style="margin-left: 10px; font-size: 14px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Parser de símbolos con Tree-sitter</span>
+          </div>
+
+          <div aria-selected="true" style="position: relative; z-index: 1; display: flex; align-items: center; height: 36px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; outline: 2px solid #1F4FA0; outline-offset: 2px; min-width: 0;">
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; height: 20px;"></span>
+            <span class="id" style="flex: none; margin-left: 6px; color: #565D63;">PRD-004</span>
+            <span style="margin-left: 10px; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Explorador web del Feature Tree y del drift</span>
+          </div>
+
+          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+            <span class="id" style="flex: none; margin-left: 6px; color: #565D63;">PRD-005</span>
+            <span style="margin-left: 10px; font-size: 14px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Plataforma SaaS colaborativa de PRDs</span>
+          </div>
+
+          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; height: 20px;"></span>
+            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">PRD-006</span>
+            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Rediseño del frontend de Centurion Factory con datos mock</span>
+          </div>
+
+          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; height: 20px;"></span>
+            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">FR-002</span>
+            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Importador incremental de repositorios</span>
+            <span title="Drift activo" style="flex: none; margin-left: auto; padding-left: 12px; display: flex; align-items: center;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #F5C400;"></span></span>
+          </div>
+
+          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; height: 20px;"></span>
+            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">FR-003</span>
+            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Avisos de drift por rama</span>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid #DDE1DF; font-size: 12px; color: #565D63;">
+          <span>Las features cerradas se muestran atenuadas.</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #F5C400;"></span>Tiene drift abierto</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 32px; padding: 16px 0 0 32px; min-width: 0;">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;">
+          <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span class="id" style="color: #565D63;">PRD-004</span>
+              <span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #565D63;"><span style="width: 8px; height: 8px; background: #565D63;"></span>Cerrada</span>
+            </div>
+            <h2 style="margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; font-stretch: 112%; letter-spacing: -0.01em;">Explorador web del Feature Tree y del drift</h2>
+            <div style="font-size: 14px; color: #565D63;">Hija de <span class="id">PRD-002</span>. Cerrada el 28/08/2026 por Ana Ríos</div>
+          </div>
+          <div style="flex: none; height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Ver cierre de feature</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Trazabilidad</h3>
+          <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));">
+            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-right: 12px;">
+              <div style="display: flex; align-items: center; height: 8px; margin-right: -12px;"><span style="flex: none; width: 8px; height: 8px; background: #17191C;"></span><span style="flex: 1; height: 1px; background: #C9CFCD; margin-left: 8px;"></span></div>
+              <span style="font-size: 14px; color: #565D63;">Origen</span>
+              <span class="id" style="font-size: 14px;">FB-004</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-right: 12px;">
+              <div style="display: flex; align-items: center; height: 8px; margin-right: -12px;"><span style="flex: none; width: 8px; height: 8px; background: #17191C;"></span><span style="flex: 1; height: 1px; background: #C9CFCD; margin-left: 8px;"></span></div>
+              <span style="font-size: 14px; color: #565D63;">Feature</span>
+              <span class="id" style="font-size: 14px;">PRD-004</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-right: 12px;">
+              <div style="display: flex; align-items: center; height: 8px; margin-right: -12px;"><span style="flex: none; width: 8px; height: 8px; background: #17191C;"></span><span style="flex: 1; height: 1px; background: #C9CFCD; margin-left: 8px;"></span></div>
+              <span style="font-size: 14px; color: #565D63;">Blueprints</span>
+              <span style="display: flex; flex-direction: column; gap: 2px;"><a class="id" style="font-size: 14px;">ADR-004</a><a class="id" style="font-size: 14px;">SDD-005</a></span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-right: 12px;">
+              <div style="display: flex; align-items: center; height: 8px; margin-right: -12px;"><span style="flex: none; width: 8px; height: 8px; background: #17191C;"></span><span style="flex: 1; height: 1px; background: #C9CFCD; margin-left: 8px;"></span></div>
+              <span style="font-size: 14px; color: #565D63;">Órdenes</span>
+              <span class="num" style="font-size: 16px; font-weight: 600;">37 hechas</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-right: 12px;">
+              <div style="display: flex; align-items: center; height: 8px; margin-right: -12px;"><span style="flex: none; width: 8px; height: 8px; background: #17191C;"></span><span style="flex: 1; height: 1px; background: #C9CFCD; margin-left: 8px;"></span></div>
+              <span style="font-size: 14px; color: #565D63;">Commits</span>
+              <span class="num" style="font-size: 16px; font-weight: 600;">41 con Refs</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+              <div style="display: flex; align-items: center; height: 8px;"><span style="flex: none; width: 8px; height: 8px; background: #1E7F4F;"></span></div>
+              <span style="font-size: 14px; color: #565D63;">Código</span>
+              <span class="num" style="font-size: 16px; font-weight: 600; color: #1E7F4F;">212 referencias sincronizadas</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: baseline; justify-content: space-between;"><h3 style="margin: 0; font-size: 16px; font-weight: 700;">Órdenes recientes de <span class="id" style="font-size: 16px; font-weight: 500; color: #1F4FA0;">SDD-005</span></h3><a style="font-size: 14px;">Ver las 37 órdenes</a></div>
+          <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr) 96px 80px 96px; font-size: 14px;">
+            <div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Orden</div><div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Título</div><div style="padding: 8px 0 8px 16px; color: #565D63; border-bottom: 1px solid #C9CFCD;">Estado</div><div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Commit</div><div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD; text-align: right;">Hecha</div>
+
+            <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">WO-069</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">DriftBanner y resaltado de nodos con drift en el canvas usando apply-drift</div><div style="padding: 8px 0 8px 16px; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Hecha</span></div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">3e1a9c4</div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">27/08/2026</div>
+
+            <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">WO-066</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Panel de detalle de nodo con cadena de trazabilidad y enlaces a órdenes</div><div style="padding: 8px 0 8px 16px; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Hecha</span></div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">b72f0d1</div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">25/08/2026</div>
+
+            <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">WO-064</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">GraphCanvas con layout, encuadre y botón Actualizar preservando pan y zoom</div><div style="padding: 8px 0 8px 16px; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Hecha</span></div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">91c4e5a</div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">22/08/2026</div>
+
+            <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">WO-061</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Endpoint del Subgraph filtrado por estado y profundidad, y sus tests</div><div style="padding: 8px 0 8px 16px; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Hecha</span></div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">5d08b3f</div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">20/08/2026</div>
+
+            <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">WO-058</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Función pura to-elements de Subgraph a elementos de Cytoscape, y sus tests</div><div style="padding: 8px 0 8px 16px; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Hecha</span></div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">e4a61c9</div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">18/08/2026</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div style="position: absolute; inset: 0; z-index: 10; background: rgba(23,25,28,0.45); display: flex; align-items: center; justify-content: center;">
+    <div role="dialog" aria-modal="true" aria-labelledby="cerrar-feature-titulo" style="width: 520px; display: flex; flex-direction: column; background: #FBFCFB; border-radius: 2px; box-shadow: 0 12px 32px rgba(23,25,28,0.18);">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px 24px 16px;">
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+          <h2 id="cerrar-feature-titulo" style="margin: 0; font-size: 20px; font-weight: 700; font-stretch: 112%;">Cerrar feature</h2>
+          <div style="font-size: 14px; color: #33383D;"><span class="id">FR-001</span> Persistencia stateful de borradores</div>
+        </div>
+        <div aria-label="Cerrar" style="flex: none; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 2px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; padding: 0 24px;">
+        <div style="font-size: 14px; color: #565D63; padding-bottom: 8px; border-bottom: 1px solid #C9CFCD;">Cuatro de cinco checks pasan</div>
+
+        <div style="display: grid; grid-template-columns: 20px 216px minmax(0, 1fr); column-gap: 12px; align-items: start; padding: 12px 0; border-bottom: 1px solid #DDE1DF;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+          <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; font-weight: 600;">La feature existe</span><span class="id" style="color: #565D63;">feature_exists</span></div>
+          <div style="font-size: 14px; color: #33383D;"><span class="id">FR-001</span> existe</div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 20px 216px minmax(0, 1fr); column-gap: 12px; align-items: start; padding: 12px 0; border-bottom: 1px solid #DDE1DF;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+          <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; font-weight: 600;">Está aprobada</span><span class="id" style="color: #565D63;">feature_approved</span></div>
+          <div style="font-size: 14px; color: #33383D;">Estado approved</div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 20px 216px minmax(0, 1fr); column-gap: 12px; align-items: start; padding: 12px 0; border-bottom: 1px solid #DDE1DF;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+          <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; font-weight: 600;">Cada blueprint tiene órdenes</span><span class="id" style="color: #565D63;">blueprints_have_work_orders</span></div>
+          <div style="font-size: 14px; color: #33383D;"><a class="id">SDD-003</a> tiene 4 órdenes</div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 20px 216px minmax(0, 1fr); column-gap: 12px; align-items: start; padding: 12px 0; border-bottom: 1px solid #DDE1DF;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+          <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; font-weight: 600;">Todas las órdenes están hechas</span><span class="id" style="color: #565D63;">work_orders_done</span></div>
+          <div class="num" style="font-size: 14px; color: #33383D;">4 de 4 hechas</div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 20px 216px minmax(0, 1fr); column-gap: 12px; align-items: start; padding: 12px 0; border-bottom: 1px solid #C9CFCD;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B8322A" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+          <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; font-weight: 600; color: #B8322A;">El proyecto no tiene drift</span><span class="id" style="color: #565D63;">project_clean</span></div>
+          <div style="font-size: 14px; color: #B8322A;">Hay 3 errores de drift en el proyecto. Reconocelos o resolvelos antes de cerrar.</div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px 24px;">
+        <span style="font-size: 12px; color: #565D63;">Se habilita cuando pasan los cinco checks</span>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Cancelar</div>
+          <div aria-disabled="true" style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #DDE1DF; color: #565D63; font-weight: 600; font-size: 14px; border-radius: 2px;">Cerrar feature</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

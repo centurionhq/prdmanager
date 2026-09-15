@@ -1,0 +1,170 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 960px; overflow: hidden; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+
+  <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
+      <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+      <div style="font-size: 13px; color: #565D63;">Proyecto prdmanager</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Planta</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Árbol de features</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600; font-size: 15px;">Documentos</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Órdenes de trabajo</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Drift <span class="num" style="min-width: 22px; height: 20px; padding: 0 6px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 12px; font-weight: 700; border-radius: 2px;">3</span></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Bandeja de entrada <span class="num" style="font-size: 13px; color: #565D63;">2</span></div>
+    </div>
+    <div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+      <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">AR</div>
+      <div style="display: flex; flex-direction: column;"><span style="font-size: 14px; font-weight: 600;">Ana Ríos</span><span style="font-size: 12px; color: #565D63;">Admin de proyecto</span></div>
+    </div>
+  </nav>
+
+  <main style="display: flex; flex-direction: column; gap: 24px; padding: 24px 32px; min-width: 0;">
+    <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Documentos</h1>
+        <div style="font-size: 14px; color: #565D63;">Mercado, producto, feature requests, blueprints, decisiones, feedback y artefactos de prdmanager</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 320px; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; color: #565D63; font-size: 14px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          Buscar por id o título
+        </div>
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Nuevo documento</div>
+      </div>
+    </header>
+
+    <section style="display: flex; align-items: center; gap: 12px;">
+      <div style="height: 40px; display: flex; align-items: center; gap: 2px; padding: 3px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px;">
+        <div style="height: 32px; display: flex; align-items: center; padding: 0 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600;">Todos</div>
+        <div style="height: 32px; display: flex; align-items: center; padding: 0 14px; color: #33383D;">MRD</div>
+        <div style="height: 32px; display: flex; align-items: center; padding: 0 14px; color: #33383D;">PRD</div>
+        <div style="height: 32px; display: flex; align-items: center; padding: 0 14px; color: #33383D;">FR</div>
+        <div style="height: 32px; display: flex; align-items: center; padding: 0 14px; color: #33383D;">SDD</div>
+        <div style="height: 32px; display: flex; align-items: center; padding: 0 14px; color: #33383D;">ADR</div>
+        <div style="height: 32px; display: flex; align-items: center; padding: 0 14px; color: #33383D;">FB</div>
+        <div style="height: 32px; display: flex; align-items: center; padding: 0 14px; color: #33383D;">ART</div>
+      </div>
+      <div style="width: 220px; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px;">
+        Todos los estados
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+      </div>
+    </section>
+
+    <section style="display: grid; grid-template-columns: 112px 136px minmax(0, 1fr) 150px 150px 130px; font-size: 14px;">
+      <div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Id</div>
+      <div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Tipo</div>
+      <div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Título</div>
+      <div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Estado de flujo</div>
+      <div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Validación</div>
+      <div style="padding: 8px 0; color: #17191C; font-weight: 600; border-bottom: 1px solid #C9CFCD; display: flex; align-items: center; justify-content: flex-end; gap: 4px;">Actualizado <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#17191C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"></path></svg></div>
+
+      <!-- MRD-001 -->
+      <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">MRD-001</div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; color: #33383D;">Mercado</div>
+      <div style="padding: 10px 16px 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mercado: contexto de producto para asistentes de código</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Publicado</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; gap: 6px; color: #565D63;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Sin errores</div>
+      <div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; justify-content: flex-end; color: #565D63;">hace 2 min</div>
+
+      <!-- PRD-006 -->
+      <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">PRD-006</div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; color: #33383D;">Producto</div>
+      <div style="padding: 10px 16px 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Rediseño del frontend de Centurion Factory con datos mock</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Publicado</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; gap: 6px; color: #565D63;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Sin errores</div>
+      <div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; justify-content: flex-end; color: #565D63;">hace 4 min</div>
+
+      <!-- SDD-011 -->
+      <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; color: #1F4FA0;">SDD-011</div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; color: #33383D;">Blueprint</div>
+      <div style="padding: 10px 16px 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Frontend de diseño de Centurion Factory</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #1F4FA0;"><span style="width: 8px; height: 8px; background: #1F4FA0;"></span>En revisión</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; gap: 6px; color: #565D63;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Sin errores</div>
+      <div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; justify-content: flex-end; color: #565D63;">hace 9 min</div>
+
+      <!-- SDD-012 -->
+      <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; color: #1F4FA0;">SDD-012</div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; color: #33383D;">Blueprint</div>
+      <div style="padding: 10px 16px 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Importador incremental por hash</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Publicado</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; gap: 6px; color: #565D63;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Sin errores</div>
+      <div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; justify-content: flex-end; color: #565D63;">hace 12 min</div>
+
+      <!-- FR-002 -->
+      <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">FR-002</div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; color: #33383D;">Feature request</div>
+      <div style="padding: 10px 16px 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Importador incremental de repositorios</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Publicado</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; gap: 6px; color: #565D63;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Sin errores</div>
+      <div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; justify-content: flex-end; color: #565D63;">hace 1 h</div>
+
+      <!-- FR-003 -->
+      <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">FR-003</div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; color: #33383D;">Feature request</div>
+      <div style="padding: 10px 16px 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Avisos de drift por rama</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #33383D;"><span style="width: 8px; height: 8px; border: 1.5px solid #565D63;"></span>Borrador</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; gap: 6px; color: #B8322A; font-weight: 600;"><span style="width: 8px; height: 8px; background: #B8322A;"></span>2 errores</div>
+      <div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; justify-content: flex-end; color: #565D63;">hace 3 h</div>
+
+      <!-- ADR-007 -->
+      <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">ADR-007</div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; color: #33383D;">Decisión</div>
+      <div style="padding: 10px 16px 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Paquete de diseño aislado</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #1F4FA0;"><span style="width: 8px; height: 8px; background: #1F4FA0;"></span>En revisión</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; gap: 6px; color: #565D63;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Sin errores</div>
+      <div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; justify-content: flex-end; color: #565D63;">ayer</div>
+
+      <!-- PRD-005 -->
+      <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; color: #565D63;">PRD-005</div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; color: #565D63;">Producto</div>
+      <div style="padding: 10px 16px 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; min-width: 0; color: #565D63;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Plataforma SaaS colaborativa de PRDs</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #565D63;"><span style="width: 8px; height: 8px; background: #C9CFCD;"></span>Archivado</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; gap: 6px; color: #565D63;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Sin errores</div>
+      <div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; justify-content: flex-end; color: #565D63;">13/09/2026</div>
+
+      <!-- FB-007 -->
+      <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">FB-007</div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; color: #33383D;">Feedback</div>
+      <div style="padding: 10px 16px 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Los developers quieren ver el drift de su rama antes del merge</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #33383D;"><span style="width: 8px; height: 8px; border: 1.5px solid #565D63;"></span>Borrador</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; gap: 6px; color: #565D63;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Sin errores</div>
+      <div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; justify-content: flex-end; color: #565D63;">12/09/2026</div>
+
+      <!-- ART-004 -->
+      <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">ART-004</div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; color: #33383D;">Artefacto</div>
+      <div style="padding: 10px 16px 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Notas de la reunión de arquitectura del 12/09</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Publicado</span></div>
+      <div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; gap: 6px; color: #565D63;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Sin errores</div>
+      <div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center; justify-content: flex-end; color: #565D63;">12/09/2026</div>
+    </section>
+
+    <footer style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+      <span class="num" style="font-size: 14px; color: #565D63;">20 documentos · mostrando 10</span>
+      <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Mostrar 10 más</div>
+    </footer>
+  </main>
+</div>
+</x-dc>
+</body>
+</html>
