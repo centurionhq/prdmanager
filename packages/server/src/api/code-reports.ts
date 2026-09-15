@@ -23,7 +23,7 @@
  * not.
  */
 import { randomUUID } from 'node:crypto';
-import { codeReportRequestSchema, MAX_CODE_REPORT_BODY_BYTES, projectSettingsSchema, type CodeReportResponse } from '@prdm/contracts';
+import { codeReportRequestSchema, GITHUB_OIDC_TOKEN_HEADER, MAX_CODE_REPORT_BODY_BYTES, projectSettingsSchema, type CodeReportResponse } from '@prdm/contracts';
 import { detectDrift, emptyBaseline, scanContents, sha256, type Baseline, type Neo4jGraphDatabase } from '@prdm/core';
 import {
   consumeForcePushOverride,
@@ -43,10 +43,6 @@ import { codeReportToDriftInput } from '../engine/code-report-adapter.js';
 import { evaluateBaselineGate } from '../engine/baseline-gate.js';
 import { requireNeo4j, resolvePgProjectEngine } from '../engine/resolve-pg-project-engine.js';
 import { NotFoundError, ValidationError } from '../errors.js';
-
-/** SDD-010 doesn't pin an exact header name for "the OIDC token is attached" — a judgment call for
- * this WO, documented here so it's easy to find/revise. */
-const GITHUB_OIDC_TOKEN_HEADER = 'x-prdm-github-oidc-token';
 
 declare module 'fastify' {
   interface FastifyRequest {

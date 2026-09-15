@@ -1,10 +1,12 @@
 import type { Command } from 'commander';
 import { watch } from 'chokidar';
+import { detectProjectFileMode } from '@prdm/core';
 import { formatRefreshReport, summarizeRefresh } from '../format.js';
 import { CliError, messageOf } from '../errors.js';
 import { createDebouncedRunner } from '../scheduler.js';
 import { withContext, type CliDeps } from '../program.js';
 import { assertLocalMutationAllowed } from '../remote/guard.js';
+import { runRemoteSync } from '../remote/sync.js';
 import { createIgnoreMatcher } from '../watch-ignore.js';
 
 const DEFAULT_DEBOUNCE_MS = 300;
@@ -16,6 +18,11 @@ function parseDebounce(value: string): number {
 }
 
 async function runSync(deps: CliDeps, options: { check?: boolean; json?: boolean }): Promise<void> {
+  const mode = detectProjectFileMode(deps.root);
+  if (mode.kind === 'remote') {
+    await runRemoteSync(deps.root, mode.file, options, { stdout: deps.stdout, env: process.env });
+    return;
+  }
   await withContext(deps, async (ctx) => {
     const report = await ctx.engine.refresh();
     deps.stdout(options.json ? JSON.stringify(report, null, 2) : formatRefreshReport(report));

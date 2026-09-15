@@ -79,6 +79,14 @@ export function parseRefs(message: string): string[] {
   return [...refs];
 }
 
+/** The current branch name, or `null` in detached HEAD (or outside a git repo) — a remote-mode caller
+ * (SDD-010, WO-195) falls back to whatever its CI provider's own env vars say in that case. */
+export async function currentBranch(root: string): Promise<string | null> {
+  if (!(await isGitRepo(root))) return null;
+  const name = (await git(root, ['branch', '--show-current']))?.trim();
+  return name && name.length > 0 ? name : null;
+}
+
 export async function dirtyPaths(root: string): Promise<Set<string>> {
   if (!(await isGitRepo(root))) return new Set();
   const prefix = await repoPrefix(root);

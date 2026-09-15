@@ -181,9 +181,13 @@ function mergeFolders(docsDir: string, overrides: Partial<FolderMap>): FolderMap
 }
 
 /** Same shape as `rawProjectFileSchema`'s `folders`/`ignore`/`git`/`triage`/`lifecycle` fields, minus
- * `version`/`project`/`docs_dir`/`authoring` — what a server's `governance` response (SDD-010, WO-190)
- * carries (`@prdm/contracts`'s `projectSettingsSchema`, which mirrors this exact snake_case shape). */
-const governedSubsetSchema = z.strictObject({
+ * `version`/`project`/`docs_dir`/`authoring` — the subset of a server's `governance` response (SDD-010,
+ * WO-190) this function actually validates. Deliberately NOT `z.strictObject`: the full response
+ * (`@prdm/contracts`'s `projectSettingsSchema`) also carries `default_branch`/`github_repository*`/
+ * `hash_algo_version`, which are real, legitimate fields this function was never asked to validate (they
+ * have no `.prdm.yaml` counterpart to hold them to the same rules) — rejecting them here would mean this
+ * "validate the subset" function can never be pointed at the actual full object it's a subset of. */
+const governedSubsetSchema = z.object({
   folders: z.strictObject(folderShape).prefault({}),
   ignore: z.array(z.string().min(1)).default([]),
   git: gitFileSchema,

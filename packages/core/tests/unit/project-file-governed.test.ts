@@ -27,8 +27,14 @@ describe('parseGovernedSettings (SDD-010, WO-190)', () => {
     expect(settings.folders.SDD).toBe('docs/sdd');
   });
 
-  test('rejects an unknown field (strict schema, same rules as .prdm.yaml)', () => {
-    expect(() => parseGovernedSettings({ ...validRaw(), extra: 'nope' })).toThrow(/invalid governed settings/);
+  test('allows (ignores) top-level fields outside the .prdm.yaml subset, e.g. hash_algo_version', () => {
+    // The real payload this validates is the server's *full* governance settings object, which legitimately
+    // carries fields with no .prdm.yaml counterpart (hash_algo_version, default_branch, github_repository*).
+    expect(() => parseGovernedSettings({ ...validRaw(), hash_algo_version: 1, default_branch: 'main' })).not.toThrow();
+  });
+
+  test('still rejects an unknown field inside a validated sub-object (same strict rules as .prdm.yaml)', () => {
+    expect(() => parseGovernedSettings({ ...validRaw(), git: { ...validRaw().git as object, bogus: true } })).toThrow(/invalid governed settings/);
   });
 
   test('rejects a folder path that escapes its docsDir prefix', () => {

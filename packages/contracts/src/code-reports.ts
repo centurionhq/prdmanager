@@ -22,6 +22,11 @@ const HASH64_PATTERN = /^[0-9a-f]{64}$/;
  * itself) — a judgment call, generous enough for any realistic report, well short of exhausting a
  * request handler's memory. */
 export const MAX_CODE_REPORT_BODY_BYTES = 2 * 1024 * 1024;
+
+/** SDD-010 doesn't pin an exact header name for "the GitHub Actions OIDC token is attached" — a
+ * judgment call for WO-180/WO-195, shared here (rather than declared separately by the server route and
+ * the CLI that sends it) so both sides can never drift apart on the literal string. */
+export const GITHUB_OIDC_TOKEN_HEADER = 'x-prdm-github-oidc-token';
 export const MAX_GOVERNED_BLUEPRINTS = 5000;
 export const MAX_REFS_PER_BLUEPRINT = 2000;
 export const MAX_GOVERNED_WARNINGS = 2000;
@@ -87,6 +92,7 @@ export const codeReportIssueSchema = z.strictObject({
   target: z.string().optional(),
   message: z.string(),
 });
+export type CodeReportIssueDto = z.infer<typeof codeReportIssueSchema>;
 
 export const codeReportResponseSchema = z.strictObject({
   mode: codeReportModeSchema,
