@@ -34,6 +34,10 @@ export interface ListCommitsInput {
   orgId: string;
   limit?: number;
   cursor?: string | null;
+  /** Restricts to commits reported on this branch (WO-341, SDD-012) — a plain `@>` containment check
+   * against the `branches` array column, the same "reported on more than one branch over time" set
+   * `upsertReportedCommits`'s own `branchesUnion` maintains. */
+  ref?: string;
 }
 
 export interface ListCommitsPage {
@@ -131,6 +135,7 @@ export async function listCommits(pool: Pool, input: ListCommitsInput): Promise<
     if (cursor) {
       conditions.push(or(lt(commits.date, cursor.timestamp), and(eq(commits.date, cursor.timestamp), lt(commits.sha, cursor.id))!)!);
     }
+    if (input.ref) conditions.push(sql`${commits.branches} @> ARRAY[${input.ref}]::text[]`);
     const rows = await tx
       .select()
       .from(commits)
