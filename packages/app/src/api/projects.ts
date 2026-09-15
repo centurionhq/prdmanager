@@ -6,6 +6,7 @@ import type {
   AddProjectMemberInput,
   CreateProjectInput,
   ProjectMemberDto,
+  ProjectOverviewDto,
   ProjectSummary,
   UpdateProjectSettingsInput,
   ProjectRole,
@@ -18,6 +19,12 @@ function projectsBase(orgSlug: string): string {
 
 export function listProjects(orgSlug: string): Promise<ProjectSummary[]> {
   return request<{ projects: ProjectSummary[] }>(projectsBase(orgSlug)).then((r) => r.projects);
+}
+
+/** `GET .../projects/overview` (SDD-012, WO-336): one `ProjectOverviewDto` per project the caller can
+ * see in this org — the Centurion Factory Proyectos screen's own list, richer than {@link listProjects}. */
+export function getProjectsOverview(orgSlug: string): Promise<ProjectOverviewDto[]> {
+  return request<{ projects: ProjectOverviewDto[] }>(`${projectsBase(orgSlug)}/overview`).then((r) => r.projects);
 }
 
 export function createProject(orgSlug: string, input: CreateProjectInput): Promise<ProjectSummary> {
