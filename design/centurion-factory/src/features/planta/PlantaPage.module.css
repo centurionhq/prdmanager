@@ -1,0 +1,21 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.searchForm {
+  width: 320px;
+}
+
+@media (max-width: 767px) {
+  .searchForm {
+    width: 100%;
+  }
+}
