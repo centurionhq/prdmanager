@@ -1,6 +1,8 @@
 import { Navigate, type RouteObject } from 'react-router';
 import { AppShell } from './components/shell/AppShell';
 import { RootLayout } from './components/shell/RootLayout';
+import { AjustesLayout } from './features/ajustes/AjustesLayout';
+import { AjustesPlaceholderPage } from './features/ajustes/AjustesPlaceholderPage';
 import { MiembrosPage } from './features/ajustes/MiembrosPage';
 import { SsoPage } from './features/ajustes/SsoPage';
 import { TokensPage } from './features/ajustes/TokensPage';
@@ -38,10 +40,30 @@ export const routes: RouteObject[] = [
           { path: 'ordenes', element: <OrdenesPage />, handle: handle('Órdenes de trabajo') },
           { path: 'drift', element: <DriftPage />, handle: handle('Drift') },
           { path: 'entrada', element: <EntradaPage />, handle: handle('Bandeja de entrada') },
-          { path: 'ajustes', element: <Navigate to="/ajustes/miembros" replace /> },
-          { path: 'ajustes/miembros', element: <MiembrosPage />, handle: handle('Ajustes · miembros') },
-          { path: 'ajustes/tokens', element: <TokensPage />, handle: handle('Ajustes · tokens de CI') },
-          { path: 'ajustes/sso', element: <SsoPage />, handle: handle('Ajustes · autenticación y SSO') },
+          {
+            path: 'ajustes',
+            element: <AjustesLayout />,
+            children: [
+              { index: true, element: <Navigate to="/ajustes/miembros" replace /> },
+              { path: 'general', element: <AjustesPlaceholderPage />, handle: handle('Ajustes · general') },
+              { path: 'miembros', element: <MiembrosPage />, handle: handle('Ajustes · miembros') },
+              { path: 'tokens', element: <TokensPage />, handle: handle('Ajustes · tokens de CI') },
+              { path: 'integraciones', element: <AjustesPlaceholderPage />, handle: handle('Ajustes · integraciones') },
+              {
+                path: 'miembros-organizacion',
+                element: <AjustesPlaceholderPage />,
+                handle: handle('Ajustes · miembros de la organización'),
+              },
+              { path: 'sso', element: <SsoPage />, handle: handle('Ajustes · autenticación y SSO') },
+              { path: 'auditoria', element: <AjustesPlaceholderPage />, handle: handle('Ajustes · auditoría') },
+              { path: 'perfil', element: <AjustesPlaceholderPage />, handle: handle('Ajustes · perfil') },
+              {
+                path: 'tokens-personales',
+                element: <AjustesPlaceholderPage />,
+                handle: handle('Ajustes · tokens personales'),
+              },
+            ],
+          },
           { path: '*', element: <Navigate to="/" replace /> },
         ],
       },
