@@ -2,7 +2,7 @@
  * `upsertReportedCommits` (SDD-010 "Commits reportados con nivel de confianza", WO-182): baseline
  * always wins, a preview report can never downgrade or overwrite an already-baseline row.
  */
-import { createCiToken, upsertReportedCommits } from '@prdm/db';
+import { createCiToken, listCommits, upsertReportedCommits } from '@prdm/db';
 import { createOrganizationFixture, createProjectFixture, createUserFixture, openTestPg, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 
@@ -125,5 +125,69 @@ describe('upsertReportedCommits (WO-182)', () => {
     });
     const { rows: secondRows } = await pg.ownerPool.query(`SELECT first_seen_at FROM "commits" WHERE project_id = $1 AND sha = $2`, [project.id, sha]);
     expect(secondRows[0].first_seen_at).toEqual(firstSeenAt);
+  });
+});
+
+describe('listCommits (WO-332)', () => {
+  test('paginates newest-first with a cursor, no gaps or duplicates', async () => {
+    const { org, project, tokenId } = await setup();
+    for (let i = 0; i < 5; i += 1) {
+      await upsertReportedCommits(pg.appPool, {
+        projectId: project.id,
+        orgId: org.id,
+        tokenId,
+        trust: 'baseline',
+        branch: 'main',
+        commits: [{ sha: `${i}`.repeat(40), author: 'Alice', date: new Date(Date.now() + i * DAY_MS).toISOString(), subject: `commit ${i}`, refs: [], files: [] }],
+      });
+    }
+
+    const firstPage = await listCommits(pg.appPool, { orgId: org.id, projectId: project.id, limit: 2 });
+    expect(firstPage.items).toHaveLength(2);
+    expect(firstPage.items[0]?.subject).toBe('commit 4');
+    expect(firstPage.nextCursor).not.toBeNull();
+
+    const secondPage = await listCommits(pg.appPool, { orgId: org.id, projectId: project.id, limit: 2, cursor: firstPage.nextCursor });
+    expect(secondPage.items).toHaveLength(2);
+
+    const thirdPage = await listCommits(pg.appPool, { orgId: org.id, projectId: project.id, limit: 2, cursor: secondPage.nextCursor });
+    expect(thirdPage.items).toHaveLength(1);
+    expect(thirdPage.nextCursor).toBeNull();
+
+    const allShas = [...firstPage.items, ...secondPage.items, ...thirdPage.items].map((r) => r.sha);
+    expect(new Set(allShas).size).toBe(5);
+  });
+
+  test('only returns commits for the given project', async () => {
+    const { org, project, tokenId } = await setup();
+    const otherProject = await createProjectFixture(pg, { orgId: org.id });
+    const otherToken = await createCiToken(pg.appPool, {
+      orgId: org.id,
+      projectIds: [otherProject.id],
+      name: 'ci-2',
+      scopes: ['reports:baseline'],
+      expiresAt: new Date(Date.now() + DAY_MS),
+      createdBy: (await createUserFixture(pg)).id,
+    });
+
+    await upsertReportedCommits(pg.appPool, {
+      projectId: project.id,
+      orgId: org.id,
+      tokenId,
+      trust: 'baseline',
+      branch: 'main',
+      commits: [{ sha: 'a'.repeat(40), author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'in project', refs: [], files: [] }],
+    });
+    await upsertReportedCommits(pg.appPool, {
+      projectId: otherProject.id,
+      orgId: org.id,
+      tokenId: otherToken.record.id,
+      trust: 'baseline',
+      branch: 'main',
+      commits: [{ sha: 'b'.repeat(40), author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'other project', refs: [], files: [] }],
+    });
+
+    const page = await listCommits(pg.appPool, { orgId: org.id, projectId: project.id, limit: 10 });
+    expect(page.items.map((r) => r.subject)).toEqual(['in project']);
   });
 });

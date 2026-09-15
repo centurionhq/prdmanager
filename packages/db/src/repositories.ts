@@ -10,9 +10,10 @@
  * built on top of this maps both to a 404 (SDD-006 §Arquitectura: "Cualquier recurso de otra
  * organización o proyecto responde 404, nunca 403").
  */
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, or } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { assertNoSecretsInAuditMetadata } from './audit-metadata.js';
+import { decodeCursor, paginateKeyset } from './pagination.js';
 import { auditLog } from './schema/audit.js';
 import { user } from './schema/auth.js';
 import { projectMembers, projectRole, projects } from './schema/projects.js';
@@ -84,10 +85,25 @@ export interface MembersRepository {
   listForUser(userId: string): Promise<ProjectMemberRecord[]>;
 }
 
+const DEFAULT_AUDIT_LOG_LIST_LIMIT = 50;
+
+export interface AuditLogListInput {
+  action?: string;
+  limit?: number;
+  cursor?: string | null;
+}
+
+export interface AuditLogListPage {
+  items: AuditLogRecord[];
+  nextCursor: string | null;
+}
+
 export interface AuditLogRepository {
   /** Append-only (enforced at the database grant level too — `prdm_app` has no UPDATE/DELETE here). */
   record(entry: NewAuditLogEntryInput): Promise<AuditLogRecord>;
-  list(): Promise<AuditLogRecord[]>;
+  /** Newest-first, optionally filtered by `action` (WO-327/WO-332: exact match, the same string
+   * `record()` was given), keyset-paginated via `nextCursor` (see `./pagination.js`). */
+  list(input?: AuditLogListInput): Promise<AuditLogListPage>;
 }
 
 export interface ProjectMembersRepository {
@@ -205,7 +221,22 @@ function buildAuditLogRepository(pool: Pool, orgId: string): AuditLogRepository 
         return row!;
       });
     },
-    list: () => withTenantTx(pool, orgId, (tx) => tx.select().from(auditLog).orderBy(desc(auditLog.createdAt))),
+    list: (input = {}) => {
+      const limit = input.limit ?? DEFAULT_AUDIT_LOG_LIST_LIMIT;
+      const cursor = decodeCursor(input.cursor);
+      return withTenantTx(pool, orgId, async (tx) => {
+        const conditions = [];
+        if (input.action) conditions.push(eq(auditLog.action, input.action));
+        if (cursor) conditions.push(or(lt(auditLog.createdAt, cursor.timestamp), and(eq(auditLog.createdAt, cursor.timestamp), lt(auditLog.id, cursor.id))!)!);
+        const rows = await tx
+          .select()
+          .from(auditLog)
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .orderBy(desc(auditLog.createdAt), desc(auditLog.id))
+          .limit(limit + 1);
+        return paginateKeyset(rows, limit, (row) => ({ timestamp: row.createdAt, id: row.id }));
+      });
+    },
   };
 }
 
