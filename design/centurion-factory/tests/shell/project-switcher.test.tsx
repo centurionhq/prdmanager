@@ -39,6 +39,13 @@ describe('mobile bottom bar', () => {
     expect(within(bar).getByRole('button', { name: 'Más' }).getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('only sets aria-controls on the Más button while its sheet is open (WO-317)', () => {
+    renderAt('/');
+    const bar = screen.getByRole('navigation', { name: 'Navegación móvil' });
+    const more = within(bar).getByRole('button', { name: 'Más' });
+    expect(more.getAttribute('aria-controls')).toBeNull();
+  });
+
   it('opens Más with the remaining destinations and closes it with Escape', async () => {
     const user = userEvent.setup();
     renderAt('/');
@@ -47,6 +54,7 @@ describe('mobile bottom bar', () => {
     await user.click(more);
     expect(more.getAttribute('aria-expanded')).toBe('true');
     const menu = screen.getByRole('list', { name: 'Más destinos' });
+    expect(more.getAttribute('aria-controls')).toBe(menu.id);
     expect(within(menu).getByRole('link', { name: 'Bandeja de entrada' })).toBeTruthy();
     expect(within(menu).getByRole('link', { name: 'Ajustes' })).toBeTruthy();
     expect(within(menu).getByRole('link', { name: 'Cambiar de proyecto' })).toBeTruthy();

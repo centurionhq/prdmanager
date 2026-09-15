@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type ReactElement } from 'react';
+import { useEffect, useId, useState, type ChangeEvent, type KeyboardEvent, type ReactElement } from 'react';
 import { Button, Modal } from '../../components';
 import type { ProjectRole } from '../../data';
 import { CENTURIONHQ_DOMAIN, domainOf, isValidEmail } from '../login/lib';
@@ -24,6 +24,8 @@ export function InviteModal({ open, onClose, onInvite }: InviteModalProps): Reac
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<ProjectRole>('developer');
   const [error, setError] = useState<string>();
+  const emailErrorId = useId();
+  const roleLabelId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -43,6 +45,23 @@ export function InviteModal({ open, onClose, onInvite }: InviteModalProps): Reac
       return;
     }
     onInvite({ email: email.trim(), role });
+  }
+
+  function handleRoleGroupKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    const isNext = event.key === 'ArrowRight' || event.key === 'ArrowDown';
+    const isPrev = event.key === 'ArrowLeft' || event.key === 'ArrowUp';
+    if (!isNext && !isPrev) return;
+    event.preventDefault();
+
+    const radios = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+    const currentIndex = radios.findIndex((radio) => radio === document.activeElement);
+    const delta = isNext ? 1 : -1;
+    const nextIndex = (currentIndex + delta + radios.length) % radios.length;
+    const nextRole = PROJECT_ROLES[nextIndex];
+    const nextRadio = radios[nextIndex];
+    if (!nextRole || !nextRadio) return;
+    setRole(nextRole);
+    nextRadio.focus();
   }
 
   const otherDomain = isValidEmail(email) && domainOf(email) !== CENTURIONHQ_DOMAIN;
@@ -67,9 +86,17 @@ export function InviteModal({ open, onClose, onInvite }: InviteModalProps): Reac
         <label htmlFor="invite-email" className={styles.label}>
           Email
         </label>
-        <input id="invite-email" type="email" className={styles.textInput} value={email} onChange={handleEmailChange} />
+        <input
+          id="invite-email"
+          type="email"
+          className={styles.textInput}
+          value={email}
+          onChange={handleEmailChange}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? emailErrorId : undefined}
+        />
         {error ? (
-          <p role="alert" className={styles.fieldError}>
+          <p id={emailErrorId} role="alert" className={styles.fieldError}>
             {error}
           </p>
         ) : null}
@@ -77,8 +104,15 @@ export function InviteModal({ open, onClose, onInvite }: InviteModalProps): Reac
       </div>
 
       <div className={styles.fieldGroup}>
-        <label className={styles.label}>Rol en prdmanager</label>
-        <div role="radiogroup" aria-label="Rol en prdmanager" className={styles.roleSegments}>
+        <label id={roleLabelId} className={styles.label}>
+          Rol en prdmanager
+        </label>
+        <div
+          role="radiogroup"
+          aria-labelledby={roleLabelId}
+          className={styles.roleSegments}
+          onKeyDown={handleRoleGroupKeyDown}
+        >
           {PROJECT_ROLES.map((option) => {
             const selected = option === role;
             return (
@@ -87,6 +121,7 @@ export function InviteModal({ open, onClose, onInvite }: InviteModalProps): Reac
                 type="button"
                 role="radio"
                 aria-checked={selected}
+                tabIndex={selected ? 0 : -1}
                 className={[styles.roleSegment, selected ? styles.roleSegmentSelected : null].filter(Boolean).join(' ')}
                 onClick={() => setRole(option)}
               >

@@ -28,13 +28,13 @@ describe('MiembrosPage', () => {
     expect(screen.getByRole('button', { name: 'Invitar persona' })).toBeTruthy();
   });
 
-  it("marks Ana as Vos and disables her role and removal", async () => {
+  it("marks Ana as Vos and disables her role, hiding her Quitar action behind a hint (WO-317)", async () => {
     renderAt('/ajustes/miembros');
     await screen.findByRole('heading', { level: 2 });
     const row = memberRow('Ana Ríos');
     expect(within(row).getByText('Vos')).toBeTruthy();
     expect(within(row).getByRole('combobox', { name: 'Rol de Ana Ríos' }).hasAttribute('disabled')).toBe(true);
-    expect(within(row).getByRole('button', { name: 'Quitar' }).hasAttribute('disabled')).toBe(true);
+    expect(within(row).queryByRole('button', { name: 'Quitar' })).toBeNull();
     expect(within(row).getByText('No podés quitarte')).toBeTruthy();
   });
 
@@ -88,6 +88,47 @@ describe('MiembrosPage', () => {
     await user.click(within(invitationRow).getByRole('button', { name: 'Revocar' }));
     expect(await screen.findByText('Invitación revocada')).toBeTruthy();
     expect(screen.queryByText('Invitación pendiente')).toBeNull();
+  });
+
+  it('associates the invite email error with the field via aria-invalid/aria-describedby (WO-317)', async () => {
+    const user = userEvent.setup();
+    renderAt('/ajustes/miembros');
+    await screen.findByRole('heading', { level: 2 });
+    await user.click(screen.getByRole('button', { name: 'Invitar persona' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Invitar persona' });
+    const emailField = within(dialog).getByRole('textbox', { name: 'Email' });
+    expect(emailField.getAttribute('aria-invalid')).toBeNull();
+
+    await user.type(emailField, 'not-an-email');
+    await user.click(within(dialog).getByRole('button', { name: 'Enviar invitación' }));
+
+    const error = within(dialog).getByText('Escribí un email válido.');
+    expect(emailField.getAttribute('aria-invalid')).toBe('true');
+    expect(emailField.getAttribute('aria-describedby')).toBe(error.id);
+  });
+
+  it('gives the role radiogroup a single tab stop with roving arrow-key navigation (WO-317)', async () => {
+    const user = userEvent.setup();
+    renderAt('/ajustes/miembros');
+    await screen.findByRole('heading', { level: 2 });
+    await user.click(screen.getByRole('button', { name: 'Invitar persona' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Invitar persona' });
+    const group = within(dialog).getByRole('radiogroup', { name: 'Rol en prdmanager' });
+    const groupLabel = within(dialog).getByText('Rol en prdmanager');
+    expect(group.getAttribute('aria-labelledby')).toBe(groupLabel.id);
+
+    const radios = within(dialog).getAllByRole('radio');
+    expect(radios.filter((radio) => radio.getAttribute('tabindex') === '0')).toHaveLength(1);
+    expect(radios.filter((radio) => radio.getAttribute('tabindex') === '-1')).toHaveLength(radios.length - 1);
+
+    const developer = within(dialog).getByRole('radio', { name: 'Developer' });
+    developer.focus();
+    await user.keyboard('{ArrowRight}');
+
+    expect(within(dialog).getByRole('radio', { name: 'Commenter' })).toHaveProperty('tabIndex', 0);
+    expect(document.activeElement).toBe(within(dialog).getByRole('radio', { name: 'Commenter' }));
   });
 
   it('validates the invite email, flags a non-centurionhq domain and sends the invite', async () => {

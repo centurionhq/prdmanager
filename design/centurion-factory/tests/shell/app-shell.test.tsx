@@ -62,6 +62,16 @@ describe('AppShell', () => {
     renderAt('/login');
     expect(screen.queryByRole('navigation', { name: 'Navegación principal' })).toBeNull();
   });
+
+  it('sets the document title for /login, which renders outside the app shell (WO-317)', () => {
+    renderAt('/login');
+    expect(document.title).toBe('Entrar · Centurion Factory');
+  });
+
+  it('sets the document title for /proyectos, which renders outside the app shell (WO-317)', () => {
+    renderAt('/proyectos');
+    expect(document.title).toBe('Proyectos · Centurion Factory');
+  });
 });
 
 describe('RootLayout', () => {

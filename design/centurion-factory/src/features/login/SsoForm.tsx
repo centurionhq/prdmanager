@@ -1,5 +1,5 @@
 import { Globe, Grid2x2, LoaderCircle } from 'lucide-react';
-import type { ChangeEvent, ReactElement, RefObject } from 'react';
+import { useId, type ChangeEvent, type ReactElement, type RefObject } from 'react';
 import { Button } from '../../components';
 import { CENTURIONHQ_DOMAIN } from './lib';
 import styles from './LoginPage.module.css';
@@ -45,6 +45,8 @@ export function SsoForm({
   onContinueProvider,
   onSwitchToPassword,
 }: SsoFormProps): ReactElement {
+  const errorId = useId();
+
   function handleEmailChange(event: ChangeEvent<HTMLInputElement>): void {
     onEmailChange(event.target.value);
   }
@@ -63,9 +65,11 @@ export function SsoForm({
           className={styles.input}
           value={email}
           onChange={handleEmailChange}
+          aria-invalid={validationError ? true : undefined}
+          aria-describedby={validationError ? errorId : undefined}
         />
         {validationError ? (
-          <p className={styles.fieldError} role="alert">
+          <p id={errorId} className={styles.fieldError} role="alert">
             {validationError}
           </p>
         ) : null}

@@ -1,4 +1,4 @@
-import type { ChangeEvent, ReactElement, RefObject } from 'react';
+import { useId, type ChangeEvent, type ReactElement, type RefObject } from 'react';
 import { Button } from '../../components';
 import styles from './LoginPage.module.css';
 
@@ -30,6 +30,8 @@ export function PasswordForm({
   onForgotPassword,
   onSwitchToSso,
 }: PasswordFormProps): ReactElement {
+  const errorId = useId();
+
   function handleEmailChange(event: ChangeEvent<HTMLInputElement>): void {
     onEmailChange(event.target.value);
   }
@@ -43,7 +45,7 @@ export function PasswordForm({
   return (
     <section className={styles.section}>
       {hasError ? (
-        <div role="alert" className={styles.errorBox}>
+        <div id={errorId} role="alert" className={styles.errorBox}>
           <span className={styles.errorMark} aria-hidden="true" />
           <span>
             <span className={styles.errorLead}>Email o contraseña incorrectos.</span> Revisá los datos o pedí un nuevo
@@ -64,6 +66,8 @@ export function PasswordForm({
           className={styles.input}
           value={email}
           onChange={handleEmailChange}
+          aria-invalid={hasError ? true : undefined}
+          aria-describedby={hasError ? errorId : undefined}
         />
       </div>
 
@@ -81,6 +85,7 @@ export function PasswordForm({
             className={styles.passwordInput}
             value={password}
             aria-invalid={hasError}
+            aria-describedby={hasError ? errorId : undefined}
             onChange={handlePasswordChange}
           />
           <button type="button" aria-pressed={showPassword} className={styles.toggleButton} onClick={onToggleShowPassword}>

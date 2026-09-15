@@ -90,15 +90,13 @@ export function MembersTable({
               </td>
               <td data-label="Acceso" className={`${styles.cell} num`}>{formatRelativeAccess(person.lastAccess)}</td>
               <td className={`${styles.cell} ${styles.actionsCell}`}>
-                {isYou ? <span className={styles.hintBadge}>No podés quitarte</span> : null}
-                <button
-                  type="button"
-                  className={styles.dangerLink}
-                  disabled={isYou}
-                  onClick={() => onRequestRemove(person)}
-                >
-                  Quitar
-                </button>
+                {isYou ? (
+                  <span className={styles.hintBadge}>No podés quitarte</span>
+                ) : (
+                  <button type="button" className={styles.dangerLink} onClick={() => onRequestRemove(person)}>
+                    Quitar
+                  </button>
+                )}
               </td>
             </tr>
           );

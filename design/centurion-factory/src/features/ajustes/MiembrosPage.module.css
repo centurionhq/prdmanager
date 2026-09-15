@@ -150,18 +150,17 @@
 }
 
 .dangerLink {
+  display: inline-flex;
+  align-items: center;
   font-family: inherit;
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--paro);
 }
 
-.dangerLink:disabled {
-  color: var(--regla);
-  cursor: not-allowed;
-}
-
 .linkButton {
+  display: inline-flex;
+  align-items: center;
   font-family: inherit;
   font-size: var(--text-sm);
   font-weight: 600;

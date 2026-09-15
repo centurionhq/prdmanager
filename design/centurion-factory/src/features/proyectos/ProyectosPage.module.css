@@ -4,6 +4,28 @@
   flex-direction: column;
 }
 
+.skipLink {
+  position: absolute;
+  left: var(--space-4);
+  top: calc(-1 * var(--space-12));
+  z-index: 10;
+  padding: var(--space-2) var(--space-4);
+  background: var(--grafito);
+  color: var(--blanco);
+  font-weight: 600;
+  border-radius: var(--radius-plate);
+}
+
+.skipLink:focus-visible {
+  top: var(--space-4);
+  color: var(--blanco);
+  text-decoration: none;
+}
+
+.main:focus-visible {
+  box-shadow: none;
+}
+
 .topBar {
   flex: none;
   height: 64px;

@@ -50,7 +50,7 @@ function MoreMenu() {
         type="button"
         className={styles.item}
         aria-expanded={open}
-        aria-controls={menuId}
+        aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((value) => !value)}
       >
         <Ellipsis aria-hidden="true" size={20} strokeWidth={2} />

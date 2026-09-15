@@ -47,6 +47,20 @@ describe('LoginPage: SSO mode (default)', () => {
     expect(screen.getByText('Escribí tu email de trabajo.')).toBeTruthy();
   });
 
+  it('marks #sso-email invalid and describes it by the validation error (WO-317)', async () => {
+    const user = userEvent.setup();
+    renderLogin();
+    const emailField = screen.getByRole('textbox', { name: 'Email de trabajo' });
+    expect(emailField.getAttribute('aria-invalid')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Continuar con SSO' }));
+
+    const error = screen.getByText('Escribí tu email de trabajo.');
+    expect(emailField.id).toBe('sso-email');
+    expect(emailField.getAttribute('aria-invalid')).toBe('true');
+    expect(emailField.getAttribute('aria-describedby')).toBe(error.id);
+  });
+
   it('shows the Okta redirect status and navigates to /proyectos after 1200ms for a centurionhq.com email', async () => {
     const user = userEvent.setup();
     const router = renderLogin();
@@ -149,10 +163,11 @@ describe('LoginPage: password mode', () => {
     await user.type(screen.getByLabelText('Contraseña'), 'wrong-password');
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
 
-    expect(screen.getByRole('alert').textContent).toBe(
-      'Email o contraseña incorrectos. Revisá los datos o pedí un nuevo acceso a tu admin.',
-    );
+    const error = screen.getByRole('alert');
+    expect(error.textContent).toBe('Email o contraseña incorrectos. Revisá los datos o pedí un nuevo acceso a tu admin.');
     expect(screen.getByLabelText('Contraseña').getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByLabelText('Contraseña').getAttribute('aria-describedby')).toBe(error.id);
+    expect(screen.getByRole('textbox', { name: 'Email' }).getAttribute('aria-describedby')).toBe(error.id);
   });
 
   it('navigates to /proyectos with the demo credentials', async () => {

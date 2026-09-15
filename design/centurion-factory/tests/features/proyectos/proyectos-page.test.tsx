@@ -18,6 +18,15 @@ function projectNames(): string[] {
     .map((row) => (within(row).getAllByRole('cell')[0]?.textContent ?? '').split('centurion-hq/')[0] ?? '');
 }
 
+describe('ProyectosPage: accessibility', () => {
+  it('offers a skip link to its main content (WO-317)', () => {
+    renderAt('/proyectos');
+    const skip = screen.getByRole('link', { name: 'Saltar al contenido' });
+    expect(skip.getAttribute('href')).toBe('#contenido-proyectos');
+    expect(screen.getByRole('main').id).toBe('contenido-proyectos');
+  });
+});
+
 describe('ProyectosPage: top bar', () => {
   it('renders the wordmark, org switcher, settings link and person', async () => {
     renderAt('/proyectos');

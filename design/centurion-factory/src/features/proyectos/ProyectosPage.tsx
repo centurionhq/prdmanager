@@ -148,8 +148,11 @@ export function ProyectosPage(): ReactElement {
 
   return (
     <div className={styles.page}>
+      <a className={styles.skipLink} href="#contenido-proyectos">
+        Saltar al contenido
+      </a>
       <TopBar />
-      <main className={styles.main}>
+      <main id="contenido-proyectos" tabIndex={-1} className={styles.main}>
         <PageHeader
           title="Proyectos"
           subtitle={`${projects.length} ${projects.length === 1 ? 'proyecto' : 'proyectos'} en Centurion HQ`}

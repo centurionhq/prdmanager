@@ -147,7 +147,7 @@ export function OrdenesPage(): ReactElement {
     <div className={styles.page}>
       <PageHeader
         title="Órdenes de trabajo"
-        subtitle={`${orders.length} órdenes en ${BLUEPRINTS.length} blueprints`}
+        subtitle={state === 'vacio' || state === 'error' ? undefined : `${orders.length} órdenes en ${BLUEPRINTS.length} blueprints`}
         actions={<SearchField label="Buscar órdenes" value={query} onChange={setQuery} placeholder="Buscar órdenes" hideLabel />}
       />
 

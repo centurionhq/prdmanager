@@ -36,6 +36,14 @@ describe('EntradaPage', () => {
     expect(screen.getByText('submit_feedback')).toBeTruthy();
   });
 
+  it('hides the decorative "·" separators between the source and the relative date (WO-317)', async () => {
+    renderAt('/entrada?estado=listo');
+    const row = (await screen.findByText('FB-007')).closest('div');
+    if (!row) throw new Error('row not found');
+    const dot = within(row).getByText('·');
+    expect(dot.getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('shows the andon "Lleva N días sin triar" line for overdue feedback', async () => {
     renderAt('/entrada?estado=listo');
     await screen.findByText('FB-007');

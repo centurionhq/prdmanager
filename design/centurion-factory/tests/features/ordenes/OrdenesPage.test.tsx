@@ -22,9 +22,19 @@ describe('OrdenesPage', () => {
     expect(screen.getByRole('alert')).toBeTruthy();
   });
 
+  it('hides the order/blueprint count subtitle in the error state (WO-317)', () => {
+    renderAt('/ordenes?estado=error');
+    expect(screen.queryByText(/órdenes en .* blueprints/)).toBeNull();
+  });
+
   it('shows the empty state when the demo forces it', () => {
     renderAt('/ordenes?estado=vacio');
     expect(screen.getByText('Todavía no hay órdenes de trabajo')).toBeTruthy();
+  });
+
+  it('hides the order/blueprint count subtitle in the empty state (WO-317)', () => {
+    renderAt('/ordenes?estado=vacio');
+    expect(screen.queryByText(/órdenes en .* blueprints/)).toBeNull();
   });
 
   it('shows the computed subtitle and every order once loaded', async () => {
