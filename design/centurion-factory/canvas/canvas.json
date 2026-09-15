@@ -11,6 +11,10 @@
     {
       "id": "page-2",
       "name": "Direcciones"
+    },
+    {
+      "id": "page-4",
+      "name": "PRD-007 · ronda A"
     }
   ],
   "artboards": [
@@ -190,6 +194,110 @@
       "h": 960,
       "page": "page-3",
       "is_interactive": true
+    },
+    {
+      "file": "ResetPassword.dc.html",
+      "title": "Reseteo de contraseña · probá los pasos",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-4",
+      "is_interactive": true
+    },
+    {
+      "file": "InviteAccept.dc.html",
+      "title": "Aceptar invitación",
+      "x": 1600,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-4",
+      "is_interactive": true
+    },
+    {
+      "file": "LoginTotp.dc.html",
+      "title": "Verificación en dos pasos · verificar y enrolar",
+      "x": 3200,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-4",
+      "is_interactive": true
+    },
+    {
+      "file": "AdminOrganizations.dc.html",
+      "title": "Panel de superadmin",
+      "x": 4800,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-4",
+      "is_interactive": true
+    },
+    {
+      "file": "AjustesPerfil.dc.html",
+      "title": "Ajustes · perfil",
+      "x": 0,
+      "y": 1120,
+      "w": 1440,
+      "h": 960,
+      "page": "page-4"
+    },
+    {
+      "file": "AjustesTokensPersonales.dc.html",
+      "title": "Ajustes · tokens personales",
+      "x": 1600,
+      "y": 1120,
+      "w": 1440,
+      "h": 960,
+      "page": "page-4"
+    },
+    {
+      "file": "AjustesAuditoria.dc.html",
+      "title": "Ajustes · auditoría",
+      "x": 3200,
+      "y": 1120,
+      "w": 1440,
+      "h": 960,
+      "page": "page-4"
+    },
+    {
+      "file": "AjustesMiembrosOrg.dc.html",
+      "title": "Ajustes · miembros de la organización",
+      "x": 4800,
+      "y": 1120,
+      "w": 1440,
+      "h": 960,
+      "page": "page-4"
+    },
+    {
+      "file": "DocumentoRevision.dc.html",
+      "title": "Documento · revisar antes de publicar",
+      "x": 0,
+      "y": 2240,
+      "w": 1440,
+      "h": 960,
+      "page": "page-4",
+      "is_interactive": true
+    },
+    {
+      "file": "DocumentoEstados.dc.html",
+      "title": "Documento · estados (generado, archivado, solo lectura, desconectado, presencia, agente)",
+      "x": 1600,
+      "y": 2240,
+      "w": 1440,
+      "h": 960,
+      "page": "page-4"
+    },
+    {
+      "file": "Avisos.dc.html",
+      "title": "Avisos e insignias",
+      "x": 3200,
+      "y": 2240,
+      "w": 1440,
+      "h": 780,
+      "page": "page-4"
     }
   ],
   "annotations": [
@@ -232,10 +340,18 @@
       "w": 760,
       "page": "page-3",
       "text": "Acceso y ajustes\n\nEl flujo de entrada: login con SSO primero (email de trabajo, Google Workspace, Microsoft Entra ID) y contraseña como alternativa, después la selección de proyectos de la organización. Ajustes cubre miembros y roles del proyecto, tokens de CI y autenticación/SSO de la organización.\n\nSSO no está en el backend de PRD-005 (quedó fuera de alcance); acá es diseño con datos mock, y conectarlo va en el PRD posterior."
+    },
+    {
+      "id": "prd007-ronda-a-intro",
+      "x": 0,
+      "y": -320,
+      "w": 900,
+      "page": "page-4",
+      "text": "PRD-007 · Conexión al backend real — ronda A de canvas\n\nPantallas que el mock de PRD-006 nunca necesitó porque no existía backend real: reseteo de contraseña, aceptar invitación, verificación en dos pasos (login y enrolamiento, obligatoria para superadmins), panel de superadmin, perfil (el nombre es lo único editable: better-auth no permite cambiar el email), tokens personales, auditoría de proyecto y de organización, y miembros de la organización (rol owner/admin/member, distinto del rol por proyecto).\n\nDocumento suma la pantalla de revisión antes de publicar (diff real de frontmatter, impacts_paths y ## Tareas) y un artboard de estados con un selector arriba del marco (generado, archivado, solo lectura, desconectado, presencia, agente) para no repetir seis mockups casi iguales. Avisos reúne tres insignias chicas: commit no verificado por CI, anulación de force-push y límite de tasa.\n\nSigue sin haber SSO real: la ficha de superadmin y la de miembros usan solo email y contraseña. El campo \"Rama\" del token de CI de PRD-006 no tiene equivalente real (la baseline depende de OIDC más la rama por defecto del proyecto), así que Ajustes · tokens personales no lo repite."
     }
   ],
   "launch": {
     "view": "canvas",
-    "page": "page-3"
+    "page": "page-4"
   }
 }

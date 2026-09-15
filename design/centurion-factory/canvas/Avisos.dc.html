@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 780px; overflow: hidden; padding: 32px; display: flex; flex-direction: column; gap: 32px; background: #E9ECEB;">
+  <h1 style="margin: 0; font-size: 28px; font-weight: 800; font-stretch: 112%;">Avisos e insignias</h1>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start;">
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 13px; font-weight: 600; color: #565D63;">Commit no verificado por CI (Órdenes, Árbol)</span>
+      <div style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="id" style="background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 2px; padding: 1px 6px;">a4f21c9</span>
+          <span style="height: 20px; display: inline-flex; align-items: center; padding: 0 8px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #565D63;">No verificado por CI</span>
+        </div>
+        <div style="font-size: 13px; color: #33383D;">Importado con prdm link --import. Va a quedar como oficial recién con el próximo reporte de CI en la rama por defecto.</div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 13px; font-weight: 600; color: #565D63;">Anulación de force-push (Drift)</span>
+      <div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; background: #FBFCFB; border: 1px solid #B8322A; border-radius: 2px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="flex: none; width: 10px; height: 10px; background: #B8322A;"></span>
+          <span style="font-size: 14px; font-weight: 700;">La rama por defecto retrocedió</span>
+        </div>
+        <div style="font-size: 13px; color: #33383D;">El head reportado no desciende del último baseline. Puede ser un force-push legítimo o un intento de reescribir historia.</div>
+        <button type="button" style="align-self: flex-start; height: 32px; padding: 0 12px; background: #B8322A; color: #FFFFFF; border: 0; border-radius: 2px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Autorizar como admin</button>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 13px; font-weight: 600; color: #565D63;">Límite de tasa (cualquier acción)</span>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #17191C; color: #FBFCFB; border-radius: 2px; box-shadow: 0 8px 20px rgba(23,25,28,0.24);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F5C400" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M12 8v5"></path><circle cx="12" cy="16.2" r="0.6" fill="#F5C400" stroke="none"></circle><path d="M10.3 4.5a2 2 0 0 1 3.4 0l7.6 13a2 2 0 0 1-1.7 3H4.4a2 2 0 0 1-1.7-3z"></path></svg>
+        <span style="font-size: 13px;">Demasiados intentos. Probá de nuevo en 42 segundos.</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

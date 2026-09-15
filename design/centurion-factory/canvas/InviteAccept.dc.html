@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 960px; overflow: hidden; background: #E9ECEB;">
+
+  <main style="position: absolute; top: 170px; left: 520px; width: 400px; display: flex; flex-direction: column; gap: 28px;">
+    <div style="font-size: 28px; line-height: 32px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex: none;">AR</div>
+        <div style="font-size: 14px; line-height: 20px; color: #33383D;"><span style="font-weight: 600; color: #17191C;">Ana Ríos</span> te invitó a <span style="font-weight: 600; color: #17191C;">Centurion HQ</span> como <span class="id" style="background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 2px; padding: 1px 6px;">developer</span></div>
+      </div>
+      <div style="font-size: 13px; color: #565D63;">Este enlace vence el 21/09/2026 y sirve una sola vez.</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <h1 style="margin: 0; font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.01em;">Creá tu cuenta</h1>
+      <div style="font-size: 14px; line-height: 20px; color: #565D63;">Tu email ya viene fijado por la invitación.</div>
+    </div>
+
+    <section style="display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 14px; line-height: 20px; font-weight: 600;">Email</label>
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #565D63;">tomas@centurionhq.com</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 14px; line-height: 20px; font-weight: 600;">Nombre</label>
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px;">Tomás Vega</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 14px; line-height: 20px; font-weight: 600;">Contraseña</label>
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; letter-spacing: 0.08em;">••••••••••••••</div>
+        <span style="font-size: 12px; color: #565D63;">Mínimo 12 caracteres.</span>
+      </div>
+      <button type="button" onClick="{{ onAccept }}" style="width: 100%; height: 40px; margin-top: 4px; display: flex; align-items: center; justify-content: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; border: 0; border-radius: 2px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">{{ acceptLabel }}</button>
+    </section>
+
+    <sc-if value="{{ isExistingUser }}" hint-placeholder-val="{{ false }}">
+      <div role="note" style="display: flex; flex-direction: column; gap: 8px; padding: 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 13px; color: #565D63;">
+        Ya tenés una cuenta con este email. <a onClick="{{ onExistingToggle }}" style="cursor: pointer;">Entrá con tu sesión</a> para aceptar en vez de crear una cuenta nueva.
+      </div>
+    </sc-if>
+  </main>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { existingUser: false };
+  }
+  renderVals() {
+    return {
+      isExistingUser: this.state.existingUser,
+      acceptLabel: this.state.existingUser ? 'Iniciar sesión y aceptar' : 'Crear cuenta y entrar',
+      onExistingToggle: () => this.setState({ existingUser: !this.state.existingUser }),
+      onAccept: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

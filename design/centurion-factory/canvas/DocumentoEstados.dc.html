@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+    @keyframes cf-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+    .cf-pulse { animation: cf-pulse 1400ms ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .cf-pulse { animation: none; } }
+  </style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 960px; overflow: hidden; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+
+  <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
+      <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 52px; margin-top: -8px; padding: 0 10px 0 12px; border: 1px solid #C9CFCD; border-radius: 2px;">
+      <div style="display: flex; flex-direction: column; min-width: 0;"><span style="font-size: 12px; color: #565D63;">Centurion HQ</span><span style="font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">prdmanager</span></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Planta</div>
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Árbol de features</div>
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600; font-size: 15px;">Documentos</div>
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Órdenes de trabajo</div>
+    </div>
+  </nav>
+
+  <main style="position: relative; display: flex; flex-direction: column; gap: 16px; padding: 24px 32px; min-width: 0; min-height: 0;">
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #565D63;"><a>Documentos</a><span>/</span><span class="id" style="color: #17191C;">{{ docId }}</span></div>
+    <h1 style="margin: 0; font-size: 36px; line-height: 1.1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">{{ docTitle }}</h1>
+
+    <div style="{{ bannerStyle }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{ bannerIconColor }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 1px;"><path d="{{ bannerIconPath }}"></path></svg>
+      <span>{{ bannerText }}</span>
+    </div>
+
+    <section style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 2px; padding: 20px 24px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; overflow: hidden;">
+
+      <sc-if value="{{ isPresencia }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-bottom: 12px;">
+          <span style="font-size: 13px; color: #565D63;">En este documento ahora:</span>
+          <div style="width: 28px; height: 28px; border-radius: 14px; background: #1F4FA0; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; border: 2px solid #FBFCFB; margin-right: -8px;">JP</div>
+          <div style="width: 28px; height: 28px; border-radius: 14px; background: #B8322A; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; border: 2px solid #FBFCFB; margin-right: -8px;">MS</div>
+          <div style="width: 28px; height: 28px; border-radius: 14px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; border: 2px solid #FBFCFB;">AR</div>
+        </div>
+      </sc-if>
+
+      <div style="font-size: 20px; line-height: 28px; font-weight: 700;">Contexto</div>
+      <div style="position: relative; font-size: 16px; line-height: 26px; color: #33383D; max-width: 640px;">
+        El paquete design/centurion-factory aísla el rediseño de packages/app y trabaja solo con datos mock.
+        <sc-if value="{{ isPresencia }}" hint-placeholder-val="{{ false }}">
+          <span style="position: relative; display: inline-block; width: 2px; height: 20px; margin: 0 1px -5px; background: #1F4FA0; vertical-align: middle;">
+            <span style="position: absolute; top: -20px; left: -2px; height: 18px; padding: 0 6px; background: #1F4FA0; color: #FFFFFF; font-size: 11px; font-weight: 600; border-radius: 2px; white-space: nowrap;">Julia Paz</span>
+          </span>
+        </sc-if>
+      </div>
+
+      <sc-if value="{{ isAgente }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top: 20px; max-width: 460px; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: #E9ECEB; border-radius: 2px;">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #565D63;">
+            <span class="cf-pulse" style="width: 8px; height: 8px; border-radius: 4px; background: #1F4FA0;"></span>
+            agent:deepseek está escribiendo…
+          </div>
+          <div style="font-size: 14px; line-height: 22px; color: #17191C;">Reviso el contexto y las tareas abiertas antes de proponer el cambio de la sección de riesgos<span class="cf-pulse">▍</span></div>
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>
+              read_document
+            </div>
+            <span class="id" style="color: #565D63;">SDD-011, líneas 1-120</span>
+          </div>
+        </div>
+      </sc-if>
+    </section>
+
+    <sc-if value="{{ isReadOnlyFooter }}" hint-placeholder-val="{{ false }}">
+      <div style="position: absolute; left: 32px; right: 32px; bottom: 24px; height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 13px; color: #565D63;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="9" rx="1"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+        Estás viendo la copia de trabajo de solo lectura. Tu rol no puede editar este documento.
+      </div>
+    </sc-if>
+  </main>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"estado":{"editor":"enum","default":"generado","options":["generado","archivado","solo_lectura","desconectado","presencia","agente"],"section":"Estado"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const estado = this.props.estado ?? 'generado';
+    const banners = {
+      generado: { color: '#565D63', bg: '#F1F3F2', icon: 'M12 3l8 4.5v9L12 21l-8-4.5v-9z', text: 'Este documento lo escribió el motor (feedback o work order). Es de solo lectura: solo cambia con operaciones del engine.' },
+      archivado: { color: '#565D63', bg: '#F1F3F2', icon: 'M4 7h16M6 7v12a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7M9 11h6', text: 'Archivado el 02/08/2026 porque ningún documento publicado lo enlaza ya. Sigue en el grafo, de solo lectura.' },
+      solo_lectura: { color: '#565D63', bg: '#F1F3F2', icon: 'M5 10h14v9H5zM8 10V7a4 4 0 0 1 8 0v3', text: 'Ves la copia de trabajo en solo lectura: tu rol (commenter) puede comentar pero no editar.' },
+      desconectado: { color: '#B8322A', bg: '#FBFCFB', icon: 'M12 8v5M12 16.2h.01M12 3l9 16.5H3z', text: 'Se cortó la conexión en tiempo real. Reconectando… Los cambios locales se reenvían al volver.' },
+      presencia: { color: '#1F4FA0', bg: '#FBFCFB', icon: 'M12 3l8 4.5v9L12 21l-8-4.5v-9z', text: 'Colaboración en vivo: ves el cursor y la edición de quien más está en el documento ahora.' },
+      agente: { color: '#1F4FA0', bg: '#FBFCFB', icon: 'M12 3l8 4.5v9L12 21l-8-4.5v-9z', text: 'El agente está redactando una propuesta. Podés seguir editando; nada se aplica hasta que la aceptes.' }
+    };
+    const b = banners[estado] ?? banners.generado;
+    const bordered = estado === 'desconectado' || estado === 'presencia' || estado === 'agente';
+    return {
+      docId: 'FR-002',
+      docTitle: estado === 'archivado' ? 'Exportador legado de reportes' : 'Frontend de diseño de Centurion Factory',
+      bannerStyle: `display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:${b.bg};border:1px solid ${bordered ? b.color : '#C9CFCD'};border-radius:2px;font-size:14px;color:#17191C;max-width:680px;`,
+      bannerIconColor: b.color,
+      bannerIconPath: b.icon,
+      bannerText: b.text,
+      isPresencia: estado === 'presencia',
+      isAgente: estado === 'agente',
+      isReadOnlyFooter: estado === 'generado' || estado === 'archivado' || estado === 'solo_lectura'
+    };
+  }
+}
+</script>
+</body>
+</html>
