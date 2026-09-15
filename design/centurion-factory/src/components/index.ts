@@ -32,3 +32,9 @@ export type { FilterChipOption, FilterChipsProps } from './FilterChips/FilterChi
 
 export { SearchField } from './SearchField/SearchField';
 export type { SearchFieldProps } from './SearchField/SearchField';
+
+export { Modal } from './Modal/Modal';
+export type { ModalProps, ModalSize } from './Modal/Modal';
+
+export { Drawer } from './Drawer/Drawer';
+export type { DrawerProps } from './Drawer/Drawer';
