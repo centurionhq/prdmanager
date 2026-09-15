@@ -44,6 +44,7 @@ export function DocumentoPage(): ReactElement {
     addReply,
     resolveThread,
     restoreVersion,
+    updateBlocks,
   } = useDocumentEditor(id);
 
   if (!document || !workflowState) {
@@ -99,7 +100,7 @@ export function DocumentoPage(): ReactElement {
 
       <div className={styles.desktopLayout}>
         <FrontmatterForm document={document} workflowState={workflowState} architectOf={architectOf} latestVersion={latestOf(versions)} />
-        <EditorColumn blocks={blocks} />
+        <EditorColumn blocks={blocks} onBlocksChange={updateBlocks} saveStatus={metaLine} />
         <SidePanel
           document={document}
           blocks={blocks}
@@ -126,6 +127,8 @@ export function DocumentoPage(): ReactElement {
           onResolveThread={resolveThread}
           versions={versions}
           onRestoreVersion={restoreVersion}
+          onBlocksChange={updateBlocks}
+          saveStatus={metaLine}
         />
         <div className={styles.mobileActionBar}>
           <Button type="button" variant="secondary" onClick={handleSave}>

@@ -22,6 +22,8 @@ export interface MobileTabsProps {
   readonly onResolveThread: (threadId: string) => void;
   readonly versions: readonly DocumentVersion[];
   readonly onRestoreVersion: (versionNo: number) => string;
+  readonly onBlocksChange: (next: readonly DocumentBlock[]) => void;
+  readonly saveStatus: string;
 }
 
 export function MobileTabs({
@@ -35,6 +37,8 @@ export function MobileTabs({
   onResolveThread,
   versions,
   onRestoreVersion,
+  onBlocksChange,
+  saveStatus,
 }: MobileTabsProps): ReactElement {
   const [activeId, setActiveId] = useState('documento');
 
@@ -45,7 +49,7 @@ export function MobileTabs({
       activeId={activeId}
       onChange={setActiveId}
       tabs={[
-        { id: 'documento', label: 'Documento', panel: <EditorColumn blocks={blocks} /> },
+        { id: 'documento', label: 'Documento', panel: <EditorColumn blocks={blocks} onBlocksChange={onBlocksChange} saveStatus={saveStatus} /> },
         {
           id: 'agente',
           label: 'Agente',

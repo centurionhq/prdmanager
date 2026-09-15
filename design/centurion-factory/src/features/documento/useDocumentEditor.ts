@@ -65,6 +65,7 @@ export interface UseDocumentEditorResult {
   readonly addReply: (threadId: string, body: string) => void;
   readonly resolveThread: (threadId: string) => void;
   readonly restoreVersion: (versionNo: number) => string;
+  readonly updateBlocks: (next: readonly DocumentBlock[]) => void;
 }
 
 function nextVersionNumber(versions: readonly DocumentVersion[]): number {
@@ -160,6 +161,10 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
     return 'Versión restaurada';
   }
 
+  function updateBlocks(next: readonly DocumentBlock[]): void {
+    setBlocks(next);
+  }
+
   const metaLine = document ? metaLineFor(document, savedJustNow, now) : '';
 
   return {
@@ -180,5 +185,6 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
     addReply,
     resolveThread,
     restoreVersion,
+    updateBlocks,
   };
 }

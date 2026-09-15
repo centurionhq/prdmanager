@@ -33,7 +33,7 @@ describe('DocumentoPage', () => {
 
     expect((await screen.findByRole('status')).textContent).toContain('Guardado');
     expect(screen.getByText(/Versión 8/)).toBeTruthy();
-    expect(screen.getByText(/Guardado por Ana Ríos ahora/)).toBeTruthy();
+    expect(screen.getAllByText(/Guardado por Ana Ríos ahora/).length).toBeGreaterThan(0);
   });
 
   it('moves through the side panel tabs with arrow keys', async () => {
