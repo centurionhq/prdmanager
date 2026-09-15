@@ -3,14 +3,28 @@
  * Vista previa renders real WYSIWYG formatting (bold/italic/strikethrough/links); the block model
  * is always the source of truth, and the Markdown tab re-parses into it on switching back.
  */
-import { useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import type { BlockType, DocumentBlock } from '../../data';
+import { blocksForPaste, mergeIntoPrevious, splitBlock, splitFieldAtCaret } from './blockEditing';
 import styles from './EditorColumn.module.css';
 import { MarkdownEditor } from './MarkdownEditor';
 import { htmlToInline, parseMarkdown, reconcileBlocks, sanitizeHref, serializeBlocks } from './markdown';
 import { PreviewEditor } from './PreviewEditor';
 import { Toolbar, type InlineFormat } from './Toolbar';
 import { CURRENT_USER_ID } from './useDocumentEditor';
+
+type FocusPosition = 'start' | 'end';
+
+/** Collapses the caret to `position` inside `element` (used after a programmatic focus move). */
+function placeCaretAt(element: HTMLElement, position: FocusPosition): void {
+  const selection = window.getSelection();
+  if (!selection) return;
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(position === 'start');
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
 
 export interface EditorColumnProps {
   readonly blocks: readonly DocumentBlock[];
@@ -45,10 +59,23 @@ export function EditorColumn({ blocks, onBlocksChange, saveStatus }: EditorColum
   const [activeFormats, setActiveFormats] = useState<ReadonlySet<InlineFormat>>(new Set());
   const [markdownDraft, setMarkdownDraft] = useState('');
   const [markdownGutterBlocks, setMarkdownGutterBlocks] = useState<readonly DocumentBlock[]>(blocks);
+  const [focusRequest, setFocusRequest] = useState<{ readonly id: string; readonly position: FocusPosition } | null>(null);
   const fieldsRef = useRef(new Map<string, HTMLDivElement>());
   const capturedLinkRangeRef = useRef<{ readonly blockId: string; readonly range: Range } | null>(null);
 
   const focusedBlock = blocks.find((block) => block.id === focusedBlockId);
+
+  // A split/merge/paste creates or removes a field: focus its element once React has mounted it.
+  useEffect(() => {
+    if (!focusRequest) return;
+    const element = fieldsRef.current.get(focusRequest.id);
+    if (element) {
+      element.focus();
+      placeCaretAt(element, focusRequest.position);
+      setFocusedBlockId(focusRequest.id);
+    }
+    setFocusRequest(null);
+  }, [focusRequest]);
 
   function switchToMarkdown(): void {
     setMarkdownDraft(serializeBlocks(blocks));
@@ -151,6 +178,54 @@ export function EditorColumn({ blocks, onBlocksChange, saveStatus }: EditorColum
     capturedLinkRangeRef.current = null;
   }
 
+  /** The field's root element and the caret Range inside it, if any (shared by Enter/Backspace/paste). */
+  function fieldCaret(blockId: string): { readonly root: HTMLDivElement; readonly range: Range } | undefined {
+    const root = fieldsRef.current.get(blockId);
+    const selection = window.getSelection();
+    if (!root || !selection || selection.rangeCount === 0) return undefined;
+    const range = selection.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) return undefined;
+    return { root, range };
+  }
+
+  function handleSplitBlock(blockId: string): void {
+    const target = blocks.find((block) => block.id === blockId);
+    const caret = fieldCaret(blockId);
+    if (!target || !caret) return;
+
+    const fields = splitFieldAtCaret(caret.root, caret.range);
+    const { updated, created } = splitBlock(target, fields, CURRENT_USER_ID);
+    const index = blocks.findIndex((block) => block.id === blockId);
+    const next = blocks.map((block) => (block.id === blockId ? updated : block));
+    onBlocksChange([...next.slice(0, index + 1), created, ...next.slice(index + 1)]);
+    setFocusRequest({ id: created.id, position: 'start' });
+  }
+
+  function handleMergeWithPrevious(blockId: string): void {
+    const index = blocks.findIndex((block) => block.id === blockId);
+    const target = blocks[index];
+    const previous = index > 0 ? blocks[index - 1] : undefined;
+    if (!target || !previous) return;
+
+    const merged = mergeIntoPrevious(previous, target);
+    onBlocksChange(blocks.filter((block) => block.id !== blockId).map((block) => (block.id === previous.id ? merged : block)));
+    setFocusRequest({ id: previous.id, position: 'end' });
+  }
+
+  function handlePasteText(blockId: string, clipboardText: string): void {
+    const target = blocks.find((block) => block.id === blockId);
+    const caret = fieldCaret(blockId);
+    if (!target || !caret) return;
+
+    const fields = splitFieldAtCaret(caret.root, caret.range);
+    const replacement = blocksForPaste(target, fields, clipboardText, CURRENT_USER_ID);
+    const index = blocks.findIndex((block) => block.id === blockId);
+    const next = [...blocks.slice(0, index), ...replacement, ...blocks.slice(index + 1)];
+    onBlocksChange(next);
+    const lastCreated = replacement[replacement.length - 1];
+    if (lastCreated && lastCreated.id !== blockId) setFocusRequest({ id: lastCreated.id, position: 'end' });
+  }
+
   const footerLeft = mode === 'preview' ? `Vista previa · ${blocks.length} bloques` : `Markdown · ${markdownDraft.split('\n').length} líneas`;
 
   return (
@@ -193,6 +268,9 @@ export function EditorColumn({ blocks, onBlocksChange, saveStatus }: EditorColum
             onToggleChecked={(id) => updateBlock(id, { checked: !blocks.find((block) => block.id === id)?.checked })}
             onFormatShortcut={handleFormatSelection}
             onSelectionChange={refreshActiveFormats}
+            onSplitBlock={handleSplitBlock}
+            onMergeWithPrevious={handleMergeWithPrevious}
+            onPasteText={handlePasteText}
             registerField={(id, element) => {
               if (element) fieldsRef.current.set(id, element);
               else fieldsRef.current.delete(id);

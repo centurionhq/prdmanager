@@ -4,7 +4,7 @@
  * `~~`/`[]()`. The block model is always the source of truth: the DOM is only re-synced when the
  * incoming `block.text` did not originate from this same field's own edit (see `Block` below).
  */
-import { useEffect, useRef, type KeyboardEvent, type ReactElement } from 'react';
+import { useEffect, useRef, type ClipboardEvent, type KeyboardEvent, type ReactElement } from 'react';
 import { getPerson, type BlockType, type DocumentBlock } from '../../data';
 import { htmlToInline, inlineToHtml } from './markdown';
 import styles from './PreviewEditor.module.css';
@@ -16,7 +16,19 @@ export interface PreviewEditorProps {
   readonly onToggleChecked: (id: string) => void;
   readonly onFormatShortcut: (marker: '**' | '_') => void;
   readonly onSelectionChange: (blockId: string) => void;
+  readonly onSplitBlock: (blockId: string) => void;
+  readonly onMergeWithPrevious: (blockId: string) => void;
+  readonly onPasteText: (blockId: string, text: string) => void;
   readonly registerField: (id: string, element: HTMLDivElement | null) => void;
+}
+
+/** True when the caret (a collapsed selection) sits at the very first position inside `root`. */
+function isCaretAtStart(root: HTMLElement, range: Range): boolean {
+  if (!range.collapsed) return false;
+  const probe = document.createRange();
+  probe.setStart(root, 0);
+  probe.setEnd(range.startContainer, range.startOffset);
+  return probe.toString().length === 0;
 }
 
 function gutterFor(block: DocumentBlock): { readonly text: string; readonly isAgent: boolean } {
@@ -60,11 +72,25 @@ interface BlockFieldProps {
   readonly onChangeText: (id: string, text: string) => void;
   readonly onFormatShortcut: (marker: '**' | '_') => void;
   readonly onSelectionChange: (blockId: string) => void;
+  readonly onSplitBlock: (blockId: string) => void;
+  readonly onMergeWithPrevious: (blockId: string) => void;
+  readonly onPasteText: (blockId: string, text: string) => void;
   readonly registerField: (id: string, element: HTMLDivElement | null) => void;
 }
 
 /** One contentEditable field. Syncs from `block.text` only when the DOM disagrees with it. */
-function BlockField({ block, index, onFocusBlock, onChangeText, onFormatShortcut, onSelectionChange, registerField }: BlockFieldProps): ReactElement {
+function BlockField({
+  block,
+  index,
+  onFocusBlock,
+  onChangeText,
+  onFormatShortcut,
+  onSelectionChange,
+  onSplitBlock,
+  onMergeWithPrevious,
+  onPasteText,
+  registerField,
+}: BlockFieldProps): ReactElement {
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -85,14 +111,37 @@ function BlockField({ block, index, onFocusBlock, onChangeText, onFormatShortcut
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    if (!(event.ctrlKey || event.metaKey)) return;
-    if (event.key.toLowerCase() === 'b') {
-      event.preventDefault();
-      onFormatShortcut('**');
-    } else if (event.key.toLowerCase() === 'i') {
-      event.preventDefault();
-      onFormatShortcut('_');
+    if (event.ctrlKey || event.metaKey) {
+      if (event.key.toLowerCase() === 'b') {
+        event.preventDefault();
+        onFormatShortcut('**');
+      } else if (event.key.toLowerCase() === 'i') {
+        event.preventDefault();
+        onFormatShortcut('_');
+      }
+      return;
     }
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      onSplitBlock(block.id);
+      return;
+    }
+
+    if (event.key === 'Backspace') {
+      const element = ref.current;
+      const selection = window.getSelection();
+      if (!element || !selection || selection.rangeCount === 0) return;
+      if (isCaretAtStart(element, selection.getRangeAt(0))) {
+        event.preventDefault();
+        onMergeWithPrevious(block.id);
+      }
+    }
+  }
+
+  function handlePaste(event: ClipboardEvent<HTMLDivElement>): void {
+    event.preventDefault();
+    onPasteText(block.id, event.clipboardData.getData('text/plain'));
   }
 
   return (
@@ -116,6 +165,7 @@ function BlockField({ block, index, onFocusBlock, onChangeText, onFormatShortcut
       onKeyUp={() => onSelectionChange(block.id)}
       onMouseUp={() => onSelectionChange(block.id)}
       onKeyDown={handleKeyDown}
+      onPaste={handlePaste}
     />
   );
 }
@@ -127,6 +177,9 @@ export function PreviewEditor({
   onToggleChecked,
   onFormatShortcut,
   onSelectionChange,
+  onSplitBlock,
+  onMergeWithPrevious,
+  onPasteText,
   registerField,
 }: PreviewEditorProps): ReactElement {
   return (
@@ -162,6 +215,9 @@ export function PreviewEditor({
               onChangeText={onChangeText}
               onFormatShortcut={onFormatShortcut}
               onSelectionChange={onSelectionChange}
+              onSplitBlock={onSplitBlock}
+              onMergeWithPrevious={onMergeWithPrevious}
+              onPasteText={onPasteText}
               registerField={registerField}
             />
           </div>
