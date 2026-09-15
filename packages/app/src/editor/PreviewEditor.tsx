@@ -6,13 +6,16 @@
  * config — reusing it here rather than inventing a second one). Re-renders on every `ytext.observe` event,
  * whether the change came from `applySplice` (y-binding.ts), another collaborator, or the Markdown tab.
  *
- * Input handling (`beforeinput`, composition, paste) is a separate WO by design — this component is
- * render-only.
+ * Editable when `!readOnly`: `contentEditable` lets the browser fire real `beforeinput`/composition/paste
+ * events, but `usePreviewInput` (WO-377) always prevents their default action and applies the equivalent
+ * edit to `ytext` instead — the browser's own DOM mutation never happens, `ytext.toString()` stays the only
+ * source of truth. Composition/paste/drop handling is WO-378's.
  */
-import { useEffect, useReducer, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useReducer, useRef, type ReactElement, type ReactNode } from 'react';
 import * as Y from 'yjs';
 import { classifyDocument, type BlockKind, type EditableRun, type SourceBlock } from './source-map.js';
 import { runDisplayText } from './run-text.js';
+import { usePreviewInput } from './use-preview-input.js';
 import { MarkdownPreview } from '../components/MarkdownPreview.js';
 
 export interface PreviewEditorProps {
@@ -145,12 +148,21 @@ function renderGroup(source: string, group: RenderGroup, onEditInMarkdown?: (off
 
 export function PreviewEditor({ ytext, readOnly = false, onEditInMarkdown }: PreviewEditorProps): ReactElement {
   useYTextVersion(ytext);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  usePreviewInput({ ytext, containerRef, readOnly });
+
   const source = ytext.toString();
   const blocks = classifyDocument(source);
   const groups = groupBlocks(blocks);
 
   return (
-    <div data-testid="preview-editor" aria-readonly={readOnly}>
+    <div
+      ref={containerRef}
+      data-testid="preview-editor"
+      aria-readonly={readOnly}
+      contentEditable={!readOnly}
+      suppressContentEditableWarning
+    >
       {groups.map((group) => renderGroup(source, group, onEditInMarkdown))}
     </div>
   );
