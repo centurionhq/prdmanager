@@ -22,7 +22,7 @@ import { EntradaPlaceholder } from './routes/EntradaPlaceholder.js';
 import { InviteAccept } from './routes/InviteAccept.js';
 import { Login } from './routes/Login.js';
 import { NotFound } from './routes/NotFound.js';
-import { OrdenesPlaceholder } from './routes/OrdenesPlaceholder.js';
+import { Ordenes } from './routes/Ordenes.js';
 import { OrgAjustesAuditoria } from './routes/OrgAjustesAuditoria.js';
 import { OrgMembersSettings } from './routes/OrgMembersSettings.js';
 import { OrgShell } from './routes/OrgShell.js';
@@ -59,7 +59,7 @@ export const routes: RouteObject[] = [
       { path: 'arbol/:id?', element: <ProjectGraph /> },
       { path: 'documents', element: <DocumentsList /> },
       { path: 'documents/:docId', element: <DocumentDetail /> },
-      { path: 'ordenes', element: <OrdenesPlaceholder /> },
+      { path: 'ordenes', element: <Ordenes /> },
       { path: 'drift', element: <DriftDashboard /> },
       { path: 'entrada', element: <EntradaPlaceholder /> },
       {

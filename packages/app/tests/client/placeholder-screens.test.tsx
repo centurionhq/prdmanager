@@ -7,7 +7,6 @@ import { AjustesGeneral } from '../../src/routes/AjustesGeneral.js';
 import { AjustesPerfil } from '../../src/routes/AjustesPerfil.js';
 import { EntradaPlaceholder } from '../../src/routes/EntradaPlaceholder.js';
 import { NotFound } from '../../src/routes/NotFound.js';
-import { OrdenesPlaceholder } from '../../src/routes/OrdenesPlaceholder.js';
 import { PlantaPlaceholder } from '../../src/routes/PlantaPlaceholder.js';
 import { makeProjectShellContext } from './fixtures.js';
 
@@ -25,11 +24,6 @@ describe('placeholder screens', () => {
   it('Planta shows a placeholder empty state', () => {
     renderWithProjectContext(<PlantaPlaceholder />);
     expect(screen.getByRole('heading', { name: 'Planta' })).toBeTruthy();
-  });
-
-  it('Ordenes shows a placeholder empty state', () => {
-    renderWithProjectContext(<OrdenesPlaceholder />);
-    expect(screen.getByRole('heading', { name: 'Órdenes de trabajo' })).toBeTruthy();
   });
 
   it('Entrada shows a placeholder empty state', () => {
@@ -52,7 +46,8 @@ describe('placeholder screens', () => {
     expect(screen.getByText('Acme', { exact: false })).toBeTruthy();
   });
 
-  it('AjustesPerfil signs out and navigates to /login', async () => {
+  it('AjustesPerfil shows the name and a read-only email, then signs out and navigates to /login', async () => {
+    vi.spyOn(client, 'getSession').mockResolvedValue({ user: { id: 'u1', email: 'ana@example.test', name: 'Ana' } });
     const signOut = vi.spyOn(client, 'signOut').mockResolvedValue(undefined);
     const router = createMemoryRouter(
       [
@@ -62,6 +57,10 @@ describe('placeholder screens', () => {
       { initialEntries: ['/ctx'] },
     );
     render(<RouterProvider router={router} />);
+
+    expect(await screen.findByDisplayValue('Ana')).toBeTruthy();
+    expect(screen.getByText('ana@example.test', { exact: false })).toBeTruthy();
+    expect(screen.getByText('No se puede cambiar')).toBeTruthy();
 
     await userEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
 
