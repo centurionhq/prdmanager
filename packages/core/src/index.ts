@@ -27,6 +27,7 @@ export * from './sync/git.js';
 export * from './sync/monitor.js';
 export * from './lifecycle/check.js';
 export * from './lifecycle/close.js';
+export * from './lifecycle/station.js';
 export * from './util/hash.js';
 export * from './util/ids.js';
 export * from './util/journal.js';
