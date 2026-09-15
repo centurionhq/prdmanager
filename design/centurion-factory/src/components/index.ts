@@ -23,3 +23,12 @@ export type { EmptyStateAction, EmptyStateProps } from './EmptyState/EmptyState'
 
 export { ErrorState } from './ErrorState/ErrorState';
 export type { ErrorStateProps } from './ErrorState/ErrorState';
+
+export { DataTable } from './DataTable/DataTable';
+export type { DataTableColumn, DataTableProps } from './DataTable/DataTable';
+
+export { FilterChips } from './FilterChips/FilterChips';
+export type { FilterChipOption, FilterChipsProps } from './FilterChips/FilterChips';
+
+export { SearchField } from './SearchField/SearchField';
+export type { SearchFieldProps } from './SearchField/SearchField';
