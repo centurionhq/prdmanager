@@ -39,6 +39,7 @@ export * from './workorders/context.js';
 export * from './workorders/generator.js';
 export * from './workorders/lifecycle.js';
 export * from './feedback/ingest.js';
+export * from './feedback/link.js';
 export * from './feedback/triage.js';
 export * from './artifacts/ingest.js';
 export * from './metrics/metrics.js';
