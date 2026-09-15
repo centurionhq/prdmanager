@@ -1,27 +1,51 @@
 /**
- * Translates `beforeinput` (SDD-014 §"Editor de vista previa": always `preventDefault`, the model is the
- * only source of truth) into a single `edit-ops.ts` call + `applySplice`, and restores the DOM caret at the
- * equivalent position once the resulting re-render lands. Only the input types WO-377 calls out are
- * handled here (`insertText`, `deleteContentBackward`, `deleteContentForward`, `insertParagraph`);
- * composition/paste/drop are WO-378's.
+ * Translates DOM input events into `edit-ops.ts` calls + `applySplice` (SDD-014 §"Editor de vista previa":
+ * the model is the only source of truth) and restores the DOM caret once the resulting re-render lands.
  *
- * Registers a *native* `addEventListener('beforeinput', ...)` on the container DOM node rather than using
- * React's `onBeforeInput` prop: React's synthetic `onBeforeInput` predates the real DOM event and is
- * synthesized from `compositionend`/`keypress`/`textInput` instead (confirmed against the installed
- * react-dom's own event plugin source) — it never fires from an actual native `beforeinput` event, which is
- * the only thing a real contentEditable browser (or this WO's own tests) ever dispatches.
+ * - `beforeinput` (WO-377): always prevented, translated per `inputType`
+ *   (`insertText`/`insertParagraph`/`deleteContentBackward`/`deleteContentForward`), except while an IME
+ *   composition is in progress (see below).
+ * - Composition (WO-378): intermediate `beforeinput` events during a composition are noisy and inconsistent
+ *   across browsers/IMEs, so they're ignored entirely; instead, `compositionend` diffs the active block's
+ *   live `textContent` against what it was at `compositionstart` and applies the difference as one splice.
+ * - Paste (WO-378): only `text/plain` from the clipboard, escaped, ever reaches the model — clipboard HTML
+ *   is never used.
+ * - Drop (WO-378): unconditionally prevented; dragging content into the editor is not supported.
+ * - A `MutationObserver` (WO-378) reverts any DOM mutation that wasn't part of this hook's own
+ *   render-triggered commit or an in-progress composition — nothing external is ever allowed to leave the
+ *   DOM out of sync with `ytext`. Own-render mutations are discarded via `observer.takeRecords()` inside
+ *   a `useLayoutEffect` that runs synchronously right after every commit — *not* via a timing flag reset
+ *   through `queueMicrotask`, since the installed jsdom/Node delivers `MutationObserver` callbacks with
+ *   higher priority than an already-scheduled `queueMicrotask` callback (confirmed empirically: a
+ *   `queueMicrotask` call made strictly before `MutationObserver.observe()` still ran *after* that
+ *   observer's callback once a mutation queued it), so a flag reset that way can't be trusted to have run
+ *   before the observer's callback fires.
+ *
+ * Registers *native* `addEventListener`s on the container DOM node rather than React's synthetic props:
+ * React's `onBeforeInput` predates the real DOM event and is synthesized from
+ * `compositionend`/`keypress`/`textInput` instead (confirmed against the installed react-dom's own event
+ * plugin source) — it never fires from an actual native `beforeinput` event, which is the only thing a real
+ * contentEditable browser (or this WO's own tests) ever dispatches.
  */
 import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import * as Y from 'yjs';
 import { classifyDocument, type SourceBlock } from './source-map.js';
-import { deleteRange, insertText, joinBlocks, splitBlock, type Splice } from './edit-ops.js';
+import { deleteRange, escapeMarkdownText, insertText, joinBlocks, splitBlock, type Splice } from './edit-ops.js';
 import { applySplice } from './y-binding.js';
 import { blockOffsetToDomPosition, domPositionToBlockOffset, type BlockDomPosition } from './dom-selection.js';
+import { displayOffsetToSourceOffset } from './run-text.js';
+import { diffText } from './composition-diff.js';
+import { revertMutationRecords } from './dom-mutation-guard.js';
 
 export interface UsePreviewInputOptions {
   ytext: Y.Text;
   containerRef: RefObject<HTMLElement | null>;
   readOnly: boolean;
+}
+
+interface CompositionBaseline {
+  blockElement: Element;
+  textBefore: string;
 }
 
 function findBlockAt(blocks: readonly SourceBlock[], absoluteOffset: number): SourceBlock | null {
@@ -34,6 +58,11 @@ function findBlockAt(blocks: readonly SourceBlock[], absoluteOffset: number): So
 
 function blockIndexOf(blocks: readonly SourceBlock[], block: SourceBlock): number {
   return blocks.findIndex((candidate) => candidate.from === block.from);
+}
+
+function closestBlockElement(node: Node): Element | null {
+  const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element);
+  return element?.closest('[data-block-from]') ?? null;
 }
 
 function buildBackwardDelete(position: BlockDomPosition, blocks: readonly SourceBlock[], source: string): Splice | null {
@@ -87,10 +116,36 @@ function buildSplice(inputType: string, data: string | null, start: BlockDomPosi
   }
 }
 
+function resolveSelectionPositions(blocks: readonly SourceBlock[]): { start: BlockDomPosition; end: BlockDomPosition } | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return null;
+  const range = selection.getRangeAt(0);
+  const start = domPositionToBlockOffset(range.startContainer, range.startOffset, blocks);
+  const end = domPositionToBlockOffset(range.endContainer, range.endOffset, blocks);
+  if (!start || !end) return null;
+  return { start, end };
+}
+
+const MUTATION_OBSERVER_OPTIONS: MutationObserverInit = {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeOldValue: true,
+  characterData: true,
+  characterDataOldValue: true,
+};
+
 export function usePreviewInput({ ytext, containerRef, readOnly }: UsePreviewInputOptions): void {
   const pendingCursorAbsoluteOffset = useRef<number | null>(null);
+  const isComposingRef = useRef(false);
+  const observerRef = useRef<MutationObserver | null>(null);
+  const compositionBaselineRef = useRef<CompositionBaseline | null>(null);
 
   useLayoutEffect(() => {
+    // Discards whatever mutation records this render's own DOM commit just produced, synchronously,
+    // before the observer's (always asynchronous) callback ever gets a chance to see them.
+    observerRef.current?.takeRecords();
+
     const target = pendingCursorAbsoluteOffset.current;
     const container = containerRef.current;
     pendingCursorAbsoluteOffset.current = null;
@@ -110,28 +165,103 @@ export function usePreviewInput({ ytext, containerRef, readOnly }: UsePreviewInp
     const container = containerRef.current;
     if (!container) return;
 
-    const handleBeforeInput = (event: InputEvent): void => {
-      event.preventDefault();
-      if (readOnly) return;
-
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) return;
-      const range = selection.getRangeAt(0);
-
-      const source = ytext.toString();
-      const blocks = classifyDocument(source);
-      const start = domPositionToBlockOffset(range.startContainer, range.startOffset, blocks);
-      const end = domPositionToBlockOffset(range.endContainer, range.endOffset, blocks);
-      if (!start || !end) return;
-
-      const splice = buildSplice(event.inputType, event.data, start, end, blocks, source);
+    const applyModelSplice = (splice: Splice | null): void => {
       if (!splice) return;
-
       pendingCursorAbsoluteOffset.current = splice.from + splice.insert.length;
       applySplice(ytext, splice);
     };
 
+    const handleBeforeInput = (event: InputEvent): void => {
+      if (isComposingRef.current) return;
+      event.preventDefault();
+      if (readOnly) return;
+
+      const source = ytext.toString();
+      const blocks = classifyDocument(source);
+      const positions = resolveSelectionPositions(blocks);
+      if (!positions) return;
+
+      applyModelSplice(buildSplice(event.inputType, event.data, positions.start, positions.end, blocks, source));
+    };
+
+    const handleCompositionStart = (event: CompositionEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      const blockElement = closestBlockElement(target);
+      if (!blockElement) return;
+      isComposingRef.current = true;
+      compositionBaselineRef.current = { blockElement, textBefore: blockElement.textContent ?? '' };
+    };
+
+    const handleCompositionEnd = (): void => {
+      isComposingRef.current = false;
+      const baseline = compositionBaselineRef.current;
+      compositionBaselineRef.current = null;
+      if (!baseline || readOnly) return;
+
+      const textAfter = baseline.blockElement.textContent ?? '';
+      const diff = diffText(baseline.textBefore, textAfter);
+      if (diff.deleteCount === 0 && diff.insertText.length === 0) return;
+
+      const blockFrom = Number(baseline.blockElement.getAttribute('data-block-from'));
+      const source = ytext.toString();
+      const block = classifyDocument(source).find((candidate) => candidate.from === blockFrom);
+      if (!block) return;
+
+      const from = displayOffsetToSourceOffset(source, block, diff.start);
+      const to = displayOffsetToSourceOffset(source, block, diff.start + diff.deleteCount);
+      applyModelSplice({ from, to, insert: escapeMarkdownText(diff.insertText) });
+    };
+
+    const handlePaste = (event: ClipboardEvent): void => {
+      event.preventDefault();
+      if (readOnly) return;
+
+      const text = event.clipboardData?.getData('text/plain') ?? '';
+      if (!text) return;
+
+      const source = ytext.toString();
+      const blocks = classifyDocument(source);
+      const positions = resolveSelectionPositions(blocks);
+      if (!positions) return;
+
+      const { start, end } = positions;
+      const isCollapsed = start.block.from === end.block.from && start.offsetInBlock === end.offsetInBlock;
+      applyModelSplice(isCollapsed ? insertText(start.block, start.offsetInBlock, text, source) : buildRangeReplace(start, end, text, source));
+    };
+
+    const handleDrop = (event: DragEvent): void => {
+      event.preventDefault();
+    };
+
+    const handleMutations = (records: MutationRecord[]): void => {
+      if (isComposingRef.current) return;
+      // Disconnected around the revert itself: removeChild/insertBefore/setAttribute below are themselves
+      // mutations, and this same observer (subtree: true) would otherwise re-queue and re-deliver them,
+      // undoing its own revert forever.
+      observer.disconnect();
+      revertMutationRecords(records);
+      observer.observe(container, MUTATION_OBSERVER_OPTIONS);
+    };
+
+    const observer = new MutationObserver(handleMutations);
+    observer.observe(container, MUTATION_OBSERVER_OPTIONS);
+    observerRef.current = observer;
+
     container.addEventListener('beforeinput', handleBeforeInput);
-    return () => container.removeEventListener('beforeinput', handleBeforeInput);
+    container.addEventListener('compositionstart', handleCompositionStart);
+    container.addEventListener('compositionend', handleCompositionEnd);
+    container.addEventListener('paste', handlePaste as EventListener);
+    container.addEventListener('drop', handleDrop as EventListener);
+
+    return () => {
+      observerRef.current = null;
+      observer.disconnect();
+      container.removeEventListener('beforeinput', handleBeforeInput);
+      container.removeEventListener('compositionstart', handleCompositionStart);
+      container.removeEventListener('compositionend', handleCompositionEnd);
+      container.removeEventListener('paste', handlePaste as EventListener);
+      container.removeEventListener('drop', handleDrop as EventListener);
+    };
   }, [ytext, readOnly, containerRef]);
 }

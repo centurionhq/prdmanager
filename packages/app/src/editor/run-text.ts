@@ -6,7 +6,7 @@
  * absolute position in the markdown source, since neither needs the run's *trailing* syntax length (a
  * link's `](href)` suffix varies with `href`) to do that.
  */
-import type { EditableRun } from './source-map.js';
+import type { EditableRun, SourceBlock } from './source-map.js';
 
 const LINK_LABEL_PATTERN = /^\[(.*)\]\([^)]*\)$/s;
 
@@ -42,4 +42,22 @@ export function runPrefixLength(kind: EditableRun['kind']): number {
     case 'softbreak':
       return 0;
   }
+}
+
+/**
+ * Maps an offset into a block's *rendered* plain text (as `blockElement.textContent` gives it — the same
+ * concatenation of {@link runDisplayText} across `block.runs`, in order) back to an absolute markdown
+ * source offset. Used by the composition-diff reconciliation (WO-378), which only ever has plain rendered
+ * text to compare before/after a composition, never a live DOM node to walk the way `dom-selection.ts` does.
+ */
+export function displayOffsetToSourceOffset(source: string, block: SourceBlock, displayOffset: number): number {
+  let consumed = 0;
+  for (const run of block.runs ?? []) {
+    const text = runDisplayText(source, run);
+    if (displayOffset <= consumed + text.length) {
+      return run.from + runPrefixLength(run.kind) + (displayOffset - consumed);
+    }
+    consumed += text.length;
+  }
+  return block.to;
 }
