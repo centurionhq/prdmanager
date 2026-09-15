@@ -218,6 +218,68 @@ describe('round-trip: inlineToHtml <-> htmlToInline', () => {
   });
 });
 
+describe('htmlToInline escapes literal markdown-special characters in text nodes', () => {
+  it('escapes underscores so a snake_case word never becomes italic', () => {
+    expect(htmlToInline('snake_case_name')).toBe('snake\\_case\\_name');
+  });
+
+  it('escapes a literal, unpaired ** so it is never lost', () => {
+    expect(htmlToInline('Doble asterisco literal: ** en el medio.')).toBe('Doble asterisco literal: \\*\\* en el medio.');
+  });
+
+  it('escapes brackets and parens too', () => {
+    expect(htmlToInline('[no es un link] (ni esto)')).toBe('\\[no es un link\\] \\(ni esto\\)');
+  });
+
+  it('percent-encodes parens inside a link href so the line stays parseable', () => {
+    expect(htmlToInline('<a href="https://example.com/a(1)">x</a>')).toBe('[x](https://example.com/a%281%29)');
+  });
+});
+
+describe('parseInline understands backslash escapes', () => {
+  it('renders an escaped underscore, asterisk, bracket and paren as the literal character', () => {
+    expect(inlineToHtml('snake\\_case\\_name')).toBe('snake_case_name');
+    expect(inlineToHtml('Doble asterisco literal: \\*\\* en el medio.')).toBe('Doble asterisco literal: ** en el medio.');
+    expect(inlineToHtml('\\[no es un link\\] \\(ni esto\\)')).toBe('[no es un link] (ni esto)');
+  });
+});
+
+describe('parseInline treats _ as italic only at word boundaries', () => {
+  it('leaves a mid-word underscore alone even without escaping', () => {
+    expect(inlineToHtml('snake_case_name')).toBe('snake_case_name');
+  });
+
+  it('still renders a standalone _word_ as italic', () => {
+    expect(inlineToHtml('una palabra _en cursiva_ acá')).toBe('una palabra <em>en cursiva</em> acá');
+  });
+});
+
+describe('WYSIWYG round-trip: DOM text -> block.text -> rendered HTML shows the same literal text', () => {
+  const domTexts = [
+    'snake_case_name',
+    'Doble asterisco literal: ** en el medio.',
+    '[no es un link] (ni esto)',
+    'Texto con guion_bajo y **doble asterisco** real en negrita.',
+  ];
+
+  it.each(domTexts)('%s survives being stored and re-rendered', (domText) => {
+    const modelText = htmlToInline(domText);
+    expect(inlineToHtml(modelText)).toBe(domText);
+  });
+});
+
+describe('lineForBlock escapes a leading block marker for p blocks (via serializeBlocks/parseMarkdown)', () => {
+  it.each(['# Not a heading', '## Not a heading', '### Not a heading', '- Not a bullet', '1. Not an ordered item'])(
+    'round-trips %s as a literal paragraph, not a heading or a list',
+    (text) => {
+      const blocks: DocumentBlock[] = [{ id: 'b1', type: 'p', text, author: 'ana-rios' }];
+      const [parsed] = parseMarkdown(serializeBlocks(blocks));
+      expect(parsed?.type).toBe('p');
+      expect(inlineToHtml(parsed?.text ?? '')).toBe(text);
+    },
+  );
+});
+
 describe('reconcileBlocks', () => {
   it('keeps the id and author of blocks at an unchanged position', () => {
     const previous: DocumentBlock[] = [block('b1', 'h1', 'Viejo', { author: 'julia-paz' })];
