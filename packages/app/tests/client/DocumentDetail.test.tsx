@@ -1,11 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createMemoryRouter, RouterProvider } from 'react-router';
+import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DocumentDetail as DocumentDetailDto } from '@prdm/contracts';
 import * as client from '../../src/api/client.js';
 import { DocumentDetail } from '../../src/routes/DocumentDetail.js';
-import { OrgShell } from '../../src/routes/OrgShell.js';
+import { makeProjectShellContext } from './fixtures.js';
 
 function baseDoc(overrides: Partial<DocumentDetailDto> = {}): DocumentDetailDto {
   return {
@@ -30,16 +30,11 @@ function baseDoc(overrides: Partial<DocumentDetailDto> = {}): DocumentDetailDto 
 }
 
 function renderPage(doc: DocumentDetailDto, projectRole: 'admin' | 'editor' | 'viewer') {
-  vi.spyOn(client, 'listOrganizations').mockResolvedValue([{ id: 'org1', slug: 'acme', name: 'Acme', role: 'member' }]);
-  vi.spyOn(client, 'listProjects').mockResolvedValue([]);
-  vi.spyOn(client, 'getSession').mockResolvedValue({ user: { id: 'u1', email: 'me@example.test', name: 'Me' } });
-  vi.spyOn(client, 'listProjectMembers').mockResolvedValue([{ userId: 'u1', email: 'me@example.test', name: 'Me', role: projectRole }]);
   vi.spyOn(client, 'getDocument').mockResolvedValue(doc);
-  vi.spyOn(client, 'getProject').mockResolvedValue({ id: 'proj1', slug: 'web', name: 'Web', graphProjectId: 'prj_abc', settings: {} as never, archivedAt: null });
 
   const router = createMemoryRouter(
-    [{ path: '/o/:orgSlug', element: <OrgShell />, children: [{ path: 'p/:projectSlug/documents/:docId', element: <DocumentDetail /> }] }],
-    { initialEntries: ['/o/acme/p/web/documents/PRD-001'] },
+    [{ path: '/ctx/:docId', element: <Outlet context={makeProjectShellContext('member', projectRole)} />, children: [{ index: true, element: <DocumentDetail /> }] }],
+    { initialEntries: ['/ctx/PRD-001'] },
   );
   render(<RouterProvider router={router} />);
 }
@@ -78,29 +73,63 @@ describe('DocumentDetail', () => {
     await waitFor(() => expect(requestReview).toHaveBeenCalledWith('acme', 'web', 'PRD-001'));
   });
 
-  it('an editor cannot publish (button hidden); an admin can, and a work-order failure shows a retry', async () => {
+  it('an editor cannot publish (button hidden); an admin can', async () => {
     const inReview = baseDoc({ workflowState: 'in_review', kind: 'SDD' });
     renderPage(inReview, 'editor');
     await screen.findByRole('heading', { name: 'Feature A' });
     expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
   });
 
-  it('an admin publishes an SDD and sees a retry action when work order generation fails', async () => {
+  it('publishing opens a review screen; confirming there is what actually calls publishDocument', async () => {
     const inReview = baseDoc({ workflowState: 'in_review', kind: 'SDD' });
     renderPage(inReview, 'admin');
     await screen.findByRole('heading', { name: 'Feature A' });
 
     const publish = vi.spyOn(client, 'publishDocument').mockResolvedValue({
       document: baseDoc({ workflowState: 'published', kind: 'SDD', publishedRaw: 'published content' }),
+      workOrders: { generated: true, created: 0 },
+    });
+    vi.spyOn(client, 'getDocument').mockResolvedValue(baseDoc({ workflowState: 'published', kind: 'SDD', publishedRaw: 'published content' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Publicar' }));
+    expect(screen.getByRole('heading', { name: 'Revisar antes de publicar' })).toBeTruthy();
+    expect(publish).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Publicar versión 1' }));
+
+    await waitFor(() => expect(publish).toHaveBeenCalledWith('acme', 'web', 'PRD-001', { versionId: 'v1', contentHash: 'hash1' }));
+  });
+
+  it('an admin sees a retry action when work order generation fails after confirming publish', async () => {
+    const inReview = baseDoc({ workflowState: 'in_review', kind: 'SDD' });
+    renderPage(inReview, 'admin');
+    await screen.findByRole('heading', { name: 'Feature A' });
+
+    vi.spyOn(client, 'publishDocument').mockResolvedValue({
+      document: baseDoc({ workflowState: 'published', kind: 'SDD', publishedRaw: 'published content' }),
       workOrders: { generated: false, created: 0, error: 'boom' },
     });
     vi.spyOn(client, 'getDocument').mockResolvedValue(baseDoc({ workflowState: 'published', kind: 'SDD', publishedRaw: 'published content' }));
 
     await userEvent.click(screen.getByRole('button', { name: 'Publicar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Publicar versión 1' }));
 
-    await waitFor(() => expect(publish).toHaveBeenCalledWith('acme', 'web', 'PRD-001', { versionId: 'v1', contentHash: 'hash1' }));
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reintentar generación de work orders' })).toBeTruthy();
+  });
+
+  it('closing the review screen without confirming never publishes', async () => {
+    const inReview = baseDoc({ workflowState: 'in_review', kind: 'SDD' });
+    renderPage(inReview, 'admin');
+    await screen.findByRole('heading', { name: 'Feature A' });
+
+    const publish = vi.spyOn(client, 'publishDocument');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Publicar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Volver a editar' }));
+
+    expect(screen.queryByRole('heading', { name: 'Revisar antes de publicar' })).toBeNull();
+    expect(publish).not.toHaveBeenCalled();
   });
 
   it('hides "Cerrar feature" for a non-approved published feature and for a non-admin', async () => {

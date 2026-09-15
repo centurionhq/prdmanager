@@ -41,6 +41,10 @@
   max-width: 360px;
 }
 
+.lg {
+  max-width: 880px;
+}
+
 .header {
   display: flex;
   align-items: flex-start;

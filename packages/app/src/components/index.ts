@@ -47,3 +47,6 @@ export type { PageHeaderProps } from './PageHeader/PageHeader';
 
 export { Tabs } from './Tabs/Tabs';
 export type { TabDef, TabsClassNames, TabsProps } from './Tabs/Tabs';
+
+export { PublishReviewModal } from './PublishReviewModal/PublishReviewModal';
+export type { PublishReviewModalProps } from './PublishReviewModal/PublishReviewModal';

@@ -3,7 +3,7 @@ import { useId, type ReactElement, type ReactNode } from 'react';
 import { useDialogController, useScrimClose } from '../../lib/use-dialog-controller';
 import styles from './Modal.module.css';
 
-export type ModalSize = 'sm' | 'md';
+export type ModalSize = 'sm' | 'md' | 'lg';
 
 export interface ModalProps {
   readonly open: boolean;
@@ -18,6 +18,7 @@ export interface ModalProps {
 const SIZE_CLASS: Record<ModalSize, string | undefined> = {
   sm: styles.sm,
   md: styles.md,
+  lg: styles.lg,
 };
 
 /** Centered dialog, 520px wide by default. See the "Reconocer drift" plate on Drift.dc.html. */
