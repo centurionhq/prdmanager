@@ -1,0 +1,121 @@
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4) var(--space-6) var(--space-4) 0;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.gutter {
+  flex: none;
+  width: 64px;
+  padding: var(--space-1) var(--space-2) 0 0;
+  text-align: right;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--apagado);
+}
+
+.agentMark {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 var(--space-1);
+  background: var(--relleno);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+  font-weight: 600;
+  color: var(--texto-secundario);
+}
+
+.bullet {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin-top: 12px;
+  border-radius: 3px;
+  background: var(--texto-secundario);
+}
+
+.marker {
+  flex: none;
+  padding-top: 4px;
+  color: var(--texto-secundario);
+}
+
+.checkboxHitArea {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkbox {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 6px;
+}
+
+@media (max-width: 767px) {
+  .checkboxHitArea {
+    width: var(--hit-target);
+    height: var(--hit-target);
+  }
+
+  .checkbox {
+    margin-top: 0;
+  }
+}
+
+.field {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid transparent;
+  background: none;
+  border-radius: var(--radius-plate);
+  font-family: inherit;
+  font-size: var(--text-md);
+  line-height: 24px;
+  color: var(--texto-secundario);
+}
+
+.field:hover {
+  border-color: var(--regla-fila);
+}
+
+.field:focus-visible {
+  outline: none;
+  border-color: var(--cianotipo);
+  box-shadow: var(--focus-ring);
+}
+
+.h1 {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  font-stretch: var(--stretch-wide);
+  color: var(--grafito);
+  padding-top: var(--space-2);
+}
+
+.h2 {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--grafito);
+  padding-top: var(--space-3);
+}
+
+.h3 {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--grafito);
+  padding-top: var(--space-2);
+}

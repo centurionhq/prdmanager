@@ -1,0 +1,49 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  scroll-margin-top: var(--space-6);
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.headerCell {
+  padding: var(--space-2) var(--space-2) var(--space-2) 0;
+  border-bottom: var(--rule);
+  font-weight: 400;
+  color: var(--apagado);
+  text-align: left;
+}
+
+.headerCellEnd {
+  text-align: right;
+}
+
+.row {
+  border-bottom: var(--rule-row);
+}
+
+.cell {
+  padding: var(--space-2) var(--space-2) var(--space-2) 0;
+}
+
+.cellEnd {
+  text-align: right;
+}
+
+.commit {
+  color: var(--cianotipo);
+}
+
+.token {
+  color: var(--texto-secundario);
+}

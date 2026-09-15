@@ -1,0 +1,71 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-height: 0;
+  flex: 1;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.metaText {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.desktopActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.desktopLayout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
+  gap: 20px;
+}
+
+/*
+ * DocumentoPage.tsx renders either this layout or the mobile one (never both), chosen by
+ * useMediaQuery at the same 767px breakpoint used here, so this is styling only, not visibility.
+ */
+.mobileLayout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobileActionBar {
+  position: sticky;
+  bottom: var(--bottom-bar-height);
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  min-height: 72px;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  background: var(--superficie);
+  border-top: var(--rule);
+}
+
+.mobileActionBar > * {
+  flex: 1 1 auto;
+  min-width: 140px;
+  min-height: var(--hit-target);
+}

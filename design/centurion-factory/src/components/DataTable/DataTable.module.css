@@ -1,0 +1,201 @@
+.wrapper {
+  overflow-x: auto;
+}
+
+.mobileSort {
+  display: none;
+}
+
+.rowLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.rowLink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.rowLink:focus-visible {
+  outline: none;
+}
+
+.rowLink:focus-visible::after {
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-plate);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.headerCell {
+  padding: var(--space-2) var(--space-2);
+  border-bottom: var(--rule);
+  font-weight: 400;
+  color: var(--apagado);
+  text-align: left;
+}
+
+.alignEnd {
+  text-align: right;
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+}
+
+.sortIcon {
+  flex: none;
+  color: var(--apagado);
+}
+
+.row {
+  position: relative;
+  border-bottom: var(--rule-row);
+}
+
+.row:hover {
+  background: var(--relleno);
+}
+
+.row[aria-selected='true'] {
+  background: var(--seleccion);
+}
+
+.cell {
+  padding: var(--space-3) var(--space-2);
+}
+
+.emptyCell {
+  padding: var(--space-6) var(--space-2);
+}
+
+.hideBelowSm {
+  /* Hidden entirely once the table stacks below 640px; see the media query below. */
+}
+
+@media (max-width: 640px) {
+  .mobileSort {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  .mobileSortLabel {
+    font-size: var(--text-xs);
+    color: var(--apagado);
+    white-space: nowrap;
+  }
+
+  .mobileSortSelect {
+    flex: 1;
+    min-width: 0;
+    height: var(--hit-target);
+    padding: 0 var(--space-3);
+    background: var(--superficie);
+    border: 1px solid var(--regla);
+    border-radius: var(--radius-input);
+    color: var(--grafito);
+    font: inherit;
+  }
+
+  .mobileSortToggle {
+    flex: none;
+    width: var(--hit-target);
+    height: var(--hit-target);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--superficie);
+    border: 1px solid var(--regla);
+    border-radius: var(--radius-input);
+    color: var(--grafito);
+  }
+
+  .mobileSortToggle:disabled {
+    color: var(--apagado);
+    cursor: not-allowed;
+  }
+
+  .table,
+  .table thead,
+  .table tbody,
+  .table th,
+  .table td,
+  .table tr {
+    display: block;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .row {
+    padding: var(--space-3) 0;
+    border-bottom: var(--rule-row);
+  }
+
+  /* Two-column grid: the label (from `::before`, so it never leaks into `.textContent`) sits
+   * in the left column in apagado 12px, the value right-aligned in the right column. A colon
+   * keeps assistive tech that reads generated content (some do) from announcing them as one
+   * run-together word, e.g. "Orden: WO-304" instead of "OrdenWO-304". */
+  .table .cell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: baseline;
+    gap: var(--space-3);
+    padding: var(--space-1) 0;
+    text-align: right;
+  }
+
+  /* Values keep their natural width (badges must not stretch across the value column). */
+  .table .cell > * {
+    justify-self: end;
+  }
+
+  .cell::before {
+    content: attr(data-label) ': ';
+    font-size: var(--text-xs);
+    color: var(--apagado);
+    text-align: left;
+  }
+
+  .cell[data-label='']::before {
+    content: none;
+  }
+
+  /* stack: 'block' puts the label above the value instead of side by side. */
+  .table .cellBlock {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    text-align: left;
+  }
+
+  .cellBlock::before {
+    content: attr(data-label);
+  }
+
+  .hideBelowSm {
+    display: none;
+  }
+}

@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+    @keyframes cf-station { from { color: #3A4046; border-color: #17191C; } }
+    @keyframes cf-row { from { opacity: 0; transform: translateX(-24px); } }
+    @keyframes cf-andon { 0% { background-color: transparent; color: #C4CAD0; } 60% { background-color: #F5C400; } 75% { background-color: #8A7000; } 100% { background-color: #F5C400; } }
+    .cf-station { animation: cf-station 320ms ease-out both; }
+    .cf-row { animation: cf-row 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    .cf-andon { animation: cf-andon 700ms ease-out 1300ms both; }
+    @media (prefers-reduced-motion: reduce) { .cf-station, .cf-row, .cf-andon { animation: none; } }
+  </style>
+</helmet>
+<div style="position: relative; width: 390px; height: 844px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; padding: 48px 16px 24px; background: #E9ECEB;">
+
+  <main style="display: flex; flex-direction: column; gap: 32px;">
+    <div style="display: flex; flex-direction: column; gap: 32px;">
+      <div style="font-size: 20px; line-height: 24px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="margin: 0; font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.01em;">Entrá a tu organización</h1>
+        <div style="font-size: 14px; line-height: 20px; color: #565D63;">El acceso es solo por invitación.</div>
+      </div>
+    </div>
+
+    <section style="display: flex; flex-direction: column; gap: 24px;">
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label style="font-size: 14px; line-height: 20px; font-weight: 600;">Email de trabajo</label>
+          <div style="height: 48px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 16px; color: #17191C;">ana.rios@centurionhq.com</div>
+        </div>
+        <div style="width: 100%; height: 48px; display: flex; align-items: center; justify-content: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; border-radius: 2px; font-size: 16px; font-weight: 600;">Continuar con SSO</div>
+        <div style="font-size: 14px; line-height: 20px; color: #565D63;">Si tu dominio tiene SSO (centurionhq.com), te llevamos al proveedor de tu organización.</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="width: 100%; height: 48px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 16px; background: #FBFCFB; color: #17191C; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 16px; font-weight: 600;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"></path><path d="M20 12h-7"></path></svg>
+          Continuar con Google Workspace
+        </div>
+        <div style="width: 100%; height: 48px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 16px; background: #FBFCFB; color: #17191C; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 16px; font-weight: 600;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="#33383D" aria-hidden="true"><rect x="4" y="4" width="7" height="7"></rect><rect x="13" y="4" width="7" height="7"></rect><rect x="4" y="13" width="7" height="7"></rect><rect x="13" y="13" width="7" height="7"></rect></svg>
+          Continuar con Microsoft Entra ID
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <div style="width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px;">
+          <span style="height: 1px; background: #C9CFCD;"></span>
+          <span style="font-size: 12px; line-height: 16px; color: #565D63;">o con contraseña</span>
+          <span style="height: 1px; background: #C9CFCD;"></span>
+        </div>
+        <div style="height: 44px; display: flex; align-items: center; padding: 0 12px; font-size: 16px; font-weight: 600; color: #1F4FA0;">Usar email y contraseña</div>
+      </div>
+    </section>
+  </main>
+
+  <footer style="display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; font-size: 12px; line-height: 16px; color: #565D63;">
+    <div>¿Te invitaron? Abrí el enlace del email para crear tu cuenta.</div>
+    <div>Centurion Factory · prdmanager 0.2.0</div>
+  </footer>
+</div>
+</x-dc>
+</body>
+</html>

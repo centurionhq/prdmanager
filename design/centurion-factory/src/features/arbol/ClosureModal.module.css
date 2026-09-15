@@ -1,0 +1,80 @@
+.checklist {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--rule);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 20px 216px minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-3) 0;
+  border-bottom: var(--rule-row);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.iconOk {
+  color: var(--senal);
+}
+
+.iconFail {
+  color: var(--paro);
+}
+
+.labelBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.labelFail {
+  color: var(--paro);
+}
+
+.technicalName {
+  color: var(--apagado);
+}
+
+.detail {
+  font-size: var(--text-sm);
+  color: var(--texto-secundario);
+}
+
+.detailFail {
+  color: var(--paro);
+}
+
+.footerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.helper {
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.footerButtons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}

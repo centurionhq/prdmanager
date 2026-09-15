@@ -1,0 +1,148 @@
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.summary {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.diff {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--regla-fila);
+  border-radius: var(--radius-plate);
+  overflow: hidden;
+}
+
+.diffLabel {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--apagado);
+  background: var(--relleno);
+  border-bottom: 1px solid var(--regla-fila);
+}
+
+.diffLine {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  line-height: 20px;
+}
+
+.diffLine span:last-child {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diffRemoved {
+  background: var(--diff-quitado);
+}
+
+.diffRemoved span:first-child {
+  color: var(--paro);
+  font-weight: 500;
+}
+
+.diffAdded {
+  background: var(--diff-agregado);
+}
+
+.diffAdded span:first-child {
+  color: var(--senal);
+  font-weight: 500;
+}
+
+.staleWarning {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--paro);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.confirmation {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+  background: var(--superficie);
+}
+
+.acceptedIcon {
+  color: var(--senal);
+}
+
+.confirmationTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.confirmationBody {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.requestForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.requestLabel {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.requestInput {
+  height: 72px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+  font-size: var(--text-sm);
+  color: var(--grafito);
+  resize: vertical;
+}
+
+.requestInput:focus-visible {
+  outline: none;
+  border-color: var(--cianotipo);
+  box-shadow: var(--focus-ring);
+}
+
+.requestActions {
+  display: flex;
+  justify-content: flex-end;
+}

@@ -1,0 +1,260 @@
+/**
+ * Formatting toolbar for the preview editor (WO-300): `role="toolbar"` with roving arrow-key
+ * focus, a block-style group (aria-pressed), inline marks (aria-pressed from the live selection),
+ * list/task converters and Enlace. Every button prevents `mousedown` so clicking it never blurs
+ * the focused block — the DOM selection it needs to format has to survive the click.
+ * WO-313: on mobile the block style becomes a native select (the button group overflows at 375px),
+ * and Escape in the Enlace popover cancels it, returning focus and the selection to the block.
+ */
+import { Link as LinkIcon, List, ListChecks, ListOrdered } from 'lucide-react';
+import { useId, useState, type ChangeEvent, type KeyboardEvent, type MouseEvent, type ReactElement } from 'react';
+import { Button } from '../../components';
+import type { BlockType } from '../../data';
+import styles from './Toolbar.module.css';
+import { useMediaQuery } from './useMediaQuery';
+
+export type InlineFormat = '**' | '_' | '~~';
+
+export interface ToolbarProps {
+  readonly blockType: BlockType | undefined;
+  readonly activeFormats: ReadonlySet<InlineFormat>;
+  readonly onSetBlockType: (type: BlockType) => void;
+  readonly onFormatSelection: (marker: InlineFormat) => void;
+  readonly onRequestLink: () => void;
+  readonly onInsertLink: (url: string) => void;
+  readonly onCancelLink: () => void;
+  /** False until a block has real focus (WO-313): Enlace has nothing to insert into before that. */
+  readonly linkEnabled: boolean;
+}
+
+const BLOCK_STYLE_OPTIONS: readonly { readonly type: BlockType; readonly label: string }[] = [
+  { type: 'p', label: 'Párrafo' },
+  { type: 'h1', label: 'Título 1' },
+  { type: 'h2', label: 'Título 2' },
+  { type: 'h3', label: 'Título 3' },
+];
+
+const MOBILE_QUERY = '(max-width: 767px)';
+const NEXT_KEYS = new Set(['ArrowRight', 'ArrowDown']);
+const PREVIOUS_KEYS = new Set(['ArrowLeft', 'ArrowUp']);
+
+/** Prevents the browser's default mousedown focus-shift, so the block keeps its selection. */
+function keepFocus(event: MouseEvent<HTMLButtonElement>): void {
+  event.preventDefault();
+}
+
+interface LinkPopoverProps {
+  readonly onSubmit: (url: string) => void;
+  readonly onCancel: () => void;
+}
+
+function LinkPopover({ onSubmit, onCancel }: LinkPopoverProps): ReactElement {
+  const [url, setUrl] = useState('');
+  const inputId = useId();
+
+  function handleKeyDown(event: KeyboardEvent<HTMLFormElement>): void {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    onCancel();
+  }
+
+  return (
+    <form
+      className={styles.linkPopover}
+      onKeyDown={handleKeyDown}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (url.trim()) onSubmit(url.trim());
+      }}
+    >
+      <label className="visually-hidden" htmlFor={inputId}>
+        URL del enlace
+      </label>
+      <input id={inputId} className={styles.linkInput} value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://…" autoFocus />
+      <Button type="submit" variant="secondary" size="sm">
+        Insertar
+      </Button>
+      <Button type="button" variant="ghost" size="sm" onMouseDown={keepFocus} onClick={onCancel}>
+        Cancelar
+      </Button>
+    </form>
+  );
+}
+
+interface BlockStylePickerProps {
+  readonly blockType: BlockType | undefined;
+  readonly onSetBlockType: (type: BlockType) => void;
+}
+
+/** Desktop: a pressed-state button group. Mobile: a native select (the buttons overflow at 375px). */
+function BlockStylePicker({ blockType, onSetBlockType }: BlockStylePickerProps): ReactElement {
+  const isMobile = useMediaQuery(MOBILE_QUERY);
+
+  if (isMobile) {
+    function handleChange(event: ChangeEvent<HTMLSelectElement>): void {
+      onSetBlockType(event.target.value as BlockType);
+    }
+
+    return (
+      <select aria-label="Estilo de bloque" className={styles.blockSelect} value={blockType ?? 'p'} onChange={handleChange}>
+        {BLOCK_STYLE_OPTIONS.map((option) => (
+          <option key={option.type} value={option.type}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  return (
+    <div className={styles.group}>
+      {BLOCK_STYLE_OPTIONS.map((option) => (
+        <button
+          key={option.type}
+          type="button"
+          aria-pressed={blockType === option.type}
+          className={[styles.button, styles.textButton, blockType === option.type ? styles.pressed : null].filter(Boolean).join(' ')}
+          onMouseDown={keepFocus}
+          onClick={() => onSetBlockType(option.type)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Toolbar({
+  blockType,
+  activeFormats,
+  onSetBlockType,
+  onFormatSelection,
+  onRequestLink,
+  onInsertLink,
+  onCancelLink,
+  linkEnabled,
+}: ToolbarProps): ReactElement {
+  const [linkOpen, setLinkOpen] = useState(false);
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    if (!NEXT_KEYS.has(event.key) && !PREVIOUS_KEYS.has(event.key) && event.key !== 'Home' && event.key !== 'End') return;
+    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not([disabled])'));
+    const activeIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    if (activeIndex === -1) return;
+
+    let targetIndex = activeIndex;
+    if (NEXT_KEYS.has(event.key)) targetIndex = (activeIndex + 1) % buttons.length;
+    else if (PREVIOUS_KEYS.has(event.key)) targetIndex = (activeIndex - 1 + buttons.length) % buttons.length;
+    else if (event.key === 'Home') targetIndex = 0;
+    else if (event.key === 'End') targetIndex = buttons.length - 1;
+
+    event.preventDefault();
+    buttons[targetIndex]?.focus();
+  }
+
+  function handleCancelLink(): void {
+    setLinkOpen(false);
+    onCancelLink();
+  }
+
+  return (
+    <div role="toolbar" aria-label="Formato" className={styles.toolbar} onKeyDown={handleKeyDown}>
+      <BlockStylePicker blockType={blockType} onSetBlockType={onSetBlockType} />
+      <span className={styles.divider} aria-hidden="true" />
+      <button
+        type="button"
+        title="Negrita"
+        aria-label="Negrita"
+        aria-pressed={activeFormats.has('**')}
+        className={[styles.button, activeFormats.has('**') ? styles.pressed : null].filter(Boolean).join(' ')}
+        onMouseDown={keepFocus}
+        onClick={() => onFormatSelection('**')}
+      >
+        <span className={styles.bold} aria-hidden="true">
+          B
+        </span>
+      </button>
+      <button
+        type="button"
+        title="Cursiva"
+        aria-label="Cursiva"
+        aria-pressed={activeFormats.has('_')}
+        className={[styles.button, activeFormats.has('_') ? styles.pressed : null].filter(Boolean).join(' ')}
+        onMouseDown={keepFocus}
+        onClick={() => onFormatSelection('_')}
+      >
+        <span className={styles.italic} aria-hidden="true">
+          I
+        </span>
+      </button>
+      <button
+        type="button"
+        title="Tachado"
+        aria-label="Tachado"
+        aria-pressed={activeFormats.has('~~')}
+        className={[styles.button, activeFormats.has('~~') ? styles.pressed : null].filter(Boolean).join(' ')}
+        onMouseDown={keepFocus}
+        onClick={() => onFormatSelection('~~')}
+      >
+        <span className={styles.strike} aria-hidden="true">
+          S
+        </span>
+      </button>
+      <span className={styles.divider} aria-hidden="true" />
+      <button
+        type="button"
+        title="Lista con viñetas"
+        aria-label="Lista con viñetas"
+        className={styles.button}
+        onMouseDown={keepFocus}
+        onClick={() => onSetBlockType('li')}
+      >
+        <List aria-hidden="true" size={18} />
+      </button>
+      <button
+        type="button"
+        title="Lista numerada"
+        aria-label="Lista numerada"
+        className={styles.button}
+        onMouseDown={keepFocus}
+        onClick={() => onSetBlockType('ol')}
+      >
+        <ListOrdered aria-hidden="true" size={18} />
+      </button>
+      <button
+        type="button"
+        title="Lista de tareas"
+        aria-label="Lista de tareas"
+        className={styles.button}
+        onMouseDown={keepFocus}
+        onClick={() => onSetBlockType('task')}
+      >
+        <ListChecks aria-hidden="true" size={18} />
+      </button>
+      <span className={styles.divider} aria-hidden="true" />
+      <button
+        type="button"
+        title="Enlace"
+        aria-label="Enlace"
+        className={styles.button}
+        disabled={!linkEnabled}
+        onMouseDown={keepFocus}
+        onClick={() => {
+          onRequestLink();
+          setLinkOpen(true);
+        }}
+      >
+        <LinkIcon aria-hidden="true" size={18} />
+      </button>
+      {linkOpen ? (
+        <LinkPopover
+          onSubmit={(url) => {
+            onInsertLink(url);
+            setLinkOpen(false);
+          }}
+          onCancel={handleCancelLink}
+        />
+      ) : null}
+    </div>
+  );
+}

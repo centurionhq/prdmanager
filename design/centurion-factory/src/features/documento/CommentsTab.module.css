@@ -1,0 +1,121 @@
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.threadList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+  background: var(--superficie);
+}
+
+.quote {
+  margin: 0;
+  padding: var(--space-2);
+  background: var(--seleccion);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-sm);
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.message {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.avatar {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--grafito);
+  color: var(--acero);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.messageBody {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.messageHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.messageAuthor {
+  font-weight: 600;
+}
+
+.messageTime {
+  color: var(--apagado);
+}
+
+.messageText {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.replyForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.replyInput {
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+  font-size: var(--text-sm);
+}
+
+.replyInput:focus-visible {
+  outline: none;
+  border-color: var(--cianotipo);
+  box-shadow: var(--focus-ring);
+}
+
+.threadActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.resolvedNote {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}

@@ -1,0 +1,54 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+}
+
+.tabBar {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  height: 44px;
+  padding: 0 var(--space-2);
+  border-bottom: 1px solid var(--regla);
+  font-size: var(--text-sm);
+}
+
+.tab,
+.tabSelected {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--texto-secundario);
+}
+
+.tabSelected {
+  font-weight: 600;
+  color: var(--grafito);
+  border-bottom-color: var(--grafito);
+}
+
+.tabPanel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 var(--space-3);
+  border-top: 1px solid var(--regla-fila);
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}

@@ -1,0 +1,255 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+    @keyframes cf-station { from { color: #3A4046; border-color: #17191C; } }
+    @keyframes cf-row { from { opacity: 0; transform: translateX(-24px); } }
+    @keyframes cf-andon { 0% { background-color: transparent; color: #C4CAD0; } 60% { background-color: #F5C400; } 75% { background-color: #8A7000; } 100% { background-color: #F5C400; } }
+    .cf-station { animation: cf-station 320ms ease-out both; }
+    .cf-row { animation: cf-row 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    .cf-andon { animation: cf-andon 700ms ease-out 1300ms both; }
+    @media (prefers-reduced-motion: reduce) { .cf-station, .cf-row, .cf-andon { animation: none; } }
+  </style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 960px; overflow: hidden; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+
+  <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
+      <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 52px; margin-top: -8px; padding: 0 10px 0 12px; border: 1px solid #C9CFCD; border-radius: 2px; cursor: pointer;">
+      <div style="display: flex; flex-direction: column; min-width: 0;"><span style="font-size: 12px; color: #565D63;">Centurion HQ</span><span style="font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">prdmanager</span></div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"></path></svg>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Planta</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Árbol de features</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Documentos</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Órdenes de trabajo</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Drift <span class="num" style="min-width: 22px; height: 20px; padding: 0 6px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 12px; font-weight: 700; border-radius: 2px;">3</span></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Bandeja de entrada <span class="num" style="font-size: 13px; color: #565D63;">2</span></div>
+    </div>
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600; font-size: 15px;">Ajustes</div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 12px 8px 0; border-top: 1px solid #C9CFCD;">
+      <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">AR</div>
+      <div style="display: flex; flex-direction: column;"><span style="font-size: 14px; font-weight: 600;">Ana Ríos</span><span style="font-size: 12px; color: #565D63;">Admin de proyecto</span></div>
+    </div>
+    </div>
+  </nav>
+
+  <main style="display: flex; flex-direction: column; gap: 24px; padding: 24px 32px; min-width: 0; min-height: 0;">
+    <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Ajustes</h1>
+        <div style="font-size: 14px; color: #565D63;">Proyecto prdmanager, organización Centurion HQ y tu cuenta</div>
+      </div>
+    </header>
+
+    <div style="flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px;">
+      <aside style="display: flex; flex-direction: column; gap: 24px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="font-size: 13px; color: #565D63; padding: 0 12px 6px;">Proyecto prdmanager</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">General</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Miembros</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Tokens de CI</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Integraciones</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="font-size: 13px; color: #565D63; padding: 0 12px 6px;">Centurion HQ</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Miembros de la organización</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; background: #FBFCFB; border: 1px solid #C9CFCD; font-weight: 600; color: #17191C;">Autenticación y SSO</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Auditoría</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="font-size: 13px; color: #565D63; padding: 0 12px 6px;">Tu cuenta</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Perfil</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Tokens personales</div>
+        </div>
+      </aside>
+
+      <section style="display: flex; flex-direction: column; min-width: 0; min-height: 0;">
+        <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;">
+          <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+            <h2 style="margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700;">Autenticación y SSO</h2>
+            <div style="font-size: 14px; color: #565D63;">Cómo entra la gente de Centurion HQ. Aplica a todos los proyectos de la organización.</div>
+          </div>
+
+        </div>
+
+        <div style="display: flex; flex-direction: column; margin-top: 16px; border-top: 1px solid #C9CFCD;">
+        <div style="display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 32px; padding: 12px 0; border-bottom: 1px solid #C9CFCD;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Proveedor de identidad</h3>
+            <p style="margin: 0; font-size: 14px; line-height: 20px; color: #565D63;">La gente entra con su cuenta de Okta.</p>
+            <div role="radiogroup" aria-label="Protocolo" style="margin-top: 8px; display: flex; gap: 2px; padding: 2px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px;">
+              <div role="radio" aria-checked="false" style="flex: 1; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 2px; font-size: 14px; border: 1px solid transparent; color: #33383D;">SAML 2.0</div>
+              <div role="radio" aria-checked="true" style="flex: 1; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 2px; font-size: 14px; background: #FBFCFB; border: 1px solid #C9CFCD; font-weight: 600; color: #17191C;">OIDC</div>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 12px; min-width: 0;">
+            <div style="display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 12px 16px;">
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Proveedor</label>
+                <div style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; min-width: 0; justify-content: space-between;">Okta<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M6 9l6 6 6-6"></path></svg></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Issuer URL</label>
+                <div style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; min-width: 0;"><span class="id" style="font-size: 13px;">https://centurionhq.okta.com</span></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Client ID</label>
+                <div style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; min-width: 0;"><span class="id" style="font-size: 13px; white-space: nowrap;">0oa8f2c1d4kq7Zm3x697</span></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Client secret</label>
+                <div style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; min-width: 0; justify-content: space-between;"><span style="letter-spacing: 0.08em; color: #33383D;">••••••••••••</span><span style="font-size: 14px; font-weight: 600; color: #1F4FA0; cursor: pointer;">Reemplazar</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 32px; padding: 12px 0; border-bottom: 1px solid #C9CFCD;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Dominios verificados</h3>
+            <p style="margin: 0; font-size: 14px; line-height: 20px; color: #565D63;">Solo pueden entrar por SSO los emails de estos dominios.</p>
+          </div>
+          <div role="table" style="display: grid; grid-template-columns: minmax(0, 1fr) 260px 120px; align-content: start; min-width: 0;">
+            <div style="padding: 6px 12px 6px 0; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD;">Dominio</div><div style="padding: 6px 12px 6px 0; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD;">Estado</div><div style="padding: 6px 12px 6px 0; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD; padding-right: 0;"></div>
+            <div style="height: 44px; padding-right: 12px; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; font-weight: 600;">centurionhq.com</div><div style="height: 44px; padding-right: 12px; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; gap: 8px; color: #1E7F4F; font-weight: 600;"><span style="flex: none; width: 8px; height: 8px; background: #1E7F4F;"></span>Verificado</div><div style="height: 44px; padding-right: 12px; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; padding-right: 0; justify-content: flex-end; color: #565D63;">desde 02/03/2026</div>
+            <div onClick="{{ toggleDomain }}" style="{{ domainNameStyle }}"><span style="{{ chevronStyle }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></span>centurion.dev</div><div onClick="{{ toggleDomain }}" style="{{ pendingCellStyle }}"><span style="flex: none; width: 8px; height: 8px; border-radius: 4px; background: #F5C400;"></span>Pendiente de verificación</div><div onClick="{{ toggleDomain }}" style="{{ pendingActionStyle }}">{{ domainToggleLabel }}</div>
+            <sc-if value="{{ domainOpen }}" hint-placeholder-val="{{ true }}">
+            <div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; padding: 8px 0 12px 24px; border-bottom: 1px solid #DDE1DF;">
+              <div style="font-size: 14px; color: #33383D;">Agregá este registro TXT en el DNS de centurion.dev. Puede tardar hasta una hora.</div>
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="flex: 1; min-width: 0; height: 40px; display: flex; align-items: center; padding: 0 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px;"><span class="id" style="font-size: 13px;">prdm-verify=4f1c9e…</span></div>
+                <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px; white-space: nowrap; cursor: pointer;">Verificar ahora</div>
+              </div>
+            </div>
+            </sc-if>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 32px; padding: 12px 0; border-bottom: 1px solid #C9CFCD;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Reglas de acceso</h3>
+            <p style="margin: 0; font-size: 14px; line-height: 20px; color: #565D63;">Aplican al próximo ingreso de cada persona.</p>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div onClick="{{ requireSso.toggle }}" role="switch" aria-checked="{{ requireSso.on }}" style="display: flex; align-items: center; gap: 12px; min-height: 32px; cursor: pointer;">
+                <span style="{{ requireSso.track }}"><span style="{{ requireSso.knob }}"></span></span>
+                <span style="font-size: 14px;">Exigir SSO para todos los miembros</span>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div onClick="{{ jit.toggle }}" role="switch" aria-checked="{{ jit.on }}" style="display: flex; align-items: center; gap: 12px; min-height: 32px; cursor: pointer;">
+                <span style="{{ jit.track }}"><span style="{{ jit.knob }}"></span></span>
+                <span style="font-size: 14px;">Crear cuentas automáticamente al primer ingreso (JIT)</span>
+              </div>
+              <sc-if value="{{ jit.on }}" hint-placeholder-val="{{ true }}">
+              <div style="display: flex; align-items: center; gap: 12px; padding-left: 52px;">
+                <span style="font-size: 14px; color: #33383D;">Rol por defecto en la organización</span>
+                <div style="width: 140px; height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px 0 10px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px;">Member<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M6 9l6 6 6-6"></path></svg></div>
+              </div>
+              </sc-if>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div onClick="{{ emergency.toggle }}" role="switch" aria-checked="{{ emergency.on }}" style="display: flex; align-items: center; gap: 12px; min-height: 32px; cursor: pointer;">
+                <span style="{{ emergency.track }}"><span style="{{ emergency.knob }}"></span></span>
+                <span style="font-size: 14px;">Permitir email y contraseña para admins de emergencia</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 32px; padding: 12px 0;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Probar conexión</h3>
+            <p style="margin: 0; font-size: 14px; line-height: 20px; color: #565D63;">Hacé un ingreso de prueba con tu cuenta.</p>
+          </div>
+          <div style="display: flex; align-items: center; gap: 16px; min-width: 0;">
+            <div onClick="{{ runTest }}" style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px; white-space: nowrap; cursor: pointer;">Probar conexión</div>
+            <sc-if value="{{ tested }}" hint-placeholder-val="{{ true }}">
+            <div role="status" style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 20px; color: #17191C; min-width: 0;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px;"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+              <span>Conexión correcta. Okta devolvió ana.rios@centurionhq.com con los grupos <span class="id">cf-admins</span> y <span class="id">cf-producto</span>.</span>
+            </div>
+            </sc-if>
+          </div>
+        </div>
+        </div>
+
+        <div style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-top: 12px; border-top: 1px solid #C9CFCD;">
+          <span style="font-size: 14px; color: #565D63;">Aplica a los 5 proyectos de Centurion HQ desde el próximo ingreso.</span>
+          <div onClick="{{ save }}" style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px; white-space: nowrap; cursor: pointer;">Guardar cambios</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <sc-if value="{{ toastVisible }}" hint-placeholder-val="{{ false }}">
+  <div role="status" style="position: absolute; right: 32px; bottom: 88px; z-index: 20; height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 16px; background: #17191C; color: #E9ECEB; font-size: 14px; font-weight: 600; border-radius: 2px; box-shadow: 0 12px 32px rgba(23,25,28,0.18);">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6FCF9A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+    Guardado
+  </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { requireSso: true, jit: true, emergency: false, domainOpen: true, tested: false, toastVisible: false };
+  }
+
+  renderVals() {
+    const sw = (key) => {
+      const on = this.state[key];
+      return {
+        on: on,
+        track: 'flex: none; position: relative; width: 40px; height: 24px; border-radius: 12px; background: ' + (on ? '#17191C' : '#C9CFCD') + ';',
+        knob: 'position: absolute; top: 3px; left: ' + (on ? '19px' : '3px') + '; width: 18px; height: 18px; border-radius: 9px; background: #FBFCFB;',
+        toggle: () => this.setState({ [key]: !this.state[key] })
+      };
+    };
+    const open = this.state.domainOpen;
+    const cellBase = 'height: 44px; padding-right: 12px; display: flex; align-items: center; font-size: 14px; cursor: pointer;';
+    const cellBorder = open ? '' : ' border-bottom: 1px solid #DDE1DF;';
+
+    return {
+      requireSso: sw('requireSso'),
+      jit: sw('jit'),
+      emergency: sw('emergency'),
+      domainOpen: open,
+      domainNameStyle: cellBase + cellBorder + ' gap: 8px; font-weight: 600;',
+      chevronStyle: 'display: flex; transition: transform 150ms ease-out; transform: rotate(' + (open ? '90deg' : '0deg') + ');',
+      pendingCellStyle: cellBase + cellBorder + ' gap: 8px; color: #7A5A00; font-weight: 600;',
+      pendingActionStyle: cellBase + cellBorder + ' padding-right: 0; justify-content: flex-end; color: #1F4FA0; font-weight: 600;',
+      domainToggleLabel: open ? 'Ocultar registro' : 'Ver registro',
+      toggleDomain: () => this.setState({ domainOpen: !this.state.domainOpen }),
+      tested: this.state.tested,
+      runTest: () => this.setState({ tested: true }),
+      toastVisible: this.state.toastVisible,
+      save: () => {
+        this.setState({ toastVisible: true });
+        clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => this.setState({ toastVisible: false }), 4000);
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

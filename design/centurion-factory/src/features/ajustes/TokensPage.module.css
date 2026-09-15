@@ -1,0 +1,297 @@
+.sectionHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.sectionText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.sectionDescription {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.successPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+}
+
+.successHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.successIcon {
+  color: var(--senal);
+}
+
+.successTitle {
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.successBody {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--texto-secundario);
+}
+
+.successRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.secretField {
+  flex: 1;
+  min-width: 240px;
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  background: var(--relleno);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+  color: var(--grafito);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.linkButton {
+  height: var(--control-height);
+  padding: 0 var(--space-2);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--cianotipo);
+  white-space: nowrap;
+}
+
+.linkButton:hover {
+  color: var(--cianotipo-hover);
+}
+
+.tableSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.headerCell {
+  padding: var(--space-2) var(--space-2) var(--space-2) 0;
+  font-weight: 400;
+  color: var(--apagado);
+  text-align: left;
+  border-bottom: var(--rule);
+  white-space: nowrap;
+}
+
+.row {
+  border-bottom: var(--rule-row);
+}
+
+.cell {
+  padding: var(--space-3) var(--space-2) var(--space-3) 0;
+  vertical-align: middle;
+}
+
+.muted {
+  color: var(--apagado);
+}
+
+.nameCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tokenName {
+  font-weight: 600;
+  color: var(--grafito);
+  white-space: nowrap;
+}
+
+.tokenMeta {
+  font-size: var(--text-xs);
+  color: var(--apagado);
+  white-space: nowrap;
+}
+
+.scopeCell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.scopeChip {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  background: var(--relleno);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+  color: var(--texto-secundario);
+  white-space: nowrap;
+}
+
+.actionsCell {
+  text-align: right;
+}
+
+.dangerLink {
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--paro);
+}
+
+.footerNote {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.textInput {
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--grafito);
+}
+
+.fieldError {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--paro);
+}
+
+.scopeList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.scopeOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 767px) {
+  .table,
+  .table thead,
+  .table tbody,
+  .table th,
+  .table td,
+  .table tr {
+    display: block;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .row {
+    padding: var(--space-3) 0;
+  }
+
+  .cell {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-1) 0;
+    text-align: right;
+  }
+
+  .cell::before {
+    content: attr(data-label);
+    flex: none;
+    font-weight: 600;
+    color: var(--apagado);
+    text-align: left;
+  }
+
+  .table td.nameCell,
+  .table td.scopeCell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+  }
+
+  .nameCell::before,
+  .scopeCell::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--apagado);
+  }
+
+  .actionsCell {
+    text-align: left;
+    padding-top: var(--space-2);
+  }
+
+  .actionsCell::before {
+    content: none;
+  }
+
+  /* WO-298: 44px hit targets below the mobile breakpoint (padded, not resized visually). */
+  .dangerLink {
+    min-height: var(--hit-target);
+    padding: 0 var(--space-2);
+    margin: 0 calc(-1 * var(--space-2));
+    display: inline-flex;
+    align-items: center;
+  }
+}

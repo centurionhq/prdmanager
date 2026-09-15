@@ -1,0 +1,173 @@
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-4);
+  border-right: var(--rule);
+}
+
+.brand {
+  padding: 0 var(--space-2);
+  font-size: 1.125rem;
+  font-weight: 800;
+  font-stretch: var(--stretch-display);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-plate);
+  color: var(--texto-secundario);
+  font-size: 0.9375rem;
+}
+
+.link:hover {
+  background: var(--relleno);
+  color: var(--grafito);
+  text-decoration: none;
+}
+
+.active,
+.active:hover {
+  background: var(--superficie);
+  border-color: var(--regla);
+  color: var(--grafito);
+  font-weight: 600;
+}
+
+.label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.andonBadge {
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--andon);
+  color: var(--grafito);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  border-radius: var(--radius-plate);
+}
+
+.countBadge {
+  color: var(--apagado);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+.footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-3) var(--space-2) 0;
+  border-top: var(--rule);
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--grafito);
+  color: var(--acero);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.personText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.personName {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.personRole {
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+@media (max-width: 767px) {
+  .sidebar {
+    display: none;
+  }
+}
+
+.switcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 52px;
+  margin-top: calc(-1 * var(--space-2));
+  padding: 0 10px 0 var(--space-3);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  color: var(--grafito);
+}
+
+.switcher:hover {
+  background: var(--relleno);
+  color: var(--grafito);
+  text-decoration: none;
+}
+
+.switcherText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.switcherOrg {
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.switcherProject {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.switcherIcon {
+  flex: none;
+  color: var(--apagado);
+}

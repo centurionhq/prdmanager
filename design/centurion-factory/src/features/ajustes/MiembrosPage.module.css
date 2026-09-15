@@ -1,0 +1,368 @@
+.sectionHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.sectionText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.sectionDescription {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.headerCell {
+  padding: var(--space-2) 0;
+  font-weight: 400;
+  color: var(--apagado);
+  text-align: left;
+  border-bottom: var(--rule);
+}
+
+.row {
+  border-bottom: var(--rule-row);
+}
+
+.cell {
+  padding: var(--space-3) var(--space-2) var(--space-3) 0;
+  vertical-align: middle;
+}
+
+.personCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.avatar,
+.avatarPending {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.avatar {
+  background: var(--grafito);
+  color: var(--acero);
+}
+
+.avatarPending {
+  border: 1px dashed var(--regla);
+  color: var(--apagado);
+}
+
+.personText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.personNameRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  row-gap: 2px;
+  font-weight: 600;
+}
+
+.personEmail {
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.badge {
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  white-space: nowrap;
+  padding: 0 var(--space-2);
+  background: var(--relleno);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--texto-secundario);
+}
+
+.roleSelect {
+  height: 32px;
+  padding: 0 var(--space-2);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--grafito);
+}
+
+.roleSelect:disabled {
+  background: var(--relleno);
+  color: var(--apagado);
+}
+
+.actionsCell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+}
+
+.hintBadge {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  background: var(--relleno);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.dangerLink {
+  display: inline-flex;
+  align-items: center;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--paro);
+}
+
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--cianotipo);
+}
+
+.linkButton:hover {
+  color: var(--cianotipo-hover);
+}
+
+.matrixSection {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: var(--space-8);
+  padding-top: var(--space-2);
+}
+
+.matrixText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.matrixTitle {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.matrixDescription {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 20px;
+  color: var(--apagado);
+}
+
+.matrixTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.matrixCorner {
+  border-bottom: var(--rule);
+}
+
+.matrixColumnHeader {
+  height: 32px;
+  padding-bottom: var(--space-2);
+  font-weight: 400;
+  color: var(--apagado);
+  text-align: center;
+  border-bottom: var(--rule);
+}
+
+.matrixRowHeader {
+  height: 32px;
+  font-weight: 400;
+  text-align: left;
+  border-bottom: var(--rule-row);
+}
+
+.matrixCell {
+  height: 32px;
+  text-align: center;
+  border-bottom: var(--rule-row);
+}
+
+.matrixYes {
+  color: var(--grafito);
+}
+
+.matrixNo {
+  color: var(--apagado);
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.textInput {
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--grafito);
+}
+
+.fieldError {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--paro);
+}
+
+.fieldNote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--apagado);
+}
+
+.roleSegments {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--relleno);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+}
+
+.roleSegment {
+  flex: 1;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-plate);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--texto-secundario);
+  white-space: nowrap;
+}
+
+.roleSegmentSelected {
+  background: var(--superficie);
+  border-color: var(--regla);
+  font-weight: 600;
+  color: var(--grafito);
+}
+
+.inviteNote {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 20px;
+  color: var(--texto-secundario);
+}
+
+@media (max-width: 767px) {
+  .matrixSection {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .table,
+  .table thead,
+  .table tbody,
+  .table th,
+  .table td,
+  .table tr {
+    display: block;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .row {
+    padding: var(--space-3) 0;
+  }
+
+  .cell {
+    padding: var(--space-1) 0;
+  }
+
+  .cell[data-label]::before {
+    content: attr(data-label) ': ';
+    font-weight: 600;
+    color: var(--apagado);
+  }
+
+  .table td.actionsCell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--space-4);
+    padding-top: var(--space-2);
+  }
+
+  /* WO-298: 44px hit targets below the mobile breakpoint (padded, not resized visually). */
+  .dangerLink,
+  .linkButton {
+    min-height: var(--hit-target);
+    padding: 0 var(--space-2);
+    margin: 0 calc(-1 * var(--space-2));
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .roleSelect {
+    min-height: var(--hit-target);
+  }
+
+  .roleSegment {
+    min-height: var(--hit-target);
+  }
+}

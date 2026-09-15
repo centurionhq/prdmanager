@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<div style="width: 390px; height: 844px; overflow: hidden; display: flex; flex-direction: column; background: #E9ECEB;">
+
+  <header style="flex: none; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 6px 0 16px; border-bottom: 1px solid #C9CFCD;">
+    <h1 style="margin: 0; font-size: 20px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.01em;">Órdenes de trabajo</h1>
+    <div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 2px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17191C" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+    </div>
+  </header>
+
+  <div style="flex: none; height: 56px; overflow: hidden; display: flex; align-items: center; gap: 6px; padding: 0 16px; white-space: nowrap;">
+    <div style="flex: none; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #17191C; color: #E9ECEB; border: 1px solid #17191C; border-radius: 2px; font-size: 14px; font-weight: 600;">Todas <span class="num" style="font-size: 13px; color: #C9CFCD;">40</span></div>
+    <div style="flex: none; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px;">Pendientes <span class="num" style="font-size: 13px; color: #565D63;">26</span></div>
+    <div style="flex: none; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px;">En curso <span class="num" style="font-size: 13px; color: #565D63;">9</span></div>
+    <div style="flex: none; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px;">Fuera de sincronía <span class="num" style="font-size: 13px; color: #565D63;">3</span></div>
+    <div style="flex: none; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px;">Hechas <span class="num" style="font-size: 13px; color: #565D63;">2</span></div>
+    <div style="flex: none; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px;">Tomadas por mí <span class="num" style="font-size: 13px; color: #565D63;">0</span></div>
+  </div>
+
+  <main style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; border-top: 1px solid #C9CFCD;">
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #DDE1DF; background: #FBFCFB;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 22px;">
+        <span class="id">WO-310</span>
+        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; background: #B8322A; color: #FFFFFF; font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">Fuera de sincronía</span>
+      </div>
+      <div style="font-size: 15px; line-height: 20px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Resumen del importador en la CLI</div>
+      <div style="font-size: 13px; line-height: 18px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="id" style="color: #1F4FA0;">SDD-012</span> · <span class="id">agent:claude</span></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #DDE1DF;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 22px;">
+        <span class="id">WO-304</span>
+        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #1F4FA0; color: #1F4FA0; background: rgba(31,79,160,0.08); font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">En curso</span>
+      </div>
+      <div style="font-size: 15px; line-height: 20px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Escaneo incremental por hash de archivo</div>
+      <div style="font-size: 13px; line-height: 18px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="id" style="color: #1F4FA0;">SDD-012</span> · <span class="id">agent:claude</span></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #DDE1DF;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 22px;">
+        <span class="id">WO-307</span>
+        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #1F4FA0; color: #1F4FA0; background: rgba(31,79,160,0.08); font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">En curso</span>
+      </div>
+      <div style="font-size: 15px; line-height: 20px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Reintento de subida con idempotencia</div>
+      <div style="font-size: 13px; line-height: 18px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="id" style="color: #1F4FA0;">SDD-012</span> · <span class="id">dev:martin</span></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #DDE1DF;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 22px;">
+        <span class="id">WO-276</span>
+        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #C9CFCD; color: #565D63; font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">Pendiente</span>
+      </div>
+      <div style="font-size: 15px; line-height: 20px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Componentes StatusBadge, IdTag, Skeleton, EmptyState y ErrorState, con tests</div>
+      <div style="font-size: 13px; line-height: 18px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="id" style="color: #1F4FA0;">SDD-011</span> · Sin asignar</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #DDE1DF;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 22px;">
+        <span class="id">WO-275</span>
+        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #C9CFCD; color: #565D63; font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">Pendiente</span>
+      </div>
+      <div style="font-size: 15px; line-height: 20px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Router con createBrowserRouter y AppShell con sidebar desktop, barra inferior mobile, skip link y título por ruta, con tests</div>
+      <div style="font-size: 13px; line-height: 18px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="id" style="color: #1F4FA0;">SDD-011</span> · Sin asignar</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #DDE1DF;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 22px;">
+        <span class="id">WO-301</span>
+        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #1E7F4F; color: #1E7F4F; background: rgba(30,127,79,0.08); font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">Hecha</span>
+      </div>
+      <div style="font-size: 15px; line-height: 20px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Tabla de hashes por archivo en Postgres</div>
+      <div style="font-size: 13px; line-height: 18px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="id" style="color: #1F4FA0;">SDD-012</span> · <span class="id">agent:claude</span></div>
+    </div>
+  </main>
+
+  <nav style="flex: none; height: 64px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: #FBFCFB; border-top: 1px solid #C9CFCD;">
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; color: #565D63;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V10l6 4V10l6 4V4h6v16z"></path></svg>
+      Planta
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; color: #565D63;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"></circle><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="12" r="2"></circle><path d="M6 7v10"></path><path d="M6 12h10"></path></svg>
+      Árbol
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; color: #565D63;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6v18h12V7z"></path><path d="M14 3v4h4"></path><path d="M9 13h6"></path><path d="M9 17h6"></path></svg>
+      Docs
+    </div>
+    <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; font-weight: 700; color: #17191C;">
+      <span style="position: absolute; top: 0; left: 12px; right: 12px; height: 2px; background: #17191C;"></span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17191C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="1"></rect><path d="M9 4V3h6v1"></path><path d="M9 11h6"></path><path d="M9 15h6"></path></svg>
+      Órdenes
+    </div>
+    <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; color: #565D63;">
+      <span class="num" style="position: absolute; top: 8px; left: 50%; margin-left: 6px; min-width: 16px; height: 16px; padding: 0 4px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 11px; font-weight: 700; border-radius: 2px;">3</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4L2 20h20z"></path><path d="M12 10v4"></path><circle cx="12" cy="17.5" r="0.5"></circle></svg>
+      Drift
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; color: #565D63;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg>
+      Más
+    </div>
+  </nav>
+</div>
+</x-dc>
+</body>
+</html>

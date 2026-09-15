@@ -1,0 +1,20 @@
+// Every route the screenshot script captures (SDD-011). Keep in sync with src/router.tsx.
+export const SCREENSHOT_ROUTES = [
+  { name: 'login', path: '/login' },
+  { name: 'proyectos', path: '/proyectos' },
+  { name: 'planta', path: '/' },
+  { name: 'arbol', path: '/arbol/PRD-004' },
+  { name: 'documentos', path: '/documentos' },
+  { name: 'documento', path: '/documentos/SDD-011' },
+  { name: 'ordenes', path: '/ordenes' },
+  { name: 'drift', path: '/drift' },
+  { name: 'entrada', path: '/entrada' },
+  { name: 'ajustes-miembros', path: '/ajustes/miembros' },
+  { name: 'ajustes-tokens', path: '/ajustes/tokens' },
+  { name: 'ajustes-sso', path: '/ajustes/sso' },
+];
+
+export const VIEWPORTS = [
+  { name: 'desktop', width: 1440, height: 900 },
+  { name: 'mobile', width: 375, height: 812 },
+];

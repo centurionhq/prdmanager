@@ -1,0 +1,188 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+    @keyframes cf-station { from { color: #3A4046; border-color: #17191C; } }
+    @keyframes cf-row { from { opacity: 0; transform: translateX(-24px); } }
+    @keyframes cf-andon { 0% { background-color: transparent; color: #C4CAD0; } 60% { background-color: #F5C400; } 75% { background-color: #8A7000; } 100% { background-color: #F5C400; } }
+    .cf-station { animation: cf-station 320ms ease-out both; }
+    .cf-row { animation: cf-row 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    .cf-andon { animation: cf-andon 700ms ease-out 1300ms both; }
+    @media (prefers-reduced-motion: reduce) { .cf-station, .cf-row, .cf-andon { animation: none; } }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 960px; overflow: hidden; display: flex; flex-direction: column; background: #E9ECEB;">
+
+  <div style="flex: none; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 48px; border-bottom: 1px solid #C9CFCD;">
+    <div style="display: flex; align-items: center; gap: 24px;">
+      <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+      <span style="width: 1px; height: 24px; background: #C9CFCD;"></span>
+      <div style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 10px 0 12px; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 15px; font-weight: 600; cursor: pointer;">
+        Centurion HQ
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"></path></svg>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 24px;">
+      <a style="font-size: 14px; cursor: pointer;">Ajustes de la organización</a>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">AR</div>
+        <span style="font-size: 14px; font-weight: 600;">Ana Ríos</span>
+      </div>
+    </div>
+  </div>
+
+  <main style="display: flex; flex-direction: column; gap: 24px; padding: 32px 48px; min-width: 0;">
+    <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Proyectos</h1>
+        <div style="font-size: 14px; color: #565D63;">5 proyectos en Centurion HQ</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 320px; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; color: #565D63; font-size: 14px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          Buscar proyectos
+        </div>
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px; cursor: pointer;">Nuevo proyecto</div>
+      </div>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+      <sc-for list="{{ chips }}" as="chip" hint-placeholder-count="3">
+        <button type="button" onClick="{{ chip.pick }}" style="{{ chip.style }}">{{ chip.label }}<span class="num" style="{{ chip.countStyle }}">{{ chip.count }}</span></button>
+      </sc-for>
+    </div>
+
+    <section style="display: flex; flex-direction: column;">
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 176px 280px 136px 120px 136px; column-gap: 16px; padding: 8px 12px; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD;">
+        <div>Proyecto</div><div>Estado de la línea</div><div>Drift</div><div style="text-align: right;">Órdenes en curso</div><div>Tu rol</div><div style="text-align: right;">Última actividad</div>
+      </div>
+      <sc-for list="{{ rows }}" as="row" hint-placeholder-count="4">
+        <div tabindex="0" style="{{ row.rowStyle }}">
+          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 16px; font-weight: 600; white-space: nowrap;">{{ row.name }}</span>
+              <sc-if value="{{ row.isArchived }}" hint-placeholder-val="{{ false }}">
+                <span style="height: 18px; display: inline-flex; align-items: center; padding: 0 6px; line-height: 16px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #33383D;">Archivado</span>
+              </sc-if>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: #565D63; white-space: nowrap;"><span class="id">{{ row.slug }}</span><span>·</span><span class="num">{{ row.docs }}</span></div>
+          </div>
+          <div title="{{ row.lineLabel }}" style="display: flex; align-items: center; gap: 4px;">
+            <span style="{{ row.seg1 }}"></span><span style="{{ row.seg2 }}"></span><span style="{{ row.seg3 }}"></span><span style="{{ row.seg4 }}"></span><span style="{{ row.seg5 }}"></span><span style="{{ row.seg6 }}"></span>
+          </div>
+          <div style="{{ row.driftStyle }}">
+            <sc-if value="{{ row.hasMark }}" hint-placeholder-val="{{ true }}">
+              <span style="{{ row.markStyle }}"></span>
+            </sc-if>
+            {{ row.driftLabel }}
+          </div>
+          <div class="num" style="{{ row.ordersStyle }}">{{ row.orders }}</div>
+          <div style="font-size: 14px; color: #33383D;">{{ row.role }}</div>
+          <div class="num" style="text-align: right; font-size: 14px; color: #565D63; white-space: nowrap;">{{ row.activity }}</div>
+        </div>
+      </sc-for>
+      <div style="padding: 16px 12px 0; font-size: 14px; color: #565D63;">¿No ves un proyecto? Pedile acceso a un admin de Centurion HQ.</div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { filter: 'active' };
+  }
+
+  renderVals() {
+    const stations = ['Ingesta', 'Definición', 'Diseño', 'Planificación', 'Ejecución', 'Cierre'];
+
+    // reached: stations reached by the most advanced feature. driftAt: station index (1-based) flagged in andon, 0 if none.
+    const projects = [
+      { name: 'prdmanager', slug: 'centurion-hq/prdmanager', docs: '292 docs', archived: false, reached: 6, driftAt: 5, drift: 'error', driftLabel: '3 errores', orders: 9, role: 'Admin', activity: 'hace 4 min', focused: true },
+      { name: 'data-report-ms', slug: 'centurion-hq/data-report-ms', docs: '12 docs', archived: false, reached: 3, driftAt: 0, drift: 'awaiting', driftLabel: 'Esperando primer reporte de CI', orders: 0, role: 'Admin', activity: 'hace 1 h', focused: false },
+      { name: 'ystream', slug: 'centurion-hq/ystream', docs: '41 docs', archived: false, reached: 4, driftAt: 0, drift: 'ok', driftLabel: 'Sin drift', orders: 2, role: 'Editor', activity: 'ayer', focused: false },
+      { name: 'dbmazz', slug: 'centurion-hq/dbmazz', docs: '67 docs', archived: false, reached: 5, driftAt: 5, drift: 'warning', driftLabel: '1 aviso', orders: 4, role: 'Developer', activity: 'hace 3 d', focused: false },
+      { name: 'centurion-core', slug: 'centurion-hq/centurion-core', docs: 'prototipo V1', archived: true, reached: 6, driftAt: 0, drift: 'ok', driftLabel: 'Sin drift', orders: 0, role: 'Viewer', activity: '02/08/2026', focused: false }
+    ];
+
+    const filters = [
+      { key: 'active', label: 'Activos', count: 4 },
+      { key: 'archived', label: 'Archivados', count: 1 },
+      { key: 'all', label: 'Todos', count: '' }
+    ];
+    const current = this.state.filter;
+
+    const chipBase = 'height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 2px; font-family: inherit; font-size: 14px; cursor: pointer; white-space: nowrap;';
+    const chips = filters.map((f) => {
+      const isSelected = f.key === current;
+      return {
+        label: f.label,
+        count: f.count,
+        style: isSelected
+          ? chipBase + ' background: #17191C; color: #E9ECEB; border: 1px solid #17191C; font-weight: 600;'
+          : chipBase + ' background: #FBFCFB; color: #17191C; border: 1px solid #C9CFCD; font-weight: 400;',
+        countStyle: isSelected ? 'font-size: 13px; color: #C9CFCD;' : 'font-size: 13px; color: #565D63;',
+        pick: () => this.setState({ filter: f.key })
+      };
+    });
+
+    const visible = projects.filter((p) => {
+      if (current === 'active') return !p.archived;
+      if (current === 'archived') return p.archived;
+      return true;
+    });
+
+    const segBase = 'width: 20px; height: 6px;';
+    const drift = {
+      error: { style: 'color: #B8322A; font-weight: 600;', mark: 'width: 8px; height: 8px; background: #B8322A;' },
+      warning: { style: 'color: #7A5A00; font-weight: 600;', mark: 'width: 8px; height: 8px; border-radius: 4px; background: #F5C400;' },
+      ok: { style: 'color: #1E7F4F; font-weight: 600;', mark: 'width: 8px; height: 8px; background: #1E7F4F;' },
+      awaiting: { style: 'color: #565D63; font-weight: 400;', mark: '' }
+    };
+
+    const rowBase = 'display: grid; grid-template-columns: minmax(0, 1fr) 176px 280px 136px 120px 136px; column-gap: 16px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #DDE1DF; cursor: pointer;';
+
+    const rows = visible.map((p) => {
+      const d = drift[p.drift];
+      const seg = (n) => segBase + ' background: ' + (n === p.driftAt ? '#F5C400' : (n <= p.reached ? '#17191C' : '#C9CFCD')) + ';';
+      const lineLabel = 'Llega a ' + stations[p.reached - 1] + (p.driftAt ? ', con drift en ' + stations[p.driftAt - 1] : '');
+      return {
+        name: p.name,
+        slug: p.slug,
+        docs: p.docs,
+        isArchived: p.archived,
+        seg1: seg(1), seg2: seg(2), seg3: seg(3), seg4: seg(4), seg5: seg(5), seg6: seg(6),
+        lineLabel: lineLabel,
+        hasMark: d.mark !== '',
+        markStyle: 'flex: none; ' + d.mark,
+        driftStyle: 'display: flex; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; ' + d.style,
+        driftLabel: p.driftLabel,
+        orders: p.orders,
+        ordersStyle: 'text-align: right; font-size: 14px; ' + (p.orders === 0 ? 'color: #565D63;' : 'color: #17191C; font-weight: 600;'),
+        role: p.role,
+        activity: p.activity,
+        rowStyle: p.focused
+          ? rowBase + ' background: #FBFCFB; outline: 2px solid #1F4FA0; outline-offset: -2px; border-radius: 2px;'
+          : rowBase
+      };
+    });
+
+    return { chips: chips, rows: rows };
+  }
+}
+</script>
+</body>
+</html>

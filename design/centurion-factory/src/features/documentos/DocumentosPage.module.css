@@ -1,0 +1,74 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.workflowSelectWrapper {
+  display: flex;
+}
+
+.workflowSelect {
+  width: 220px;
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+  font-size: var(--text-sm);
+  color: var(--grafito);
+}
+
+.workflowSelect:focus-visible {
+  outline: none;
+  border-color: var(--cianotipo);
+  box-shadow: var(--focus-ring);
+}
+
+.validationOk {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--apagado);
+}
+
+.validationOk svg {
+  color: var(--senal);
+}
+
+.emptyFilterResult {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--texto-secundario);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  color: var(--apagado);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 767px) {
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .workflowSelect {
+    width: 100%;
+  }
+}

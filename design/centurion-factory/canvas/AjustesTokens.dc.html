@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+    @keyframes cf-station { from { color: #3A4046; border-color: #17191C; } }
+    @keyframes cf-row { from { opacity: 0; transform: translateX(-24px); } }
+    @keyframes cf-andon { 0% { background-color: transparent; color: #C4CAD0; } 60% { background-color: #F5C400; } 75% { background-color: #8A7000; } 100% { background-color: #F5C400; } }
+    .cf-station { animation: cf-station 320ms ease-out both; }
+    .cf-row { animation: cf-row 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    .cf-andon { animation: cf-andon 700ms ease-out 1300ms both; }
+    @media (prefers-reduced-motion: reduce) { .cf-station, .cf-row, .cf-andon { animation: none; } }
+  </style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 960px; overflow: hidden; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+
+  <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
+      <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 52px; margin-top: -8px; padding: 0 10px 0 12px; border: 1px solid #C9CFCD; border-radius: 2px; cursor: pointer;">
+      <div style="display: flex; flex-direction: column; min-width: 0;"><span style="font-size: 12px; color: #565D63;">Centurion HQ</span><span style="font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">prdmanager</span></div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"></path></svg>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Planta</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Árbol de features</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Documentos</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Órdenes de trabajo</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Drift <span class="num" style="min-width: 22px; height: 20px; padding: 0 6px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 12px; font-weight: 700; border-radius: 2px;">3</span></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Bandeja de entrada <span class="num" style="font-size: 13px; color: #565D63;">2</span></div>
+    </div>
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600; font-size: 15px;">Ajustes</div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 12px 8px 0; border-top: 1px solid #C9CFCD;">
+      <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">AR</div>
+      <div style="display: flex; flex-direction: column;"><span style="font-size: 14px; font-weight: 600;">Ana Ríos</span><span style="font-size: 12px; color: #565D63;">Admin de proyecto</span></div>
+    </div>
+    </div>
+  </nav>
+
+  <main style="display: flex; flex-direction: column; gap: 24px; padding: 24px 32px; min-width: 0; min-height: 0;">
+    <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Ajustes</h1>
+        <div style="font-size: 14px; color: #565D63;">Proyecto prdmanager, organización Centurion HQ y tu cuenta</div>
+      </div>
+    </header>
+
+    <div style="flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px;">
+      <aside style="display: flex; flex-direction: column; gap: 24px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="font-size: 13px; color: #565D63; padding: 0 12px 6px;">Proyecto prdmanager</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">General</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Miembros</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; background: #FBFCFB; border: 1px solid #C9CFCD; font-weight: 600; color: #17191C;">Tokens de CI</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Integraciones</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="font-size: 13px; color: #565D63; padding: 0 12px 6px;">Centurion HQ</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Miembros de la organización</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Autenticación y SSO</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Auditoría</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="font-size: 13px; color: #565D63; padding: 0 12px 6px;">Tu cuenta</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Perfil</div>
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Tokens personales</div>
+        </div>
+      </aside>
+
+      <section style="display: flex; flex-direction: column; gap: 24px; min-width: 0;">
+        <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;">
+          <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+            <h2 style="margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700;">Tokens de CI</h2>
+            <div style="font-size: 14px; color: #565D63;">Solo un token de CI en la rama por defecto avanza el reporte oficial de drift.</div>
+          </div>
+          <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px; white-space: nowrap; cursor: pointer;">Crear token</div>
+        </div>
+
+        <div role="status" style="display: flex; flex-direction: column; gap: 12px; padding: 16px 20px 20px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+            <span style="font-size: 16px; font-weight: 700;">Token creado</span>
+          </div>
+          <div style="font-size: 14px; color: #33383D;">Copiá el token ahora. Por seguridad no lo vamos a volver a mostrar.</div>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="flex: 1; min-width: 0; height: 40px; display: flex; align-items: center; padding: 0 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px;"><span class="id" style="font-size: 14px; color: #17191C; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">prdm_ci_7f3a9c42e1d84b6f90aa51c7b21c</span></div>
+            <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px; white-space: nowrap; cursor: pointer; gap: 8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#17191C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><rect x="9" y="9" width="11" height="11" rx="1"></rect><path d="M5 15V5a1 1 0 0 1 1-1h10"></path></svg>Copiar</div>
+            <div style="height: 40px; display: flex; align-items: center; padding: 0 8px; font-size: 14px; font-weight: 600; color: #1F4FA0; white-space: nowrap; cursor: pointer;">Ya lo guardé</div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div role="table" style="display: grid; grid-template-columns: minmax(0, 1fr) 116px 150px 116px 150px 96px 72px;">
+            <div style="padding: 8px 12px 8px 0; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD; white-space: nowrap;">Nombre</div><div style="padding: 8px 12px 8px 0; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD; white-space: nowrap;">Prefijo</div><div style="padding: 8px 12px 8px 0; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD; white-space: nowrap;">Alcance</div><div style="padding: 8px 12px 8px 0; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD; white-space: nowrap;">Rama</div><div style="padding: 8px 12px 8px 0; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD; white-space: nowrap;">Vence</div><div style="padding: 8px 12px 8px 0; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD; white-space: nowrap;">Último uso</div><div style="padding: 8px 12px 8px 0; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD; white-space: nowrap; padding-right: 0;"></div>
+          <div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;"><span style="font-weight: 600; color: #17191C; white-space: nowrap;">github-actions-main</span><span class="num" style="font-size: 12px; color: #565D63; white-space: nowrap;">Ana Ríos, 15/09/2026</span></div><div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px;"><span class="id" style="color: #33383D;">prdm_ci_7f3a…</span></div><div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px;"><span class="id" style="height: 22px; display: inline-flex; align-items: center; padding: 0 6px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 2px; color: #33383D; white-space: nowrap;">reports:write</span><span class="id" style="height: 22px; display: inline-flex; align-items: center; padding: 0 6px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 2px; color: #33383D; white-space: nowrap;">reports:baseline</span></div><div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; color: #17191C;"><span class="id">main</span></div><div class="num" style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; color: #17191C;">14/12/2026</div><div class="num" style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; color: #565D63;">hace 4 min</div><div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; padding-right: 0; justify-content: flex-end;"><span style="font-weight: 600; color: #B8322A; cursor: pointer;">Revocar</span></div>
+          <div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;"><span style="font-weight: 600; color: #17191C; white-space: nowrap;">github-actions-previews</span><span class="num" style="font-size: 12px; color: #565D63; white-space: nowrap;">Martín Sosa, 04/08/2026</span></div><div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px;"><span class="id" style="color: #33383D;">prdm_ci_c21e…</span></div><div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px;"><span class="id" style="height: 22px; display: inline-flex; align-items: center; padding: 0 6px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 2px; color: #33383D; white-space: nowrap;">reports:write</span></div><div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; color: #17191C;">cualquier rama</div><div class="num" style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; color: #17191C;">02/11/2026</div><div class="num" style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; color: #565D63;">hace 22 min</div><div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; padding-right: 0; justify-content: flex-end;"><span style="font-weight: 600; color: #B8322A; cursor: pointer;">Revocar</span></div>
+          <div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;"><span style="font-weight: 600; color: #565D63; white-space: nowrap;">github-actions-nightly</span><span class="num" style="font-size: 12px; color: #565D63; white-space: nowrap;">Ana Ríos, 03/06/2026</span></div><div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px;"><span class="id" style="color: #565D63;">prdm_ci_19bd…</span></div><div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px;"><span class="id" style="height: 22px; display: inline-flex; align-items: center; padding: 0 6px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 2px; color: #565D63; white-space: nowrap;">governance:read</span></div><div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; color: #565D63;"><span class="id">main</span></div><div class="num" style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; color: #565D63;">Venció el 01/09/2026</div><div class="num" style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; color: #565D63;">01/09/2026</div><div style="min-height: 52px; padding: 10px 12px 10px 0; display: flex; align-items: center; border-bottom: 1px solid #DDE1DF; font-size: 14px; padding-right: 0; justify-content: flex-end;"><span style="font-weight: 600; color: #B8322A; cursor: pointer;">Eliminar</span></div>
+          </div>
+          <div style="font-size: 14px; color: #565D63;">Máximo 90 días. Rotalos antes de que venzan para no cortar el reporte oficial.</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+</div>
+</x-dc>
+</body>
+</html>

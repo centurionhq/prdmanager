@@ -1,0 +1,122 @@
+.toolbar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--regla-fila);
+  position: relative;
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--relleno);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+}
+
+.button {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-plate);
+  color: var(--texto-secundario);
+}
+
+.button:hover {
+  background: var(--relleno);
+}
+
+.textButton {
+  width: auto;
+  padding: 0 6px;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.pressed {
+  background: var(--grafito);
+  color: var(--acero);
+  font-weight: 600;
+}
+
+.divider {
+  width: 1px;
+  height: 24px;
+  margin: 0 2px;
+  background: var(--regla);
+}
+
+.bold {
+  font-weight: 800;
+  font-size: var(--text-md);
+}
+
+.italic {
+  font-style: italic;
+  font-size: var(--text-md);
+}
+
+.strike {
+  text-decoration: line-through;
+  font-size: var(--text-md);
+}
+
+.linkPopover {
+  position: absolute;
+  top: 100%;
+  left: var(--space-2);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  padding: var(--space-2);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+  box-shadow: var(--sombra-overlay);
+}
+
+.linkInput {
+  height: 32px;
+  padding: 0 var(--space-2);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+  font-size: var(--text-sm);
+}
+
+.blockSelect {
+  height: var(--control-height);
+  padding: 0 var(--space-2);
+  background: var(--relleno);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-input);
+  font-size: var(--text-sm);
+  color: var(--grafito);
+}
+
+@media (max-width: 767px) {
+  .toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .button {
+    flex: none;
+    width: var(--hit-target);
+    height: var(--hit-target);
+  }
+
+  .blockSelect {
+    flex: none;
+    height: var(--hit-target);
+  }
+}
