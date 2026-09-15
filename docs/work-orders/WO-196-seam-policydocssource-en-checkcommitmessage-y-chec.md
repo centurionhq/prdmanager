@@ -2,12 +2,17 @@
 id: "WO-196"
 type: "WO"
 title: "Seam PolicyDocsSource en checkCommitMessage y checkCommitRange sin cambio en modo local, con tests"
-status: "pending"
+status: "done"
 created_at: "2026-09-13"
 implements: ["SDD-010"]
 impacts_paths: ["packages/server/src/**","packages/server/tests/**","packages/server/*.json","packages/mcp/src/**","packages/cli/src/**","packages/cli/tests/**","packages/cli/package.json","packages/core/src/**","packages/contracts/src/**","packages/contracts/tests/**","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/app/src/**","packages/app/tests/**","packages/app/*.config.ts","packages/testkit/src/**",".github/workflows/prdm-sync.yml",".gitignore","vitest.config.ts","README.md",".env.example","package.json","package-lock.json"]
 source_task: "a973f9831a76f777"
 tags: ["saas","remote-mcp","sync","drift","cli","import","oidc"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T01:45:02.393Z"
+completed_at: "2026-09-15T01:50:04.105Z"
+resolved_by: ["e78b316cebda8a925c3e19a25dbe8c48c2cc63ad"]
+blueprint_hashes: {"SDD-010":"a40225b83b2e4989ac23e7ba309a3abafe0491bdaf5ebdbdc7802d034f80760a"}
 ---
 
 ## Objetivo
