@@ -34,6 +34,7 @@ export interface EditorColumnProps {
   readonly onModeChange: (mode: EditorMode) => void;
   readonly markdownDraft: string;
   readonly onMarkdownDraftChange: (draft: string) => void;
+  readonly markdownLineBlockIds: readonly (string | undefined)[];
 }
 
 const FORMAT_TAG: Readonly<Record<InlineFormat, 'strong' | 'em' | 'del'>> = { '**': 'strong', _: 'em', '~~': 'del' };
@@ -63,10 +64,10 @@ export function EditorColumn({
   onModeChange,
   markdownDraft,
   onMarkdownDraftChange,
+  markdownLineBlockIds,
 }: EditorColumnProps): ReactElement {
   const [focusedBlockId, setFocusedBlockId] = useState<string | undefined>(blocks[0]?.id);
   const [activeFormats, setActiveFormats] = useState<ReadonlySet<InlineFormat>>(new Set());
-  const [markdownGutterBlocks, setMarkdownGutterBlocks] = useState<readonly DocumentBlock[]>(blocks);
   const [focusRequest, setFocusRequest] = useState<{ readonly id: string; readonly position: FocusPosition } | null>(null);
   const fieldsRef = useRef(new Map<string, HTMLDivElement>());
   const capturedLinkRangeRef = useRef<{ readonly blockId: string; readonly range: Range } | null>(null);
@@ -84,13 +85,6 @@ export function EditorColumn({
     }
     setFocusRequest(null);
   }, [focusRequest]);
-
-  // The Markdown gutter's per-line authorship is a snapshot of the blocks live when the tab opened
-  // (re-parsing `markdownDraft` on every keystroke would reattribute lines the user hasn't touched).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (mode === 'markdown') setMarkdownGutterBlocks(blocks);
-  }, [mode]);
 
   function handleTabKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
@@ -280,7 +274,7 @@ export function EditorColumn({
           />
         </>
       ) : (
-        <MarkdownEditor value={markdownDraft} onChange={onMarkdownDraftChange} gutterBlocks={markdownGutterBlocks} />
+        <MarkdownEditor value={markdownDraft} onChange={onMarkdownDraftChange} gutterBlocks={blocks} lineBlockIds={markdownLineBlockIds} />
       )}
 
       <div className={styles.footer}>

@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DocumentBlock } from '../../../src/data';
-import {
-  htmlToInline,
-  inlineToHtml,
-  parseLine,
-  parseMarkdown,
-  reconcileBlocks,
-  sanitizeHref,
-  serializeBlocks,
-} from '../../../src/features/documento/markdown';
+import { htmlToInline, inlineToHtml, parseLine, parseMarkdown, sanitizeHref, serializeBlocks } from '../../../src/features/documento/markdown';
 
 function block(id: string, type: DocumentBlock['type'], text: string, extra?: Partial<DocumentBlock>): DocumentBlock {
   return { id, type, text, author: 'ana-rios', ...extra };
@@ -24,7 +16,7 @@ describe('serializeBlocks', () => {
       block('b5', 'task', 'Tarea pendiente', { checked: false }),
       block('b6', 'task', 'Tarea hecha', { checked: true }),
     ];
-    const lines = serializeBlocks(blocks).split('\n');
+    const lines = serializeBlocks(blocks).source.split('\n');
     expect(lines).toContain('# Título');
     expect(lines).toContain('## Sección');
     expect(lines).toContain('### Subsección');
@@ -35,19 +27,26 @@ describe('serializeBlocks', () => {
 
   it('numbers consecutive ordered-list blocks starting at 1', () => {
     const blocks: DocumentBlock[] = [block('b1', 'ol', 'Primero'), block('b2', 'ol', 'Segundo'), block('b3', 'ol', 'Tercero')];
-    expect(serializeBlocks(blocks)).toBe('1. Primero\n2. Segundo\n3. Tercero');
+    expect(serializeBlocks(blocks).source).toBe('1. Primero\n2. Segundo\n3. Tercero');
   });
 
   it('restarts ordered-list numbering after a non-ol block', () => {
     const blocks: DocumentBlock[] = [block('b1', 'ol', 'Uno'), block('b2', 'li', 'Interrupción'), block('b3', 'ol', 'Reinicia en 1')];
-    const lines = serializeBlocks(blocks).split('\n');
+    const lines = serializeBlocks(blocks).source.split('\n');
     expect(lines).toContain('1. Uno');
     expect(lines).toContain('1. Reinicia en 1');
   });
 
   it('inserts a blank line before the next heading, but not between a heading and its list', () => {
     const blocks: DocumentBlock[] = [block('b1', 'h2', 'Tareas'), block('b2', 'task', 'Uno'), block('b3', 'task', 'Dos'), block('b4', 'h2', 'Riesgos')];
-    expect(serializeBlocks(blocks)).toBe('## Tareas\n- [ ] Uno\n- [ ] Dos\n\n## Riesgos');
+    expect(serializeBlocks(blocks).source).toBe('## Tareas\n- [ ] Uno\n- [ ] Dos\n\n## Riesgos');
+  });
+
+  it('returns a line -> block id map that accounts for blank separator lines', () => {
+    const blocks: DocumentBlock[] = [block('b1', 'h1', 'Título'), block('b2', 'p', 'Un párrafo.'), block('b3', 'h2', 'Sección')];
+    const { source, lineBlockIds } = serializeBlocks(blocks);
+    expect(source.split('\n')).toEqual(['# Título', '', 'Un párrafo.', '', '## Sección']);
+    expect(lineBlockIds).toEqual(['b1', undefined, 'b2', undefined, 'b3']);
   });
 });
 
@@ -96,7 +95,7 @@ describe('round-trip: serializeBlocks -> parseMarkdown', () => {
       block('b11', 'ol', 'Paso dos'),
     ];
 
-    const roundTripped = parseMarkdown(serializeBlocks(blocks)).map((line) => ({ type: line.type, text: line.text, checked: line.checked }));
+    const roundTripped = parseMarkdown(serializeBlocks(blocks).source).map((line) => ({ type: line.type, text: line.text, checked: line.checked }));
     const original = blocks.map((b) => ({ type: b.type, text: b.text, checked: b.checked }));
     expect(roundTripped).toEqual(original);
   });
@@ -111,7 +110,7 @@ describe('round-trip: serializeBlocks -> parseMarkdown', () => {
       block('b1', 'task', 'Uno', { checked: false }),
       block('b1', 'task', 'Uno', { checked: true }),
     ]) {
-      const [parsed] = parseMarkdown(serializeBlocks([b]));
+      const [parsed] = parseMarkdown(serializeBlocks([b]).source);
       expect(parsed).toEqual({ type: b.type, text: b.text, checked: b.checked });
     }
   });
@@ -273,24 +272,11 @@ describe('lineForBlock escapes a leading block marker for p blocks (via serializ
     'round-trips %s as a literal paragraph, not a heading or a list',
     (text) => {
       const blocks: DocumentBlock[] = [{ id: 'b1', type: 'p', text, author: 'ana-rios' }];
-      const [parsed] = parseMarkdown(serializeBlocks(blocks));
+      const [parsed] = parseMarkdown(serializeBlocks(blocks).source);
       expect(parsed?.type).toBe('p');
       expect(inlineToHtml(parsed?.text ?? '')).toBe(text);
     },
   );
 });
 
-describe('reconcileBlocks', () => {
-  it('keeps the id and author of blocks at an unchanged position', () => {
-    const previous: DocumentBlock[] = [block('b1', 'h1', 'Viejo', { author: 'julia-paz' })];
-    const [reconciled] = reconcileBlocks(previous, [{ type: 'h1', text: 'Nuevo' }], 'ana-rios');
-    expect(reconciled).toEqual({ id: 'b1', type: 'h1', text: 'Nuevo', checked: undefined, author: 'julia-paz' });
-  });
-
-  it('attributes brand-new lines to the fallback author with a fresh id', () => {
-    const [reconciled] = reconcileBlocks([], [{ type: 'p', text: 'Nueva línea' }], 'ana-rios');
-    expect(reconciled?.author).toBe('ana-rios');
-    expect(reconciled?.text).toBe('Nueva línea');
-    expect(reconciled?.id).toBeTruthy();
-  });
-});
+// reconcileBlocks now lives in blockReconciliation.ts (WO-312); see blockReconciliation.test.ts.

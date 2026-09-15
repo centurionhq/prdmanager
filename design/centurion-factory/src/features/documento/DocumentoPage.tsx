@@ -63,6 +63,7 @@ function DocumentoPageForId({ id }: { readonly id: string }): ReactElement {
     setEditorMode,
     markdownDraft,
     setMarkdownDraft,
+    markdownLineBlockIds,
   } = useDocumentEditor(id);
 
   if (!document || !workflowState) {
@@ -137,6 +138,7 @@ function DocumentoPageForId({ id }: { readonly id: string }): ReactElement {
             onEditorModeChange={setEditorMode}
             markdownDraft={markdownDraft}
             onMarkdownDraftChange={setMarkdownDraft}
+            markdownLineBlockIds={markdownLineBlockIds}
           />
           <div className={styles.mobileActionBar}>
             <Button type="button" variant="secondary" onClick={handleSave}>
@@ -156,6 +158,7 @@ function DocumentoPageForId({ id }: { readonly id: string }): ReactElement {
             onModeChange={setEditorMode}
             markdownDraft={markdownDraft}
             onMarkdownDraftChange={setMarkdownDraft}
+            markdownLineBlockIds={markdownLineBlockIds}
           />
           <SidePanel
             document={document}

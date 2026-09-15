@@ -20,8 +20,9 @@ import {
   type VersionReason,
   type WorkflowState,
 } from '../../data';
+import { reconcileBlocks } from './blockReconciliation';
 import { formatRelative } from './format';
-import { parseMarkdown, reconcileBlocks, serializeBlocks } from './markdown';
+import { parseMarkdown, serializeBlocks } from './markdown';
 import { findMatchingBlock, stripLinePrefix } from './proposalEdits';
 
 /** "Editás como Admin de proyecto" in the header: the simulated current session. */
@@ -73,6 +74,7 @@ export interface UseDocumentEditorResult {
   readonly setEditorMode: (mode: EditorMode) => void;
   readonly markdownDraft: string;
   readonly setMarkdownDraft: (draft: string) => void;
+  readonly markdownLineBlockIds: readonly (string | undefined)[];
 }
 
 function nextVersionNumber(versions: readonly DocumentVersion[]): number {
@@ -97,6 +99,7 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
   const [comments, setComments] = useState<readonly CommentThread[]>(() => [...commentsForDocument(id)]);
   const [editorMode, setEditorModeState] = useState<EditorMode>('preview');
   const [markdownDraft, setMarkdownDraft] = useState('');
+  const [markdownLineBlockIds, setMarkdownLineBlockIds] = useState<readonly (string | undefined)[]>([]);
 
   /** `blocks` folded with any pending Markdown-tab edit, without touching state (pure read). */
   function effectiveBlocks(): readonly DocumentBlock[] {
@@ -107,8 +110,13 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
   /** Switching tabs seeds the draft from the model, and leaving Markdown folds the draft back in. */
   function setEditorMode(next: EditorMode): void {
     if (next === editorMode) return;
-    if (next === 'markdown') setMarkdownDraft(serializeBlocks(blocks));
-    else setBlocks(effectiveBlocks());
+    if (next === 'markdown') {
+      const serialized = serializeBlocks(blocks);
+      setMarkdownDraft(serialized.source);
+      setMarkdownLineBlockIds(serialized.lineBlockIds);
+    } else {
+      setBlocks(effectiveBlocks());
+    }
     setEditorModeState(next);
   }
 
@@ -218,5 +226,6 @@ export function useDocumentEditor(id: string, now: Date = new Date()): UseDocume
     setEditorMode,
     markdownDraft,
     setMarkdownDraft,
+    markdownLineBlockIds,
   };
 }

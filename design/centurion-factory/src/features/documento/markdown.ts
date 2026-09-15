@@ -55,15 +55,26 @@ function needsBlankBefore(block: DocumentBlock, previous: DocumentBlock): boolea
   return isProseOrHeading(block.type) || previous.type === 'p';
 }
 
+export interface SerializedBlocks {
+  readonly source: string;
+  /** The block id each output line came from; a blank separator line has no owner (`undefined`). */
+  readonly lineBlockIds: readonly (string | undefined)[];
+}
+
 /** Renders the block model to Markdown source, one block per line with blank-line separators. */
-export function serializeBlocks(blocks: readonly DocumentBlock[]): string {
+export function serializeBlocks(blocks: readonly DocumentBlock[]): SerializedBlocks {
   const lines: string[] = [];
+  const lineBlockIds: (string | undefined)[] = [];
   blocks.forEach((block, index) => {
     const previous = blocks[index - 1];
-    if (previous && needsBlankBefore(block, previous)) lines.push('');
+    if (previous && needsBlankBefore(block, previous)) {
+      lines.push('');
+      lineBlockIds.push(undefined);
+    }
     lines.push(lineForBlock(block, orderedNumberAt(blocks, index)));
+    lineBlockIds.push(block.id);
   });
-  return lines.join('\n');
+  return { source: lines.join('\n'), lineBlockIds };
 }
 
 /** Parses one Markdown line into its block type/text/checked shape; blank lines return `null`. */
@@ -241,8 +252,11 @@ const INLINE_TAGS: Readonly<Record<string, string>> = {
   STRIKE: '~~',
 };
 
-/** Escapes markdown-special characters in plain DOM text so they survive as literal characters. */
-function escapeInlineMarkdown(value: string): string {
+/**
+ * Escapes markdown-special characters in plain text so it survives as literal characters once fed
+ * back through `inlineToHtml` — used both for DOM text nodes and for raw pasted plain text.
+ */
+export function escapePlainText(value: string): string {
   return Array.from(value)
     .map((char) => (ESCAPABLE_CHARS.has(char) ? `\\${char}` : char))
     .join('');
@@ -254,7 +268,7 @@ function percentEncodeHrefParens(href: string): string {
 }
 
 function domNodeToInline(node: ChildNode): string {
-  if (node.nodeType === 3 /* Node.TEXT_NODE */) return escapeInlineMarkdown(node.textContent ?? '');
+  if (node.nodeType === 3 /* Node.TEXT_NODE */) return escapePlainText(node.textContent ?? '');
   if (node.nodeType !== 1 /* Node.ELEMENT_NODE */) return '';
 
   const element = node as Element;
@@ -280,21 +294,8 @@ export function resetGeneratedIdsForTests(): void {
   nextGeneratedId = 0;
 }
 
-/**
- * Reconciles parsed Markdown lines against the previous blocks: a line at the same position keeps
- * its id/authorship (it was "edited"), a new line is attributed to `fallbackAuthor`.
- */
-export function reconcileBlocks(
-  previousBlocks: readonly DocumentBlock[],
-  parsedLines: readonly ParsedLine[],
-  fallbackAuthor: string,
-): readonly DocumentBlock[] {
-  return parsedLines.map((line, index) => {
-    const previous = previousBlocks[index];
-    if (previous) {
-      return { ...previous, type: line.type, text: line.text, checked: line.checked };
-    }
-    nextGeneratedId += 1;
-    return { id: `block-${Date.now()}-${nextGeneratedId}`, type: line.type, text: line.text, checked: line.checked, author: fallbackAuthor };
-  });
+/** A fresh block id, for a brand-new block created by parsing, splitting or pasting. */
+export function generateBlockId(): string {
+  nextGeneratedId += 1;
+  return `block-${Date.now()}-${nextGeneratedId}`;
 }

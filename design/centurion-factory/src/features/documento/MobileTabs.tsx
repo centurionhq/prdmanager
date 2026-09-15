@@ -28,6 +28,7 @@ export interface MobileTabsProps {
   readonly onEditorModeChange: (mode: EditorMode) => void;
   readonly markdownDraft: string;
   readonly onMarkdownDraftChange: (draft: string) => void;
+  readonly markdownLineBlockIds: readonly (string | undefined)[];
 }
 
 export function MobileTabs({
@@ -47,6 +48,7 @@ export function MobileTabs({
   onEditorModeChange,
   markdownDraft,
   onMarkdownDraftChange,
+  markdownLineBlockIds,
 }: MobileTabsProps): ReactElement {
   const [activeId, setActiveId] = useState('documento');
 
@@ -69,6 +71,7 @@ export function MobileTabs({
               onModeChange={onEditorModeChange}
               markdownDraft={markdownDraft}
               onMarkdownDraftChange={onMarkdownDraftChange}
+              markdownLineBlockIds={markdownLineBlockIds}
             />
           ),
         },

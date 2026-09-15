@@ -13,7 +13,7 @@ describe('useDocumentEditor: the Markdown draft is reconciled before save', () =
     const versionsBefore = result.current.versions.length;
 
     act(() => result.current.setEditorMode('markdown'));
-    const draft = serializeBlocks(result.current.blocks);
+    const draft = serializeBlocks(result.current.blocks).source;
     act(() => result.current.setMarkdownDraft(`${draft}\n\nNueva línea agregada desde Markdown.`));
 
     act(() => result.current.save());
@@ -29,7 +29,7 @@ describe('useDocumentEditor: acceptProposal reconciles the draft before its stal
     const { result } = renderHook(() => useDocumentEditor('SDD-011', NOW));
 
     act(() => result.current.setEditorMode('markdown'));
-    const editedDraft = serializeBlocks(result.current.blocks).replace(
+    const editedDraft = serializeBlocks(result.current.blocks).source.replace(
       '- [ ] Revisión visual manual en mobile',
       '- [ ] Revisión visual manual en mobile, ya actualizada',
     );
