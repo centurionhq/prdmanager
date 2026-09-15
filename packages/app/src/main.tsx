@@ -1,4 +1,6 @@
 // SDD-006 "Dashboard (shell)": SPA entry point.
+// WO-245: must be the first import — see its own doc comment for why import order matters here.
+import './zod-jitless';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router';
