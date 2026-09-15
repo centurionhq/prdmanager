@@ -24,7 +24,7 @@
  *
  * Every tool call (read or write, and every call inside a batched JSON-RPC request) is (a) counted
  * against a per-token rate limit and (b) audited by name — both implemented by wrapping
- * `server.registerTool` itself (`instrumentToolCalls`) before handing the server to
+ * `server.registerTool`/`registerResource`/`registerPrompt` (`instrumentMcpCalls`) before handing the server to
  * `registerPrdmTools`/`registerRemoteWriteTools`, so neither of those (nor any individual tool file)
  * needs to know this is happening.
  *
@@ -36,7 +36,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { ErrorCode, McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { registerPrdmTools, registerRemoteWriteTools, type PrdmDeps, type RemoteWriteAuth } from '@prdm/mcp/lib';
 import { can, type PermissionSubject } from '@prdm/contracts';
 import { createTenantDb, findMembership, findUserProfile, resolveProjectByGraphProjectId, type OrgRole, type ProjectRecord } from '@prdm/db';
@@ -83,30 +83,75 @@ function isOriginAllowed(origin: string | undefined, trustedOrigins: readonly st
 }
 
 /**
- * Wraps every `server.registerTool` call so each individual tool invocation — including every message
+ * Wraps every `server.registerTool`/`registerResource`/`registerPrompt` call (WO-184's original
+ * `instrumentToolCalls`, extended by WO-232) so each individual invocation — including every message
  * inside a batched JSON-RPC array, since the transport dispatches each one through this same registered
- * handler — runs `beforeCall(toolName)` first. Returning a `CallToolResult` from `beforeCall`
- * short-circuits the real handler (used for the rate limit); returning `undefined` lets it run.
+ * handler — runs `beforeCall(name)` first. `resources/read` and `prompts/get` previously bypassed this
+ * entirely (only `registerTool` was ever patched), so a scope-less token or one over its rate limit could
+ * read any resource or fetch any prompt with zero audit trail — the exact gap this closes.
  *
- * Deliberately loosely typed at the boundary (`McpServer.registerTool`'s public signature is a complex
- * generic overload not worth reproducing for a cross-cutting instrumentation wrapper) — the *runtime*
- * shape (name, config, handler) is exactly what every call site in `@prdm/mcp` already passes.
+ * Returning a `CallToolResult` from `beforeCall` short-circuits a *tool* call with that result (its
+ * `isError`/`structuredContent` shape is meaningful there). Resources and prompts have no equivalent
+ * "error content" shape in the MCP spec, so the same denial is instead surfaced by throwing an `McpError`
+ * — exactly how the SDK's own built-in "not found"/"disabled" checks already reject a `resources/read` or
+ * `prompts/get` (see `ReadResourceRequestSchema`/`GetPromptRequestSchema` handlers in the installed SDK).
+ *
+ * Also installs a tripwire on the SDK's alternate `tool`/`resource`/`prompt` registration aliases (as
+ * opposed to `registerTool`/`registerResource`/`registerPrompt`): nothing in this codebase calls them
+ * today, but they bypass this wrapper entirely (they're independent implementations, not thin wrappers
+ * over the `register*` methods), so calling them by mistake in the future would silently reintroduce this
+ * exact bug. Throwing here turns that mistake into an immediate, loud failure instead.
+ *
+ * Deliberately loosely typed at the boundary (the SDK's public signatures are complex generic overloads
+ * not worth reproducing for a cross-cutting instrumentation wrapper) — the *runtime* shape (name, ...,
+ * handler) is exactly what every call site in `@prdm/mcp` already passes.
  */
-type LooseRegisterTool = (...args: unknown[]) => unknown;
+type LooseRegisterFn = (...args: unknown[]) => unknown;
 
-function instrumentToolCalls(server: McpServer, beforeCall: (toolName: string) => Promise<CallToolResult | undefined>): void {
-  const target = server as unknown as { registerTool: LooseRegisterTool };
-  const original = target.registerTool.bind(target);
-  const instrumented: LooseRegisterTool = (...args: unknown[]) => {
-    const [name, config, handler] = args as [string, unknown, (...handlerArgs: unknown[]) => unknown];
-    const wrapped = async (...handlerArgs: unknown[]) => {
-      const shortCircuit = await beforeCall(name);
-      if (shortCircuit) return shortCircuit;
-      return handler(...handlerArgs);
+function deniedResourceOrPromptError(denied: CallToolResult): McpError {
+  const data = denied.structuredContent as { error: string; message: string } | undefined;
+  return new McpError(ErrorCode.InvalidRequest, data?.message ?? data?.error ?? 'denied');
+}
+
+function bypassAliasError(alias: string, registerName: string): never {
+  throw new Error(`McpServer.${alias}() bypasses MCP audit/scope/rate-limit instrumentation — use ${registerName} instead (WO-232)`);
+}
+
+/** Exported only for `mcp-remote-instrumentation.test.ts`'s focused unit coverage of the tripwire (the
+ * `tool`/`resource`/`prompt` aliases can't be exercised through the full HTTP route, since nothing in
+ * this codebase calls them — that's the whole point of the tripwire). */
+export function instrumentMcpCalls(server: McpServer, beforeCall: (name: string) => Promise<CallToolResult | undefined>): void {
+  const target = server as unknown as Record<string, LooseRegisterFn>;
+
+  function wrapRegistration(methodName: string, handlerArgIndex: number, onDenied: (denied: CallToolResult) => unknown): void {
+    const original = target[methodName]!.bind(target);
+    target[methodName] = (...args: unknown[]) => {
+      const name = args[0] as string;
+      const handler = args[handlerArgIndex] as (...handlerArgs: unknown[]) => unknown;
+      const wrapped = async (...handlerArgs: unknown[]) => {
+        const denied = await beforeCall(name);
+        if (denied) return onDenied(denied);
+        return handler(...handlerArgs);
+      };
+      const patchedArgs = [...args];
+      patchedArgs[handlerArgIndex] = wrapped;
+      return original(...patchedArgs);
     };
-    return original(name, config, wrapped);
-  };
-  target.registerTool = instrumented;
+  }
+
+  // `registerTool(name, config, cb)`, `registerPrompt(name, config, cb)`: handler is argument index 2.
+  wrapRegistration('registerTool', 2, (denied) => denied);
+  wrapRegistration('registerPrompt', 2, (denied) => {
+    throw deniedResourceOrPromptError(denied);
+  });
+  // `registerResource(name, uriOrTemplate, config, readCallback)`: handler is argument index 3.
+  wrapRegistration('registerResource', 3, (denied) => {
+    throw deniedResourceOrPromptError(denied);
+  });
+
+  target.tool = () => bypassAliasError('tool', 'registerTool');
+  target.resource = () => bypassAliasError('resource', 'registerResource');
+  target.prompt = () => bypassAliasError('prompt', 'registerPrompt');
 }
 
 function rateLimitedResult(): CallToolResult {
@@ -237,7 +282,7 @@ async function handleProjectMcpPost(req: FastifyRequest<{ Params: McpRouteParams
     },
   };
 
-  instrumentToolCalls(server, async (toolName) => {
+  instrumentMcpCalls(server, async (toolName) => {
     const requiredScope = REMOTE_WRITE_TOOL_NAMES.has(toolName) ? 'mcp:write' : 'mcp:read';
     if (!token.scopes.includes(requiredScope)) return missingScopeResult(requiredScope);
     const allowed = await rateLimiter.check(req, token.tokenId);
@@ -299,7 +344,7 @@ async function handleBareMcpPost(req: FastifyRequest, reply: FastifyReply, opts:
   }
 
   const server = new McpServer({ name: 'prdm-graph-remote', version: SERVER_VERSION });
-  instrumentToolCalls(server, async (toolName) => {
+  instrumentMcpCalls(server, async (toolName) => {
     if (!token.scopes.includes('mcp:read')) return missingScopeResult('mcp:read');
     const allowed = await rateLimiter.check(req, token.tokenId);
     if (!allowed) return rateLimitedResult();

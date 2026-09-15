@@ -3,11 +3,13 @@
  * `StreamableHTTPClientTransport` client against a listening Fastify server — scopes, tool allow-list,
  * GET/DELETE 405, CI tokens rejected, Origin allowlist, `project_ids`-scoped tokens.
  */
+import { randomUUID } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { Neo4jGraphDatabase } from '@prdm/core';
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
+import { DEFAULT_MCP_TOOL_RATE_LIMIT_PER_MINUTE } from '../../src/api/mcp-remote.js';
 import { buildServer } from '../../src/build-server.js';
 import { FakeMailer } from '../../src/mailer.js';
 import { mutationHeaders } from '../helpers/csrf.js';
@@ -251,4 +253,80 @@ describe('remote MCP endpoint (SDD-010, WO-184)', () => {
 
     await app.close();
   });
+
+  test('resources/read and prompts/get without mcp:read are rejected with missing_scope (WO-232), matching how a scope-less tool call is already rejected', async () => {
+    const { app, baseUrl } = await startApp();
+    const { project, secret } = await setupProject(app, ['mcp:write']);
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClientTransport(`${baseUrl}/mcp/${project.graphProjectId}`, secret));
+
+    await expect(client.readResource({ uri: 'prdm://project' })).rejects.toThrow(/mcp:read/);
+    await expect(client.getPrompt({ name: 'implement_work_order', arguments: { id: 'WO-001' } })).rejects.toThrow(/mcp:read/);
+
+    await client.close();
+    await app.close();
+  });
+
+  test('a successful resource read and a prompt get each produce an audit-log entry with the correct name (WO-232)', async () => {
+    const { app, baseUrl } = await startApp();
+    const { org, project, secret } = await setupProject(app, ['mcp:read']);
+
+    // `implement_work_order` needs a real work order to build its context bundle around.
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (id, org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw, published_content_hash)
+       VALUES ($1, $2, $3, 'SDD-001', 'SDD', 'Design', 'docs/blueprints/SDD-001.md', 'generated', 'published', $4, 'h1')`,
+      [randomUUID(), org.id, project.id, '---\nid: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\nimpacts_paths: ["src/**"]\n---\n## Tareas\n- [ ] x\n'],
+    );
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (id, org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw, published_content_hash)
+       VALUES ($1, $2, $3, 'WO-001', 'WO', 'Task', 'docs/work-orders/WO-001.md', 'generated', 'published', $4, 'h2')`,
+      [randomUUID(), org.id, project.id, '---\nid: WO-001\ntype: WO\ntitle: Task\nstatus: pending\nimplements: [SDD-001]\n---\ntask\n'],
+    );
+    // `getWorkOrderContext` (used by the `implement_work_order` prompt) reads from the Neo4j-projected
+    // graph, not straight from `documents` — marking `graph_dirty` makes the next read (`ensureRecovered`)
+    // actually build and write that snapshot before the prompt's handler runs.
+    await pg.ownerPool.query(`UPDATE "projects" SET graph_dirty = true WHERE id = $1`, [project.id]);
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClientTransport(`${baseUrl}/mcp/${project.graphProjectId}`, secret));
+
+    await client.readResource({ uri: 'prdm://project' });
+    await client.getPrompt({ name: 'implement_work_order', arguments: { id: 'WO-001' } });
+
+    const { rows } = await pg.ownerPool.query(`SELECT action, target FROM "audit_log" WHERE project_id = $1 AND target IN ('project', 'implement_work_order') ORDER BY target`, [project.id]);
+    expect(rows).toEqual([
+      { action: 'mcp.tool_call', target: 'implement_work_order' },
+      { action: 'mcp.tool_call', target: 'project' },
+    ]);
+
+    await client.close();
+    await app.close();
+  });
+
+  test('the rate limit counts resource and prompt calls the same way it counts tool calls, sharing one per-token budget (WO-232)', async () => {
+    const { app, baseUrl } = await startApp();
+    const { project, secret } = await setupProject(app, ['mcp:read']);
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClientTransport(`${baseUrl}/mcp/${project.graphProjectId}`, secret));
+
+    // Spend the whole per-token budget on cheap, side-effect-free resource reads (the static
+    // `artifact-template` resource never touches Postgres/Neo4j), interleaved with a couple of real
+    // tool calls, to prove they draw from the exact same counter as `instrumentMcpCalls` already gives
+    // every tool call.
+    for (let i = 0; i < DEFAULT_MCP_TOOL_RATE_LIMIT_PER_MINUTE - 1; i++) {
+      await client.readResource({ uri: 'prdm://templates/SDD' });
+    }
+    const stillWithinBudget = await client.callTool({ name: 'list_work_orders', arguments: {} });
+    expect(stillWithinBudget.isError).toBeFalsy();
+
+    // The budget (tool calls + resource reads combined) is now exhausted: the next call of either kind
+    // is rejected, and a fresh prompt get is rejected too — proving prompts share the same counter.
+    await expect(client.readResource({ uri: 'prdm://templates/SDD' })).rejects.toThrow(/too many tool calls/);
+    await expect(client.getPrompt({ name: 'implement_work_order', arguments: { id: 'WO-001' } })).rejects.toThrow(/too many tool calls/);
+
+    await client.close();
+    await app.close();
+  }, 30_000);
 });
