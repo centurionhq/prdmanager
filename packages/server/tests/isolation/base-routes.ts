@@ -72,6 +72,12 @@ export function registerBaseIsolationRoutes(): void {
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, invitationId: f.invitationA.id } })),
   });
 
+  // WO-343: same tenant-scoped resolution as .../invitations/:invitationId/revoke above.
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/invitations/:invitationId/resend', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, invitationId: f.invitationA.id } })),
+  });
+
   registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects', {
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug } })),
   });

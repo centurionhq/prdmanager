@@ -75,7 +75,7 @@ export function registerOrganizationRoutes(app: FastifyInstance, opts: RegisterO
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
     const members = await listOrganizationMembers(pool, org.id);
-    return { members };
+    return { members: members.map((m) => ({ ...m, lastActiveAt: m.lastActiveAt ? new Date(m.lastActiveAt).toISOString() : null })) };
   });
 
   app.patch<{ Params: OrgMemberRouteParams }>('/api/app/organizations/:orgSlug/members/:userId', { config: { access: { kind: 'session' } } }, async (req) => {

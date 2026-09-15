@@ -106,7 +106,7 @@ describe('invitations (WO-105)', () => {
 
     const orgDb = createTenantDb(pg.appPool).forOrg(org.id);
     expect(await orgDb.forProject(project.id).members.list()).toEqual([
-      { projectId: project.id, userId: result.userId, orgId: org.id, role: 'admin', email: 'newowner@example.test', name: 'New Owner' },
+      { projectId: project.id, userId: result.userId, orgId: org.id, role: 'admin', email: 'newowner@example.test', name: 'New Owner', lastActiveAt: null },
     ]);
 
     const { rows: secretRows } = await pg.ownerPool.query(`SELECT consumed_at FROM invitation_secrets WHERE invitation_id = $1`, [inv.id]);

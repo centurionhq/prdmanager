@@ -10,12 +10,12 @@
  * built on top of this maps both to a 404 (SDD-006 §Arquitectura: "Cualquier recurso de otra
  * organización o proyecto responde 404, nunca 403").
  */
-import { and, desc, eq, inArray, lt, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { assertNoSecretsInAuditMetadata } from './audit-metadata.js';
 import { decodeCursor, paginateKeyset } from './pagination.js';
 import { auditLog } from './schema/audit.js';
-import { user } from './schema/auth.js';
+import { session, user } from './schema/auth.js';
 import { projectMembers, projectRole, projects } from './schema/projects.js';
 import { withTenantTx } from './tenant.js';
 import { buildDocumentsRepository, type DocumentsRepository } from './documents-repository.js';
@@ -38,6 +38,10 @@ export interface ProjectMemberWithUser {
   role: ProjectRole;
   email: string;
   name: string;
+  /** The most recent `session.updatedAt` for this user, `null` if they never had one (WO-343, SDD-012).
+   * A raw correlated-subquery column, handed back as a `string` by node-postgres rather than through
+   * drizzle's own timestamp decoder — callers must `new Date(...)` it themselves. */
+  lastActiveAt: Date | string | null;
 }
 
 export interface NewAuditLogEntryInput {
@@ -253,7 +257,15 @@ function buildProjectScope(pool: Pool, orgId: string, projectId: string): Projec
       list: () =>
         withTenantTx(pool, orgId, (tx) =>
           tx
-            .select({ projectId: projectMembers.projectId, userId: projectMembers.userId, orgId: projectMembers.orgId, role: projectMembers.role, email: user.email, name: user.name })
+            .select({
+              projectId: projectMembers.projectId,
+              userId: projectMembers.userId,
+              orgId: projectMembers.orgId,
+              role: projectMembers.role,
+              email: user.email,
+              name: user.name,
+              lastActiveAt: sql<Date | null>`(SELECT MAX(${session.updatedAt}) FROM ${session} WHERE ${session.userId} = ${projectMembers.userId})`,
+            })
             .from(projectMembers)
             .innerJoin(user, eq(user.id, projectMembers.userId))
             .where(eq(projectMembers.projectId, projectId)),

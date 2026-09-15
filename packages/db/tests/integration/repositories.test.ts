@@ -52,7 +52,7 @@ describe('createTenantDb(pool).forOrg(orgId) (WO-100)', () => {
     expect(upserted).toMatchObject({ projectId: project.id, orgId: org.id, userId: member.id, role: 'editor' });
 
     expect(await scope.members.list()).toEqual([
-      { projectId: project.id, orgId: org.id, userId: member.id, role: 'editor', email: member.email, name: member.email },
+      { projectId: project.id, orgId: org.id, userId: member.id, role: 'editor', email: member.email, name: member.email, lastActiveAt: null },
     ]);
     expect(await scope.members.findForUser(member.id)).toEqual(upserted);
     expect(await scope.members.findForUser('nonexistent-user')).toBeNull();

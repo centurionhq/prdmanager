@@ -17,6 +17,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
+import { user } from './schema/auth.js';
 import { projects } from './schema/projects.js';
 import { apiTokens } from './schema/tokens.js';
 import { connect, type PgDatabase } from './pool.js';
@@ -263,13 +264,21 @@ export async function listPersonalTokens(pool: Pool, orgId: string, userId: stri
   ) as Promise<TokenRecord[]>;
 }
 
-export async function listCiTokensForProject(pool: Pool, orgId: string, projectId: string): Promise<TokenRecord[]> {
+export interface CiTokenRecordWithCreator extends TokenRecord {
+  /** The creating user's display name (WO-343, SDD-012) — `null` only if that `user` row was somehow
+   * removed after the token was created (`created_by` has no `ON DELETE SET NULL`, so this is purely
+   * defensive; a `left join` never turns a missing row into a thrown error here). */
+  createdByName: string | null;
+}
+
+export async function listCiTokensForProject(pool: Pool, orgId: string, projectId: string): Promise<CiTokenRecordWithCreator[]> {
   return withTenantTx(pool, orgId, (tx) =>
     tx
-      .select(TOKEN_COLUMNS)
+      .select({ ...TOKEN_COLUMNS, createdByName: user.name })
       .from(apiTokens)
+      .leftJoin(user, eq(user.id, apiTokens.createdBy))
       .where(and(eq(apiTokens.kind, 'project_ci'), sql`${apiTokens.projectIds} @> ARRAY[${projectId}::uuid]`)),
-  ) as Promise<TokenRecord[]>;
+  ) as Promise<CiTokenRecordWithCreator[]>;
 }
 
 export async function findTokenById(pool: Pool, orgId: string, tokenId: string): Promise<TokenRecord | null> {

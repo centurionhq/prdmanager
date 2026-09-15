@@ -16,9 +16,9 @@
  */
 import type { PoolClient } from 'pg';
 import type { Pool } from 'pg';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { connect } from './pool.js';
-import { member, organization, user } from './schema/auth.js';
+import { member, organization, session, user } from './schema/auth.js';
 
 export type OrgRole = 'owner' | 'admin' | 'member';
 
@@ -40,6 +40,11 @@ export interface OrganizationMemberRecord {
   email: string;
   name: string;
   role: OrgRole;
+  /** The most recent `session.updatedAt` for this user (better-auth refreshes it on activity) —
+   * `null` when the user has never had a session at all (WO-343, SDD-012). A raw correlated-subquery
+   * column, so node-postgres hands it back as a `string` rather than through drizzle's own timestamp
+   * decoder — callers must `new Date(...)` it themselves, same as any other raw `sql` column here. */
+  lastActiveAt: Date | string | null;
 }
 
 export class MembershipNotFoundError extends Error {
@@ -108,7 +113,13 @@ export async function findMembership(pool: Pool, organizationId: string, userId:
 export async function listOrganizationMembers(pool: Pool, organizationId: string): Promise<OrganizationMemberRecord[]> {
   const db = connect(pool);
   const rows = await db
-    .select({ userId: member.userId, email: user.email, name: user.name, role: member.role })
+    .select({
+      userId: member.userId,
+      email: user.email,
+      name: user.name,
+      role: member.role,
+      lastActiveAt: sql<Date | null>`(SELECT MAX(${session.updatedAt}) FROM ${session} WHERE ${session.userId} = ${member.userId})`,
+    })
     .from(member)
     .innerJoin(user, eq(user.id, member.userId))
     .where(eq(member.organizationId, organizationId));

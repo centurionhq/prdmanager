@@ -284,6 +284,34 @@ export async function listOrganizationInvitations(pool: Pool, orgId: string): Pr
     .where(eq(invitation.organizationId, orgId));
 }
 
+export interface RotateInvitationSecretInput {
+  orgId: string;
+  invitationId: string;
+  expiresAt: Date;
+}
+
+/**
+ * Resend (SDD-012, WO-343): `invitation_secrets.invitation_id` is the primary key (one secret per
+ * invitation, 1:1 — see `./schema/invitations.ts`'s own doc comment), so "rotate" is a plain `UPDATE` of
+ * that single row with a brand-new hash, a fresh (`null`) `consumedAt` and the extended `expiresAt` —
+ * never a second insert. The old secret stops resolving the instant this commits (its hash is gone), so
+ * a stale copy of the previous accept link can never be replayed after a resend. Extends the
+ * invitation's own `expiresAt` to match in the same transaction, so a caller never observes one moved
+ * without the other. Callers are responsible for only resending a still-`pending` invitation (checked
+ * against a fresh `findInvitationById` read before calling this).
+ */
+export async function rotateInvitationSecret(pool: Pool, input: RotateInvitationSecretInput): Promise<GeneratedInvitationSecret> {
+  const generated = generateInvitationSecret();
+  await withTenantTx(pool, input.orgId, async (tx) => {
+    await tx
+      .update(invitationSecrets)
+      .set({ secretHash: generated.hash, expiresAt: input.expiresAt, consumedAt: null })
+      .where(eq(invitationSecrets.invitationId, input.invitationId));
+    await tx.update(invitation).set({ expiresAt: input.expiresAt }).where(eq(invitation.id, input.invitationId));
+  });
+  return generated;
+}
+
 export interface RevokeInvitationInput {
   orgId: string;
   invitationId: string;
