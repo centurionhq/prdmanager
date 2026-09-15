@@ -1,0 +1,10 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  min-height: 20rem;
+  max-height: 36rem;
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  overflow: hidden;
+}

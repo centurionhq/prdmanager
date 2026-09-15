@@ -1,83 +1,91 @@
+/* Validation panel (SDD-013 §"Documentos", WO-359): re-tokenized onto the Centurion Factory token sheet
+   (`./tokens.css`) — lives inside DocumentPanelTabs' own bordered card now. */
+
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  padding: 0.75rem;
-  background: var(--color-bg-elevated-solid);
+  gap: var(--space-3);
 }
 
 .ok {
-  color: var(--color-status-ok);
-  font-size: 0.85rem;
+  color: var(--senal-texto);
+  font-size: var(--text-sm);
 }
 
 .group {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: var(--space-1);
 }
 
 .groupTitleError,
 .groupTitleWarning {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
+  font-weight: 700;
 }
 
 .groupTitleError {
-  color: var(--color-status-error);
+  color: var(--paro);
 }
 
 .groupTitleWarning {
-  color: var(--color-status-warning);
+  color: var(--andon-texto);
 }
 
 .issueList {
   margin: 0;
   padding-left: 1.1rem;
-  font-size: 0.8rem;
-  color: var(--color-fg);
+  font-size: var(--text-xs);
+  color: var(--grafito);
 }
 
 .issue {
-  margin: 0.1rem 0;
+  margin: 1px 0;
 }
 
 .field {
-  color: var(--color-fg-muted);
-  font-size: 0.75rem;
+  color: var(--apagado);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
 }
 
 .actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
   align-items: flex-start;
 }
 
 .actionWithHint {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: var(--space-1);
 }
 
 .hint {
-  font-size: 0.7rem;
-  color: var(--color-status-error);
+  font-size: var(--text-xs);
+  color: var(--paro);
 }
 
 .primaryButton,
 .secondaryButton {
-  border-radius: 0.35rem;
-  padding: 0.3rem 0.75rem;
+  height: var(--control-height);
+  border-radius: var(--radius-plate);
+  padding: 0 var(--space-4);
   font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
   cursor: pointer;
 }
 
 .primaryButton {
-  background: var(--color-accent);
-  color: var(--color-accent-fg);
+  background: var(--cianotipo);
+  color: var(--blanco);
   border: none;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--cianotipo-hover);
 }
 
 .primaryButton:disabled {
@@ -86,7 +94,7 @@
 }
 
 .secondaryButton {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-fg);
+  background: var(--superficie);
+  border: var(--rule);
+  color: var(--grafito);
 }

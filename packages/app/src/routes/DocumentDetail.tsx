@@ -11,11 +11,8 @@ import { LoadingState } from '@prdm/ui';
 import { archiveDocument, generateWorkOrders, getDocument, publishDocument, requestDocumentReview } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { CloseFeatureAction } from './CloseFeatureAction.js';
-import { AgentPanel } from '../components/AgentPanel.js';
 import { CollabEditor } from '../components/CollabEditor.js';
-import { CommentsPanel } from '../components/CommentsPanel.js';
-import { VersionsPanel } from '../components/VersionsPanel.js';
-import { ValidationPanel } from '../components/ValidationPanel.js';
+import { DocumentPanelTabs } from './DocumentPanelTabs.js';
 import { FrontmatterForm } from '../components/FrontmatterForm.js';
 import { Button, DocumentStateBanner, IdTag, PublishReviewModal, StatusBadge } from '../components/index.js';
 import { CollabDocumentProvider } from '../collab/collab-document-context.js';
@@ -206,22 +203,21 @@ export function DocumentDetail(): ReactElement {
 
       {doc.origin === 'collab' ? (
         <CollabDocumentProvider documentName={formatCollabDocumentName(projectOverview.id, doc.id)} orgSlug={orgSlug} projectSlug={project} docId={doc.docId}>
-          <FrontmatterForm kind={doc.kind} />
-          <CollabEditor subject={subject} archived={doc.workflowState === 'archived'} />
-          <AgentPanel subject={subject} />
-          <CommentsPanel subject={subject} />
-          <VersionsPanel subject={subject} />
-          <ValidationPanel
-            subject={subject}
-            initialIssues={doc.lastValidation}
-            canRequestReview={canRequestReview}
-            canPublish={canPublish}
-            canArchive={canArchive}
-            busy={busy}
-            onRequestReview={() => void handleRequestReview()}
-            onPublish={openPublishReview}
-            onArchive={() => void handleArchive()}
-          />
+          <div className={styles.collabLayout}>
+            <FrontmatterForm kind={doc.kind} />
+            <CollabEditor subject={subject} archived={doc.workflowState === 'archived'} />
+            <DocumentPanelTabs
+              subject={subject}
+              lastValidation={doc.lastValidation}
+              canRequestReview={canRequestReview}
+              canPublish={canPublish}
+              canArchive={canArchive}
+              busy={busy}
+              onRequestReview={() => void handleRequestReview()}
+              onPublish={openPublishReview}
+              onArchive={() => void handleArchive()}
+            />
+          </div>
         </CollabDocumentProvider>
       ) : (
         <>

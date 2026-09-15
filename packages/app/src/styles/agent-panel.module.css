@@ -1,16 +1,15 @@
+/* Agent panel (SDD-013 §"Documentos", WO-359): re-tokenized onto the Centurion Factory token sheet
+   (`./tokens.css`) — lives inside DocumentPanelTabs' own bordered card now. */
+
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  padding: 0.75rem;
-  background: var(--color-bg-elevated-solid);
+  gap: var(--space-3);
 }
 
 .error {
-  color: var(--color-status-error);
-  font-size: 0.85rem;
+  color: var(--paro);
+  font-size: var(--text-sm);
 }
 
 .thread {
@@ -19,7 +18,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-3);
   max-height: 24rem;
   overflow-y: auto;
 }
@@ -28,43 +27,49 @@
 .assistantBubble {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.4rem;
-  padding: 0.4rem 0.6rem;
-  font-size: 0.9rem;
+  gap: var(--space-1);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
 }
 
 .userBubble {
   align-self: flex-end;
-  background: var(--color-bg-inset);
+  background: var(--relleno);
 }
 
 .assistantBubble {
   align-self: flex-start;
-  background: var(--color-bg);
+  background: var(--superficie);
 }
 
 /* Explicit, non-impersonating attribution on every assistant message — the same honesty this app's
-   blame gutter already applies ("Agente (aceptado por X)") carried into the chat bubbles themselves. */
+   blame gutter already applies ("Agente (aceptado por X)") carried into the chat bubbles themselves.
+   Sentence case (no uppercase eyebrow), matching the canvas' own "Agente" chip. */
 .agentBadge {
   align-self: flex-start;
-  font-size: 0.7rem;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-1);
+  border: var(--rule);
+  background: var(--relleno);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-xs);
   font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--color-accent);
+  color: var(--texto-secundario);
 }
 
 .bubbleContent {
   margin: 0;
   white-space: pre-wrap;
-  color: var(--color-fg);
+  color: var(--grafito);
 }
 
 .toolCall {
-  font-size: 0.75rem;
-  color: var(--color-fg-subtle);
+  font-size: var(--text-xs);
+  color: var(--apagado);
 }
 
 .caret {
@@ -73,7 +78,7 @@
   height: 1em;
   margin-left: 1px;
   vertical-align: text-bottom;
-  background: var(--color-accent);
+  background: var(--cianotipo);
   animation: agent-caret-blink 1s steps(1) infinite;
 }
 
@@ -88,8 +93,8 @@
   }
 }
 
-/* Belt-and-suspenders on top of @prdm/ui's own global `prefers-reduced-motion` rule (which already zeroes
-   every animation-duration): pins the caret fully visible instead of leaving it mid-blink-cycle. */
+/* Respects prefers-reduced-motion (SDD-011's governance rule): pins the caret fully visible instead of
+   leaving it mid-blink-cycle. */
 @media (prefers-reduced-motion: reduce) {
   .caret {
     animation: none;
@@ -98,13 +103,13 @@
 }
 
 .empty {
-  color: var(--color-fg-subtle);
-  font-size: 0.85rem;
+  color: var(--apagado);
+  font-size: var(--text-sm);
 }
 
 .composer {
   display: flex;
-  gap: 0.35rem;
+  gap: var(--space-2);
   align-items: flex-end;
 }
 
@@ -112,11 +117,11 @@
   flex: 1;
   min-height: 2.5rem;
   resize: vertical;
-  background: var(--color-bg-inset);
-  border: 1px solid var(--color-border);
-  border-radius: 0.3rem;
-  color: var(--color-fg);
-  padding: 0.4rem 0.5rem;
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-input);
+  color: var(--grafito);
+  padding: var(--space-2);
   font: inherit;
 }
 
@@ -133,80 +138,86 @@
 }
 
 .smallButton {
-  border: 1px solid var(--color-border);
-  border-radius: 0.3rem;
-  padding: 0.15rem 0.5rem;
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  padding: 1px var(--space-2);
   background: none;
-  color: var(--color-accent);
+  color: var(--cianotipo);
   cursor: pointer;
 }
 
 .proposalCard {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 0.4rem;
-  padding: 0.5rem;
-  background: var(--color-bg);
+  gap: var(--space-2);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  padding: var(--space-3);
+  background: var(--superficie);
 }
 
 .proposalHeader {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   font-weight: 600;
-  color: var(--color-fg);
+  color: var(--grafito);
 }
 
 .proposalStatus {
-  font-size: 0.75rem;
-  color: var(--color-fg-subtle);
+  font-size: var(--text-xs);
+  color: var(--apagado);
 }
 
 .proposalDiff {
-  background: var(--color-bg-inset);
-  border: 1px solid var(--color-border);
-  border-radius: 0.35rem;
-  padding: 0.4rem;
-  font-size: 0.8rem;
+  background: var(--relleno);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  padding: var(--space-2);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
   overflow-x: auto;
   white-space: pre-wrap;
   margin: 0;
 }
 
 .diffAdded {
-  color: var(--color-status-ok);
+  color: var(--senal-texto);
 }
 
 .diffRemoved {
-  color: var(--color-status-error);
+  color: var(--paro);
 }
 
 .fieldsChange {
-  font-size: 0.8rem;
-  color: var(--color-fg-subtle);
+  font-size: var(--text-xs);
+  color: var(--apagado);
 }
 
 .proposalActions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 /* WCAG 2.5.5-friendly touch targets (44x44px minimum) on the two decisions that actually change
    document state — every other button in this panel stays compact by this codebase's own convention. */
 .acceptButton,
 .rejectButton {
-  min-width: 44px;
-  min-height: 44px;
-  border-radius: 0.35rem;
-  padding: 0.4rem 0.9rem;
+  min-width: var(--hit-target);
+  min-height: var(--hit-target);
+  border-radius: var(--radius-plate);
+  padding: var(--space-2) var(--space-4);
   cursor: pointer;
   font: inherit;
+  font-weight: 600;
 }
 
 .acceptButton {
-  background: var(--color-accent);
-  color: var(--color-accent-fg);
+  background: var(--cianotipo);
+  color: var(--blanco);
   border: none;
+}
+
+.acceptButton:hover:not(:disabled) {
+  background: var(--cianotipo-hover);
 }
 
 .acceptButton:disabled {
@@ -218,12 +229,12 @@
    normal, low-stakes action (nothing is destroyed; the proposal stays visible, attributed and reversible
    by simply asking again), not data loss. */
 .rejectButton {
-  background: transparent;
-  color: var(--color-fg);
-  border: 1px solid var(--color-border-strong);
+  background: var(--superficie);
+  color: var(--grafito);
+  border: var(--rule);
 }
 
 .proposalApplied {
-  color: var(--color-status-ok);
-  font-size: 0.85rem;
+  color: var(--senal-texto);
+  font-size: var(--text-sm);
 }
