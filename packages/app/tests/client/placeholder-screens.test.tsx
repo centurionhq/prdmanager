@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as client from '../../src/api/client.js';
 import { AjustesGeneral } from '../../src/routes/AjustesGeneral.js';
 import { AjustesPerfil } from '../../src/routes/AjustesPerfil.js';
-import { EntradaPlaceholder } from '../../src/routes/EntradaPlaceholder.js';
 import { NotFound } from '../../src/routes/NotFound.js';
 import { PlantaPlaceholder } from '../../src/routes/PlantaPlaceholder.js';
 import { makeProjectShellContext } from './fixtures.js';
@@ -24,11 +23,6 @@ describe('placeholder screens', () => {
   it('Planta shows a placeholder empty state', () => {
     renderWithProjectContext(<PlantaPlaceholder />);
     expect(screen.getByRole('heading', { name: 'Planta' })).toBeTruthy();
-  });
-
-  it('Entrada shows a placeholder empty state', () => {
-    renderWithProjectContext(<EntradaPlaceholder />);
-    expect(screen.getByRole('heading', { name: 'Bandeja de entrada' })).toBeTruthy();
   });
 
   it('NotFound renders a plain 404 message', () => {

@@ -18,7 +18,7 @@ import { AjustesTokens } from './routes/AjustesTokens.js';
 import { DocumentDetail } from './routes/DocumentDetail.js';
 import { DocumentsList } from './routes/DocumentsList.js';
 import { DriftDashboard } from './routes/DriftDashboard.js';
-import { EntradaPlaceholder } from './routes/EntradaPlaceholder.js';
+import { Entrada } from './routes/Entrada.js';
 import { InviteAccept } from './routes/InviteAccept.js';
 import { Login } from './routes/Login.js';
 import { NotFound } from './routes/NotFound.js';
@@ -61,7 +61,7 @@ export const routes: RouteObject[] = [
       { path: 'documents/:docId', element: <DocumentDetail /> },
       { path: 'ordenes', element: <Ordenes /> },
       { path: 'drift', element: <DriftDashboard /> },
-      { path: 'entrada', element: <EntradaPlaceholder /> },
+      { path: 'entrada', element: <Entrada /> },
       {
         path: 'ajustes',
         element: <AjustesLayout />,
