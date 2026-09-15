@@ -3,6 +3,7 @@ import type { Command } from 'commander';
 import { checkCommitMessage, checkCommitRange, detectProjectFileMode, type CommitRangeEntry } from '@prdm/core';
 import { CliError, messageOf } from '../errors.js';
 import type { CliDeps } from '../program.js';
+import { runRemoteCheckRange } from '../remote/check-range.js';
 import { runRemoteCommitMsg } from '../remote/commit-msg.js';
 
 const MAX_MESSAGE_BYTES = 64 * 1024;
@@ -52,6 +53,15 @@ function formatEntry(entry: CommitRangeEntry): string {
 }
 
 async function runCommitsRange(deps: CliDeps, range: string): Promise<void> {
+  const mode = detectProjectFileMode(deps.root);
+  if (mode.kind === 'remote') {
+    const check = await runRemoteCheckRange(deps.root, mode.file, range, { env: process.env });
+    for (const entry of check.commits.filter((c) => !c.result.ok)) deps.stdout(formatEntry(entry));
+    if (!check.ok) throw new CliError(`prdm check commits --range ${range}: policy violations found`);
+    deps.stdout(`prdm check commits --range ${range}: ${check.commits.length} commit(s) ok`);
+    return;
+  }
+
   const check = await checkCommitRange(deps.root, range);
   for (const entry of check.commits.filter((c) => !c.result.ok)) deps.stdout(formatEntry(entry));
   if (check.grandfatheredGrowthMessage) deps.stdout(check.grandfatheredGrowthMessage);

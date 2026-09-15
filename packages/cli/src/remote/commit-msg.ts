@@ -6,10 +6,11 @@
  * possibly-stale policy" warning; with no cache at all, falls back to `.prdm.yaml`'s own
  * `remote.offline_policy` (`warn`/`block`).
  */
-import { checkCommitMessage, scanContents, type CommitMsgCheckOptions, type EvaluateCommitResult, type PolicyDoc, type RemoteProjectFile, type WorkOrderStatus } from '@prdm/core';
+import { checkCommitMessage, type CommitMsgCheckOptions, type EvaluateCommitResult, type PolicyDoc, type RemoteProjectFile } from '@prdm/core';
 import { CliError } from '../errors.js';
 import { loadCredentials } from './credentials.js';
 import { loadCachedGovernance, syncGovernanceCache, type GovernanceCacheResult } from './governance-cache.js';
+import { scanPolicyDocs } from './policy-doc-scan.js';
 import { resolveRemoteServerOrigin } from './server-origin.js';
 
 /** Cached governance older than this triggers a refetch attempt before evaluating (SDD-010, WO-197). */
@@ -28,16 +29,6 @@ export interface RemoteCommitMsgResult {
   /** Set when this evaluation used a stale cache after a failed refetch, or (message only, `result.ok`
    * always `true` in that case) when there was no cache at all and `offline_policy` is `warn`. */
   warning?: string;
-}
-
-function blueprintOrWorkOrderDocs(cache: Pick<GovernanceCacheResult, 'documents'>): PolicyDoc[] {
-  const scanned = scanContents(cache.documents.map((d) => ({ path: d.sourcePath, content: d.content })));
-  const docs: PolicyDoc[] = [];
-  for (const doc of scanned.docs) {
-    if (doc.node.kind === 'SDD' || doc.node.kind === 'ADR') docs.push({ type: doc.node.kind, id: doc.node.id, impactsPaths: doc.impactsPaths });
-    else if (doc.node.kind === 'WO') docs.push({ type: 'WO', id: doc.node.id, status: doc.node.status as WorkOrderStatus, implements: (doc.frontmatter as { implements: string[] }).implements });
-  }
-  return docs;
 }
 
 /** A `PolicyDocsSource` over an already-resolved, fixed document set — remote governance has no ref
@@ -103,7 +94,7 @@ export async function runRemoteCommitMsg(root: string, file: RemoteProjectFile, 
     }
   }
 
-  const docs = blueprintOrWorkOrderDocs(effective);
+  const docs = scanPolicyDocs(effective.documents);
   const remoteSettings = { enforceRefs: effective.settings.git.enforceRefs, ignore: effective.settings.ignore };
   const result = await checkCommitMessage(root, message, options, staticSource(docs), remoteSettings);
   return warning ? { result, warning } : { result };

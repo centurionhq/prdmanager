@@ -55,6 +55,25 @@ export async function readCommits(root: string, maxCount: number): Promise<Commi
     .map((chunk) => parseCommit(chunk, prefix));
 }
 
+/**
+ * Every commit in `range` (`<base>..<head>`, oldest first), for `prdm check commits --range`'s remote
+ * mode (SDD-010, WO-198): unlike `readCommits`, this is bounded by the range itself, not a max count off
+ * current `HEAD`. A merge commit's `files` comes out empty (git's own `--name-only` default for merges,
+ * with no `-m`/`--first-parent`), the same conservative "exempt unless conflicted" a merge already gets
+ * in local mode.
+ */
+export async function readCommitsInRange(root: string, range: string): Promise<CommitInfo[]> {
+  if (!(await isGitRepo(root))) return [];
+  const prefix = await repoPrefix(root);
+  const format = `${RECORD}%H${FIELD}%an${FIELD}%aI${FIELD}%s${FIELD}%B${FIELD}`;
+  const out = await git(root, ['log', '--reverse', '--name-only', '--no-renames', `--format=${format}`, range]);
+  if (!out) return [];
+  return out
+    .split(RECORD)
+    .filter((chunk) => chunk.trim() !== '')
+    .map((chunk) => parseCommit(chunk, prefix));
+}
+
 function parseCommit(chunk: string, prefix: string): CommitInfo {
   const [sha = '', author = '', date = '', subject = '', body = '', filesBlock = ''] = chunk.split(FIELD);
   const files = filesBlock
