@@ -143,7 +143,7 @@ export function ProjectsDashboard(): ReactElement {
       {projects && projects.length > 0 && (
         <div className={styles.grid}>
           {projects.map((project) => (
-            <Link key={project.id} to={`/o/${orgSlug}/p/${project.slug}/settings`} className={styles.projectCard}>
+            <Link key={project.id} to={`/o/${orgSlug}/p/${project.slug}`} className={styles.projectCard}>
               <p className={styles.projectName}>{project.name}</p>
               <p className={styles.projectSlug}>{project.slug}</p>
             </Link>

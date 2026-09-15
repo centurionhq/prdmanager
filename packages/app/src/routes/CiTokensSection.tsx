@@ -1,6 +1,6 @@
 /**
  * Project CI tokens section on `/o/:orgSlug/p/:projectSlug/settings` (SDD-006 §Permisos
- * "tokens de CI", `manage_ci_tokens`, project admin only, WO-119) — mounted by `ProjectSettings.tsx`
+ * "tokens de CI", `manage_ci_tokens`, project admin only, WO-119) — mounted by `AjustesTokens.tsx`
  * only once `can(subject, 'manage_ci_tokens')` is true, same as the members section's own gate.
  */
 import { useEffect, useState, type ReactElement } from 'react';

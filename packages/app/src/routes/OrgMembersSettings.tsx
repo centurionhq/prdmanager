@@ -1,5 +1,5 @@
 /**
- * `/o/:orgSlug/settings/members` (SDD-006 §Permisos "Miembros, roles ... auditados", WO-118): member
+ * `/o/:orgSlug/ajustes/miembros` (SDD-006 §Permisos "Miembros, roles ... auditados", WO-118): member
  * list with role changes/removal, invite-by-email (`InviteMemberForm`) and pending-invitation
  * list/revoke. Mutating controls are gated to org owners/admins client-side (`isOrgAdmin`) purely for UX
  * — every mutation still goes through the real `/api/app/organizations/:orgSlug/*` routes, which enforce

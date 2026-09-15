@@ -1,13 +1,13 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createMemoryRouter, RouterProvider } from 'react-router';
+import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { OrgRole, ProjectRole, TokenSummaryDto } from '@prdm/contracts';
 import * as client from '../../src/api/client.js';
-import { OrgShell } from '../../src/routes/OrgShell.js';
-import { ProjectSettings } from '../../src/routes/ProjectSettings.js';
+import { AjustesTokens } from '../../src/routes/AjustesTokens.js';
+import { makeProjectShellContext } from './fixtures.js';
 
-const PROJECT = { id: 'proj1', slug: 'web', name: 'Web', graphProjectId: 'prj_abc', settings: {} as never, archivedAt: null };
-const CI_TOKEN: import('@prdm/contracts').TokenSummaryDto = {
+const CI_TOKEN: TokenSummaryDto = {
   id: 'tok1',
   kind: 'project_ci',
   name: 'ci-pipeline',
@@ -19,38 +19,30 @@ const CI_TOKEN: import('@prdm/contracts').TokenSummaryDto = {
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
-function renderProjectSettings(orgRole: 'owner' | 'admin' | 'member', projectRole?: 'admin' | 'editor' | 'developer' | 'commenter' | 'viewer') {
-  vi.spyOn(client, 'listOrganizations').mockResolvedValue([{ id: 'org1', slug: 'acme', name: 'Acme', role: orgRole }]);
-  vi.spyOn(client, 'listProjects').mockResolvedValue([]);
-  vi.spyOn(client, 'getSession').mockResolvedValue({ user: { id: 'u1', email: 'me@example.test', name: 'Me' } });
-  vi.spyOn(client, 'getProject').mockResolvedValue(PROJECT);
-  const projectMembers = projectRole ? [{ userId: 'u1', email: 'me@example.test', name: 'Me', role: projectRole }] : [];
-  vi.spyOn(client, 'listProjectMembers').mockResolvedValue(projectMembers);
-  vi.spyOn(client, 'listOrganizationMembers').mockResolvedValue([{ userId: 'u1', email: 'me@example.test', name: 'Me', role: orgRole }]);
-
+function renderAjustesTokens(orgRole: OrgRole, myRole?: ProjectRole): void {
   const router = createMemoryRouter(
-    [{ path: '/o/:orgSlug', element: <OrgShell />, children: [{ path: 'p/:projectSlug/settings', element: <ProjectSettings /> }] }],
-    { initialEntries: ['/o/acme/p/web/settings'] },
+    [{ path: '/ctx', element: <Outlet context={makeProjectShellContext(orgRole, myRole)} />, children: [{ index: true, element: <AjustesTokens /> }] }],
+    { initialEntries: ['/ctx'] },
   );
   render(<RouterProvider router={router} />);
 }
 
-describe('CiTokensSection', () => {
+describe('AjustesTokens', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('is hidden for a viewer with no manage_ci_tokens permission', async () => {
-    renderProjectSettings('member', 'viewer');
+  it('shows a permission message instead of the section for a viewer', () => {
+    renderAjustesTokens('member', 'viewer');
 
-    await screen.findByRole('heading', { name: 'Web' });
+    expect(screen.getByText('No tenés permiso para gestionar tokens de CI en este proyecto.')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Tokens de CI' })).toBeNull();
   });
 
   it('is shown for a project admin and lets them create + revoke a CI token', async () => {
     vi.spyOn(client, 'listCiTokens').mockResolvedValue([]);
     const create = vi.spyOn(client, 'createCiToken').mockResolvedValue({ token: CI_TOKEN, secret: 'prdm_ci_abcd.SECRET' });
-    renderProjectSettings('admin');
+    renderAjustesTokens('member', 'admin');
 
     expect(await screen.findByRole('heading', { name: 'Tokens de CI' })).toBeTruthy();
     await screen.findByText(/Todavía no hay tokens/);
@@ -69,9 +61,16 @@ describe('CiTokensSection', () => {
     await waitFor(() => expect(revoke).toHaveBeenCalledWith('acme', 'web', 'tok1'));
   });
 
+  it('an org owner (no project_members row) can manage CI tokens via inherited admin', async () => {
+    vi.spyOn(client, 'listCiTokens').mockResolvedValue([]);
+    renderAjustesTokens('owner');
+
+    expect(await screen.findByRole('heading', { name: 'Tokens de CI' })).toBeTruthy();
+  });
+
   it('never offers mcp:* or import:write scopes for a CI token', async () => {
     vi.spyOn(client, 'listCiTokens').mockResolvedValue([]);
-    renderProjectSettings('admin');
+    renderAjustesTokens('member', 'admin');
 
     await screen.findByRole('heading', { name: 'Tokens de CI' });
     expect(screen.queryByLabelText('mcp:read')).toBeNull();

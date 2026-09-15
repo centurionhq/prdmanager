@@ -105,7 +105,8 @@ export function OrgShell(): ReactElement {
         </select>
         <nav className={styles.nav}>
           <Link to={`/o/${currentOrg.slug}`}>Proyectos</Link>
-          <Link to={`/o/${currentOrg.slug}/settings/members`}>Miembros</Link>
+          <Link to={`/o/${currentOrg.slug}/ajustes/miembros`}>Miembros</Link>
+          <Link to={`/o/${currentOrg.slug}/ajustes/auditoria`}>Auditoría</Link>
           <Link to="/settings/tokens">Tokens</Link>
           <button type="button" className={styles.signOutButton} onClick={() => void handleSignOut()}>
             Cerrar sesión
