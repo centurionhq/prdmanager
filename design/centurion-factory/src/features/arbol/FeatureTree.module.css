@@ -1,0 +1,145 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.toggleAll {
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--cianotipo);
+}
+
+.toggleAll:hover {
+  color: var(--cianotipo-hover);
+  text-decoration: underline;
+}
+
+.tree {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-plate);
+  min-width: 0;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--relleno);
+}
+
+.selected {
+  position: relative;
+  z-index: 1;
+  background: var(--superficie);
+  border-color: var(--regla);
+  outline: 2px solid var(--cianotipo);
+  outline-offset: 2px;
+}
+
+.closed .id,
+.closed .title {
+  color: var(--apagado);
+}
+
+.guide {
+  flex: none;
+  width: 20px;
+  align-self: stretch;
+  display: flex;
+  justify-content: center;
+}
+
+.guide::before {
+  content: '';
+  width: 1px;
+  background: var(--regla);
+}
+
+.toggle {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--apagado);
+}
+
+.chevronClosed {
+  transform: rotate(0deg);
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.id {
+  flex: none;
+  margin-left: var(--space-1);
+  color: var(--texto-secundario);
+}
+
+.selected .id {
+  color: var(--apagado);
+}
+
+.title {
+  margin-left: var(--space-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.selected .title {
+  font-weight: 600;
+}
+
+.drift {
+  flex: none;
+  margin-left: auto;
+  padding-left: var(--space-3);
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--andon);
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: var(--rule-row);
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.legendItem .drift {
+  margin: 0;
+  padding: 0;
+}
