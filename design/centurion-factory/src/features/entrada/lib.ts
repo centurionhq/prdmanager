@@ -3,19 +3,13 @@
  * urgency, candidate ranking and id allocation for feedback registered or triaged locally.
  */
 import type { InboxItem } from '../../data';
+import { daysSince, formatRelativeDaysOnly } from '../../lib/format-date';
 
-const MS_PER_DAY = 1000 * 60 * 60 * 24;
-
-/** Whole days elapsed since `receivedAt`, floored (never negative). */
-export function daysSince(receivedAt: string, now: Date = new Date()): number {
-  const diff = now.getTime() - new Date(receivedAt).getTime();
-  return Math.max(0, Math.floor(diff / MS_PER_DAY));
-}
+export { daysSince };
 
 /** `hoy`, `hace 1 d`, `hace 3 d`… the compact relative badge next to the source. */
 export function formatRelativeDays(receivedAt: string, now: Date = new Date()): string {
-  const days = daysSince(receivedAt, now);
-  return days === 0 ? 'hoy' : `hace ${days} d`;
+  return formatRelativeDaysOnly(receivedAt, now);
 }
 
 /** Feedback is considered overdue for triage past this many days (andon styling kicks in). */

@@ -1,8 +1,11 @@
 /**
- * Number and relative-time formatting for the Planta page (WO-282), es-AR locale (decimal comma).
+ * Number formatting for the Planta page (WO-282), es-AR locale (decimal comma), plus this screen's
+ * relative-time wrapper around the shared helper in `src/lib/format-date.ts`.
  * `NOW_ISO` is the fixed "now" behind every "hace N" caption in this mock demo: it lines up with
  * report-001's `createdAt` (09:56) so the header reads "hace 4 min", exactly as the canvas commits to.
  */
+import { formatRelativeCapped } from '../../lib/format-date';
+
 export const NOW_ISO = '2026-09-15T10:00:00.000Z';
 
 export function referenceNow(): Date {
@@ -21,18 +24,7 @@ export function formatMedianResolution(hours: number): string {
   return `${Math.round(hours * 60)} min`;
 }
 
-const MINUTES_PER_HOUR = 60;
-const HOURS_PER_DAY = 24;
-
 /** "hace 4 min" / "hace 1 h" / "hace 3 d", relative to `now` (defaults to the fixed demo "now"). */
 export function formatRelativeTime(iso: string, now: Date = referenceNow()): string {
-  const diffMinutes = Math.round((now.getTime() - new Date(iso).getTime()) / 60_000);
-  if (diffMinutes < 1) return 'justo ahora';
-  if (diffMinutes < MINUTES_PER_HOUR) return `hace ${diffMinutes} min`;
-
-  const diffHours = Math.round(diffMinutes / MINUTES_PER_HOUR);
-  if (diffHours < HOURS_PER_DAY) return `hace ${diffHours} h`;
-
-  const diffDays = Math.round(diffHours / HOURS_PER_DAY);
-  return `hace ${diffDays} d`;
+  return formatRelativeCapped(iso, { now });
 }

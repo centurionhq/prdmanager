@@ -3,6 +3,7 @@
  * summaries. Kept free of React so they are trivial to unit test through the page tests.
  */
 import type { DocumentKind, WorkflowState } from '../../data';
+import { formatRelativeRolling } from '../../lib/format-date';
 
 export type ListedDocumentKind = Exclude<DocumentKind, 'WO'>;
 
@@ -35,25 +36,9 @@ export function workflowLabel(state: WorkflowState): string {
   return WORKFLOW_LABELS[state];
 }
 
-const MINUTE_MS = 60_000;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
-
 /** "hace N min" / "hace N h" / "ayer" / a short date, matching the canvas footer style. */
 export function formatUpdated(iso: string, now: Date = new Date()): string {
-  const diffMs = Math.max(0, now.getTime() - new Date(iso).getTime());
-
-  if (diffMs < HOUR_MS) {
-    const minutes = Math.max(1, Math.floor(diffMs / MINUTE_MS));
-    return `hace ${minutes} min`;
-  }
-  if (diffMs < DAY_MS) {
-    return `hace ${Math.floor(diffMs / HOUR_MS)} h`;
-  }
-  if (diffMs < 2 * DAY_MS) {
-    return 'ayer';
-  }
-  return new Date(iso).toLocaleDateString('es-AR');
+  return formatRelativeRolling(iso, { now });
 }
 
 export interface ValidationSummary {

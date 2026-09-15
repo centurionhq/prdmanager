@@ -3,6 +3,7 @@
  * line-status label, the drift summary per project and a relative "last activity" formatter.
  */
 import { STATIONS, STATION_LABELS, type ProjectSummary, type Station } from '../../data';
+import { formatRelativeCalendar } from '../../lib/format-date';
 
 const DIACRITICS_PATTERN = /[̀-ͯ]/g;
 const NON_SLUG_PATTERN = /[^a-z0-9]+/g;
@@ -59,31 +60,7 @@ export function driftSummary(
   return { tone: 'ok', label: 'Sin drift' };
 }
 
-const MINUTE_MS = 60_000;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
-const WEEK_MS = 7 * DAY_MS;
-
-function sameUtcDay(a: Date, b: Date): boolean {
-  return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
-}
-
-function pad(value: number): string {
-  return String(value).padStart(2, '0');
-}
-
 /** Relative "last activity" label; falls back to an absolute `dd/mm/yyyy` date past a week. */
 export function formatRelativeActivity(iso: string, now: Date = new Date()): string {
-  const then = new Date(iso);
-  const diffMs = now.getTime() - then.getTime();
-
-  if (diffMs < MINUTE_MS) return 'ahora';
-  if (diffMs < HOUR_MS) return `hace ${Math.round(diffMs / MINUTE_MS)} min`;
-  if (sameUtcDay(then, now)) return `hace ${Math.round(diffMs / HOUR_MS)} h`;
-
-  const yesterday = new Date(now.getTime() - DAY_MS);
-  if (sameUtcDay(then, yesterday)) return 'ayer';
-  if (diffMs < WEEK_MS) return `hace ${Math.round(diffMs / DAY_MS)} d`;
-
-  return `${pad(then.getUTCDate())}/${pad(then.getUTCMonth() + 1)}/${then.getUTCFullYear()}`;
+  return formatRelativeCalendar(iso, { now });
 }

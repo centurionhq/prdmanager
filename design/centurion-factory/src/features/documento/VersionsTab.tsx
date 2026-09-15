@@ -5,16 +5,13 @@
 import { useState, type ReactElement } from 'react';
 import { Button, Modal, useToast } from '../../components';
 import { getPerson, type DocumentVersion } from '../../data';
+import { formatDateTimeEs } from '../../lib/format-date';
 import { versionReasonLabel } from './labels';
 import styles from './VersionsTab.module.css';
 
 export interface VersionsTabProps {
   readonly versions: readonly DocumentVersion[];
   readonly onRestore: (versionNo: number) => string;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export function VersionsTab({ versions, onRestore }: VersionsTabProps): ReactElement {
@@ -39,7 +36,7 @@ export function VersionsTab({ versions, onRestore }: VersionsTabProps): ReactEle
               <span className={styles.versionNo}>Versión {version.versionNo}</span>
               <span className={styles.reason}>{versionReasonLabel(version.reason)}</span>
               <span className={styles.meta}>
-                {getPerson(version.createdBy)?.name ?? version.createdBy} · {formatDate(version.createdAt)}
+                {getPerson(version.createdBy)?.name ?? version.createdBy} · {formatDateTimeEs(version.createdAt)}
               </span>
             </div>
             {version.versionNo !== latestNo ? (

@@ -5,6 +5,9 @@
  */
 import { COMMITS, WORK_ORDERS, codeRefsForBlueprint, workOrderProgress, workOrdersForFeature, type Feature, type WorkOrder } from '../../data';
 
+/** `28/08/2026`, the date format the canvas uses everywhere outside relative timestamps. */
+export { formatDateEs } from '../../lib/format-date';
+
 export interface TraceabilityChain {
   readonly origin: readonly string[];
   readonly blueprintIds: readonly string[];
@@ -80,12 +83,4 @@ export function recentOrdersForBlueprint(blueprintId: string, limit = 5): readon
     .filter((wo) => wo.blueprintId === blueprintId)
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, limit);
-}
-
-/** `28/08/2026`, the date format the canvas uses everywhere outside relative timestamps. */
-export function formatDateEs(iso: string): string {
-  const date = new Date(iso);
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  return `${day}/${month}/${date.getUTCFullYear()}`;
 }
