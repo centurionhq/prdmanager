@@ -79,7 +79,7 @@ test('packages/app/dist loads under the real CSP with zero securitypolicyviolati
     expect(cspHeader).toContain("font-src 'self'");
     expect(cspHeader).not.toContain('unsafe-inline');
 
-    await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Entrá a tu organización' })).toBeVisible();
 
     const domViolations = await page.evaluate(() => (globalThis as unknown as { __cspViolations: string[] }).__cspViolations);
     expect(domViolations).toEqual([]);

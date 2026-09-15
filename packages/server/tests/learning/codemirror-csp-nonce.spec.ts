@@ -47,7 +47,7 @@ async function login(page: Page, baseUrl: string, email: string): Promise<void> 
   await page.goto(`${baseUrl}/login`);
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Contraseña').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Ingresar' }).click();
+  await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/o\//);
 }
 

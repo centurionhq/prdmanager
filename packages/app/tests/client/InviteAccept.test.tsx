@@ -36,8 +36,9 @@ describe('InviteAccept', () => {
     renderInvite('/invite/inv_1', '#s=topsecret');
 
     expect(await screen.findByLabelText('Nombre')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Creá tu cuenta' })).toBeTruthy();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Aceptar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Crear cuenta y entrar' }));
     expect(await screen.findByText(/Ingresá tu nombre/)).toBeTruthy();
     expect(accept).not.toHaveBeenCalled();
   });
@@ -50,7 +51,7 @@ describe('InviteAccept', () => {
     await screen.findByLabelText('Nombre');
     await userEvent.type(screen.getByLabelText('Nombre'), 'Jane Doe');
     await userEvent.type(screen.getByLabelText('Contraseña'), 'correct-horse-battery-staple');
-    await userEvent.click(screen.getByRole('button', { name: 'Aceptar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Crear cuenta y entrar' }));
 
     await waitFor(() => expect(accept).toHaveBeenCalledWith('inv_1', { secret: 'topsecret', name: 'Jane Doe', password: 'correct-horse-battery-staple' }));
     expect(await screen.findByText('Invitación aceptada')).toBeTruthy();
@@ -64,7 +65,7 @@ describe('InviteAccept', () => {
     await screen.findByText(/Ya iniciaste sesión/);
     expect(screen.queryByLabelText('Nombre')).toBeNull();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Aceptar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Iniciar sesión y aceptar' }));
     await waitFor(() => expect(accept).toHaveBeenCalledWith('inv_1', { secret: 'topsecret' }));
   });
 });

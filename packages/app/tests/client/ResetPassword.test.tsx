@@ -19,9 +19,9 @@ describe('ResetPassword', () => {
     const requestReset = vi.spyOn(client, 'requestPasswordReset');
     renderAt('/reset-password');
 
-    expect(screen.getByRole('heading', { name: 'Restablecer contraseña' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Recuperar acceso' })).toBeTruthy();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Enviar enlace' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mandar enlace' }));
     expect(await screen.findByText(/email válido/)).toBeTruthy();
     expect(requestReset).not.toHaveBeenCalled();
   });
@@ -31,22 +31,23 @@ describe('ResetPassword', () => {
     renderAt('/reset-password');
 
     await userEvent.type(screen.getByLabelText('Email'), 'a@example.test');
-    await userEvent.click(screen.getByRole('button', { name: 'Enviar enlace' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mandar enlace' }));
 
-    expect(await screen.findByText(/Revisá tu email/)).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Enlace enviado' })).toBeTruthy();
+    expect(screen.getByText(/Revisá a@example.test/)).toBeTruthy();
     expect(requestReset).toHaveBeenCalledWith('a@example.test', expect.stringContaining('/reset-password'));
   });
 
   it('shows the completion form with a token in the URL and validates password length + confirmation', async () => {
     renderAt('/reset-password?token=tok123');
 
-    expect(screen.getByRole('heading', { name: 'Elegí una nueva contraseña' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Elegí una contraseña nueva' })).toBeTruthy();
 
-    await userEvent.type(screen.getByLabelText('Nueva contraseña'), 'short');
+    await userEvent.type(screen.getByLabelText('Contraseña nueva'), 'short');
     await userEvent.type(screen.getByLabelText('Confirmar contraseña'), 'different');
     await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
 
-    expect(await screen.findByText(/Mínimo 12 caracteres/)).toBeTruthy();
+    expect(await screen.findByText('Mínimo 12 caracteres.')).toBeTruthy();
     expect(screen.getByText(/no coinciden/)).toBeTruthy();
   });
 
@@ -54,7 +55,7 @@ describe('ResetPassword', () => {
     const complete = vi.spyOn(client, 'completePasswordReset').mockResolvedValue({ status: true });
     renderAt('/reset-password?token=tok123');
 
-    await userEvent.type(screen.getByLabelText('Nueva contraseña'), 'a-brand-new-password');
+    await userEvent.type(screen.getByLabelText('Contraseña nueva'), 'a-brand-new-password');
     await userEvent.type(screen.getByLabelText('Confirmar contraseña'), 'a-brand-new-password');
     await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
 

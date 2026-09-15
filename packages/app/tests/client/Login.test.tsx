@@ -26,7 +26,7 @@ describe('Login', () => {
     const signIn = vi.spyOn(client, 'signInWithPassword');
     renderLogin();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Entrar' }));
 
     expect(await screen.findByText(/email válido/)).toBeTruthy();
     expect(signIn).not.toHaveBeenCalled();
@@ -38,7 +38,7 @@ describe('Login', () => {
 
     await userEvent.type(screen.getByLabelText('Email'), 'a@example.test');
     await userEvent.type(screen.getByLabelText('Contraseña'), 'correct-horse-battery-staple');
-    await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Entrar' }));
 
     await waitFor(() => expect(screen.getByText('home')).toBeTruthy());
   });
@@ -50,7 +50,7 @@ describe('Login', () => {
 
     await userEvent.type(screen.getByLabelText('Email'), 'a@example.test');
     await userEvent.type(screen.getByLabelText('Contraseña'), 'wrong-password');
-    await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Entrar' }));
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toBe('Invalid email or password');
@@ -63,7 +63,7 @@ describe('Login', () => {
 
     await userEvent.type(screen.getByLabelText('Email'), 'root@example.test');
     await userEvent.type(screen.getByLabelText('Contraseña'), 'correct-horse-battery-staple');
-    await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Entrar' }));
 
     expect(await screen.findByLabelText('Código')).toBeTruthy();
 

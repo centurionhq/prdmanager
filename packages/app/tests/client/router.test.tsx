@@ -21,7 +21,7 @@ describe('app router', () => {
     const router = createMemoryRouter(routes, { initialEntries: ['/'] });
     render(<RouterProvider router={router} />);
 
-    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Entrá a tu organización' })).toBeTruthy();
   });
 
   it('shows a 404 page for an unknown path', async () => {
