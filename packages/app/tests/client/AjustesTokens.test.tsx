@@ -61,6 +61,15 @@ describe('AjustesTokens', () => {
     await waitFor(() => expect(revoke).toHaveBeenCalledWith('acme', 'web', 'tok1'));
   });
 
+  it('explains that the official baseline depends on the default branch and an OIDC-verified token, not a chosen branch', async () => {
+    vi.spyOn(client, 'listCiTokens').mockResolvedValue([]);
+    renderAjustesTokens('member', 'admin');
+
+    await screen.findByRole('heading', { name: 'Tokens de CI' });
+    expect(screen.getByText(/rama por defecto del proyecto y de un token de CI verificado por OIDC/)).toBeTruthy();
+    expect(screen.queryByLabelText('Rama')).toBeNull();
+  });
+
   it('an org owner (no project_members row) can manage CI tokens via inherited admin', async () => {
     vi.spyOn(client, 'listCiTokens').mockResolvedValue([]);
     renderAjustesTokens('owner');
