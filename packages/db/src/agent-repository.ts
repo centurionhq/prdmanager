@@ -6,7 +6,7 @@
  * all). Later WOs in this phase (169 tools, 171 loop, 172 endpoint, 173 propose_edit, 174 accept/reject,
  * 175 quotas) build their own logic on top of this thin CRUD layer rather than duplicating query shapes.
  */
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { agentConversations, agentMessages, agentProposals, llmGlobalUsage, llmUsage } from './schema/agent.js';
 import { connect } from './pool.js';
@@ -60,8 +60,17 @@ export interface AgentConversationsRepository {
 
 export interface AgentMessagesRepository {
   append(input: AppendMessageInput): Promise<AgentMessageRecord>;
-  listForConversation(conversationId: string): Promise<AgentMessageRecord[]>;
+  /** Ascending by `createdAt` (oldest first), capped to the most recent `limit` messages (default
+   * {@link DEFAULT_MESSAGE_HISTORY_LIMIT}) — WO-254: the agent loop only ever resends the last
+   * `DEFAULT_MAX_HISTORY_MESSAGES` (40, `agent-loop.ts`) to the model, and the chat panel only ever
+   * renders recent history on mount, so fetching a conversation's entire unbounded transcript from
+   * Postgres on every turn and every page load was pure waste that grows with conversation length. */
+  listForConversation(conversationId: string, limit?: number): Promise<AgentMessageRecord[]>;
 }
+
+/** WO-254: generous relative to `agent-loop.ts`'s `DEFAULT_MAX_HISTORY_MESSAGES` (40) so the chat panel's
+ * own restore-on-mount view isn't needlessly truncated tighter than what the model itself gets. */
+export const DEFAULT_MESSAGE_HISTORY_LIMIT = 100;
 
 export interface AgentProposalsRepository {
   create(input: CreateProposalInput): Promise<AgentProposalRecord>;
@@ -82,10 +91,13 @@ export interface AgentProposalsRepository {
 }
 
 export interface LlmUsageRepository {
+  /** Read-only: the one atomic write to this table is `packages/server/src/agent/agent-quota.ts`'s own
+   * `reserveAgentTokens`/`reconcileAgentTokens` raw-SQL upsert (WO-175's quota reservation must stay
+   * inside one `withTenantTx` alongside `llm_global_usage`'s equally atomic upsert, which has no RLS to
+   * route through a tenant-scoped repository at all) — WO-255 removed this repository's own `increment`,
+   * which duplicated that exact upsert with no production caller and no compiler-enforced link to the
+   * real one if the schema ever changed. */
   find(usageDate: string): Promise<LlmUsageRecord | null>;
-  /** Upserts, adding `deltaTokens`/`deltaRequests` onto whatever is already recorded for `usageDate` —
-   * the single atomic operation WO-175's quota reservation issues. */
-  increment(usageDate: string, deltaTokens: number, deltaRequests: number): Promise<LlmUsageRecord>;
 }
 
 export interface AgentRepositories {
@@ -140,8 +152,16 @@ export function buildAgentRepositories(pool: Pool, orgId: string): AgentReposito
           if (!row) throw new Error(`failed to append agent message to conversation ${input.conversationId}`);
           return row;
         }),
-      listForConversation: (conversationId) =>
-        withTenantTx(pool, orgId, (tx) => tx.select().from(agentMessages).where(eq(agentMessages.conversationId, conversationId)).orderBy(asc(agentMessages.createdAt))),
+      listForConversation: (conversationId, limit = DEFAULT_MESSAGE_HISTORY_LIMIT) =>
+        withTenantTx(pool, orgId, async (tx) => {
+          const rows = await tx
+            .select()
+            .from(agentMessages)
+            .where(eq(agentMessages.conversationId, conversationId))
+            .orderBy(desc(agentMessages.createdAt))
+            .limit(limit);
+          return rows.reverse();
+        }),
     },
 
     proposals: {
@@ -197,19 +217,6 @@ export function buildAgentRepositories(pool: Pool, orgId: string): AgentReposito
 
     llmUsage: {
       find: (usageDate) => withTenantTx(pool, orgId, async (tx) => (await tx.select().from(llmUsage).where(and(eq(llmUsage.orgId, orgId), eq(llmUsage.usageDate, usageDate))))[0] ?? null),
-      increment: (usageDate, deltaTokens, deltaRequests) =>
-        withTenantTx(pool, orgId, async (tx) => {
-          const [row] = await tx
-            .insert(llmUsage)
-            .values({ orgId, usageDate, promptTokens: 0, completionTokens: 0, totalTokens: deltaTokens, requestCount: deltaRequests })
-            .onConflictDoUpdate({
-              target: [llmUsage.orgId, llmUsage.usageDate],
-              set: { totalTokens: sql`${llmUsage.totalTokens} + ${deltaTokens}`, requestCount: sql`${llmUsage.requestCount} + ${deltaRequests}`, updatedAt: new Date() },
-            })
-            .returning();
-          if (!row) throw new Error(`failed to increment llm_usage for org ${orgId} on ${usageDate}`);
-          return row;
-        }),
     },
   };
 }
@@ -218,25 +225,14 @@ export function buildAgentRepositories(pool: Pool, orgId: string): AgentReposito
  * comment for why `llm_global_usage` is a platform-level counter, not tenant data. Takes the raw `Pool`
  * (always `prdm_app` in production, same as every other repository) directly. */
 export interface LlmGlobalUsageRepository {
+  /** Read-only, same reasoning as {@link LlmUsageRepository} above: `agent-quota.ts`'s raw-SQL upsert is
+   * the one real writer. */
   find(usageDate: string): Promise<LlmGlobalUsageRecord | null>;
-  increment(usageDate: string, deltaTokens: number, deltaRequests: number): Promise<LlmGlobalUsageRecord>;
 }
 
 export function buildLlmGlobalUsageRepository(pool: Pool): LlmGlobalUsageRepository {
   const db = connect(pool);
   return {
     find: async (usageDate) => (await db.select().from(llmGlobalUsage).where(eq(llmGlobalUsage.usageDate, usageDate)))[0] ?? null,
-    increment: async (usageDate, deltaTokens, deltaRequests) => {
-      const [row] = await db
-        .insert(llmGlobalUsage)
-        .values({ usageDate, totalTokens: deltaTokens, requestCount: deltaRequests })
-        .onConflictDoUpdate({
-          target: [llmGlobalUsage.usageDate],
-          set: { totalTokens: sql`${llmGlobalUsage.totalTokens} + ${deltaTokens}`, requestCount: sql`${llmGlobalUsage.requestCount} + ${deltaRequests}`, updatedAt: new Date() },
-        })
-        .returning();
-      if (!row) throw new Error(`failed to increment llm_global_usage for ${usageDate}`);
-      return row;
-    },
   };
 }

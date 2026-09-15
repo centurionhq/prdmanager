@@ -24,6 +24,28 @@ afterAll(async () => {
   await pg.close();
 });
 
+/** WO-255: `LlmUsageRepository`/`LlmGlobalUsageRepository` dropped their own `increment` (dead in
+ * production — `packages/server/src/agent/agent-quota.ts`'s raw-SQL upsert is the one real writer), so
+ * these tests now seed state with the exact same upsert shape directly, then verify through the
+ * repository's still-real `find`. */
+async function seedLlmUsage(pool: Pool, orgId: string, usageDate: string, deltaTokens: number, deltaRequests: number): Promise<void> {
+  await pool.query(
+    `INSERT INTO llm_usage (org_id, usage_date, total_tokens, request_count)
+     VALUES ($1, $2::date, $3, $4)
+     ON CONFLICT (org_id, usage_date) DO UPDATE SET total_tokens = llm_usage.total_tokens + $3, request_count = llm_usage.request_count + $4, updated_at = now()`,
+    [orgId, usageDate, deltaTokens, deltaRequests],
+  );
+}
+
+async function seedLlmGlobalUsage(pool: Pool, usageDate: string, deltaTokens: number, deltaRequests: number): Promise<void> {
+  await pool.query(
+    `INSERT INTO llm_global_usage (usage_date, total_tokens, request_count)
+     VALUES ($1::date, $2, $3)
+     ON CONFLICT (usage_date) DO UPDATE SET total_tokens = llm_global_usage.total_tokens + $2, request_count = llm_global_usage.request_count + $3, updated_at = now()`,
+    [usageDate, deltaTokens, deltaRequests],
+  );
+}
+
 async function insertDocumentFixture(pool: Pool, overrides: { orgId: string; projectId: string }): Promise<string> {
   const id = randomUUID();
   await pool.query(
@@ -110,10 +132,11 @@ describe('agent repositories (SDD-009, WO-168)', () => {
     const org = await createOrganizationFixture(pg);
     const db = createTenantDb(pg.appPool).forOrg(org.id);
 
-    await db.agent.llmUsage.increment('2026-09-14', 100, 1);
-    const afterFirst = await db.agent.llmUsage.increment('2026-09-14', 50, 1);
-    expect(afterFirst.totalTokens).toBe(150);
-    expect(afterFirst.requestCount).toBe(2);
+    await seedLlmUsage(pg.ownerPool, org.id, '2026-09-14', 100, 1);
+    await seedLlmUsage(pg.ownerPool, org.id, '2026-09-14', 50, 1);
+    const afterSecond = await db.agent.llmUsage.find('2026-09-14');
+    expect(afterSecond?.totalTokens).toBe(150);
+    expect(afterSecond?.requestCount).toBe(2);
 
     expect(await db.agent.llmUsage.find('2026-09-15')).toBeNull();
   });
@@ -121,7 +144,7 @@ describe('agent repositories (SDD-009, WO-168)', () => {
   test('llm_usage is isolated per organization (RLS)', async () => {
     const orgA = await createOrganizationFixture(pg);
     const orgB = await createOrganizationFixture(pg);
-    await createTenantDb(pg.appPool).forOrg(orgA.id).agent.llmUsage.increment('2026-09-14', 100, 1);
+    await seedLlmUsage(pg.ownerPool, orgA.id, '2026-09-14', 100, 1);
 
     const bUsage = await createTenantDb(pg.appPool).forOrg(orgB.id).agent.llmUsage.find('2026-09-14');
     expect(bUsage).toBeNull();
@@ -141,9 +164,10 @@ describe('agent repositories (SDD-009, WO-168)', () => {
 
   test('llm_global_usage aggregates across every organization and is not tenant-scoped', async () => {
     const global = buildLlmGlobalUsageRepository(pg.appPool);
-    await global.increment('2026-09-14', 500, 2);
-    const after = await global.increment('2026-09-14', 250, 1);
-    expect(after.totalTokens).toBe(750);
-    expect(after.requestCount).toBe(3);
+    await seedLlmGlobalUsage(pg.ownerPool, '2026-09-14', 500, 2);
+    await seedLlmGlobalUsage(pg.ownerPool, '2026-09-14', 250, 1);
+    const after = await global.find('2026-09-14');
+    expect(after?.totalTokens).toBe(750);
+    expect(after?.requestCount).toBe(3);
   });
 });
