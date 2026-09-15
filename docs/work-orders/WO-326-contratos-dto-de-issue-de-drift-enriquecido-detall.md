@@ -2,12 +2,17 @@
 id: "WO-326"
 type: "WO"
 title: "Contratos: DTO de issue de drift enriquecido, detalle de reporte, `code-refs.ts`, `commits.ts`, con tests"
-status: "pending"
+status: "done"
 created_at: "2026-09-15"
 implements: ["SDD-012"]
 impacts_paths: ["packages/contracts/src/**","packages/contracts/tests/**","packages/core/src/**","packages/core/tests/**","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/server/src/**","packages/server/tests/**","packages/mcp/src/**","package.json","package-lock.json","vitest.config.ts","tsconfig.test.json"]
 source_task: "2376a3292d6d31b1"
 tags: ["saas","api","lifecycle","drift","feedback"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T21:02:22.704Z"
+completed_at: "2026-09-15T21:52:37.129Z"
+resolved_by: ["9003be5040623ea1ae908cc9291aa173519f97c2"]
+blueprint_hashes: {"SDD-012":"0336939aca336af80726637b22f16e71472abb89a79c17b468a9921357d6c5a0"}
 ---
 
 ## Objetivo

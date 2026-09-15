@@ -2,12 +2,17 @@
 id: "WO-327"
 type: "WO"
 title: "Contratos: `work-orders.ts`, `feedback.ts`, `metrics.ts`, `search.ts`, `audit.ts`, extensión de miembros (`lastActiveAt`) y de tokens de CI (`createdByName`), con tests"
-status: "pending"
+status: "done"
 created_at: "2026-09-15"
 implements: ["SDD-012"]
 impacts_paths: ["packages/contracts/src/**","packages/contracts/tests/**","packages/core/src/**","packages/core/tests/**","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/server/src/**","packages/server/tests/**","packages/mcp/src/**","package.json","package-lock.json","vitest.config.ts","tsconfig.test.json"]
 source_task: "a0690d56e4c22f21"
 tags: ["saas","api","lifecycle","drift","feedback"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T21:02:26.997Z"
+completed_at: "2026-09-15T21:52:42.469Z"
+resolved_by: ["c5d02b734f402295759418c9e67e3a31601c0c7b"]
+blueprint_hashes: {"SDD-012":"0336939aca336af80726637b22f16e71472abb89a79c17b468a9921357d6c5a0"}
 ---
 
 ## Objetivo

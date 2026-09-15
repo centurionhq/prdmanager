@@ -2,12 +2,17 @@
 id: "WO-323"
 type: "WO"
 title: "Learning test con Playwright: disparar cada `inputType` relevante de `beforeinput` (inserción, borrado, con y sin composición IME) en Chromium y Firefox sobre un `contentEditable` con `preventDefault` incondicional, y confirmar que el DOM permanece sin mutar en todos los casos"
-status: "pending"
+status: "done"
 created_at: "2026-09-15"
 implements: ["ADR-009"]
 impacts_paths: ["packages/app/package.json","packages/app/tests/unit/**","packages/server/tests/learning/**","package.json","package-lock.json"]
 source_task: "f8423a2ae12c9f33"
 tags: ["architecture-decision","editor","collab","saas"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-15T21:02:08.511Z"
+completed_at: "2026-09-15T21:29:29.704Z"
+resolved_by: ["b9d6caea3e27e302b67804ecc1109a91c7c6c973"]
+blueprint_hashes: {"ADR-009":"ba3e91135c9f4b5008eba2fbeacc83a8da9355b6a8f3b08aa31cbb39a56a6ee8"}
 ---
 
 ## Objetivo
