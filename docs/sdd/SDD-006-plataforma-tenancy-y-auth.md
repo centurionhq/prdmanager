@@ -154,3 +154,4 @@ Nota general: toda tarea que agregue dependencias incluye `package-lock.json` en
 - [ ] Dockerfile multi-etapa del servidor con node 24.21.0 slim fijado por digest, usuario no root, healthcheck, contexto en la raíz y Dockerfile.dockerignore
 - [ ] npm run dev con script Node sin dependencias en packages/server/scripts
 - [ ] Script raíz `npm run db:migrate` (drizzle-kit contra `DATABASE_MIGRATION_URL`) y nota en el README de que es un paso manual requerido antes del primer `npm run dev` en un Postgres nuevo, con test de que el script existe y apunta al binario correcto
+- [ ] Hallazgo del learning test de WO-085: zod 4.6.3 sondea `new Function('')` para decidir si compila validadores rápidos, y ese sondeo dispara una violación real de `script-src` (sin `unsafe-eval`) aunque el throw quede atrapado — deshabilitar el sondeo con `config({ jitless: true })` al inicio de `packages/app/src/main.tsx`, antes de cualquier import que pueda validar con zod, con test
