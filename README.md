@@ -555,6 +555,8 @@ npm run coverage
 
 Los tests de integración nunca usan BD de desarrollo (helper lo rechaza si la URI coincide).
 
+Cobertura verificada al cierre de PRD-005 (WO-204): 90.88% statements, 81.26% branches, 92.9% functions, 94.58% lines — por encima del umbral de 80% en las cuatro dimensiones. Único archivo sin cobertura por diseño: `packages/server/src/cli/run-bootstrap-superadmin.ts` (el entrypoint real de terminal, deliberadamente excluido de tests unitarios por el mismo motivo que `main.ts` — su lógica real y testeable vive en `bootstrap-superadmin.ts`, con 90.62%).
+
 ## Seguridad
 
 - **Filesystem:** `packages/core/src/util/safe-fs.ts` valida realpath, rechaza symlinks que salen del repo, abre con `O_NOFOLLOW`, limita tipo y tamaño
