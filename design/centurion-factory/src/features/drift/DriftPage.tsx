@@ -1,22 +1,48 @@
-import type { ReactElement } from 'react';
-import { Button, EmptyState, ErrorState, PageHeader, Skeleton } from '../../components';
+import { useMemo, useState, type ReactElement } from 'react';
+import { useSearchParams } from 'react-router';
+import { Button, EmptyState, ErrorState, PageHeader, Skeleton, useToast } from '../../components';
 import buttonStyles from '../../components/Button/Button.module.css';
+import { DRIFT_ISSUES } from '../../data';
+import type { DriftIssue } from '../../data';
 import { useDemoState } from '../../lib/use-demo-state';
+import { AcknowledgeModal } from './AcknowledgeModal';
 import { BranchPreviews } from './BranchPreviews';
 import { DriftHistory } from './DriftHistory';
+import { DriftIssuesList } from './DriftIssuesList';
 import { DriftSummary } from './DriftSummary';
+import { acknowledgeableTargets, issuesAcknowledgedBy, issuesForFeature } from './drift-issue-groups';
+import { reportHistory } from './drift-data';
 import styles from './DriftPage.module.css';
 
-function noop(): void {
-  // No-op until WO-294 wires the acknowledge modal.
-}
+const FALLBACK_HEAD_SHA = '8f2c1d4';
 
-/**
- * The Drift screen (WO-293): the header, the summary strip and the branch previews / history.
- * The Issues list and the "Reconocer drift" modal are wired in WO-294.
- */
+/** The Drift screen (WO-293/WO-294): reports, grouped issues, the feature filter and the acknowledge modal. */
 export function DriftPage(): ReactElement {
   const { state, retry } = useDemoState();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [issues, setIssues] = useState<readonly DriftIssue[]>(DRIFT_ISSUES);
+  const [modalOpen, setModalOpen] = useState(false);
+  const { show } = useToast();
+
+  const featureId = searchParams.get('feature');
+  const visibleIssues = useMemo(() => issuesForFeature(featureId, issues), [featureId, issues]);
+  const targets = useMemo(() => acknowledgeableTargets(issues), [issues]);
+  const headSha = reportHistory()[0]?.headSha ?? FALLBACK_HEAD_SHA;
+
+  function clearFeatureFilter(): void {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.delete('feature');
+      return next;
+    });
+  }
+
+  function handleAcknowledge(target: string): void {
+    const clearedIds = new Set(issuesAcknowledgedBy(target, issues).map((issue) => issue.id));
+    setIssues((current) => current.filter((issue) => !clearedIds.has(issue.id)));
+    setModalOpen(false);
+    show('Drift reconocido', { tone: 'success' });
+  }
 
   return (
     <div className={styles.page}>
@@ -24,7 +50,7 @@ export function DriftPage(): ReactElement {
         title="Drift"
         subtitle={
           <>
-            Reporte oficial de <span className="id">main</span> · commit <span className="id">8f2c1d4</span> · hace 4 min
+            Reporte oficial de <span className="id">main</span> · commit <span className="id">{headSha}</span> · hace 4 min
           </>
         }
         actions={
@@ -32,8 +58,7 @@ export function DriftPage(): ReactElement {
             <a href="#historial" className={`${buttonStyles.button} ${buttonStyles.secondary} ${styles.historyLink}`}>
               Ver historial
             </a>
-            {/* Opens the acknowledge modal starting in WO-294. */}
-            <Button type="button" variant="primary" onClick={noop}>
+            <Button type="button" variant="primary" onClick={() => setModalOpen(true)}>
               Reconocer drift
             </Button>
           </>
@@ -56,11 +81,24 @@ export function DriftPage(): ReactElement {
 
       {state === 'listo' ? (
         <div className={styles.body}>
-          <DriftSummary />
-          <BranchPreviews />
-          <DriftHistory />
+          <DriftSummary issues={issues} />
+          <div className={styles.columns}>
+            <DriftIssuesList issues={visibleIssues} featureId={featureId} onClearFeature={clearFeatureFilter} />
+            <div className={styles.sidebar}>
+              <BranchPreviews />
+              <DriftHistory />
+            </div>
+          </div>
         </div>
       ) : null}
+
+      <AcknowledgeModal
+        open={modalOpen}
+        targets={targets}
+        headSha={headSha}
+        onClose={() => setModalOpen(false)}
+        onConfirm={handleAcknowledge}
+      />
     </div>
   );
 }

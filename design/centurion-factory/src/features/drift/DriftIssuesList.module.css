@@ -1,0 +1,119 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  height: 28px;
+  padding: 0 var(--space-1) 0 var(--space-3);
+  margin-bottom: var(--space-4);
+  background: var(--seleccion);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.filterChipRemove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--texto-secundario);
+  border-radius: var(--radius-plate);
+}
+
+.filterChipRemove:hover {
+  background: var(--superficie);
+}
+
+.groupHeader {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-3) 0 var(--space-2);
+  border-bottom: var(--rule);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--texto-secundario);
+}
+
+.groupCount {
+  font-weight: 400;
+  color: var(--apagado);
+}
+
+.group + .group .groupHeader {
+  padding-top: var(--space-4);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 72px 120px;
+  column-gap: var(--space-3);
+  align-items: center;
+  min-height: var(--hit-target);
+  padding: var(--space-1) 0;
+  border-bottom: var(--rule-row);
+  font-size: var(--text-sm);
+}
+
+.blueprintCell {
+  color: var(--apagado);
+  font-size: var(--text-xs);
+}
+
+.actionCell {
+  justify-self: end;
+}
+
+.emptyMessage {
+  padding: var(--space-4) 0;
+  color: var(--apagado);
+}
+
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'severity action'
+      'message message'
+      'blueprint blueprint';
+    row-gap: var(--space-1);
+    padding: var(--space-3) 0;
+  }
+
+  .row > :nth-child(1) {
+    grid-area: severity;
+  }
+
+  .row > :nth-child(2) {
+    grid-area: message;
+  }
+
+  .row > :nth-child(3) {
+    grid-area: blueprint;
+  }
+
+  .row > :nth-child(4) {
+    grid-area: action;
+    justify-self: start;
+  }
+}

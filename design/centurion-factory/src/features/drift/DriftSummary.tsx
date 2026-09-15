@@ -1,11 +1,18 @@
 import type { ReactElement } from 'react';
+import { DRIFT_ISSUES } from '../../data';
+import type { DriftIssue } from '../../data';
 import { summarize } from './drift-data';
 import { formatCount, formatPercent } from './drift-format';
 import styles from './DriftSummary.module.css';
 
+export interface DriftSummaryProps {
+  /** Defaults to every mock issue; the Drift page passes its live (post-acknowledge) state. */
+  readonly issues?: readonly DriftIssue[];
+}
+
 /** The 3-up summary strip from canvas/Drift.dc.html: errors, warnings and governed references. */
-export function DriftSummary(): ReactElement {
-  const counts = summarize();
+export function DriftSummary({ issues = DRIFT_ISSUES }: DriftSummaryProps): ReactElement {
+  const counts = summarize(issues);
 
   return (
     <section className={styles.summary} aria-label="Resumen de drift">

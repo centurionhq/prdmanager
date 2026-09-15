@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { routes } from '../../../src/router';
@@ -40,18 +40,20 @@ describe('DriftPage', () => {
 
   it('lists branch previews with their badge, relative time and issue count', async () => {
     renderAt('/drift');
-    await screen.findByText('Previews por rama');
-    expect(screen.getByText('feat/fr-002-importer')).toBeTruthy();
-    expect(screen.getAllByText('vista previa').length).toBeGreaterThan(0);
-    expect(screen.getByText('hace 26 min')).toBeTruthy();
+    const previewsTitle = await screen.findByText('Previews por rama');
+    const previews = within(previewsTitle.closest('div') as HTMLElement);
+    expect(previews.getByText('feat/fr-002-importer')).toBeTruthy();
+    expect(previews.getAllByText('vista previa').length).toBeGreaterThan(0);
+    expect(previews.getByText('hace 26 min')).toBeTruthy();
   });
 
   it('shows "Esperando reporte de CI" for a branch awaiting its first report', async () => {
     renderAt('/drift');
-    await screen.findByText('Previews por rama');
-    expect(screen.getByText('fix/scan-timeout')).toBeTruthy();
-    expect(screen.getByText('Esperando reporte de CI')).toBeTruthy();
-    expect(screen.getByText('Sin datos')).toBeTruthy();
+    const previewsTitle = await screen.findByText('Previews por rama');
+    const previews = within(previewsTitle.closest('div') as HTMLElement);
+    expect(previews.getByText('fix/scan-timeout')).toBeTruthy();
+    expect(previews.getByText('Esperando reporte de CI')).toBeTruthy();
+    expect(previews.getByText('Sin datos')).toBeTruthy();
   });
 
   it('lists the report history with date, commit, token and issue count', async () => {
