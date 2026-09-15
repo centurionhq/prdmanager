@@ -277,4 +277,48 @@ describe('/api/app/organizations/:orgSlug/projects/* (WO-107)', () => {
 
     await app.close();
   });
+
+  test('removing a member from a project revokes their personal tokens scoped to that project (WO-257)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    const target = await seedUser(env, pg.appPool, PASSWORD);
+    const org = await createOrganizationFixture(pg);
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    await createMemberFixture(pg, { organizationId: org.id, userId: target.id, role: 'member' });
+    await pg.ownerPool.query(`INSERT INTO project_members (project_id, org_id, user_id, role) VALUES ($1, $2, $3, 'developer')`, [project.id, org.id, target.id]);
+    const ownerCookie = await signIn(app, owner.email);
+    const targetCookie = await signIn(app, target.email);
+
+    const scopedToken = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, targetCookie),
+      payload: { orgSlug: org.slug, name: 'scoped', scopes: ['mcp:read'], projectIds: [project.id], expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() },
+    });
+    expect(scopedToken.statusCode).toBe(200);
+    const unscopedToken = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, targetCookie),
+      payload: { orgSlug: org.slug, name: 'unscoped', scopes: ['mcp:read'], expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() },
+    });
+    expect(unscopedToken.statusCode).toBe(200);
+
+    const remove = await app.inject({
+      method: 'DELETE',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/members/${target.id}`,
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, ownerCookie),
+    });
+    expect(remove.statusCode).toBe(200);
+
+    const { rows } = await pg.ownerPool.query(`SELECT name, revoked_at FROM api_tokens WHERE org_id = $1 AND user_id = $2 ORDER BY name`, [org.id, target.id]);
+    const byName = Object.fromEntries(rows.map((r: { name: string; revoked_at: string | null }) => [r.name, r.revoked_at]));
+    expect(byName.scoped).not.toBeNull();
+    // Unscoped ("every project I can see") is deliberately left alone — the target user may still have
+    // other projects it legitimately covers.
+    expect(byName.unscoped).toBeNull();
+
+    await app.close();
+  });
 });

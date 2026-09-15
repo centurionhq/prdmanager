@@ -44,6 +44,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
 import type { Neo4jGraphDatabase } from '@prdm/core';
 import { isOrgAdmin } from './projects.js';
+import { rejectUntrustedOrigin } from './trusted-origin.js';
 import { buildPrdmConfig } from '../engine/pg-project-settings.js';
 import { resolvePgProjectEngine } from '../engine/resolve-pg-project-engine.js';
 import type { RequestToken } from '../auth/bearer-auth.js';
@@ -76,10 +77,6 @@ interface McpRouteParams {
 
 function sendMethodNotAllowed(reply: FastifyReply): void {
   void reply.code(405).send(METHOD_NOT_ALLOWED_BODY);
-}
-
-function isOriginAllowed(origin: string | undefined, trustedOrigins: readonly string[]): boolean {
-  return origin === undefined || trustedOrigins.includes(origin);
 }
 
 /**
@@ -216,11 +213,7 @@ async function handleProjectMcpPost(req: FastifyRequest<{ Params: McpRouteParams
   const { pool, neo4j, rateLimiter } = opts;
   const token = req.token!;
 
-  const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
-  if (!isOriginAllowed(origin, req.server.env.trustedOrigins)) {
-    void reply.code(403).send({ error: 'origin_not_allowed' });
-    return;
-  }
+  if (rejectUntrustedOrigin(req, reply)) return;
 
   const auth = await resolveMcpAuth(pool, token);
   if (auth === 'wrong_token_kind') {
@@ -327,11 +320,7 @@ async function handleBareMcpPost(req: FastifyRequest, reply: FastifyReply, opts:
   const { pool, rateLimiter } = opts;
   const token = req.token!;
 
-  const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
-  if (!isOriginAllowed(origin, req.server.env.trustedOrigins)) {
-    void reply.code(403).send({ error: 'origin_not_allowed' });
-    return;
-  }
+  if (rejectUntrustedOrigin(req, reply)) return;
 
   const auth = await resolveMcpAuth(pool, token);
   if (auth === 'wrong_token_kind') {

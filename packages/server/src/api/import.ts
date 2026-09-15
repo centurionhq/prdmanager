@@ -13,29 +13,21 @@
  */
 import { assertSafeImportSourcePath, parseBaselineJson, parseProjectFile, scanContents, UnsafeImportSourcePathError, type FolderMap } from '@prdm/core';
 import { can, importRequestSchema, MAX_IMPORT_BODY_BYTES, type ImportDocumentDto } from '@prdm/contracts';
-import { createTenantDb, findMembership, importDocuments, ProjectNotEmptyError, resolveProjectByGraphProjectId, type ImportDocumentInput } from '@prdm/db';
+import { createTenantDb, importDocuments, ProjectNotEmptyError, resolveProjectByGraphProjectId, type ImportDocumentInput } from '@prdm/db';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
-import { isOrgAdmin } from './projects.js';
-import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
+import { resolveBearerProjectSubject } from './bearer-project-subject.js';
+import { rejectUntrustedOrigin } from './trusted-origin.js';
+import { ConflictError, ForbiddenError, NotFoundError, RateLimitedError, ValidationError } from '../errors.js';
+import type { ImportRateLimiter } from '../rate-limit/import-rate-limits.js';
 
 export interface RegisterImportRoutesOptions {
   pool: Pool;
+  rateLimiter: ImportRateLimiter;
 }
 
 interface ImportRouteParams {
   graphProjectId: string;
-}
-
-/** Resolves the caller's effective project role (org owner/admin inherits admin; otherwise their own
- * `project_members` row) — the exact same resolution `mcp-remote.ts` uses for the same reason. */
-async function resolveImportSubject(pool: Pool, orgId: string, projectId: string, userId: string) {
-  const membership = await findMembership(pool, orgId, userId);
-  if (!membership) return null;
-  if (isOrgAdmin(membership.role)) return { orgRole: membership.role };
-  const projectMembership = await createTenantDb(pool).forOrg(orgId).forProject(projectId).members.findForUser(userId);
-  if (!projectMembership) return { orgRole: membership.role };
-  return { orgRole: membership.role, projectRole: projectMembership.role };
 }
 
 function toImportDocumentInputs(rawDocuments: readonly ImportDocumentDto[], folders: FolderMap): ImportDocumentInput[] {
@@ -67,12 +59,14 @@ function toImportDocumentInputs(rawDocuments: readonly ImportDocumentDto[], fold
 }
 
 export function registerImportRoutes(app: FastifyInstance, opts: RegisterImportRoutesOptions): void {
-  const { pool } = opts;
+  const { pool, rateLimiter } = opts;
 
   app.post<{ Params: ImportRouteParams }>(
     '/api/v1/projects/:graphProjectId/import',
     { config: { access: { kind: 'bearer', scope: 'import:write' } }, bodyLimit: MAX_IMPORT_BODY_BYTES },
-    async (req) => {
+    async (req, reply) => {
+      if (rejectUntrustedOrigin(req, reply)) return undefined;
+
       const token = req.token!;
       if (!token.userId) throw new ForbiddenError();
 
@@ -83,8 +77,16 @@ export function registerImportRoutes(app: FastifyInstance, opts: RegisterImportR
       // IDOR-safe (SDD-006 §Arquitectura): a resolved membership that merely lacks the `import`
       // permission gets the same 404 as a nonexistent project, never a 403 that would confirm the
       // project exists to someone who isn't its admin — same convention `mcp-remote.ts` uses.
-      const subject = await resolveImportSubject(pool, resolved.orgId, resolved.projectId, token.userId);
+      const subject = await resolveBearerProjectSubject(pool, resolved.orgId, resolved.projectId, token.userId);
       if (!subject || !can(subject, 'import')) throw new NotFoundError();
+
+      // WO-259: volume abuse protection — a one-time bootstrap action legitimately runs once (or a
+      // handful of times while a client iterates), never in a tight loop.
+      const rateLimit = await rateLimiter.check(req, token.tokenId);
+      if (!rateLimit.allowed) {
+        reply.header('retry-after', String(rateLimit.retryAfterSeconds));
+        throw new RateLimitedError();
+      }
 
       const parsedBody = importRequestSchema.safeParse(req.body);
       if (!parsedBody.success) throw new ValidationError('invalid import request body');

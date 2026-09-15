@@ -7,6 +7,7 @@ import { DEFAULT_AUTHORING, DEFAULT_FOLDERS, DEFAULT_GIT, DEFAULT_LIFECYCLE, gen
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, openTestPg, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
+import { DEFAULT_IMPORT_RATE_LIMIT_PER_MINUTE } from '../../src/rate-limit/import-rate-limits.js';
 import { FakeMailer } from '../../src/mailer.js';
 import { mutationHeaders } from '../helpers/csrf.js';
 import { seedUser } from '../helpers/seed-auth.js';
@@ -238,6 +239,55 @@ describe('POST /api/v1/projects/:graphProjectId/import (WO-192)', () => {
 
     await app.close();
   });
+
+  test('an Origin outside the trusted allowlist is rejected; a trusted or absent Origin is fine (WO-249)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { project, cookie, org } = await seedOwnerAndProject(app);
+    const secret = await issuePersonalToken(app, org, cookie, ['import:write']);
+    const body = { schema_version: 1 as const, prdmYaml: validPrdmYaml(), documents: [] };
+
+    const untrusted = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/import`,
+      headers: { authorization: `Bearer ${secret}`, origin: 'https://evil.example.test' },
+      payload: body,
+    });
+    expect(untrusted.statusCode).toBe(403);
+    expect(untrusted.json()).toEqual({ error: 'origin_not_allowed' });
+
+    const trusted = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/import`,
+      headers: { authorization: `Bearer ${secret}`, origin: ORIGIN },
+      payload: body,
+    });
+    expect(trusted.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  test('exceeding the per-token rate limit returns 429 (WO-259)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { org, cookie } = await seedOwnerAndProject(app);
+    const secret = await issuePersonalToken(app, org, cookie, ['import:write']);
+
+    let lastStatus = 0;
+    for (let i = 0; i <= DEFAULT_IMPORT_RATE_LIMIT_PER_MINUTE; i += 1) {
+      // A brand new (empty) project every time: `ProjectNotEmptyError` would otherwise short-circuit
+      // every call after the first, and this must exercise the rate limiter itself, not that guard.
+      const freshProject = await createProjectFixture(pg, { orgId: org.id });
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/projects/${freshProject.graphProjectId}/import`,
+        headers: { authorization: `Bearer ${secret}` },
+        payload: { schema_version: 1, prdmYaml: validPrdmYaml(), documents: [] },
+      });
+      lastStatus = res.statusCode;
+    }
+    expect(lastStatus).toBe(429);
+
+    await app.close();
+  }, 30_000);
 
   test('the local .prdm.yaml project.id is never trusted: import always targets the URL graphProjectId', async () => {
     const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });

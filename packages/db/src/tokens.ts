@@ -335,6 +335,57 @@ export async function resolveTokenBySecret(pool: Pool, secret: string): Promise<
   };
 }
 
+export interface RevokeUserTokensForOrgInput {
+  orgId: string;
+  userId: string;
+  now?: Date;
+}
+
+/** Called when a user is removed from an organization entirely (`organizations.ts`'s member-removal
+ * route, security review of WO-203/SDD-010: WO-257) — revokes every personal token they hold in this
+ * org, scoped or not, since losing the org means losing everything in it. Idempotent, same as
+ * {@link revokeToken}: a token that's already revoked is simply left alone. */
+export async function revokeUserTokensForOrg(pool: Pool, input: RevokeUserTokensForOrgInput): Promise<void> {
+  const now = input.now ?? new Date();
+  await withTenantTx(pool, input.orgId, async (tx) => {
+    await tx
+      .update(apiTokens)
+      .set({ revokedAt: now })
+      .where(and(eq(apiTokens.kind, 'personal'), eq(apiTokens.userId, input.userId), isNull(apiTokens.revokedAt)));
+  });
+}
+
+export interface RevokeUserTokensForProjectInput {
+  orgId: string;
+  userId: string;
+  projectId: string;
+  now?: Date;
+}
+
+/** Called when a user is removed from a single project while remaining an org member (`projects.ts`'s
+ * member-removal route, WO-257) — revokes only the personal tokens explicitly scoped to that project
+ * (`project_ids @> ARRAY[projectId]`, the same containment check {@link listCiTokensForProject} already
+ * uses). An *unscoped* token (`project_ids IS NULL`, "every project I can see") is deliberately left
+ * alone: it still grants the user access to their other projects, and the live-role re-check
+ * `governance.ts`/`policy-docs.ts`/`code-reports.ts` now perform on every request already makes it fail
+ * for this specific project on its own, the instant the `project_members` row disappears. */
+export async function revokeUserTokensForProject(pool: Pool, input: RevokeUserTokensForProjectInput): Promise<void> {
+  const now = input.now ?? new Date();
+  await withTenantTx(pool, input.orgId, async (tx) => {
+    await tx
+      .update(apiTokens)
+      .set({ revokedAt: now })
+      .where(
+        and(
+          eq(apiTokens.kind, 'personal'),
+          eq(apiTokens.userId, input.userId),
+          isNull(apiTokens.revokedAt),
+          sql`${apiTokens.projectIds} @> ARRAY[${input.projectId}::uuid]`,
+        ),
+      );
+  });
+}
+
 export interface TouchLastUsedInput {
   orgId: string;
   tokenId: string;

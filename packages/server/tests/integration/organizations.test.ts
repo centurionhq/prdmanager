@@ -167,4 +167,36 @@ describe('/api/app/organizations/* (WO-104)', () => {
 
     await app.close();
   });
+
+  test('removing a member from the organization revokes every personal token they hold in it (WO-257)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    const target = await seedUser(env, pg.appPool, PASSWORD);
+    const org = await createOrganizationFixture(pg);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    await createMemberFixture(pg, { organizationId: org.id, userId: target.id, role: 'member' });
+    const ownerCookie = await signIn(app, owner.email);
+    const targetCookie = await signIn(app, target.email);
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, targetCookie),
+      payload: { orgSlug: org.slug, name: 'laptop', scopes: ['mcp:read'], expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() },
+    });
+    expect(created.statusCode).toBe(200);
+    const tokenId = created.json().token.id as string;
+
+    const remove = await app.inject({
+      method: 'DELETE',
+      url: `/api/app/organizations/${org.slug}/members/${target.id}`,
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, ownerCookie),
+    });
+    expect(remove.statusCode).toBe(200);
+
+    const { rows } = await pg.ownerPool.query(`SELECT revoked_at FROM api_tokens WHERE id = $1`, [tokenId]);
+    expect(rows[0].revoked_at).not.toBeNull();
+
+    await app.close();
+  });
 });

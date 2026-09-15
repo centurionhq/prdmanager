@@ -4,8 +4,11 @@
  * test proving exactly one request ever writes.
  */
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, openTestPg, truncateAll, type PgTestDb } from '@prdm/testkit';
-import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
+import type { Pool } from 'pg';
+import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
+import { createScannedDocsCache, loadAndScanPublishedDocs } from '../../src/engine/scanned-docs-cache.js';
+import { DEFAULT_CODE_REPORT_RATE_LIMIT_PER_MINUTE } from '../../src/rate-limit/code-report-rate-limits.js';
 import { FakeMailer } from '../../src/mailer.js';
 import { mutationHeaders } from '../helpers/csrf.js';
 import { seedUser } from '../helpers/seed-auth.js';
@@ -240,6 +243,112 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports (WO-180)', () => {
     const { rows } = await pg.ownerPool.query(`SELECT trust FROM "commits" WHERE project_id = $1 AND sha = $2`, [project.id, sha]);
     expect(rows).toHaveLength(1);
     expect(rows[0].trust).toBe('preview');
+
+    await app.close();
+  });
+
+  test('a personal token whose issuing user has since lost their live role is rejected (WO-257)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { org, project, ownerCookie } = await seedOwnerAndCiToken(app);
+
+    // An org admin may mint an *unscoped* reports:write token (SDD-006: "heredan admin de proyecto").
+    const admin = await seedUser(env, pg.appPool, PASSWORD);
+    await createMemberFixture(pg, { organizationId: org.id, userId: admin.id, role: 'admin' });
+    const adminCookie = await signIn(app, admin.email);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, adminCookie),
+      payload: { orgSlug: org.slug, name: 'dev laptop', scopes: ['reports:write'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    const secret = created.json().secret as string;
+
+    // The owner demotes them to a plain member — an org role change, never a token revocation.
+    const demote = await app.inject({
+      method: 'PATCH',
+      url: `/api/app/organizations/${org.slug}/members/${admin.id}`,
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, ownerCookie),
+      payload: { role: 'member' },
+    });
+    expect(demote.statusCode).toBe(200);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'after-removal' },
+      payload: baseReport(),
+    });
+    expect(res.statusCode).toBe(404);
+
+    await app.close();
+  });
+
+  test('an Origin outside the trusted allowlist is rejected; a trusted or absent Origin is fine (WO-249)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { project, secret } = await seedOwnerAndCiToken(app);
+
+    const untrusted = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'origin-1', origin: 'https://evil.example.test' },
+      payload: baseReport(),
+    });
+    expect(untrusted.statusCode).toBe(403);
+    expect(untrusted.json()).toEqual({ error: 'origin_not_allowed' });
+
+    const trusted = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'origin-2', origin: ORIGIN },
+      payload: baseReport(),
+    });
+    expect(trusted.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  test('exceeding the per-token rate limit returns 429 (WO-259)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { project, secret } = await seedOwnerAndCiToken(app);
+
+    let lastStatus = 0;
+    for (let i = 0; i <= DEFAULT_CODE_REPORT_RATE_LIMIT_PER_MINUTE; i += 1) {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+        headers: { authorization: `Bearer ${secret}`, 'idempotency-key': `rl-${i}` },
+        payload: baseReport({ head_sha: i.toString(16).padStart(40, '0') }),
+      });
+      lastStatus = res.statusCode;
+    }
+    expect(lastStatus).toBe(429);
+
+    await app.close();
+  }, 30_000);
+
+  test('two reports against the same unchanged graph_version reuse the cached scan of published documents (WO-261)', async () => {
+    const loader = vi.fn((pool: Pool, orgId: string, projectId: string) => loadAndScanPublishedDocs(pool, orgId, projectId));
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false, scannedDocsCache: createScannedDocsCache(loader) });
+    const { project, secret } = await seedOwnerAndCiToken(app);
+
+    const first = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'cache-1' },
+      payload: baseReport(),
+    });
+    expect(first.statusCode).toBe(200);
+
+    const second = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'cache-2' },
+      payload: baseReport(),
+    });
+    expect(second.statusCode).toBe(200);
+
+    // Two distinct reports, same unchanged graph_version: the scan behind them only ever ran once.
+    expect(loader).toHaveBeenCalledTimes(1);
 
     await app.close();
   });

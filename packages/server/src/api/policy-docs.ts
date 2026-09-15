@@ -14,11 +14,13 @@
  * with no version yet as of some instant simply doesn't appear in that instant's document list — this
  * is a real point-in-time reconstruction, not a snapshot of "currently published" content.
  */
-import { governanceDocumentSchema, MAX_POLICY_DOCS_BODY_BYTES, policyDocsRequestSchema, type GovernanceDocumentDto } from '@prdm/contracts';
+import { can, governanceDocumentSchema, MAX_POLICY_DOCS_BODY_BYTES, policyDocsRequestSchema, type GovernanceDocumentDto } from '@prdm/contracts';
 import { resolveProjectByGraphProjectId, schema, withTenantTx } from '@prdm/db';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
+import { resolveBearerProjectSubject } from './bearer-project-subject.js';
+import { rejectUntrustedOrigin } from './trusted-origin.js';
 import { NotFoundError, ValidationError } from '../errors.js';
 
 export interface RegisterPolicyDocsRoutesOptions {
@@ -79,11 +81,19 @@ export function registerPolicyDocsRoutes(app: FastifyInstance, opts: RegisterPol
   app.post<{ Params: PolicyDocsRouteParams }>(
     '/api/v1/projects/:graphProjectId/policy-docs',
     { config: { access: { kind: 'bearer', scope: 'governance:read' } }, bodyLimit: MAX_POLICY_DOCS_BODY_BYTES },
-    async (req) => {
+    async (req, reply) => {
+      if (rejectUntrustedOrigin(req, reply)) return undefined;
+
       const token = req.token!;
       const resolved = await resolveProjectByGraphProjectId(pool, req.params.graphProjectId);
       if (!resolved || resolved.orgId !== token.orgId) throw new NotFoundError();
       if (token.projectIds && !token.projectIds.includes(resolved.projectId)) throw new NotFoundError();
+
+      // WO-257: same live-role re-check as `governance.ts` — only meaningful for a personal token.
+      if (token.userId) {
+        const subject = await resolveBearerProjectSubject(pool, resolved.orgId, resolved.projectId, token.userId);
+        if (!subject || !can(subject, 'view')) throw new NotFoundError();
+      }
 
       const parsedBody = policyDocsRequestSchema.safeParse(req.body);
       if (!parsedBody.success) throw new ValidationError('invalid body');

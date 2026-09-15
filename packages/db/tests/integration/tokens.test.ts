@@ -16,6 +16,8 @@ import {
   parseTokenString,
   resolveTokenBySecret,
   revokeToken,
+  revokeUserTokensForOrg,
+  revokeUserTokensForProject,
   touchTokenLastUsed,
 } from '@prdm/db';
 import { createOrganizationFixture, createProjectFixture, createUserFixture, openTestPg, truncateAll, type PgTestDb } from '@prdm/testkit';
@@ -251,5 +253,84 @@ describe('api_tokens (WO-109)', () => {
 
   test('hashTokenSecret is deterministic sha256 hex', () => {
     expect(hashTokenSecret('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+  });
+
+  test('revokeUserTokensForOrg revokes every personal token the user holds in the org, scoped or not (WO-257)', async () => {
+    const org = await createOrganizationFixture(pg);
+    const user = await createUserFixture(pg);
+    const otherUser = await createUserFixture(pg);
+    const project = await createProjectFixture(pg, { orgId: org.id });
+
+    const unscoped = await createPersonalToken(pg.appPool, {
+      orgId: org.id,
+      userId: user.id,
+      name: 'unscoped',
+      scopes: ['mcp:read'],
+      expiresAt: new Date(Date.now() + DAY_MS),
+    });
+    const scoped = await createPersonalToken(pg.appPool, {
+      orgId: org.id,
+      userId: user.id,
+      name: 'scoped',
+      scopes: ['mcp:read'],
+      expiresAt: new Date(Date.now() + DAY_MS),
+      projectIds: [project.id],
+    });
+    const untouched = await createPersonalToken(pg.appPool, {
+      orgId: org.id,
+      userId: otherUser.id,
+      name: 'someone else entirely',
+      scopes: ['mcp:read'],
+      expiresAt: new Date(Date.now() + DAY_MS),
+    });
+
+    await revokeUserTokensForOrg(pg.appPool, { orgId: org.id, userId: user.id });
+
+    const revokedUnscoped = await findTokenById(pg.appPool, org.id, unscoped.record.id);
+    const revokedScoped = await findTokenById(pg.appPool, org.id, scoped.record.id);
+    const stillLiveOtherUser = await findTokenById(pg.appPool, org.id, untouched.record.id);
+    expect(revokedUnscoped!.revokedAt).not.toBeNull();
+    expect(revokedScoped!.revokedAt).not.toBeNull();
+    expect(stillLiveOtherUser!.revokedAt).toBeNull();
+  });
+
+  test('revokeUserTokensForProject only revokes tokens explicitly scoped to that project, leaving an unscoped token alone (WO-257)', async () => {
+    const org = await createOrganizationFixture(pg);
+    const user = await createUserFixture(pg);
+    const removedProject = await createProjectFixture(pg, { orgId: org.id });
+    const otherProject = await createProjectFixture(pg, { orgId: org.id });
+
+    const scopedToRemoved = await createPersonalToken(pg.appPool, {
+      orgId: org.id,
+      userId: user.id,
+      name: 'scoped to removed project',
+      scopes: ['mcp:read'],
+      expiresAt: new Date(Date.now() + DAY_MS),
+      projectIds: [removedProject.id],
+    });
+    const scopedToOther = await createPersonalToken(pg.appPool, {
+      orgId: org.id,
+      userId: user.id,
+      name: 'scoped to a different project',
+      scopes: ['mcp:read'],
+      expiresAt: new Date(Date.now() + DAY_MS),
+      projectIds: [otherProject.id],
+    });
+    const unscoped = await createPersonalToken(pg.appPool, {
+      orgId: org.id,
+      userId: user.id,
+      name: 'unscoped',
+      scopes: ['mcp:read'],
+      expiresAt: new Date(Date.now() + DAY_MS),
+    });
+
+    await revokeUserTokensForProject(pg.appPool, { orgId: org.id, userId: user.id, projectId: removedProject.id });
+
+    const revoked = await findTokenById(pg.appPool, org.id, scopedToRemoved.record.id);
+    const stillScopedElsewhere = await findTokenById(pg.appPool, org.id, scopedToOther.record.id);
+    const stillUnscoped = await findTokenById(pg.appPool, org.id, unscoped.record.id);
+    expect(revoked!.revokedAt).not.toBeNull();
+    expect(stillScopedElsewhere!.revokedAt).toBeNull();
+    expect(stillUnscoped!.revokedAt).toBeNull();
   });
 });

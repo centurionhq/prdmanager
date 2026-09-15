@@ -50,7 +50,7 @@ describe('POST /api/v1/projects/:graphProjectId/policy-docs (WO-183)', () => {
       payload: { name: 'ci-pipeline', scopes: ['governance:read'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
     });
     const secret = created.json().secret as string;
-    return { org, project, secret };
+    return { org, project, secret, cookie };
   }
 
   async function insertDocumentWithVersions(orgId: string, projectId: string, docId: string, versions: { content: string; createdAt: string }[]) {
@@ -130,6 +130,66 @@ describe('POST /api/v1/projects/:graphProjectId/policy-docs (WO-183)', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().results[0].documents).toEqual([]);
+
+    await app.close();
+  });
+
+  test('a personal token whose issuing user has since lost their live role is rejected (WO-257)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { org, project, cookie } = await setupProject(app);
+
+    // An org admin may mint an *unscoped* governance:read token (SDD-006: "heredan admin de proyecto").
+    const admin = await seedUser(env, pg.appPool, PASSWORD);
+    await createMemberFixture(pg, { organizationId: org.id, userId: admin.id, role: 'admin' });
+    const adminCookie = await signIn(app, admin.email);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, adminCookie),
+      payload: { orgSlug: org.slug, name: 'dev laptop', scopes: ['governance:read'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    const secret = created.json().secret as string;
+
+    // The owner demotes them to a plain member — an org role change, never a token revocation.
+    const demote = await app.inject({
+      method: 'PATCH',
+      url: `/api/app/organizations/${org.slug}/members/${admin.id}`,
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
+      payload: { role: 'member' },
+    });
+    expect(demote.statusCode).toBe(200);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/policy-docs`,
+      headers: { authorization: `Bearer ${secret}` },
+      payload: { shas: ['a'.repeat(40)] },
+    });
+    expect(res.statusCode).toBe(404);
+
+    await app.close();
+  });
+
+  test('an Origin outside the trusted allowlist is rejected; a trusted or absent Origin is fine (WO-249)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { project, secret } = await setupProject(app);
+
+    const untrusted = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/policy-docs`,
+      headers: { authorization: `Bearer ${secret}`, origin: 'https://evil.example.test' },
+      payload: { shas: ['a'.repeat(40)] },
+    });
+    expect(untrusted.statusCode).toBe(403);
+    expect(untrusted.json()).toEqual({ error: 'origin_not_allowed' });
+
+    const trusted = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/policy-docs`,
+      headers: { authorization: `Bearer ${secret}`, origin: ORIGIN },
+      payload: { shas: ['a'.repeat(40)] },
+    });
+    expect(trusted.statusCode).toBe(200);
 
     await app.close();
   });

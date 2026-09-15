@@ -123,6 +123,71 @@ describe('GET /api/v1/projects/:graphProjectId/governance (WO-178)', () => {
     await app.close();
   });
 
+  test('a personal token whose issuing user has since lost their live role is rejected, even though the token itself was never revoked (WO-257)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { org, project, cookie } = await seedOwnerAndProject(app);
+
+    // An org admin may mint an *unscoped* governance:read token (SDD-006: "heredan admin de proyecto"
+    // — no project_members row needed while they're admin).
+    const admin = await seedUser(env, pg.appPool, PASSWORD);
+    await createMemberFixture(pg, { organizationId: org.id, userId: admin.id, role: 'admin' });
+    const adminCookie = await signIn(app, admin.email);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, adminCookie),
+      payload: { orgSlug: org.slug, name: 'dev laptop', scopes: ['governance:read'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    expect(created.statusCode).toBe(200);
+    const secret = created.json().secret as string;
+
+    // Works while the issuing user is still an org admin.
+    const stillAdmin = await app.inject({ method: 'GET', url: `/api/v1/projects/${project.graphProjectId}/governance`, headers: { authorization: `Bearer ${secret}` } });
+    expect(stillAdmin.statusCode).toBe(200);
+
+    // The owner demotes them to a plain member — an org role change, never a token revocation, and
+    // they never had a `project_members` row of their own for this project.
+    const demote = await app.inject({
+      method: 'PATCH',
+      url: `/api/app/organizations/${org.slug}/members/${admin.id}`,
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
+      payload: { role: 'member' },
+    });
+    expect(demote.statusCode).toBe(200);
+
+    const afterDemotion = await app.inject({ method: 'GET', url: `/api/v1/projects/${project.graphProjectId}/governance`, headers: { authorization: `Bearer ${secret}` } });
+    expect(afterDemotion.statusCode).toBe(404);
+
+    // The token itself was never revoked — only the live role re-check caused this to fail.
+    const { rows } = await pg.ownerPool.query(`SELECT revoked_at FROM api_tokens WHERE prefix = $1`, [secret.split('.')[0]]);
+    expect(rows[0].revoked_at).toBeNull();
+
+    await app.close();
+  });
+
+  test('an Origin outside the trusted allowlist is rejected; a trusted or absent Origin is fine (WO-249)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { project, cookie, org } = await seedOwnerAndProject(app);
+    const secret = await issueCiToken(app, org, project, cookie, ['governance:read']);
+
+    const untrusted = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${project.graphProjectId}/governance`,
+      headers: { authorization: `Bearer ${secret}`, origin: 'https://evil.example.test' },
+    });
+    expect(untrusted.statusCode).toBe(403);
+    expect(untrusted.json()).toEqual({ error: 'origin_not_allowed' });
+
+    const trusted = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${project.graphProjectId}/governance`,
+      headers: { authorization: `Bearer ${secret}`, origin: ORIGIN },
+    });
+    expect(trusted.statusCode).toBe(200);
+
+    await app.close();
+  });
+
   test('a token without governance:read gets 403', async () => {
     const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
     const { org, project, cookie } = await seedOwnerAndProject(app);

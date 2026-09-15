@@ -13,6 +13,7 @@ import {
   listOrganizationMembers,
   listOrganizationsForUser,
   removeOrganizationMember,
+  revokeUserTokensForOrg,
   setMemberRole,
 } from '@prdm/db';
 import { setActiveOrganizationInputSchema, updateOrgMemberRoleInputSchema } from '@prdm/contracts';
@@ -131,6 +132,11 @@ export function registerOrganizationRoutes(app: FastifyInstance, opts: RegisterO
         ip: req.ip,
         userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined,
       });
+
+    // WO-257 (security review): losing org membership must also invalidate every personal token this
+    // user already issued for this org — scoped or not — not just whatever live `/collab` sessions
+    // happen to be open right now.
+    await revokeUserTokensForOrg(pool, { orgId: org.id, userId: req.params.userId });
 
     return { userId: req.params.userId };
   });

@@ -4,7 +4,7 @@
  * rejected, a cookie riding along on a Bearer route is rejected, and failed Bearer attempts are
  * rate-limited.
  */
-import { createMemberFixture, createOrganizationFixture, openTestPg, truncateAll, type PgTestDb } from '@prdm/testkit';
+import { createMemberFixture, createOrganizationFixture, createProjectFixture, openTestPg, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
 import { FakeMailer } from '../../src/mailer.js';
@@ -226,6 +226,102 @@ describe('/api/app/tokens, /api/v1/me and the Bearer plugin (WO-109)', () => {
     clockRef.now = future;
     const res = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { authorization: `Bearer ${secret}` } });
     expect(res.statusCode).toBe(401);
+
+    await app.close();
+  });
+
+  test('a project non-member cannot get a personal token scoped to that project, even as its own creator (WO-257)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const org = await createOrganizationFixture(pg);
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    const member = await seedUser(env, pg.appPool, PASSWORD);
+    await createMemberFixture(pg, { organizationId: org.id, userId: member.id, role: 'member' });
+    const memberCookie = await signIn(app, member.email);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, memberCookie),
+      payload: { orgSlug: org.slug, name: 'sneaky', scopes: ['mcp:read'], projectIds: [project.id], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    expect(res.statusCode).toBe(403);
+
+    // The same request succeeds once the caller actually has a `project_members` row for it.
+    await pg.ownerPool.query(`INSERT INTO project_members (project_id, org_id, user_id, role) VALUES ($1, $2, $3, 'developer')`, [project.id, org.id, member.id]);
+    const ok = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, memberCookie),
+      payload: { orgSlug: org.slug, name: 'legit', scopes: ['mcp:read'], projectIds: [project.id], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    expect(ok.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  test('an org owner/admin may scope a token to any project in the org without a project_members row (WO-257)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const org = await createOrganizationFixture(pg);
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    const ownerCookie = await signIn(app, owner.email);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, ownerCookie),
+      payload: { orgSlug: org.slug, name: 'owner scoped', scopes: ['mcp:read'], projectIds: [project.id], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    expect(res.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  test('an unscoped personal token with governance:read or reports:write requires an org admin (WO-257)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const org = await createOrganizationFixture(pg);
+    const member = await seedUser(env, pg.appPool, PASSWORD);
+    await createMemberFixture(pg, { organizationId: org.id, userId: member.id, role: 'member' });
+    const memberCookie = await signIn(app, member.email);
+
+    const deniedGovernance = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, memberCookie),
+      payload: { orgSlug: org.slug, name: 'unscoped', scopes: ['governance:read'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    expect(deniedGovernance.statusCode).toBe(403);
+
+    const deniedReportsWrite = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, memberCookie),
+      payload: { orgSlug: org.slug, name: 'unscoped', scopes: ['reports:write'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    expect(deniedReportsWrite.statusCode).toBe(403);
+
+    // A scope not on the sensitive list is unaffected — a plain member can still get an unscoped
+    // mcp:read token (which only ever exposes projects they can already see, per its own contract).
+    const allowedMcp = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, memberCookie),
+      payload: { orgSlug: org.slug, name: 'unscoped mcp', scopes: ['mcp:read'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    expect(allowedMcp.statusCode).toBe(200);
+
+    // An org owner is exempt from the restriction entirely.
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    const ownerCookie = await signIn(app, owner.email);
+    const ownerAllowed = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, ownerCookie),
+      payload: { orgSlug: org.slug, name: 'owner unscoped', scopes: ['governance:read'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    expect(ownerAllowed.statusCode).toBe(200);
 
     await app.close();
   });

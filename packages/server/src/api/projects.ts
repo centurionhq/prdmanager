@@ -25,7 +25,7 @@ import {
   type PermissionSubject,
   type ProjectSummary,
 } from '@prdm/contracts';
-import { assertNoSecretsInAuditMetadata, createTenantDb, type OrgRole, type ProjectRecord } from '@prdm/db';
+import { assertNoSecretsInAuditMetadata, createTenantDb, revokeUserTokensForProject, type OrgRole, type ProjectRecord } from '@prdm/db';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
@@ -288,6 +288,11 @@ export function registerProjectRoutes(app: FastifyInstance, opts: RegisterProjec
 
     // SDD-008 (WO-148): "quitar miembro ... cierra las conexiones afectadas".
     collabRevocationHub?.revokeUserProjectAccess(req.params.userId, project.id);
+
+    // WO-257 (security review): a personal token this user already issued, scoped to this project,
+    // must stop working the instant they're removed from it — not just their live `/collab` sessions.
+    // An unscoped token is left alone (see `revokeUserTokensForProject`'s own doc comment).
+    await revokeUserTokensForProject(pool, { orgId: org.id, userId: req.params.userId, projectId: project.id });
 
     return { userId: req.params.userId };
   });

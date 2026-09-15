@@ -18,9 +18,44 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
 import type { ServerEnv } from '../env.js';
-import { NotFoundError, ValidationError } from '../errors.js';
+import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { requireAppSession } from './app-session.js';
-import { requireMemberOrg } from './require-member-org.js';
+import { isOrgAdmin } from './projects.js';
+import { requireMemberOrg, type MemberOrg } from './require-member-org.js';
+
+/** SDD-006 §Permisos "Scopes de tokens": a plain org member's own role never grants them read access to
+ * *every* project's governed content org-wide — only an org owner/admin's does. An unscoped personal
+ * token (no `projectIds`, meaning "every project I can currently see") carrying either of these scopes
+ * would otherwise hand a plain member exactly that, so it's rejected outright rather than silently
+ * narrowed to their currently-visible projects (WO-257, security review). */
+const SCOPES_REQUIRING_ORG_ADMIN_WHEN_UNSCOPED: readonly string[] = ['governance:read', 'reports:write'];
+
+/**
+ * WO-257 (security review): `createPersonalToken`'s own `assertProjectIdsBelongToOrg` only proves a
+ * requested `projectIds` entry belongs to *this organization* — never that the creating user themselves
+ * has any standing in it. Without this, any org member could mint a token scoped to a project they have
+ * no `project_members` row in at all. An org owner/admin already has standing in every project in the org
+ * (SDD-006: "owner y admin de organización heredan admin de proyecto"), so this only ever does real work
+ * for a plain `member` — the same membership lookup `resolveVisibleProject`/`resolveBearerProjectSubject`
+ * use for the same reason.
+ */
+async function assertCanScopeTokenToProjects(pool: Pool, org: MemberOrg, userId: string, requestedProjectIds: readonly string[] | undefined, scopes: readonly string[]): Promise<void> {
+  if (isOrgAdmin(org.role)) return;
+
+  const projectIds = requestedProjectIds ?? [];
+  if (projectIds.length === 0) {
+    if (scopes.some((scope) => SCOPES_REQUIRING_ORG_ADMIN_WHEN_UNSCOPED.includes(scope))) {
+      throw new ForbiddenError('an unscoped personal token with governance:read or reports:write requires an organization admin');
+    }
+    return;
+  }
+
+  const tenantProjects = createTenantDb(pool).forOrg(org.id);
+  for (const projectId of projectIds) {
+    const membership = await tenantProjects.forProject(projectId).members.findForUser(userId);
+    if (!membership) throw new ForbiddenError('you must be a member of every project this token is scoped to');
+  }
+}
 
 export interface RegisterTokenRoutesOptions {
   auth: Auth;
@@ -79,6 +114,8 @@ export function registerTokenRoutes(app: FastifyInstance, opts: RegisterTokenRou
 
     const parsed = createPersonalTokenInputSchema.safeParse(body);
     if (!parsed.success) throw new ValidationError('invalid body');
+
+    await assertCanScopeTokenToProjects(pool, org, session.user.id, parsed.data.projectIds, parsed.data.scopes);
 
     const now = clock();
     let created;

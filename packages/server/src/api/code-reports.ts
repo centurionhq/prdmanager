@@ -31,8 +31,8 @@
  * side's contribution.
  */
 import { randomUUID } from 'node:crypto';
-import { codeReportRequestSchema, GITHUB_OIDC_TOKEN_HEADER, MAX_CODE_REPORT_BODY_BYTES, projectSettingsSchema, type CodeReportResponse } from '@prdm/contracts';
-import { detectDrift, emptyBaseline, scanContents, sha256, type Baseline, type Neo4jGraphDatabase } from '@prdm/core';
+import { can, codeReportRequestSchema, GITHUB_OIDC_TOKEN_HEADER, MAX_CODE_REPORT_BODY_BYTES, projectSettingsSchema, type CodeReportResponse } from '@prdm/contracts';
+import { detectDrift, emptyBaseline, sha256, type Baseline, type Neo4jGraphDatabase } from '@prdm/core';
 import {
   consumeForcePushOverride,
   createTenantDb,
@@ -48,10 +48,14 @@ import {
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
+import { resolveBearerProjectSubject } from './bearer-project-subject.js';
+import { rejectUntrustedOrigin } from './trusted-origin.js';
 import { codeReportToDriftInput } from '../engine/code-report-adapter.js';
 import { evaluateBaselineGate } from '../engine/baseline-gate.js';
 import { requireNeo4j, resolvePgProjectEngine } from '../engine/resolve-pg-project-engine.js';
-import { NotFoundError, ValidationError } from '../errors.js';
+import { createScannedDocsCache, type ScannedDocsCache } from '../engine/scanned-docs-cache.js';
+import { NotFoundError, RateLimitedError, ValidationError } from '../errors.js';
+import type { CodeReportRateLimiter } from '../rate-limit/code-report-rate-limits.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -65,6 +69,9 @@ declare module 'fastify' {
 export interface RegisterCodeReportRoutesOptions {
   pool: Pool;
   neo4j?: Neo4jGraphDatabase;
+  rateLimiter: CodeReportRateLimiter;
+  /** Test-only override (WO-261) — production always gets a fresh, real `createScannedDocsCache()`. */
+  scannedDocsCache?: ScannedDocsCache;
 }
 
 interface CodeReportRouteParams {
@@ -79,7 +86,7 @@ async function loadBaseline(pool: Pool, orgId: string, projectId: string): Promi
 }
 
 export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCodeReportRoutesOptions): void {
-  const { pool, neo4j } = opts;
+  const { pool, neo4j, rateLimiter, scannedDocsCache = createScannedDocsCache() } = opts;
 
   // Scoped registration (not the top-level `app`): the raw-body-capturing content-type parser below
   // must only ever apply to this one route, never to every other `application/json` route on the
@@ -102,10 +109,29 @@ export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCod
       '/api/v1/projects/:graphProjectId/code-reports',
       { config: { access: { kind: 'bearer', scope: 'reports:write' } }, bodyLimit: MAX_CODE_REPORT_BODY_BYTES },
       async (req, reply) => {
+        if (rejectUntrustedOrigin(req, reply)) return undefined;
+
         const token = req.token!;
         const resolved = await resolveProjectByGraphProjectId(pool, req.params.graphProjectId);
         if (!resolved || resolved.orgId !== token.orgId) throw new NotFoundError();
         if (token.projectIds && !token.projectIds.includes(resolved.projectId)) throw new NotFoundError();
+
+        // WO-257: a `project_ci` token has no user behind it to re-check (it's a project-scoped machine
+        // credential, not issued on anyone's behalf) — only a personal token's live role can have moved
+        // since it was issued, so only a personal token gets this extra check. Same 404 as every other
+        // IDOR-safe failure in this handler: never confirms the project exists to a caller who no longer
+        // has standing to report against it.
+        if (token.userId) {
+          const subject = await resolveBearerProjectSubject(pool, resolved.orgId, resolved.projectId, token.userId);
+          if (!subject || !can(subject, 'report_code_preview')) throw new NotFoundError();
+        }
+
+        // WO-259: volume abuse protection, same per-token budget for baseline and preview reports alike.
+        const rateLimit = await rateLimiter.check(req, token.tokenId);
+        if (!rateLimit.allowed) {
+          reply.header('retry-after', String(rateLimit.retryAfterSeconds));
+          throw new RateLimitedError();
+        }
 
         const idempotencyKeyHeader = req.headers['idempotency-key'];
         if (typeof idempotencyKeyHeader !== 'string' || idempotencyKeyHeader.length === 0) {
@@ -169,11 +195,13 @@ export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCod
         }
         const mode = gate.mode;
 
-        const published = await scope.documents.listPublished();
-        const scanned = scanContents(published.map((doc) => ({ path: doc.sourcePath, content: doc.publishedRaw })));
+        // WO-261: memoized by `graph_version` — an unchanged value already proves nothing published
+        // changed (same signal `governance.ts`'s own ETag trusts), so a report against the same version
+        // this project's already been scanned at never re-reads/re-parses every published document.
+        const scannedDocs = await scannedDocsCache.get(pool, resolved.orgId, resolved.projectId, project.graphVersion);
         const baseline = await loadBaseline(pool, resolved.orgId, resolved.projectId);
 
-        const input = codeReportToDriftInput(report, scanned.docs, baseline);
+        const input = codeReportToDriftInput(report, scannedDocs, baseline);
         const drift = detectDrift(input);
 
         const result: CodeReportResponse = {

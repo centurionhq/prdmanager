@@ -16,10 +16,12 @@
  * differs.
  */
 import { createTenantDb } from '@prdm/db';
-import { projectSettingsSchema, type GovernanceDocumentDto } from '@prdm/contracts';
+import { can, projectSettingsSchema, type GovernanceDocumentDto } from '@prdm/contracts';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { resolveProjectByGraphProjectId } from '@prdm/db';
+import { resolveBearerProjectSubject } from './bearer-project-subject.js';
+import { rejectUntrustedOrigin } from './trusted-origin.js';
 import { NotFoundError } from '../errors.js';
 
 export interface RegisterGovernanceRoutesOptions {
@@ -41,10 +43,20 @@ export function registerGovernanceRoutes(app: FastifyInstance, opts: RegisterGov
     '/api/v1/projects/:graphProjectId/governance',
     { config: { access: { kind: 'bearer', scope: 'governance:read' } } },
     async (req, reply) => {
+      if (rejectUntrustedOrigin(req, reply)) return undefined;
+
       const token = req.token!;
       const resolved = await resolveProjectByGraphProjectId(pool, req.params.graphProjectId);
       if (!resolved || resolved.orgId !== token.orgId) throw new NotFoundError();
       if (token.projectIds && !token.projectIds.includes(resolved.projectId)) throw new NotFoundError();
+
+      // WO-257: a `project_ci` token has no user behind it to re-check; only a personal token's live
+      // role can have drifted since it was issued (a token's own stored scope never expires early on its
+      // own — this is what makes losing project access actually take effect immediately).
+      if (token.userId) {
+        const subject = await resolveBearerProjectSubject(pool, resolved.orgId, resolved.projectId, token.userId);
+        if (!subject || !can(subject, 'view')) throw new NotFoundError();
+      }
 
       const scope = createTenantDb(pool).forOrg(resolved.orgId).forProject(resolved.projectId);
       const project = await scope.get();
