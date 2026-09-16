@@ -13,23 +13,34 @@
  * refreshes those itself.
  *
  * WO-358: "Vista previa"/"Markdown" tabs (`Documento.dc.html`) replace the old single toggle button —
- * "Vista previa" (the read-only `MarkdownPreview` bridge SDD-013 describes until the lossless block
- * editor, ADR-009/SDD-014, replaces it) is the default tab, matching the canvas. The CodeMirror container
- * stays mounted at all times regardless of which tab is active (only visually `hidden`) — recreating it on
- * every tab switch would lose scroll position/undo history for nothing.
+ * "Vista previa" is the default tab, matching the canvas. The CodeMirror container stays mounted at all
+ * times regardless of which tab is active (only visually `hidden`) — recreating it on every tab switch
+ * would lose scroll position/undo history for nothing.
+ *
+ * WO-383: "Vista previa" is the real lossless block editor (`../editor/PreviewEditor.js`, ADR-009/SDD-014)
+ * bound to the exact same `Y.Text('body')` as the Markdown tab's CodeMirror view — replaces the read-only
+ * `MarkdownPreview` bridge SDD-013 described as temporary. `readOnly`/the top banner now come from
+ * `../editor/preview-readonly.js` (shared with `PreviewEditor`'s own conditions — collaboration scope,
+ * generated/archived, disconnected, mobile — rather than this component's previous narrower, scope-only
+ * copy); the Markdown tab's own CodeMirror `readOnly` stays scope-only on purpose (SDD-014 never asked a
+ * *mobile* viewport to disable the Markdown tab, only the block editor's toolbar/cursor).
  */
 import { useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react';
 import { EditorView } from '@codemirror/view';
-import { can, type PermissionSubject } from '@prdm/contracts';
+import { can, type CommentThreadSummary, type PermissionSubject } from '@prdm/contracts';
+import type { BlameResult } from '@prdm/collab';
 import { buildEditorExtensions, readCspNonce } from '../collab/editor-extensions.js';
 import { setBlame } from '../collab/blame-gutter.js';
+import { resolveOpenThreadHighlights, type CommentHighlightRange } from '../collab/comment-highlight.js';
 import { useCollabDocumentContext } from '../collab/collab-document-context.js';
 import { useStatelessMessage } from '../collab/use-stateless-message.js';
 import { getDocumentBlame } from '../api/documents.js';
-import { createCommentThread } from '../api/comments.js';
+import { createCommentThread, listCommentThreads } from '../api/comments.js';
 import { errorMessage } from '../api/error-message.js';
-import { DocumentStateBanner, type DocumentBannerVariant } from './DocumentStateBanner/DocumentStateBanner.js';
-import { MarkdownPreview } from './MarkdownPreview.js';
+import { PreviewEditor } from '../editor/PreviewEditor.js';
+import { usePreviewReadOnly } from '../editor/use-preview-readonly.js';
+import { previewReadOnlyBanner } from '../editor/preview-readonly.js';
+import { DocumentStateBanner } from './DocumentStateBanner/DocumentStateBanner.js';
 import styles from '../styles/editor.module.css';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -45,13 +56,6 @@ export interface CollabEditorProps {
   archived?: boolean;
 }
 
-function bannerVariantFor(status: string, archived: boolean, readOnly: boolean): DocumentBannerVariant | null {
-  if (status === 'disconnected') return 'desconectado';
-  if (archived) return 'archivado';
-  if (readOnly) return 'solo_lectura';
-  return null;
-}
-
 /** Renders inside a `CollabDocumentProvider` (`../routes/DocumentDetail.js`) — never creates its own
  * `HocuspocusProvider`, so it always shares the exact same connection/awareness identity as the
  * frontmatter form and every other panel on the same document page. */
@@ -61,7 +65,6 @@ export function CollabEditor({ subject, archived = false }: CollabEditorProps): 
   const viewRef = useRef<EditorView | null>(null);
   const [editorReady, setEditorReady] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
-  const [bodyText, setBodyText] = useState('');
   // WO-214: `null` whenever the selection is empty — the trigger button is simply absent then, never a
   // disabled button with an unclear reason (SDD-008's own comment UI is transient, tied to selection).
   const [selection, setSelection] = useState<{ from: number; to: number } | null>(null);
@@ -69,8 +72,18 @@ export function CollabEditor({ subject, archived = false }: CollabEditorProps): 
   const [commentDraft, setCommentDraft] = useState('');
   const [commentBusy, setCommentBusy] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
+  const [blame, setBlameState] = useState<BlameResult | null>(null);
+  const [commentThreads, setCommentThreads] = useState<CommentThreadSummary[]>([]);
+  const [commentHighlights, setCommentHighlights] = useState<CommentHighlightRange[]>([]);
 
-  const readOnly = state.scope === 'readonly';
+  // WO-014/SDD-014: this doc's own `origin` is never `'generated'` here — `DocumentDetail.tsx` only ever
+  // mounts `CollabEditor` for `origin === 'collab'` documents, routing every `generated`/`import` document
+  // through its own plain read-only branch instead. Passed through anyway so `isPreviewReadOnly` stays a
+  // complete, honestly-typed function rather than one with a condition that's silently always `false` here.
+  const isGenerated = false;
+  const previewReadOnlyInputs = { collabScope: state.scope, connectionStatus: state.status, isGenerated, isArchived: archived };
+  const codeMirrorReadOnly = state.scope === 'readonly';
+  const previewReadOnly = usePreviewReadOnly(previewReadOnlyInputs);
   const canComment = can(subject, 'comment');
 
   useEffect(() => {
@@ -78,7 +91,7 @@ export function CollabEditor({ subject, archived = false }: CollabEditorProps): 
     const view = new EditorView({
       doc: provider.document.getText('body').toString(),
       extensions: [
-        ...buildEditorExtensions({ provider, readOnly, cspNonce: readCspNonce() }),
+        ...buildEditorExtensions({ provider, readOnly: codeMirrorReadOnly, cspNonce: readCspNonce() }),
         EditorView.updateListener.of((update) => {
           if (!update.selectionSet) return;
           const { from, to } = update.state.selection.main;
@@ -98,8 +111,8 @@ export function CollabEditor({ subject, archived = false }: CollabEditorProps): 
       setSelection(null);
       setShowCommentForm(false);
     };
-    // `readOnly` intentionally excluded: it's re-derived from `state.scope`, which never changes after
-    // the initial `authenticated` event for a real connection — a genuine mid-session role downgrade
+    // `codeMirrorReadOnly` intentionally excluded: it's re-derived from `state.scope`, which never changes
+    // after the initial `authenticated` event for a real connection — a genuine mid-session role downgrade
     // closes the connection instead (WO-148), so there is nothing here to react to by tearing the view
     // down and losing local (unsaved-to-Yjs-yet, though rare) cursor state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,6 +142,18 @@ export function CollabEditor({ subject, archived = false }: CollabEditorProps): 
     }
   }
 
+  // WO-381/WO-383: same shape as `CommentSelectionControls`' callback prop — the Preview tab's own
+  // "Comentar selección" reuses this component's existing `createCommentThread` call and `commentError`
+  // display rather than a second copy of either.
+  async function handlePreviewCreateComment(input: { startIndex: number; endIndex: number; body: string }): Promise<void> {
+    setCommentError(null);
+    try {
+      await createCommentThread(orgSlug, projectSlug, docId, input);
+    } catch (err) {
+      setCommentError(errorMessage(err));
+    }
+  }
+
   function closeCommentForm(): void {
     setShowCommentForm(false);
     setCommentDraft('');
@@ -139,7 +164,10 @@ export function CollabEditor({ subject, archived = false }: CollabEditorProps): 
   // polling, never a timer.
   function refetchBlame(): void {
     getDocumentBlame(orgSlug, projectSlug, docId)
-      .then((blame) => viewRef.current?.dispatch({ effects: setBlame.of(blame) }))
+      .then((result) => {
+        viewRef.current?.dispatch({ effects: setBlame.of(result) });
+        setBlameState(result);
+      })
       .catch(() => undefined); // best-effort: a failed blame fetch never blocks editing
   }
   useEffect(() => {
@@ -148,19 +176,36 @@ export function CollabEditor({ subject, archived = false }: CollabEditorProps): 
   }, [editorReady]);
   useStatelessMessage(provider, 'blame:stale', refetchBlame);
 
-  // WO-165: the preview always reflects the live Y.Text('body'), never a stale server-fetched copy —
-  // kept in a plain React string mirror only while the preview toggle is actually on, so typing in the
-  // editor doesn't re-render a hidden ReactMarkdown tree on every keystroke for nothing.
+  // WO-381: same trigger (`comment:updated`) `CommentsPanel.tsx` already reacts to for its own thread
+  // list — this is a second, independent subscription (not a shared context), matching how blame above is
+  // already fetched independently per panel rather than centralized.
+  function refetchCommentThreads(): void {
+    listCommentThreads(orgSlug, projectSlug, docId)
+      .then(setCommentThreads)
+      .catch(() => undefined); // best-effort: a failed fetch just means no highlights yet, never a crash
+  }
+  useEffect(() => {
+    if (editorReady) refetchCommentThreads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorReady]);
+  useStatelessMessage(provider, 'comment:updated', refetchCommentThreads);
+
+  // WO-381: comment highlights are recomputed on every body change while the preview tab is shown (same
+  // live-anchor-resolution reasoning `CommentsPanel.tsx` already uses for the Markdown tab's decorations)
+  // — an edit shifts a `Y.RelativePosition` anchor, so the highlighted range has to be re-resolved against
+  // the *current* body, not just re-fetched when the thread list itself changes. `PreviewEditor` reads
+  // `provider.document.getText('body')` directly (it's the live `Y.Text`, not a string mirror), so this
+  // effect's only job now is recomputing the highlight ranges.
   useEffect(() => {
     if (!provider || !showPreview) return;
     const body = provider.document.getText('body');
-    const sync = () => setBodyText(body.toString());
+    const sync = () => setCommentHighlights(resolveOpenThreadHighlights(provider.document, commentThreads));
     sync();
     body.observe(sync);
     return () => body.unobserve(sync);
-  }, [provider, showPreview]);
+  }, [provider, showPreview, commentThreads]);
 
-  const banner = bannerVariantFor(state.status, archived, readOnly);
+  const banner = previewReadOnlyBanner(previewReadOnlyInputs);
 
   return (
     <div className={styles.editorShell}>
@@ -168,7 +213,7 @@ export function CollabEditor({ subject, archived = false }: CollabEditorProps): 
         <span className={styles.statusDot} data-status={state.status} aria-hidden="true" />
         <span>{STATUS_LABEL[state.status] ?? state.status}</span>
         {state.synced && <span className={styles.synced}>Sincronizado</span>}
-        {readOnly && (
+        {codeMirrorReadOnly && (
           <span className={styles.readOnlyBadge} role="alert">
             Solo lectura
           </span>
@@ -251,9 +296,16 @@ export function CollabEditor({ subject, archived = false }: CollabEditorProps): 
           {commentError}
         </p>
       )}
-      {showPreview && (
-        <div id="editor-panel-preview" role="tabpanel" aria-labelledby="editor-tab-preview" className={styles.preview} data-testid="markdown-preview">
-          <MarkdownPreview body={bodyText} />
+      {showPreview && provider && (
+        <div id="editor-panel-preview" role="tabpanel" aria-labelledby="editor-tab-preview" className={styles.preview}>
+          <PreviewEditor
+            ytext={provider.document.getText('body')}
+            readOnly={previewReadOnly}
+            awareness={provider.awareness}
+            blame={blame}
+            commentHighlights={commentHighlights}
+            onCreateComment={handlePreviewCreateComment}
+          />
         </div>
       )}
       {/* Kept mounted (never unmounted) while previewing — CodeMirror re-creating its view on every

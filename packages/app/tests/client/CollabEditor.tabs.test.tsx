@@ -1,6 +1,8 @@
 /**
  * WO-358: the "Vista previa"/"Markdown" tabs (`Documento.dc.html`) replacing the old single toggle
  * button, and the state banners (`DocumentoEstados.dc.html`) for archived/read-only/disconnected.
+ * WO-383: "Vista previa" renders the real `PreviewEditor` (`data-testid="preview-editor"`) instead of the
+ * old read-only `MarkdownPreview` bridge.
  */
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -40,7 +42,7 @@ describe('CollabEditor tabs and state banners (WO-358)', () => {
     expect(previewTab.getAttribute('aria-selected')).toBe('true');
     expect(markdownTab.getAttribute('aria-selected')).toBe('false');
     expect(screen.getByTestId('collab-editor-container').hasAttribute('hidden')).toBe(true);
-    expect(screen.getByTestId('markdown-preview')).toBeTruthy();
+    expect(screen.getByTestId('preview-editor')).toBeTruthy();
   });
 
   it('switching to "Markdown" reveals the CodeMirror container and hides the preview', async () => {
@@ -51,7 +53,7 @@ describe('CollabEditor tabs and state banners (WO-358)', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Markdown' }));
 
     expect(screen.getByTestId('collab-editor-container').hasAttribute('hidden')).toBe(false);
-    expect(screen.queryByTestId('markdown-preview')).toBeNull();
+    expect(screen.queryByTestId('preview-editor')).toBeNull();
     expect(screen.getByRole('tab', { name: 'Markdown' }).getAttribute('aria-selected')).toBe('true');
   });
 
