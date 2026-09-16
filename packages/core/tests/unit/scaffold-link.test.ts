@@ -92,6 +92,7 @@ describe('planLink/applyLink (SDD-010, WO-188)', () => {
       const remoteFile = parseRemoteProjectFile(readFileSync(join(root, '.prdm.yaml'), 'utf8'));
       expect(remoteFile.project.id).toBe('prj_0123456789abcdef');
       expect(remoteFile.remote).toEqual({ server: 'https://app.example.com', org: 'acme', project: 'widgets', offlinePolicy: 'warn' });
+      expect(readFileSync(join(root, '.gitignore'), 'utf8')).toContain('.prdm/remote/');
     } finally {
       removeDir(root);
     }
