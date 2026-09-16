@@ -101,6 +101,25 @@ describe('PreviewEditor paste handling (WO-378)', () => {
 
     expect(event.defaultPrevented).toBe(true);
   });
+
+  // WO-386 security gate: even a clipboard whose *plain-text* payload (never an HTML alternative) is a raw
+  // `<img onerror=...>` tag must never become a live, executing DOM element — it can only ever land as
+  // literal `Y.Text` characters, never re-parsed as markdown inline HTML (`source-map.ts`'s
+  // `classifyInlineChildren` has no `html` entry in `ALLOWED_INLINE_KIND`, so a block containing it falls
+  // back to `islandBlock`, rendered read-only through `MarkdownPreview`'s `skipHtml`-hardened react-markdown).
+  it('pastes a raw <img onerror> plain-text payload as inert literal text, never a live element', () => {
+    const ytext = docWithBody('hello world');
+    const { container } = render(<PreviewEditor ytext={ytext} />);
+    const textNode = firstParagraphTextNode();
+    placeCaret(textNode, 5);
+
+    act(() => {
+      textNode.dispatchEvent(makePasteEvent('<img src=x onerror=alert(1)>', ''));
+    });
+
+    expect(ytext.toString()).toContain('<img src=x onerror=alert(1)>');
+    expect(container.querySelector('img')).toBeNull();
+  });
 });
 
 describe('PreviewEditor drop handling (WO-378)', () => {
@@ -133,5 +152,23 @@ describe('PreviewEditor MutationObserver guard (WO-378)', () => {
 
     expect(container.contains(foreign)).toBe(false);
     expect(container.childNodes.length).toBe(childCountBefore);
+  });
+
+  // WO-386 security gate: the app runs under a strict `style-src 'self' 'nonce-…'` CSP with no
+  // `unsafe-inline` — a browser quirk (e.g. autocorrect/extension) injecting a raw `style` attribute is
+  // exactly the kind of foreign mutation this guard exists for. Proven directly rather than assumed: a real
+  // `setAttribute('style', ...)` on a rendered paragraph must be reverted, restoring the pre-mutation value
+  // (here, no attribute at all).
+  it('reverts a foreign style attribute injection on a rendered block', async () => {
+    const ytext = docWithBody('hello world');
+    render(<PreviewEditor ytext={ytext} />);
+    const paragraph = document.querySelector('p[data-block-from]')!;
+    expect(paragraph.hasAttribute('style')).toBe(false);
+
+    paragraph.setAttribute('style', 'color: red');
+
+    await flushMicrotasks();
+
+    expect(paragraph.hasAttribute('style')).toBe(false);
   });
 });

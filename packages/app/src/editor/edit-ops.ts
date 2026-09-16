@@ -144,6 +144,16 @@ export function toggleTask(block: SourceBlock): Splice {
 
 const SAFE_HREF_PATTERN = /^(https?:\/\/|mailto:|\/)/;
 
+/** Allowlist (not denylist) check: only `http(s)://`, `mailto:` and a same-origin root-relative path
+ * render or persist as a real `href` — everything else (`javascript:`, `data:`, `vbscript:`, a bare
+ * scheme-less string a browser would resolve against `document.baseURI`, ...) falls back to `#`. Shared by
+ * {@link insertLink} (the Toolbar's own link popover) and `PreviewEditor.tsx`'s link-run renderer, since a
+ * `javascript:` href can also reach the model through the raw Markdown (CodeMirror) tab or a programmatic
+ * `Y.Text` edit — `insertLink` alone only guards its own UI affordance, not the shared rendering path. */
+export function isSafeHref(href: string): boolean {
+  return SAFE_HREF_PATTERN.test(href);
+}
+
 export function insertLink(
   block: SourceBlock,
   fromInBlock: number,
@@ -154,6 +164,6 @@ export function insertLink(
   const from = block.contentFrom + fromInBlock;
   const to = block.contentFrom + toInBlock;
   const text = source.slice(from, to);
-  const safeHref = SAFE_HREF_PATTERN.test(href) ? href : '#';
+  const safeHref = isSafeHref(href) ? href : '#';
   return { from, to, insert: `[${text}](${safeHref})` };
 }
