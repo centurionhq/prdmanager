@@ -4,28 +4,25 @@
  * `collab/blame-gutter.ts`, portaled into each block's own DOM node the same way `RemoteCursors.tsx` does
  * — a margin badge instead of a CodeMirror line-gutter marker.
  */
-import type { ReactElement, ReactNode, RefObject } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { BlameResult } from '@prdm/collab';
 import { describeAttribution } from '../collab/blame-gutter.js';
 import { blockBlameAttribution } from './block-blame.js';
 import type { SourceBlock } from './source-map.js';
-import { useForceRemount } from './use-force-remount.js';
 import styles from './BlameMargin.module.css';
 
 interface BlockBlamePortalProps {
   block: SourceBlock;
   source: string;
   blame: BlameResult;
-  containerRef: RefObject<HTMLElement | null>;
+  container: HTMLElement | null;
 }
 
-function BlockBlamePortal({ block, source, blame, containerRef }: BlockBlamePortalProps): ReactNode {
-  useForceRemount();
+function BlockBlamePortal({ block, source, blame, container }: BlockBlamePortalProps): ReactNode {
   const attribution = blockBlameAttribution(source, block, blame);
   if (!attribution) return null;
 
-  const container = containerRef.current;
   const target = container?.querySelector(`[data-block-from="${block.from}"] [data-blame-slot]`);
   if (!target) return null;
 
@@ -43,15 +40,15 @@ export interface BlameMarginProps {
   source: string;
   blocks: readonly SourceBlock[];
   blame: BlameResult | null;
-  containerRef: RefObject<HTMLElement | null>;
+  container: HTMLElement | null;
 }
 
-export function BlameMargin({ source, blocks, blame, containerRef }: BlameMarginProps): ReactElement | null {
+export function BlameMargin({ source, blocks, blame, container }: BlameMarginProps): ReactElement | null {
   if (!blame) return null;
   return (
     <>
       {blocks.map((block) => (
-        <BlockBlamePortal key={block.from} block={block} source={source} blame={blame} containerRef={containerRef} />
+        <BlockBlamePortal key={block.from} block={block} source={source} blame={blame} container={container} />
       ))}
     </>
   );

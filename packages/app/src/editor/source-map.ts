@@ -1,5 +1,5 @@
 import { GFM, parser } from '@lezer/markdown';
-import type { SyntaxNode } from '@lezer/common';
+import type { SyntaxNode, Tree } from '@lezer/common';
 
 export type BlockKind =
   | 'paragraph'
@@ -16,6 +16,11 @@ export interface EditableRun {
   from: number;
   to: number;
   href?: string;
+  /** `link` runs only: absolute source offset of the closing `]` — the structural boundary of the label,
+   * from the syntax tree itself rather than re-derived from raw text later. A regex like `/\](...)$/` on
+   * `source.slice(from, to)` breaks the moment `href` itself contains a `)` (e.g. a `data:` URI wrapping
+   * `alert(1)`), since the regex can't tell that inner `)` apart from the link's own closing paren. */
+  labelTo?: number;
 }
 
 export interface SourceBlock {
@@ -31,7 +36,13 @@ export interface SourceBlock {
 // `Table` must be configured even though only task lists and strikethrough are ever editable: without it,
 // GFM table rows parse as plain `Paragraph` nodes indistinguishable from real paragraphs, which would make
 // a table incorrectly classify as editable instead of an island.
-const markdownParser = parser.configure(GFM);
+//
+// Exported (WO-384) so `parse-cache.ts` can call `.parse(source, fragments)` directly with reusable
+// `TreeFragment`s from a prior parse — a fresh `markdownParser.parse(source)` on every keystroke costs
+// ~20-25ms on a realistic ~200KB document (measured directly, see PreviewEditor.performance.test.tsx),
+// blowing the 16ms-per-edit budget before any DOM work even starts; lezer's incremental fragment reuse
+// drops that to low single-digit milliseconds by only re-parsing around the edited range.
+export const markdownParser = parser.configure(GFM);
 
 const ALLOWED_INLINE_KIND: Readonly<Record<string, EditableRun['kind']>> = {
   Emphasis: 'emphasis',
@@ -42,7 +53,13 @@ const ALLOWED_INLINE_KIND: Readonly<Record<string, EditableRun['kind']>> = {
 };
 
 export function classifyDocument(source: string): SourceBlock[] {
-  const tree = markdownParser.parse(source);
+  return classifyTree(markdownParser.parse(source), source);
+}
+
+/** Split out from `classifyDocument` (WO-384) so `parse-cache.ts` can supply an already-parsed `Tree` —
+ * built via `markdownParser.parse(source, fragments)` reusing a prior parse's fragments — instead of every
+ * caller re-parsing `source` from scratch. */
+export function classifyTree(tree: Tree, source: string): SourceBlock[] {
   const blocks: SourceBlock[] = [];
   let node = tree.topNode.firstChild;
 
@@ -200,9 +217,10 @@ function classifyInlineChildren(
 
     if (kind === 'link') {
       const href = resolveLinkHref(child, source);
-      if (href === null) return null;
+      const labelTo = resolveLinkLabelTo(child);
+      if (href === null || labelTo === null) return null;
       flushText(source, pos, child.from, runs);
-      runs.push({ kind: 'link', from: child.from, to: child.to, href });
+      runs.push({ kind: 'link', from: child.from, to: child.to, href, labelTo });
     } else {
       flushText(source, pos, child.from, runs);
       runs.push({ kind, from: child.from, to: child.to });
@@ -220,6 +238,22 @@ function resolveLinkHref(node: SyntaxNode, source: string): string | null {
   let child = node.firstChild;
   while (child) {
     if (child.type.name === 'URL') return source.slice(child.from, child.to);
+    child = child.nextSibling;
+  }
+  return null;
+}
+
+/** A `Link` node's children are `LinkMark("[")`, the label's own inline nodes, `LinkMark("]")`,
+ * `LinkMark("(")`, `URL`, `LinkMark(")")` — the second `LinkMark` is always the closing bracket, i.e. the
+ * label's own end, regardless of what characters the URL itself contains. */
+function resolveLinkLabelTo(node: SyntaxNode): number | null {
+  let child = node.firstChild;
+  let linkMarkCount = 0;
+  while (child) {
+    if (child.type.name === 'LinkMark') {
+      linkMarkCount++;
+      if (linkMarkCount === 2) return child.from;
+    }
     child = child.nextSibling;
   }
   return null;

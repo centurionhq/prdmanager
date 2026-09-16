@@ -5,7 +5,7 @@
  */
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { createRef } from 'react';
+import { useState } from 'react';
 import { BlameMargin } from '../../src/editor/BlameMargin.js';
 import type { BlameResult } from '@prdm/collab';
 
@@ -30,9 +30,9 @@ describe('BlameMargin (WO-381)', () => {
     ];
 
     function Harness() {
-      const containerRef = createRef<HTMLDivElement>();
+      const [container, setContainer] = useState<HTMLDivElement | null>(null);
       return (
-        <div ref={containerRef}>
+        <div ref={setContainer}>
           <p data-block-from={0} data-block-to={12}>
             First block.
             <span data-blame-slot="" />
@@ -41,7 +41,7 @@ describe('BlameMargin (WO-381)', () => {
             Second block.
             <span data-blame-slot="" />
           </p>
-          <BlameMargin source={source} blocks={blocks} blame={blame} containerRef={containerRef} />
+          <BlameMargin source={source} blocks={blocks} blame={blame} container={container} />
         </div>
       );
     }

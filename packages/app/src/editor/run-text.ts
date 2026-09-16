@@ -8,8 +8,6 @@
  */
 import type { EditableRun, SourceBlock } from './source-map.js';
 
-const LINK_LABEL_PATTERN = /^\[(.*)\]\([^)]*\)$/s;
-
 export function runDisplayText(source: string, run: EditableRun): string {
   const raw = source.slice(run.from, run.to);
   switch (run.kind) {
@@ -25,7 +23,9 @@ export function runDisplayText(source: string, run: EditableRun): string {
     case 'strikethrough':
       return raw.slice(2, -2);
     case 'link':
-      return LINK_LABEL_PATTERN.exec(raw)?.[1] ?? raw;
+      // `labelTo` is the closing `]`'s own offset (source-map.ts, from the syntax tree, not a regex on
+      // `raw`) — a regex like `/\](...)$/` breaks the moment `href` itself contains a `)`.
+      return run.labelTo !== undefined ? source.slice(run.from + 1, run.labelTo) : raw;
   }
 }
 
