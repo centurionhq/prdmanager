@@ -2,12 +2,17 @@
 id: "WO-345"
 type: "WO"
 title: "Gate: correcciones del code review"
-status: "pending"
+status: "done"
 created_at: "2026-09-15"
 implements: ["SDD-012"]
 impacts_paths: ["packages/contracts/src/**","packages/contracts/tests/**","packages/core/src/**","packages/core/tests/**","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/server/src/**","packages/server/tests/**","packages/mcp/src/**","package.json","package-lock.json","vitest.config.ts","tsconfig.test.json"]
 source_task: "f3fe3552ee94593a"
 tags: ["saas","api","lifecycle","drift","feedback"]
+assigned_to: "agent:claude"
+claimed_at: "2026-09-16T02:29:55.029Z"
+completed_at: "2026-09-16T02:52:46.884Z"
+resolved_by: ["bee09fb5d6b2c8fb8be7132efeca5a048bf5e23b"]
+blueprint_hashes: {"SDD-012":"d425e24bdec27ebfeed89dd830ca2ba9e8d9b34103adffd8aca1417799ccb1cd"}
 ---
 
 ## Objetivo
