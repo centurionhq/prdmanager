@@ -2,11 +2,14 @@
 id: "FB-009"
 type: "FB"
 title: "`prdm link --import` no puede completarse cuando el repo ya tiene un `.prdm.yaml` local (v1)"
-status: "new"
+status: "triaged"
 created_at: "2026-09-16"
 source: "chat"
-informs: ["PRD-007"]
+informs: ["PRD-007", "SDD-010"]
 ---
+
+**Resuelto por WO-391** (`fix(FB-009): let \`prdm link --import\` migrate a repo that already has a local .prdm.yaml`): `planLink` ahora acepta un `.prdm.yaml` local existente cuando `importing: true`, con test de cobertura en `scaffold-link.test.ts` y `link.test.ts`.
+
 
 ## Feedback
 
