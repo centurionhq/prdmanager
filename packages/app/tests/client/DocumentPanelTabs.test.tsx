@@ -30,7 +30,7 @@ describe('DocumentPanelTabs (WO-359)', () => {
 
   it('defaults to the "Agente" tab and switches panels on click without remounting logic twice', async () => {
     mockContext();
-    vi.spyOn(agentApi, 'getAgentConversation').mockResolvedValue({ messages: [], proposals: [] });
+    vi.spyOn(agentApi, 'getAgentConversation').mockResolvedValue({ conversationId: null, messages: [], proposals: [] });
     const listComments = vi.spyOn(commentsApi, 'listCommentThreads').mockResolvedValue([]);
     const listVersions = vi.spyOn(versionsApi, 'listDocumentVersions').mockResolvedValue({ versions: [], total: 0, limit: 20, offset: 0 });
 
@@ -66,7 +66,7 @@ describe('DocumentPanelTabs (WO-359)', () => {
 
   it('the Validación tab publish action calls the real onPublish passed in', async () => {
     mockContext();
-    vi.spyOn(agentApi, 'getAgentConversation').mockResolvedValue({ messages: [], proposals: [] });
+    vi.spyOn(agentApi, 'getAgentConversation').mockResolvedValue({ conversationId: null, messages: [], proposals: [] });
     const onPublish = vi.fn();
     const adminSubject = { orgRole: 'member', projectRole: 'admin' } as const;
 
