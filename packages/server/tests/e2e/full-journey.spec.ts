@@ -144,6 +144,13 @@ async function createDocument(page: Page, kind: string, title: string): Promise<
   await dialog.getByRole('button', { name: 'Crear' }).click();
 }
 
+/** Same "Título" ambiguity as `createDocument`'s own doc comment, on a document's OWN detail page
+ * instead of the creation dialog: `FrontmatterForm`'s `&lt;fieldset&gt;` ("Frontmatter" legend, mapped to
+ * `role="group"`) scopes the lookup so it never matches the documents list's lingering search input. */
+function frontmatterField(page: Page, label: string) {
+  return page.getByRole('group', { name: 'Frontmatter' }).getByLabel(label);
+}
+
 test('full product journey', async ({ browser }) => {
   test.setTimeout(150_000);
   const { baseUrl, org, project, alice, bob, ciTokenSecret, mcpTokenSecret, oidcPrivateKey } = journey;
@@ -172,8 +179,8 @@ test('full product journey', async ({ browser }) => {
     // The live collab document starts empty (see `typeIntoEmptyBody`'s own doc comment) — the frontmatter
     // form's "Título" is filled here for real, not just the one-off title `NewDocumentForm` sent to create
     // the document's very first `document_versions` row.
-    await pageAlice.getByLabel('Título').fill('Product Vision');
-    await pageAlice.getByLabel('Título').blur();
+    await frontmatterField(pageAlice, 'Título').fill('Product Vision');
+    await frontmatterField(pageAlice, 'Título').blur();
   });
 
   await test.step('Bob opens the same PRD', async () => {
@@ -201,6 +208,9 @@ test('full product journey', async ({ browser }) => {
     await pageBob.getByLabel('Nuevo comentario').fill('Let’s keep latency low here.');
     await pageBob.getByRole('button', { name: 'Comentar', exact: true }).click();
 
+    // WO-359: the side panels (Agente/Comentarios/Versiones/Validación) live behind their own tab set
+    // now, defaulting to "Agente" — Alice must switch to "Comentarios" before that region exists.
+    await pageAlice.getByRole('tab', { name: 'Comentarios' }).click();
     const comments = pageAlice.getByRole('region', { name: 'Comentarios' });
     await expect(comments.getByText('Let’s keep latency low here.')).toBeVisible();
   });
@@ -238,8 +248,8 @@ test('full product journey', async ({ browser }) => {
     const fbDocId = (await link.textContent())!.trim();
     await link.click();
 
-    await pageAlice.getByLabel('Título').fill('Customers ask for real-time collaboration');
-    await pageAlice.getByLabel('Título').blur();
+    await frontmatterField(pageAlice, 'Título').fill('Customers ask for real-time collaboration');
+    await frontmatterField(pageAlice, 'Título').blur();
     await pageAlice.getByLabel('Fuente').fill('other');
     await pageAlice.getByLabel('Fuente').blur();
     // `root: true` (never "Informa a" pointing forward at the not-yet-published PRD): a publish-mode
@@ -296,8 +306,8 @@ test('full product journey', async ({ browser }) => {
     await link.click();
     await expect(pageAlice.getByRole('heading', { name: 'Collaboration System Design' })).toBeVisible();
 
-    await pageAlice.getByLabel('Título').fill('Collaboration System Design');
-    await pageAlice.getByLabel('Título').blur();
+    await frontmatterField(pageAlice, 'Título').fill('Collaboration System Design');
+    await frontmatterField(pageAlice, 'Título').blur();
     await pageAlice.getByLabel('Arquitecta a').fill(prdDocId);
     await pageAlice.getByLabel('Arquitecta a').blur();
     await pageAlice.getByLabel('Rutas impactadas').fill('packages/app/src/e2e/vision.ts');
