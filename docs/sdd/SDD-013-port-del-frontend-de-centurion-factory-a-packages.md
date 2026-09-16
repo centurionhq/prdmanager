@@ -79,3 +79,4 @@ Cada pantalla porta sus tests de interacción existentes (render por rol y nombr
 - [ ] Gate: correcciones de la revisión de seguridad (hrefs, open redirect de `next=`, XSS en el Markdown renderizado)
 - [ ] Gate: correcciones del code review
 - [ ] Dogfooding: `prdm link --import` de este repositorio a una instancia SaaS local; comparar Planta, Árbol y Entrada contra `prdm tree` local; los hallazgos quedan como FB nuevos; actualizar el README con la guía de dev de `packages/app` conectado
+- [ ] Gate: correcciones post-cierre encontradas por CI en `full-journey.spec.ts` (paneles con tabs de WO-359, colisión de `getByLabel('Título')` en el frontmatter)
