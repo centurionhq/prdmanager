@@ -1,0 +1,111 @@
+/**
+ * WO-369 — accessibility gate for SDD-013's ported frontend screens: an axe-core scan of every major
+ * screen/state (see `./accessibility-helpers.ts` for the shared harness/scan setup this file and
+ * `accessibility-editor.spec.ts` both use).
+ */
+import { expect, test } from '@playwright/test';
+import { startJourney, stopJourney, type Journey } from './harness.js';
+import { expectNoViolations, login, switchToMarkdownTab } from './accessibility-helpers.js';
+
+let journey: Journey;
+
+test.beforeAll(async () => {
+  journey = await startJourney();
+});
+
+test.afterAll(async () => {
+  if (journey) await stopJourney(journey);
+});
+
+test.describe('Accessibility gate: ported frontend screens (WO-369)', () => {
+  test('anonymous auth screens are clean', async ({ page }) => {
+    const { baseUrl } = journey;
+
+    await page.goto(`${baseUrl}/login`);
+    await expectNoViolations(page, '/login');
+
+    await page.goto(`${baseUrl}/reset-password`);
+    await expectNoViolations(page, '/reset-password (request step)');
+
+    await page.goto(`${baseUrl}/invite/nonexistent-invitation-id#s=test-secret`);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expectNoViolations(page, '/invite/:id (new-user form)');
+  });
+
+  test('org- and project-level screens are clean', async ({ page }) => {
+    const { baseUrl, org, project, alice } = journey;
+    await login(page, baseUrl, alice.email);
+
+    await page.goto(`${baseUrl}/o/${org.slug}`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Proyectos' })).toBeVisible();
+    await expectNoViolations(page, '/o/:orgSlug (Proyectos)');
+
+    await page.goto(`${baseUrl}/o/${org.slug}/ajustes/miembros`);
+    await expectNoViolations(page, 'org ajustes/miembros');
+
+    await page.goto(`${baseUrl}/o/${org.slug}/ajustes/auditoria`);
+    await expectNoViolations(page, 'org ajustes/auditoria');
+
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Planta' })).toBeVisible();
+    await expectNoViolations(page, 'Planta');
+
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/arbol`);
+    await expectNoViolations(page, 'Árbol de features');
+
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/ordenes`);
+    await expectNoViolations(page, 'Órdenes');
+
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/drift`);
+    await expectNoViolations(page, 'Drift');
+
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/entrada`);
+    await expectNoViolations(page, 'Entrada');
+
+    for (const tab of ['general', 'miembros', 'tokens', 'tokens-personales', 'perfil', 'auditoria']) {
+      await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/ajustes/${tab}`);
+      await expectNoViolations(page, `project ajustes/${tab}`);
+    }
+  });
+
+  test('the documents list, its "Nuevo documento" modal, and a document detail page are clean', async ({ page }) => {
+    const { baseUrl, org, project, alice } = journey;
+    await login(page, baseUrl, alice.email);
+
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents`);
+    await expectNoViolations(page, 'Documentos (list)');
+
+    await page.getByRole('button', { name: 'Nuevo documento' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expectNoViolations(page, 'Documentos: "Nuevo documento" modal (open)');
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Tipo de documento').selectOption('PRD');
+    await dialog.getByLabel('Título').fill('A11y Review PRD');
+    await dialog.getByRole('button', { name: 'Crear' }).click();
+
+    const link = page.getByRole('row', { name: 'A11y Review PRD' }).getByRole('link', { name: /^PRD-\d+$/ });
+    await expect(link).toBeVisible();
+    await link.click();
+    await expect(page.getByRole('heading', { name: 'A11y Review PRD' })).toBeVisible();
+
+    // A body with headings/lists/tasks/a link, so the block editor actually renders every construct
+    // WO-387's own checklist calls out, not just an empty document.
+    await switchToMarkdownTab(page);
+    await page.locator('.cm-content').click();
+    const lines = ['# Overview', '', 'A **bold** point with a [link](https://example.com).', '', '- one', '- two', '', '- [ ] pending task'];
+    for (const [index, line] of lines.entries()) {
+      if (index > 0) await page.keyboard.press('Enter');
+      if (line.length > 0) await page.keyboard.type(line);
+    }
+
+    await page.getByRole('tab', { name: 'Vista previa' }).click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Overview' })).toBeVisible();
+    // The page's own document-title `<h1>` must stay the only level-one heading even once the body has
+    // its own top-level heading (WO-387's `PreviewEditor.tsx` fix).
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    await expectNoViolations(page, 'DocumentDetail (Vista previa tab, with headings/lists/tasks/link)');
+
+    await switchToMarkdownTab(page);
+    await expectNoViolations(page, 'DocumentDetail (Markdown tab)');
+  });
+});

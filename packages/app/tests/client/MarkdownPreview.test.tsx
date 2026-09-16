@@ -89,4 +89,14 @@ describe('MarkdownPreview — XSS payloads never execute or render as live marku
     expect(checkboxes[0]?.checked).toBe(false);
     expect(checkboxes[1]?.checked).toBe(true);
   });
+
+  // WO-369/WO-387 (accessibility gate): `remark-gfm`'s own task-list checkbox has no accessible name at
+  // all by default (axe: "Form elements must have labels", critical) — real when a task list is nested
+  // deeply enough that `PreviewEditor.tsx` falls back to rendering it here as an island.
+  test('GFM task-list checkboxes have an accessible name that tracks checked state', () => {
+    render(<MarkdownPreview body={'- [ ] Revisión visual\n- [x] Capturas de cada vista'} />);
+
+    expect(screen.getByRole('checkbox', { name: 'Tarea pendiente' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'Tarea completada' })).toBeTruthy();
+  });
 });
