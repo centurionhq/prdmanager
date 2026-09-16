@@ -7,7 +7,9 @@ type: "PRD"
 implements: []
 evolves_from: ["PRD-006"]
 justified_by: ["FB-007"]
-status: "approved"
+status: "closed"
+closed_at: "2026-09-16T11:02:38.409Z"
+closed_by: "dev:tano"
 ---
 
 ## 1. Visión
