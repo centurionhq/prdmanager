@@ -128,6 +128,7 @@ Unitarios de `deriveLineBoard` (una tabla por regla de estación) y de `attribut
 - [ ] Reenvío de invitación, `lastActiveAt` de miembros y `createdByName` de tokens de CI, con sus sondas
 - [x] Gate: correcciones de la revisión de seguridad (IDOR, alcance de RLS de las rutas nuevas, límites de tasa donde falten, cobertura de auditoría)
 - [ ] Gate: correcciones del code review
+- [ ] Gate post-cierre: reconciliar la baseline de `packages/core/tests/unit/scaffold-link.test.ts` tras el fix de FB-009 (WO-391), que también cae bajo el `impacts_paths` de este SDD
 
 ## Revisión
 
