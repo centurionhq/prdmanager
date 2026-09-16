@@ -84,6 +84,22 @@ describe('GET .../commits and .../code-refs (WO-341)', () => {
     await app.close();
   });
 
+  test('GET .../commits rejects a malformed cursor with 400 invalid cursor', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await setupProject();
+    const ownerCookie = await signIn(app, owner.email);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/commits?cursor=not-a-real-cursor`,
+      headers: { ...AUTH_HOST(), cookie: ownerCookie },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: { code: 'validation_error', message: 'invalid cursor' } });
+
+    await app.close();
+  });
+
   test('GET .../code-refs returns an empty list when nothing has ever been reported', async () => {
     const app = buildApp();
     const { owner, org, project } = await setupProject();
