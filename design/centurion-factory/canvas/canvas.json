@@ -348,6 +348,14 @@
       "w": 900,
       "page": "page-4",
       "text": "PRD-007 · Conexión al backend real — ronda A de canvas\n\nPantallas que el mock de PRD-006 nunca necesitó porque no existía backend real: reseteo de contraseña, aceptar invitación, verificación en dos pasos (login y enrolamiento, obligatoria para superadmins), panel de superadmin, perfil (el nombre es lo único editable: better-auth no permite cambiar el email), tokens personales, auditoría de proyecto y de organización, y miembros de la organización (rol owner/admin/member, distinto del rol por proyecto).\n\nDocumento suma la pantalla de revisión antes de publicar (diff real de frontmatter, impacts_paths y ## Tareas) y un artboard de estados con un selector arriba del marco (generado, archivado, solo lectura, desconectado, presencia, agente) para no repetir seis mockups casi iguales. Avisos reúne tres insignias chicas: commit no verificado por CI, anulación de force-push y límite de tasa.\n\nSigue sin haber SSO real: la ficha de superadmin y la de miembros usan solo email y contraseña. El campo \"Rama\" del token de CI de PRD-006 no tiene equivalente real (la baseline depende de OIDC más la rama por defecto del proyecto), así que Ajustes · tokens personales no lo repite."
+    },
+    {
+      "id": "prd007-ronda-b-verificacion",
+      "x": 0,
+      "y": 3120,
+      "w": 900,
+      "page": "page-4",
+      "text": "PRD-007 · Ronda B — verificación contra datos reales (aprobada 2026-09-15)\n\nNo hizo falta diseño nuevo: las pantallas ya construidas resuelven los 6 puntos de la ronda B con los datos reales del backend.\n\n- Planta es data-driven, sin límite de filas para más de 6 features.\n- \"Esperando el primer reporte de CI\" reemplaza un 0% fabricado cuando el proyecto todavía no tiene reporte.\n- Tokens de CI ya no muestra el campo \"Rama\": explica que la baseline depende de la rama por defecto del proyecto y de OIDC.\n- Login no muestra ningún botón de SSO.\n- Enlazar feedback a una feature explica el caso de un documento colaborativo pendiente de republicar, en vez de tratarlo como error.\n- Un issue de drift sin feature ni blueprint (por ejemplo, un error de escaneo del proyecto) se muestra igual, sin esa etiqueta."
     }
   ],
   "launch": {
