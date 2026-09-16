@@ -1,0 +1,14 @@
+/* Per-block blame margin badge (SDD-014, WO-381) — re-tokenized onto `../styles/tokens.css`. */
+
+.marker {
+  display: inline-block;
+  margin-left: var(--space-1);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-plate);
+  background: var(--relleno);
+  color: var(--apagado);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  vertical-align: super;
+  cursor: default;
+}

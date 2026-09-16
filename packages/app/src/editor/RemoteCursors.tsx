@@ -7,6 +7,7 @@
 import { type ReactElement, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import type { RemoteCursorMarker } from './remote-cursors.js';
+import { useForceRemount } from './use-force-remount.js';
 import styles from './RemoteCursors.module.css';
 
 interface BlockCursorPortalProps {
@@ -15,8 +16,9 @@ interface BlockCursorPortalProps {
 }
 
 function BlockCursorPortal({ marker, containerRef }: BlockCursorPortalProps): ReactNode {
+  useForceRemount();
   const container = containerRef.current;
-  const target = container?.querySelector(`[data-block-from="${marker.blockFrom}"]`);
+  const target = container?.querySelector(`[data-block-from="${marker.blockFrom}"] [data-cursor-slot]`);
   if (!target) return null;
   return createPortal(
     <span
