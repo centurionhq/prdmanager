@@ -1,7 +1,11 @@
 /**
- * Remote `claim_work_order`/`complete_work_order` (SDD-010 "MCP remoto", WO-186): `assignee` bound to
- * the calling token's own handle, `commit_sha` mandatory and verified against a CI-baseline-trusted
- * commit.
+ * Remote `claim_work_order`/`complete_work_order`/`generate_work_orders` (SDD-010 "MCP remoto", WO-186;
+ * `generate_work_orders` added post-migration once this repository's own dogfooding found the dashboard
+ * the only place to turn a blueprint's checklist into claimable Work Orders, leaving a developer's code
+ * assistant with no way to do so at all for a project with no local/stdio project left): `assignee`
+ * bound to the calling token's own handle, `commit_sha` mandatory and verified against a
+ * CI-baseline-trusted commit, and `generate_work_orders` converting a blueprint's unconverted checklist
+ * items into pending WO-xxx documents exactly like the local/stdio profile's own tool.
  */
 import { randomUUID } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -190,6 +194,113 @@ describe('remote claim_work_order / complete_work_order (WO-186)', () => {
     expect(result.isError).toBeFalsy();
     const body = JSON.parse((result.content as { text: string }[])[0]!.text) as { status: string };
     expect(body.status).toBe('done');
+
+    await client.close();
+    await app.close();
+  });
+
+  test('generate_work_orders converts SDD-001\'s unconverted checklist item into a new pending WO', async () => {
+    const { app, baseUrl } = await startApp();
+    const { project, secret } = await setupProjectWithWorkOrder(app);
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClient(`${baseUrl}/mcp/${project.graphProjectId}`, secret));
+
+    const result = await client.callTool({ name: 'generate_work_orders', arguments: { blueprint_id: 'SDD-001' } });
+    expect(result.isError).toBeFalsy();
+    const body = JSON.parse((result.content as { text: string }[])[0]!.text) as { created: { id: string; status: string }[] };
+    expect(body.created).toHaveLength(1);
+    expect(body.created[0]?.status).toBe('pending');
+
+    const listed = await client.callTool({ name: 'list_work_orders', arguments: { blueprint_id: 'SDD-001' } });
+    const listedBody = JSON.parse((listed.content as { text: string }[])[0]!.text) as { results: { id: string }[] };
+    expect(listedBody.results.map((r) => r.id)).toContain(body.created[0]?.id);
+
+    await client.close();
+    await app.close();
+  });
+
+  test('add_blueprint_task appends a task, then generate_work_orders turns it into a claimable WO', async () => {
+    const { app, baseUrl } = await startApp();
+    const { project, secret } = await setupProjectWithWorkOrder(app);
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClient(`${baseUrl}/mcp/${project.graphProjectId}`, secret));
+
+    const added = await client.callTool({ name: 'add_blueprint_task', arguments: { blueprint_id: 'SDD-001', task: 'Nueva tarea remota' } });
+    expect(added.isError).toBeFalsy();
+    const addedBody = JSON.parse((added.content as { text: string }[])[0]!.text) as { blueprint_id: string; task: string };
+    expect(addedBody).toEqual({ blueprint_id: 'SDD-001', task: 'Nueva tarea remota' });
+
+    const generated = await client.callTool({ name: 'generate_work_orders', arguments: { blueprint_id: 'SDD-001' } });
+    const generatedBody = JSON.parse((generated.content as { text: string }[])[0]!.text) as { created: { id: string; title: string }[] };
+    expect(generatedBody.created.map((c) => c.title)).toContain('Nueva tarea remota');
+
+    await client.close();
+    await app.close();
+  });
+
+  test('add_blueprint_task is denied with missing_scope for a token without mcp:write', async () => {
+    const { app, baseUrl } = await startApp();
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    const org = await createOrganizationFixture(pg);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: `saas://project/${project.id}` });
+    await store.clear();
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (id, org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw, published_content_hash)
+       VALUES ($1, $2, $3, 'SDD-001', 'SDD', 'Design', 'docs/blueprints/SDD-001.md', 'generated', 'published', $4, 'h1')`,
+      [randomUUID(), org.id, project.id, '---\nid: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\nimpacts_paths: ["src/**"]\n---\n## Tareas\n- [ ] x\n'],
+    );
+    const cookie = await signIn(app, owner.email);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), cookie),
+      payload: { orgSlug: org.slug, name: 'read only', scopes: ['mcp:read'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    const secret = created.json().secret as string;
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClient(`${baseUrl}/mcp/${project.graphProjectId}`, secret));
+    const result = await client.callTool({ name: 'add_blueprint_task', arguments: { blueprint_id: 'SDD-001', task: 'x' } });
+    expect(result.isError).toBe(true);
+    const body = JSON.parse((result.content as { text: string }[])[0]!.text) as { error: string };
+    expect(body.error).toBe('missing_scope');
+
+    await client.close();
+    await app.close();
+  });
+
+  test('generate_work_orders is denied with missing_scope for a token without mcp:write', async () => {
+    const { app, baseUrl } = await startApp();
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    const org = await createOrganizationFixture(pg);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: `saas://project/${project.id}` });
+    await store.clear();
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (id, org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw, published_content_hash)
+       VALUES ($1, $2, $3, 'SDD-001', 'SDD', 'Design', 'docs/blueprints/SDD-001.md', 'generated', 'published', $4, 'h1')`,
+      [randomUUID(), org.id, project.id, '---\nid: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\nimpacts_paths: ["src/**"]\n---\n## Tareas\n- [ ] x\n'],
+    );
+    const cookie = await signIn(app, owner.email);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), cookie),
+      payload: { orgSlug: org.slug, name: 'read only', scopes: ['mcp:read'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    const secret = created.json().secret as string;
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClient(`${baseUrl}/mcp/${project.graphProjectId}`, secret));
+    const result = await client.callTool({ name: 'generate_work_orders', arguments: { blueprint_id: 'SDD-001' } });
+    expect(result.isError).toBe(true);
+    const body = JSON.parse((result.content as { text: string }[])[0]!.text) as { error: string };
+    expect(body.error).toBe('missing_scope');
 
     await client.close();
     await app.close();

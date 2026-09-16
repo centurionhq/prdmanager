@@ -16,12 +16,12 @@ export interface RegisterPrdmToolsOptions {
    * `'local'` (default, stdio): every tool, resource and prompt this module has, unchanged.
    * `'remote'` (SDD-010's `/mcp/:graphProjectId`, WO-184): read tools, `get_project`/
    * `get_closure_readiness`, a non-refreshing `get_drift_report`, read-only resources and the
-   * `implement_work_order` prompt only — never any authoring tool/prompt, `generate_work_orders`,
-   * `acknowledge_sync`, `refresh_index`, `create_feature_request` or `attach_artifact` (SDD-010's own
-   * table: authoring and drift-acknowledgment only happen in the dashboard). The three remote write
-   * tools (`claim_work_order`/`complete_work_order`/`submit_feedback`) are deliberately NOT registered
-   * here — they need a per-caller `RemoteWriteAuth` this generic function has no reason to know about;
-   * the HTTP route calls `registerRemoteWriteTools` itself once it has resolved one.
+   * `implement_work_order` prompt only — never any authoring tool/prompt, `acknowledge_sync`,
+   * `refresh_index`, `create_feature_request` or `attach_artifact` (SDD-010's own table: document
+   * authoring and drift-acknowledgment only happen in the dashboard). The four remote write tools
+   * (`claim_work_order`/`complete_work_order`/`submit_feedback`/`generate_work_orders`) are deliberately
+   * NOT registered here — they need a per-caller `RemoteWriteAuth` this generic function has no reason to
+   * know about; the HTTP route calls `registerRemoteWriteTools` itself once it has resolved one.
    */
   profile?: PrdmMcpProfile;
 }
