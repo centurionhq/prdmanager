@@ -20,6 +20,7 @@ import { resolvePgProjectEngine, requireNeo4j } from '../engine/resolve-pg-proje
 import type { ServerEnv } from '../env.js';
 import { ForbiddenError, ValidationError } from '../errors.js';
 import { requireAppSession } from './app-session.js';
+import { fetchKeysetPage, keysetPageQuerySchema } from './keyset-page-query.js';
 import { requireMemberOrg } from './require-member-org.js';
 import { resolveVisibleProject } from './projects.js';
 
@@ -35,9 +36,7 @@ interface ProjectRouteParams {
   projectSlug: string;
 }
 
-const listCommitsQuerySchema = z.object({
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(200).optional(),
+const listCommitsQuerySchema = keysetPageQuerySchema.extend({
   ref: z.string().min(1).optional(),
 });
 
@@ -84,12 +83,9 @@ export function registerProjectCodeHistoryRoutes(app: FastifyInstance, opts: Reg
       const parsedQuery = listCommitsQuerySchema.safeParse(req.query);
       if (!parsedQuery.success) throw new ValidationError('invalid query');
 
-      let page;
-      try {
-        page = await listCommits(pool, { projectId: project.id, orgId: org.id, limit: parsedQuery.data.limit, cursor: parsedQuery.data.cursor, ref: parsedQuery.data.ref });
-      } catch {
-        throw new ValidationError('invalid cursor');
-      }
+      const page = await fetchKeysetPage(() =>
+        listCommits(pool, { projectId: project.id, orgId: org.id, limit: parsedQuery.data.limit, cursor: parsedQuery.data.cursor, ref: parsedQuery.data.ref }),
+      );
 
       return { commits: page.items.map(toCommitDto), nextCursor: page.nextCursor };
     },

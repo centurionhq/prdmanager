@@ -21,6 +21,7 @@ import type { Auth } from '../auth/build-auth.js';
 import type { ServerEnv } from '../env.js';
 import { ForbiddenError, ValidationError } from '../errors.js';
 import { requireAppSession } from './app-session.js';
+import { fetchKeysetPage, keysetPageQuerySchema } from './keyset-page-query.js';
 import { isOrgAdmin, resolveVisibleProject } from './projects.js';
 import { requireMemberOrg } from './require-member-org.js';
 
@@ -38,9 +39,7 @@ interface ProjectRouteParams extends OrgRouteParams {
   projectSlug: string;
 }
 
-const auditLogQuerySchema = z.object({
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(200).optional(),
+const auditLogQuerySchema = keysetPageQuerySchema.extend({
   action: z.string().min(1).max(120).optional(),
 });
 
@@ -70,14 +69,11 @@ export function registerAuditLogRoutes(app: FastifyInstance, opts: RegisterAudit
       const parsedQuery = auditLogQuerySchema.safeParse(req.query);
       if (!parsedQuery.success) throw new ValidationError('invalid query');
 
-      let page;
-      try {
-        page = await createTenantDb(pool)
+      const page = await fetchKeysetPage(() =>
+        createTenantDb(pool)
           .forOrg(org.id)
-          .auditLog.list({ projectId: project.id, action: parsedQuery.data.action, cursor: parsedQuery.data.cursor, limit: parsedQuery.data.limit });
-      } catch {
-        throw new ValidationError('invalid cursor');
-      }
+          .auditLog.list({ projectId: project.id, action: parsedQuery.data.action, cursor: parsedQuery.data.cursor, limit: parsedQuery.data.limit }),
+      );
 
       return { entries: page.items.map(toAuditLogEntryDto), nextCursor: page.nextCursor };
     },
@@ -94,14 +90,11 @@ export function registerAuditLogRoutes(app: FastifyInstance, opts: RegisterAudit
       const parsedQuery = auditLogQuerySchema.safeParse(req.query);
       if (!parsedQuery.success) throw new ValidationError('invalid query');
 
-      let page;
-      try {
-        page = await createTenantDb(pool)
+      const page = await fetchKeysetPage(() =>
+        createTenantDb(pool)
           .forOrg(org.id)
-          .auditLog.list({ action: parsedQuery.data.action, cursor: parsedQuery.data.cursor, limit: parsedQuery.data.limit });
-      } catch {
-        throw new ValidationError('invalid cursor');
-      }
+          .auditLog.list({ action: parsedQuery.data.action, cursor: parsedQuery.data.cursor, limit: parsedQuery.data.limit }),
+      );
 
       return { entries: page.items.map(toAuditLogEntryDto), nextCursor: page.nextCursor };
     },
