@@ -23,8 +23,14 @@ const PROTECTED_TAREAS_HEADING = '## Tareas';
 
 // The `## Tareas` guard needs the block's literal text, not just its `kind` (any heading2 with that exact
 // content is protected) — `SourceBlock` only carries offsets, so the guarded functions accept `source` too.
+// Exported so callers outside this module (Toolbar.tsx) can disable a UI affordance up front instead of
+// only ever finding out from a thrown error.
+export function isProtectedTareasHeading(block: SourceBlock, source: string): boolean {
+  return block.kind === 'heading2' && source.slice(block.from, block.to) === PROTECTED_TAREAS_HEADING;
+}
+
 function assertNotProtectedTareasHeading(block: SourceBlock, source: string): void {
-  if (block.kind === 'heading2' && source.slice(block.from, block.to) === PROTECTED_TAREAS_HEADING) {
+  if (isProtectedTareasHeading(block, source)) {
     throw new Error('El encabezado ## Tareas no se puede editar desde la vista previa');
   }
 }

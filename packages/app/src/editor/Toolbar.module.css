@@ -1,0 +1,86 @@
+/* Formatting toolbar for the preview editor (SDD-014, WO-379) — re-tokenized onto
+   `../styles/tokens.css`, same shape as the Centurion Factory canvas's own Toolbar.module.css. */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--rule);
+  background: var(--superficie);
+  flex-wrap: wrap;
+}
+
+.group {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--regla);
+  margin: 0 var(--space-1);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 var(--space-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-plate);
+  color: var(--texto-secundario);
+  cursor: pointer;
+}
+
+.button:disabled {
+  color: var(--regla);
+  cursor: not-allowed;
+}
+
+.button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.textButton {
+  font-size: var(--text-sm);
+}
+
+.pressed {
+  background: var(--relleno);
+  border-color: var(--regla);
+  color: var(--grafito);
+  font-weight: 600;
+}
+
+.linkPopover {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  width: 100%;
+}
+
+.linkInput {
+  flex: 1;
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-input);
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  color: var(--grafito);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

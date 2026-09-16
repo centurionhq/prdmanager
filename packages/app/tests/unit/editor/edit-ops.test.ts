@@ -7,6 +7,7 @@ import {
   escapeMarkdownText,
   insertLink,
   insertText,
+  isProtectedTareasHeading,
   joinBlocks,
   setBlockType,
   splitBlock,
@@ -313,6 +314,17 @@ describe('the "## Tareas" heading is never editable from the preview', () => {
 
   it('splitBlock throws', () => {
     expect(() => splitBlock(block, 3, source)).toThrow(/## Tareas/);
+  });
+
+  it('isProtectedTareasHeading reports true for the exact "## Tareas" heading2 block', () => {
+    expect(isProtectedTareasHeading(block, source)).toBe(true);
+  });
+
+  it('isProtectedTareasHeading reports false for any other heading2 or block kind', () => {
+    const otherHeading = '## Other';
+    expect(isProtectedTareasHeading(firstBlock(otherHeading), otherHeading)).toBe(false);
+    const paragraph = 'Tareas';
+    expect(isProtectedTareasHeading(firstBlock(paragraph), paragraph)).toBe(false);
   });
 });
 

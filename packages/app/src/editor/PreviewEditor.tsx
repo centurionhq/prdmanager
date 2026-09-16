@@ -11,11 +11,15 @@
  * edit to `ytext` instead — the browser's own DOM mutation never happens, `ytext.toString()` stays the only
  * source of truth. Composition/paste/drop handling is WO-378's.
  */
-import { useEffect, useReducer, useRef, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useReducer, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactElement, type ReactNode } from 'react';
 import * as Y from 'yjs';
 import { classifyDocument, type BlockKind, type EditableRun, type SourceBlock } from './source-map.js';
 import { runDisplayText } from './run-text.js';
 import { usePreviewInput } from './use-preview-input.js';
+import { usePreviewSelection } from './use-preview-selection.js';
+import { toggleMark } from './edit-ops.js';
+import { applySplice } from './y-binding.js';
+import { matchMarkShortcut, Toolbar } from './Toolbar.js';
 import { MarkdownPreview } from '../components/MarkdownPreview.js';
 
 export interface PreviewEditorProps {
@@ -154,16 +158,30 @@ export function PreviewEditor({ ytext, readOnly = false, onEditInMarkdown }: Pre
   const source = ytext.toString();
   const blocks = classifyDocument(source);
   const groups = groupBlocks(blocks);
+  const selection = usePreviewSelection({ containerRef, blocks });
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    if (readOnly || !selection) return;
+    const mark = matchMarkShortcut(event);
+    if (!mark) return;
+    event.preventDefault();
+    const splice = toggleMark(selection.block, selection.from, selection.to, mark, source);
+    if (splice) applySplice(ytext, splice);
+  }
 
   return (
-    <div
-      ref={containerRef}
-      data-testid="preview-editor"
-      aria-readonly={readOnly}
-      contentEditable={!readOnly}
-      suppressContentEditableWarning
-    >
-      {groups.map((group) => renderGroup(source, group, onEditInMarkdown))}
-    </div>
+    <>
+      {!readOnly && <Toolbar source={source} activeBlock={selection?.block ?? null} selectionRange={selection} onApplySplice={(splice) => applySplice(ytext, splice)} />}
+      <div
+        ref={containerRef}
+        data-testid="preview-editor"
+        aria-readonly={readOnly}
+        contentEditable={!readOnly}
+        suppressContentEditableWarning
+        onKeyDown={handleKeyDown}
+      >
+        {groups.map((group) => renderGroup(source, group, onEditInMarkdown))}
+      </div>
+    </>
   );
 }
