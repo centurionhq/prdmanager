@@ -73,7 +73,7 @@ describe('Entrada', () => {
 
     await userEvent.click(within(dialog).getByRole('button', { name: 'Enlazar' }));
 
-    await waitFor(() => expect(triage).toHaveBeenCalledWith('acme', 'web', 'FB-007', { linkTo: ['FR-003'] }));
+    await waitFor(() => expect(triage).toHaveBeenCalledWith('acme', 'web', 'FB-007', { informs: ['FR-003'] }));
     expect(await screen.findByText('Feedback enlazado a FR-003')).toBeTruthy();
   });
 

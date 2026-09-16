@@ -88,9 +88,9 @@ describe('getFeatureBranch', () => {
 });
 
 describe('getWorkOrderContext', () => {
-  it('GETs the work order context', async () => {
+  it('GETs the work order context and unwraps { context }', async () => {
     const context = { workOrder: { id: 'WO-001' } };
-    const spy = spyOnRequest().mockResolvedValue(context);
+    const spy = spyOnRequest().mockResolvedValue({ context });
 
     await expect(getWorkOrderContext('acme', 'factory', 'WO-001')).resolves.toEqual(context);
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/work-orders/WO-001/context');
@@ -169,10 +169,10 @@ describe('triageFeedback', () => {
     const result = { linkedTo: ['FR-001'] };
     const spy = spyOnRequest().mockResolvedValue(result);
 
-    await expect(triageFeedback('acme', 'factory', 'FB-001', { linkTo: ['FR-001'] })).resolves.toEqual(result);
+    await expect(triageFeedback('acme', 'factory', 'FB-001', { informs: ['FR-001'] })).resolves.toEqual(result);
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/feedback/FB-001/triage', {
       method: 'POST',
-      body: { linkTo: ['FR-001'] },
+      body: { informs: ['FR-001'] },
     });
   });
 });

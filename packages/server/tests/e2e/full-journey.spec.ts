@@ -58,6 +58,15 @@ async function switchToMarkdownTab(page: Page): Promise<void> {
   await page.getByRole('tab', { name: 'Markdown' }).click();
 }
 
+/** WO-359/WO-164: "Solicitar revisión"/"Publicar"/"Archivar" for a collab-origin document live inside
+ * `ValidationPanel`, itself behind the "Validación" tab of `DocumentPanelTabs`'s own tab set (default
+ * active tab is "Agente") — `Tabs.tsx` renders every inactive panel with a native `hidden` attribute, so
+ * an unscoped `getByRole('button', { name: 'Solicitar revisión' })` never finds it without switching first.
+ * Idempotent: clicking an already-selected tab is harmless. */
+async function switchToValidationTab(page: Page): Promise<void> {
+  await page.getByRole('tab', { name: 'Validación' }).click();
+}
+
 /** A freshly created document's live `Y.Doc` starts genuinely empty (its `working_state` is only ever
  * written once a real collab edit happens — the template used to seed `document_versions` never seeds
  * the live document itself), so the very first edit can just click into `.cm-content` and type: the
@@ -118,8 +127,21 @@ async function waitForBodyOnServer(context: BrowserContext, url: string, expecte
 /** WO-357: "Publicar" only opens the `PublishReviewModal` review screen now — the real `publishDocument`
  * call happens when its own "Publicar versión N" button is confirmed instead. */
 async function publishFromReview(page: Page): Promise<void> {
+  await switchToValidationTab(page);
   await page.getByRole('button', { name: 'Publicar' }).click();
   await page.getByRole('button', { name: /^Publicar versión \d+$/ }).click();
+}
+
+/** Opens the "Nuevo documento" dialog and creates a document of `kind` titled `title`. Every field lookup
+ * is scoped to the dialog itself: the documents list page behind it also has its own "Buscar por id o
+ * título" search input, whose accessible name contains "título" too, so an unscoped `page.getByLabel('Título')`
+ * would match both and fail Playwright's strict-locator check. */
+async function createDocument(page: Page, kind: string, title: string): Promise<void> {
+  await page.getByRole('button', { name: 'Nuevo documento' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Tipo de documento').selectOption(kind);
+  await dialog.getByLabel('Título').fill(title);
+  await dialog.getByRole('button', { name: 'Crear' }).click();
 }
 
 test('full product journey', async ({ browser }) => {
@@ -139,10 +161,7 @@ test('full product journey', async ({ browser }) => {
 
   await test.step('Alice creates the PRD', async () => {
     await pageAlice.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents`);
-    await pageAlice.getByRole('button', { name: 'Nuevo documento' }).click();
-    await pageAlice.getByLabel('Tipo de documento').selectOption('PRD');
-    await pageAlice.getByLabel('Título').fill('Product Vision');
-    await pageAlice.getByRole('button', { name: 'Crear' }).click();
+    await createDocument(pageAlice, 'PRD', 'Product Vision');
 
     const link = pageAlice.getByRole('link', { name: /^PRD-\d+$/ });
     await expect(link).toBeVisible();
@@ -212,10 +231,7 @@ test('full product journey', async ({ browser }) => {
 
   await test.step('Alice creates and publishes a Feedback that justifies the PRD (PRD-002 lifecycle)', async () => {
     await pageAlice.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents`);
-    await pageAlice.getByRole('button', { name: 'Nuevo documento' }).click();
-    await pageAlice.getByLabel('Tipo de documento').selectOption('FB');
-    await pageAlice.getByLabel('Título').fill('Customers ask for real-time collaboration');
-    await pageAlice.getByRole('button', { name: 'Crear' }).click();
+    await createDocument(pageAlice, 'FB', 'Customers ask for real-time collaboration');
 
     const link = pageAlice.getByRole('link', { name: /^FB-\d+$/ });
     await expect(link).toBeVisible();
@@ -242,10 +258,11 @@ test('full product journey', async ({ browser }) => {
     await fbProbe.close();
     await waitForBodyOnServer(contextAlice, fbUrl, 'Several customers asked for live multi-user editing.');
 
+    await switchToValidationTab(pageAlice);
     await pageAlice.getByRole('button', { name: 'Solicitar revisión' }).click();
-    await expect(pageAlice.getByText(/in_review/)).toBeVisible();
+    await expect(pageAlice.locator('p', { hasText: /in_review/ })).toBeVisible();
     await publishFromReview(pageAlice);
-    await expect(pageAlice.getByText(/published/)).toBeVisible();
+    await expect(pageAlice.locator('p', { hasText: /published/ })).toBeVisible();
 
     fbDocIdRef = fbDocId;
   });
@@ -262,18 +279,16 @@ test('full product journey', async ({ browser }) => {
     // is a real event this test can wait on, not a guess at how long that recompute takes.
     await expect(pageAlice.getByText(/has no justification/)).toBeHidden();
 
+    await switchToValidationTab(pageAlice);
     await pageAlice.getByRole('button', { name: 'Solicitar revisión' }).click();
-    await expect(pageAlice.getByText(/in_review/)).toBeVisible();
+    await expect(pageAlice.locator('p', { hasText: /in_review/ })).toBeVisible();
     await publishFromReview(pageAlice);
-    await expect(pageAlice.getByText(/published/)).toBeVisible();
+    await expect(pageAlice.locator('p', { hasText: /published/ })).toBeVisible();
   });
 
   await test.step('Alice creates and publishes an SDD that architects the PRD', async () => {
     await pageAlice.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents`);
-    await pageAlice.getByRole('button', { name: 'Nuevo documento' }).click();
-    await pageAlice.getByLabel('Tipo de documento').selectOption('SDD');
-    await pageAlice.getByLabel('Título').fill('Collaboration System Design');
-    await pageAlice.getByRole('button', { name: 'Crear' }).click();
+    await createDocument(pageAlice, 'SDD', 'Collaboration System Design');
 
     const link = pageAlice.getByRole('link', { name: /^SDD-\d+$/ });
     await expect(link).toBeVisible();
@@ -298,10 +313,11 @@ test('full product journey', async ({ browser }) => {
     await waitForFieldOnServer(contextAlice, sddUrl, 'Rutas impactadas', 'packages/app/src/e2e/vision.ts');
     await waitForBodyOnServer(contextAlice, sddUrl, 'Wire the shared vision banner into the dashboard');
 
+    await switchToValidationTab(pageAlice);
     await pageAlice.getByRole('button', { name: 'Solicitar revisión' }).click();
-    await expect(pageAlice.getByText(/in_review/)).toBeVisible();
+    await expect(pageAlice.locator('p', { hasText: /in_review/ })).toBeVisible();
     await publishFromReview(pageAlice);
-    await expect(pageAlice.getByText(/published/)).toBeVisible();
+    await expect(pageAlice.locator('p', { hasText: /published/ })).toBeVisible();
     await expect(pageAlice.getByText(/Work orders generados: 1/)).toBeVisible();
   });
 

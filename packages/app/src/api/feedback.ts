@@ -38,7 +38,10 @@ export function getFeedbackCandidates(orgSlug: string, projectSlug: string, docI
 }
 
 export interface TriageFeedbackInput {
-  readonly linkTo: readonly string[];
+  /** Matches the server's `triageInputSchema` field name exactly (`project-feedback.ts`) — the request
+   * body is forwarded as-is, so a mismatched key here silently drops the link entirely (the server's zod
+   * schema treats an unrecognized key as absent rather than a validation error) instead of failing loudly. */
+  readonly informs: readonly string[];
 }
 
 export interface TriageFeedbackResult {

@@ -12,7 +12,7 @@ function workOrderBase(orgSlug: string, projectSlug: string, workOrderId: string
 }
 
 export function getWorkOrderContext(orgSlug: string, projectSlug: string, workOrderId: string): Promise<WorkOrderContextDto> {
-  return request<WorkOrderContextDto>(`${workOrderBase(orgSlug, projectSlug, workOrderId)}/context`);
+  return request<{ context: WorkOrderContextDto }>(`${workOrderBase(orgSlug, projectSlug, workOrderId)}/context`).then((r) => r.context);
 }
 
 /** The body is always empty — the assignee is always the calling agent/developer, decided server-side. */

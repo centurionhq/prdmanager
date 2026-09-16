@@ -57,7 +57,7 @@ export function LinkFeatureModal({ orgSlug, projectSlug, item, onClose, onLinked
     setSubmitError(null);
     setPendingRepublish(false);
     try {
-      await triageFeedback(orgSlug, projectSlug, item.id, { linkTo: [selected] });
+      await triageFeedback(orgSlug, projectSlug, item.id, { informs: [selected] });
       onLinked(selected);
     } catch (err) {
       if (err instanceof ApiClientError && err.status === 409) {
