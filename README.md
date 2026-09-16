@@ -398,6 +398,15 @@ En un Postgres nuevo (o tras cada migración agregada), aplicá el esquema una s
 npm run db:migrate                           # drizzle-kit migrate contra DATABASE_MIGRATION_URL
 ```
 
+### `@prdm/app`: Centurion Factory conectado (PRD-007)
+
+`packages/app` sirve el frontend Centurion Factory (rediseñado sobre datos mock en PRD-006) ya conectado a este mismo backend SaaS: `npm run dev` lo levanta en `http://localhost:5173` (proxy a `/api`, `/collab` y `/mcp`), con sesión real, CSRF y datos de Postgres/Neo4j en vez de mocks.
+
+- **Node 24 obligatorio** (`nvm use 24`) — el runtime de `undici`/`jsdom` que usan los tests y algunas dependencias rompe en silencio bajo Node 20.
+- **Rutas principales:** `/login` (+ TOTP), `/o/:org` (Proyectos), `/o/:org/p/:project` (Planta por defecto), `.../arbol`, `.../documents`, `.../ordenes`, `.../drift`, `.../entrada`, `.../ajustes/*`; `/admin` para superadmins.
+- **Vista previa editable sin pérdida** (ADR-009/SDD-014): la pestaña "Vista previa" del Documento edita el mismo `Y.Text` que la pestaña "Markdown" — cualquier construcción no soportada (tablas, fences, HTML, listas anidadas) se muestra como isla de solo lectura con "Editar en Markdown".
+- `design/centurion-factory/` sigue siendo la referencia visual congelada (PRD-006/SDD-011); no se toca al conectar el front real.
+
 ## SaaS multi-organización: MCP remoto y sync verificado por CI (SDD-010)
 
 Para organizaciones que corren prdm como SaaS multi-tenant, los developers trabajan con repositorios **vinculados en remoto**: la documentación y la política de `Refs:` viven en el servidor, no en el repo. La CLI reenvía al code assistant vía un proxy MCP local, y el workflow de CI acredita el estado del código con un token OIDC de GitHub Actions firmado, sin guardar secretos de larga vida accesibles desde cualquier rama.
@@ -533,6 +542,10 @@ La importación (una sola vez) exige:
 - que el conjunto de documentos pase la misma validación que corre el servidor al recibirlos.
 
 Una vez importado, el primer push a la rama por defecto con un workflow de CI configurado convierte esa baseline en "verificada".
+
+> **Limitación conocida (FB-009):** el comando `prdm link --import` de la CLI, tal como está hoy, **no puede completarse** cuando el repo de origen ya tiene un `.prdm.yaml` local real (`version: 1`) — que es justo el caso de uso que esta sección describe. Hasta que se resuelva, el camino verificado para importar los documentos de un repo existente es llamar `readLocalImportPayload`/`uploadImportPayload` (`packages/cli/src/remote/import.ts`) directamente, como hace `packages/cli/tests/integration/import-round-trip.test.ts`, sin pasar por `runLink`/`planLink`.
+>
+> **Limitación conocida (FB-010):** un proyecto SaaS recién creado e importado muestra Planta y Entrada funcionando de inmediato (leen Postgres), pero el Árbol (`graph/full`/`graph/node`) queda completamente vacío hasta que corre el primer reporte de CI baseline — la proyección a Neo4j solo ocurre como efecto de ese reporte, no del import. No hay aviso en la API ni en la UI que lo explique.
 
 ## Skills (Claude Code)
 
