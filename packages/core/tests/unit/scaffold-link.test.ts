@@ -82,6 +82,21 @@ describe('planLink/applyLink (SDD-010, WO-188)', () => {
     }
   });
 
+  test('allows overwriting an existing local project when importing (FB-009)', async () => {
+    const root = makeTmpDir();
+    try {
+      writeFiles(root, { '.prdm.yaml': 'version: 1\nproject:\n  id: prj_0123456789abcdef\n  name: x\n' });
+      const plan = await planLink(root, baseInput({ importing: true }));
+      await applyLink(root, plan);
+
+      const remoteFile = parseRemoteProjectFile(readFileSync(join(root, '.prdm.yaml'), 'utf8'));
+      expect(remoteFile.project.id).toBe('prj_0123456789abcdef');
+      expect(remoteFile.remote).toEqual({ server: 'https://app.example.com', org: 'acme', project: 'widgets', offlinePolicy: 'warn' });
+    } finally {
+      removeDir(root);
+    }
+  });
+
   test('refuses to silently relink to a different remote project', async () => {
     const root = makeTmpDir();
     try {
