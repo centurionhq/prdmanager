@@ -1,20 +1,22 @@
 /**
- * Renders a live `Y.Text` as editable React DOM (SDD-014 §"Editor de vista previa"): `classifyDocument`
- * (source-map.ts) turns the current markdown source into `SourceBlock`s, editable blocks become real text
- * nodes (never `dangerouslySetInnerHTML`), and islands render read-only via the same hardened
- * `MarkdownPreview` component the Markdown-preview panel already uses (XSS-hardened `react-markdown`
- * config — reusing it here rather than inventing a second one). Re-renders on every `ytext.observe` event,
- * whether the change came from `applySplice` (y-binding.ts), another collaborator, or the Markdown tab.
+ * Renders a live `Y.Text` as editable React DOM (SDD-014 §"Editor de vista previa"): `classifyCached`
+ * (parse-cache.ts, wrapping source-map.ts's `classifyDocument`) turns the current markdown source into
+ * `SourceBlock`s, editable blocks become real text nodes (never `dangerouslySetInnerHTML`), and islands
+ * render read-only via the same hardened `MarkdownPreview` component the Markdown-preview panel already
+ * uses (XSS-hardened `react-markdown` config — reusing it here rather than inventing a second one).
+ * Re-renders on every `ytext.observe` event, whether the change came from `applySplice` (y-binding.ts),
+ * another collaborator, or the Markdown tab.
  *
  * Editable when `!readOnly`: `contentEditable` lets the browser fire real `beforeinput`/composition/paste
  * events, but `usePreviewInput` (WO-377) always prevents their default action and applies the equivalent
  * edit to `ytext` instead — the browser's own DOM mutation never happens, `ytext.toString()` stays the only
  * source of truth. Composition/paste/drop handling is WO-378's.
  */
-import { useEffect, useReducer, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactElement, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useReducer, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactElement, type ReactNode } from 'react';
 import * as Y from 'yjs';
 import type { Awareness } from 'y-protocols/awareness';
-import { classifyDocument, type BlockKind, type EditableRun, type SourceBlock } from './source-map.js';
+import type { BlockKind, EditableRun, SourceBlock } from './source-map.js';
+import { classifyCached } from './parse-cache.js';
 import { runDisplayText, runPrefixLength } from './run-text.js';
 import { usePreviewInput } from './use-preview-input.js';
 import { usePreviewSelection } from './use-preview-selection.js';
@@ -137,10 +139,67 @@ function renderRuns(source: string, runs: EditableRun[] | undefined, highlights:
   return (runs ?? []).map((run, index) => renderRun(source, run, `${run.kind}-${run.from}-${run.to}-${index}`, highlights));
 }
 
-const HEADING_TAG: Readonly<Record<'heading1' | 'heading2' | 'heading3', 'h1' | 'h2' | 'h3'>> = {
-  heading1: 'h1',
-  heading2: 'h2',
-  heading3: 'h3',
+function runsEqual(a: EditableRun[] | undefined, b: EditableRun[] | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((run, index) => {
+    const other = b[index]!;
+    return run.kind === other.kind && run.from === other.from && run.to === other.to && run.href === other.href && run.labelTo === other.labelTo;
+  });
+}
+
+function highlightsEqual(a: readonly CommentHighlightRange[], b: readonly CommentHighlightRange[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((range, index) => {
+    const other = b[index]!;
+    return range.threadId === other.threadId && range.from === other.from && range.to === other.to;
+  });
+}
+
+function relevantHighlights(block: SourceBlock, highlights: readonly CommentHighlightRange[]): readonly CommentHighlightRange[] {
+  return highlights.filter((range) => range.from < block.to && range.to > block.from);
+}
+
+interface BlockRenderProps {
+  source: string;
+  block: SourceBlock;
+  highlights: readonly CommentHighlightRange[];
+}
+
+/**
+ * SDD-014 perf budget (WO-384): `PreviewEditor` re-renders its whole tree on every keystroke (one edited
+ * character shifts the offsets of everything downstream of it in the raw markdown `source`), so without
+ * this comparator every block's rendering function — `renderRuns`, `runIntersectsHighlight`,
+ * `splitByHighlights` — would re-run for every block, on every keystroke, in a ~200KB document with
+ * thousands of blocks. `data-block-from`/`data-block-to` must stay perfectly in sync with `classifyCached`'s
+ * current offsets (`dom-selection.ts` and `usePreviewInput.ts` resolve DOM positions back into `SourceBlock`s
+ * by reading that exact attribute), so a block whose absolute offsets shifted always re-renders — only a
+ * block whose `from`/`to`/`contentFrom`/content/relevant-highlights are all byte-for-byte identical to the
+ * previous render is skipped. In practice that's every block *before* the edit's position, which is the
+ * common case a real editing cursor produces.
+ */
+function blockPropsEqual(prev: BlockRenderProps, next: BlockRenderProps): boolean {
+  const { block: prevBlock } = prev;
+  const { block: nextBlock } = next;
+  if (prevBlock.from !== nextBlock.from || prevBlock.to !== nextBlock.to || prevBlock.contentFrom !== nextBlock.contentFrom) return false;
+  if (prevBlock.kind !== nextBlock.kind || prevBlock.taskChecked !== nextBlock.taskChecked || prevBlock.orderedNumber !== nextBlock.orderedNumber) return false;
+  if (!runsEqual(prevBlock.runs, nextBlock.runs)) return false;
+  if (prev.source.slice(prevBlock.from, prevBlock.to) !== next.source.slice(nextBlock.from, nextBlock.to)) return false;
+  return highlightsEqual(relevantHighlights(prevBlock, prev.highlights), relevantHighlights(nextBlock, next.highlights));
+}
+
+// WO-387 (accessibility gate): the page's own `<h1>` is always the document's title (`DocumentDetail.tsx`,
+// rendered outside this component entirely) — a document body's own top-level `# heading` rendering as a
+// *second* literal `<h1>` here would break the one-`<h1>`-per-page outline every screen reader's heading
+// navigation relies on. Every body heading level is shifted down by one DOM tag (`heading1` -> `<h2>`, and
+// so on) so the body nests correctly *under* the page's real title instead of competing with it — the
+// Markdown-source-facing "Título 1/2/3" labels in `Toolbar.tsx` are unaffected, since those describe the
+// heading's level *within the document*, not its absolute HTML tag.
+const HEADING_TAG: Readonly<Record<'heading1' | 'heading2' | 'heading3', 'h2' | 'h3' | 'h4'>> = {
+  heading1: 'h2',
+  heading2: 'h3',
+  heading3: 'h4',
 };
 
 /** An always-empty leaf, one per editable block: `BlameMargin`/`RemoteCursors` portal their badges into
@@ -157,25 +216,41 @@ function MarginSlot(): ReactElement {
   );
 }
 
-function renderListItem(source: string, block: SourceBlock, highlights: readonly CommentHighlightRange[]): ReactElement {
+const ListItem = memo(function ListItem({ source, block, highlights }: BlockRenderProps): ReactElement {
   if (block.kind === 'task-item') {
     return (
-      <li key={block.from} data-block-from={block.from} data-block-to={block.to}>
-        <input type="checkbox" checked={block.taskChecked ?? false} readOnly aria-label="tarea completada" />
+      <li data-block-from={block.from} data-block-to={block.to}>
+        {/* WO-387 (accessibility gate): the label text itself must track `taskChecked` — a screen reader
+            announcing "tarea completada, not checked" for a still-pending task (the previous static
+            label, regardless of state) directly contradicts the checkbox's own native checked/unchecked
+            announcement. */}
+        <input type="checkbox" checked={block.taskChecked ?? false} readOnly aria-label={block.taskChecked ? 'Tarea completada' : 'Tarea pendiente'} />
         {renderRuns(source, block.runs, highlights)}
         <MarginSlot />
       </li>
     );
   }
   return (
-    <li key={block.from} data-block-from={block.from} data-block-to={block.to}>
+    <li data-block-from={block.from} data-block-to={block.to}>
       {renderRuns(source, block.runs, highlights)}
       <MarginSlot />
     </li>
   );
+}, blockPropsEqual);
+
+interface IslandBlockProps {
+  source: string;
+  block: SourceBlock;
+  onEditInMarkdown?: (offset: number) => void;
 }
 
-function IslandBlock({ source, block, onEditInMarkdown }: { source: string; block: SourceBlock; onEditInMarkdown?: (offset: number) => void }): ReactElement {
+function islandPropsEqual(prev: IslandBlockProps, next: IslandBlockProps): boolean {
+  if (prev.block.from !== next.block.from || prev.block.to !== next.block.to) return false;
+  if (prev.onEditInMarkdown !== next.onEditInMarkdown) return false;
+  return prev.source.slice(prev.block.from, prev.block.to) === next.source.slice(next.block.from, next.block.to);
+}
+
+const IslandBlock = memo(function IslandBlock({ source, block, onEditInMarkdown }: IslandBlockProps): ReactElement {
   return (
     <div data-testid="island" data-block-from={block.from} data-block-to={block.to}>
       <MarkdownPreview body={source.slice(block.from, block.to)} />
@@ -184,7 +259,26 @@ function IslandBlock({ source, block, onEditInMarkdown }: { source: string; bloc
       </button>
     </div>
   );
-}
+}, islandPropsEqual);
+
+const Heading = memo(function Heading({ source, block, highlights }: BlockRenderProps): ReactElement {
+  const Tag = HEADING_TAG[block.kind as 'heading1' | 'heading2' | 'heading3'];
+  return (
+    <Tag data-block-from={block.from} data-block-to={block.to}>
+      {renderRuns(source, block.runs, highlights)}
+      <MarginSlot />
+    </Tag>
+  );
+}, blockPropsEqual);
+
+const Paragraph = memo(function Paragraph({ source, block, highlights }: BlockRenderProps): ReactElement {
+  return (
+    <p data-block-from={block.from} data-block-to={block.to}>
+      {renderRuns(source, block.runs, highlights)}
+      <MarginSlot />
+    </p>
+  );
+}, blockPropsEqual);
 
 function renderSingleBlock(
   source: string,
@@ -196,20 +290,9 @@ function renderSingleBlock(
     return <IslandBlock key={block.from} source={source} block={block} onEditInMarkdown={onEditInMarkdown} />;
   }
   if (block.kind === 'heading1' || block.kind === 'heading2' || block.kind === 'heading3') {
-    const Tag = HEADING_TAG[block.kind];
-    return (
-      <Tag key={block.from} data-block-from={block.from} data-block-to={block.to}>
-        {renderRuns(source, block.runs, highlights)}
-        <MarginSlot />
-      </Tag>
-    );
+    return <Heading key={block.from} source={source} block={block} highlights={highlights} />;
   }
-  return (
-    <p key={block.from} data-block-from={block.from} data-block-to={block.to}>
-      {renderRuns(source, block.runs, highlights)}
-      <MarginSlot />
-    </p>
-  );
+  return <Paragraph key={block.from} source={source} block={block} highlights={highlights} />;
 }
 
 interface CapturedCommentRange {
@@ -272,10 +355,10 @@ function renderGroup(
   onEditInMarkdown?: (offset: number) => void,
 ): ReactElement {
   if (group.listGroupKind === 'ordered') {
-    return <ol key={group.blocks[0]!.from}>{group.blocks.map((block) => renderListItem(source, block, highlights))}</ol>;
+    return <ol key={group.blocks[0]!.from}>{group.blocks.map((block) => <ListItem key={block.from} source={source} block={block} highlights={highlights} />)}</ol>;
   }
   if (group.listGroupKind === 'bullet') {
-    return <ul key={group.blocks[0]!.from}>{group.blocks.map((block) => renderListItem(source, block, highlights))}</ul>;
+    return <ul key={group.blocks[0]!.from}>{group.blocks.map((block) => <ListItem key={block.from} source={source} block={block} highlights={highlights} />)}</ul>;
   }
   return renderSingleBlock(source, group.blocks[0]!, highlights, onEditInMarkdown);
 }
@@ -291,10 +374,15 @@ export function PreviewEditor({
 }: PreviewEditorProps): ReactElement {
   useYTextVersion(ytext);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerElement, setContainerElement] = useState<HTMLDivElement | null>(null);
+  const attachContainer = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node;
+    setContainerElement(node);
+  }, []);
   usePreviewInput({ ytext, containerRef, readOnly });
 
   const source = ytext.toString();
-  const blocks = classifyDocument(source);
+  const blocks = classifyCached(ytext, source);
   const groups = groupBlocks(blocks);
   const selection = usePreviewSelection({ containerRef, blocks });
   const remoteCursors = useRemoteCursors({ ytext, awareness, containerRef, blocks });
@@ -322,17 +410,26 @@ export function PreviewEditor({
           }
         />
       )}
+      {/* WO-387 (accessibility gate): a bare `contentEditable` div with block children (`h2`/`p`/`li`) has
+          no reliable accessible name across browsers/AT, and its implicit HTML-AAM role isn't computed at
+          all by the jsdom-based unit tests this repo runs — an explicit `role="textbox"`/`aria-multiline`
+          (the same pair every mainstream native-contentEditable rich-text editor ships, e.g. Draft.js's
+          `DraftEditor`) plus a real `aria-label` is what actually announces "editable document region" to
+          a screen reader instead of an unlabeled, unannounced blob of static-looking text. */}
       <div
-        ref={containerRef}
+        ref={attachContainer}
         data-testid="preview-editor"
+        role="textbox"
+        aria-multiline="true"
+        aria-label="Cuerpo del documento"
         aria-readonly={readOnly}
         contentEditable={!readOnly}
         suppressContentEditableWarning
         onKeyDown={handleKeyDown}
       >
         {groups.map((group) => renderGroup(source, group, commentHighlights, onEditInMarkdown))}
-        <RemoteCursors markers={remoteCursors} containerRef={containerRef} />
-        <BlameMargin source={source} blocks={blocks} blame={blame} containerRef={containerRef} />
+        <RemoteCursors markers={remoteCursors} container={containerElement} />
+        <BlameMargin source={source} blocks={blocks} blame={blame} container={containerElement} />
       </div>
     </>
   );
