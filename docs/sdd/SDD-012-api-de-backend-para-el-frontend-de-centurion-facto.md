@@ -129,6 +129,7 @@ Unitarios de `deriveLineBoard` (una tabla por regla de estación) y de `attribut
 - [x] Gate: correcciones de la revisión de seguridad (IDOR, alcance de RLS de las rutas nuevas, límites de tasa donde falten, cobertura de auditoría)
 - [ ] Gate: correcciones del code review
 - [ ] Gate post-cierre: reconciliar la baseline de `packages/core/tests/unit/scaffold-link.test.ts` tras el fix de FB-009 (WO-391), que también cae bajo el `impacts_paths` de este SDD
+- [ ] Gate post-cierre: reforzar `packages/core/tests/unit/scaffold-link.test.ts` (fix de FB-009) con la aserción de `.gitignore` que le faltaba, cubierto también por el `impacts_paths` de este SDD
 
 ## Revisión
 
