@@ -133,3 +133,5 @@ Unitarios de `deriveLineBoard` (una tabla por regla de estación) y de `attribut
 ## Revisión
 
 **Seguridad (WO-344, 2026-09-15).** Sin hallazgos. Se revisaron los 8 vectores previstos (aislamiento entre organizaciones/proyectos, permisos reales contra la matriz de SDD-006, inyección SQL, validación de filtros, fuga de secretos en auditoría, límite de tasa, el fix de `buildDriftInput` y CSRF) contra el código real, no solo la documentación, y se corrieron las suites de aislamiento e integración correspondientes en verde. El único hallazgo posible (sin límite de tasa dedicado en las rutas de órdenes/feedback) resultó ser el mismo patrón ya usado por `documents.ts` para mutaciones de sesión autenticadas y auditadas, no una regresión de SDD-012.
+
+**Reconciliación post-cierre (WO-393, 2026-09-16).** El fix de FB-009 (WO-391) tocó `packages/core/tests/unit/scaffold-link.test.ts`, cubierto por el `impacts_paths` de SDD-010 y también por el de este SDD (comparten `packages/core/tests/**`). Sin cambios de comportamiento sobre las rutas propias de SDD-012; esta nota solo deja un WO abierto en el rango para que `check commits` reconozca la ruta como gobernada.
