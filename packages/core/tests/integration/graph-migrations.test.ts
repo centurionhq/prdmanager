@@ -2,9 +2,14 @@ import neo4j, { type Driver } from 'neo4j-driver';
 import { afterAll, beforeEach, describe, expect, test } from 'vitest';
 import { Neo4jGraphDatabase } from '../../src/graph/database.js';
 import { MIGRATIONS, checksumOf } from '../../src/graph/migrations.js';
-import { testConfig } from '@prdm/testkit';
+import { createFixtureRepo, removeDir, testConfig } from '@prdm/testkit';
 
-const config = testConfig(process.cwd());
+// `testConfig` needs *some* project root to resolve, but this file only ever reads `config.neo4j.*` to
+// connect and run migrations — never this root's own documents/settings. A throwaway fixture repo means
+// this test never depends on whatever `.prdm.yaml` version this monorepo's own root happens to be
+// checked out with (SDD-010 "Modo remoto": this repo migrated its own governance server-side).
+const SCHEMA_TEST_ROOT = createFixtureRepo();
+const config = testConfig(SCHEMA_TEST_ROOT);
 let rawDriver: Driver;
 
 const ALL_KNOWN_CONSTRAINTS = [
@@ -61,6 +66,7 @@ beforeEach(async () => {
 afterAll(async () => {
   await wipeSchemaAndData();
   await rawDriver.close();
+  removeDir(SCHEMA_TEST_ROOT);
 });
 
 describe('graph schema migrations (ADR-002 D3)', () => {

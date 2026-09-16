@@ -1,13 +1,13 @@
 # prdmanager — Motor de Grafo de Producto y Contexto
 
-Implementación de [PRD-001](docs/prd/PRD-001-Graph-Engine-Enhanced.md), [PRD-002](docs/prd/PRD-002.md), [PRD-003](docs/prd/PRD-003-parser-de-simbolos-con-tree-sitter-validado-de-pun.md) y [PRD-004](docs/prd/PRD-004-explorador-web-del-feature-tree-y-drift.md) (los cuatro `closed`): un grafo de producto que une **Feature Tree** (MRD/PRD/FR), **Blueprints** (SDD/ADR), **Work Orders**, **Artifacts**, **Feedback** y **código**. Asistentes de IA lo usan vía MCP, un explorador web de solo lectura lo visualiza, y el grafo detecta cuándo la documentación y el código se desincronizan.
+Implementación de PRD-001, PRD-002, PRD-003, PRD-004, PRD-005, PRD-006 y PRD-007 (todos `closed`): un grafo de producto que une **Feature Tree** (MRD/PRD/FR), **Blueprints** (SDD/ADR), **Work Orders**, **Artifacts**, **Feedback** y **código**. Asistentes de IA lo usan vía MCP, un explorador web de solo lectura lo visualiza, y el grafo detecta cuándo la documentación y el código se desincronizan.
 
-- **Doc-as-code:** los `.md` con frontmatter YAML son la fuente de verdad, versionada en git.
-- **Neo4j local** es el índice vivo del grafo y se puede reconstruir siempre desde los documentos.
+- **Doc-as-code:** los `.md` con frontmatter YAML son la fuente de verdad — en modo local, versionada en git; este mismo repo corre en **modo remoto** (ver "SaaS multi-organización" más abajo), así que su propia gobernanza vive en su servidor prdm, no en una carpeta `docs/` de este git.
+- **Neo4j** es el índice vivo del grafo y se puede reconstruir siempre desde los documentos (local) o desde el servidor (remoto).
 - **Autoría conversacional:** asistentes redactan por MCP, el motor valida y persiste de forma atómica.
 - **Multi-proyecto:** varios proyectos en una sola instancia Neo4j, aislados por partición.
 
-Arquitectura: [SDD-001](docs/sdd/SDD-001-graph-engine.md), [SDD-002](docs/sdd/SDD-002-multi-project-authoring.md), [SDD-003](docs/sdd/SDD-003-draft-persistence.md), [SDD-004](docs/sdd/SDD-004-tree-sitter-symbols.md), [SDD-005](docs/sdd/SDD-005-explorador-web.md) · Decisiones: [ADR-001](docs/adr/ADR-001-neo4j-local.md), [ADR-002](docs/adr/ADR-002-multi-project-isolation.md), [ADR-003](docs/adr/ADR-003-tree-sitter-wasm.md), [ADR-004](docs/adr/ADR-004-stack-del-explorador-web.md) · Mercado: [MRD-001](docs/mrd/MRD-001.md) · Modelo: [docs/model/graph-model.json](docs/model/graph-model.json)
+Arquitectura: SDD-001 a SDD-014, ADR-001 a ADR-009, MRD-001 — todos consultables vía MCP (`get_node`, `search_nodes`) contra el proyecto correspondiente en modo local o remoto.
 
 ## Stack
 
@@ -53,7 +53,7 @@ Cada paquete tiene su propio `package.json`, `tsconfig.json` y tests en `tests/`
 
 ### Requisitos
 
-- **Node 24** (LTS "Krypton", vigente hasta 2028-04), instalado a nivel usuario con [nvm](https://github.com/nvm-sh/nvm) — nunca con `sudo`. El repo fija la versión exacta en [`.nvmrc`](.nvmrc); parado en la raíz del repo, `nvm install` la lee e instala/activa automáticamente. Ver [ADR-005](docs/adr/ADR-005-node-24-lts.md): supera la restricción de Node 20 de [ADR-004](docs/adr/ADR-004-stack-del-explorador-web.md), cuyas demás decisiones (Vite, Fastify, React, jsdom, etc.) siguen vigentes.
+- **Node 24** (LTS "Krypton", vigente hasta 2028-04), instalado a nivel usuario con [nvm](https://github.com/nvm-sh/nvm) — nunca con `sudo`. El repo fija la versión exacta en [`.nvmrc`](.nvmrc); parado en la raíz del repo, `nvm install` la lee e instala/activa automáticamente. Ver ADR-005: supera la restricción de Node 20 de ADR-004, cuyas demás decisiones (Vite, Fastify, React, jsdom, etc.) siguen vigentes.
 - Docker (para Neo4j local).
 
 ### Proyecto Nuevo
@@ -410,6 +410,8 @@ npm run db:migrate                           # drizzle-kit migrate contra DATABA
 ## SaaS multi-organización: MCP remoto y sync verificado por CI (SDD-010)
 
 Para organizaciones que corren prdm como SaaS multi-tenant, los developers trabajan con repositorios **vinculados en remoto**: la documentación y la política de `Refs:` viven en el servidor, no en el repo. La CLI reenvía al code assistant vía un proxy MCP local, y el workflow de CI acredita el estado del código con un token OIDC de GitHub Actions firmado, sin guardar secretos de larga vida accesibles desde cualquier rama.
+
+> **Este mismo repositorio corre en modo remoto** desde que se migró (organización `centurionhq`, proyecto `prdmanager` en su propia instancia SaaS): ya no tiene `docs/`, y `.prdm.yaml` apunta a ese servidor. El servidor vive local en la máquina de desarrollo y se expone con un túnel público estable (ngrok, dominio reservado) para que el workflow de CI de GitHub Actions pueda alcanzarlo con OIDC real — sin eso, `sync-check` nunca podría reportar contra un servidor en `127.0.0.1`. Si el servidor no está corriendo o el túnel no está activo, la CI de este repo falla por no poder reportar (no hay fallback local).
 
 ### Login y vinculación
 

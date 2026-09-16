@@ -17,7 +17,7 @@ import {
 } from '../../../src/editor/edit-ops.js';
 import { classifyDocument, type SourceBlock } from '../../../src/editor/source-map.js';
 
-const DOCS_ROOT = resolve(import.meta.dirname, '../../../../../docs');
+const DOCS_ROOT = resolve(import.meta.dirname, '../../fixtures/markdown-corpus');
 
 function collectMarkdownFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

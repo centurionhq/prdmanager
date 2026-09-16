@@ -3,10 +3,13 @@
  *
  * ADR-009's lossless editable preview needs to map `@lezer/markdown`'s parse tree back onto the raw
  * source text (a `Y.Text`) without ever dropping a character. This spec parses the corpus of files most
- * likely to expose a real edge case — every `docs/**\/*.md` in this repository, ~430 files with YAML
- * frontmatter, GFM task lists, tables, strikethrough, and every heading style this repo's own authors
- * actually use — and checks the *precise* shape of top-level node coverage, because ADR-009's own naive
- * assumption ("every top-level node's `to` equals the next one's `from`") turned out to be wrong.
+ * likely to expose a real edge case — a frozen snapshot of this repository's own governance docs at the
+ * moment it migrated to remote mode (`tests/fixtures/markdown-corpus/`, ~430 files with YAML frontmatter,
+ * GFM task lists, tables, strikethrough, and every heading style this repo's own authors actually used —
+ * the live `docs/` tree these came from no longer exists once this repo's own PRD/SDD/ADR/WO/FB moved
+ * server-side, SDD-010 "Modo remoto") — and checks the *precise* shape of top-level node coverage,
+ * because ADR-009's own naive assumption ("every top-level node's `to` equals the next one's `from`")
+ * turned out to be wrong.
  *
  * FOUND: top-level nodes are never truly contiguous. `@lezer/markdown` (like every CommonMark parser)
  * excludes the blank-line separators between block-level constructs from every node's own range — e.g. a
@@ -33,7 +36,7 @@ import { join, relative, resolve } from 'node:path';
 import { parser, Strikethrough, TaskList } from '@lezer/markdown';
 import { describe, expect, it } from 'vitest';
 
-const DOCS_ROOT = resolve(import.meta.dirname, '../../../../docs');
+const DOCS_ROOT = resolve(import.meta.dirname, '../fixtures/markdown-corpus');
 const markdownParser = parser.configure([TaskList, Strikethrough]);
 
 function collectMarkdownFiles(dir: string): string[] {
@@ -75,7 +78,7 @@ function checkTopLevelCoverage(body: string): TopLevelCoverageResult {
   return { ok: true };
 }
 
-describe('@lezer/markdown top-level node coverage over the docs/**/*.md corpus', () => {
+describe('@lezer/markdown top-level node coverage over the frozen governance-docs corpus', () => {
   const files = collectMarkdownFiles(DOCS_ROOT);
 
   it('finds the corpus', () => {

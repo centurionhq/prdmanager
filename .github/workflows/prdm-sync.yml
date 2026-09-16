@@ -1,14 +1,21 @@
 # Monitors the connected GitHub repository (PRD-001 F-03): on every push/PR it type-checks, runs unit tests,
-# enforces the "Refs: WO-xxx" commit policy over the pushed/PR range (WO-020, hardened by WO-024) and runs
-# `prdm sync --check` against a disposable Neo4j service, failing when blueprints, work orders or governed code
-# drift out of sync.
+# and reports code state to this project's own prdm SaaS server (SDD-010 "Modo remoto") — this repo's own
+# governance moved server-side once it adopted remote mode itself (see the README's "SaaS local" section
+# for how `packages/server` is currently reachable). `id-token: write` lets `sync-check` request a real
+# GitHub Actions OIDC token; the server verifies it against GitHub's own JWKS before ever trusting a
+# `push` to `main` as an official baseline (SDD-010 "Sync de developers y drift", WO-179/181) — a PR or a
+# push to any other branch silently earns only preview-mode drift reporting, never baseline trust, exactly
+# as the server-side gate itself decides (`packages/server/src/engine/baseline-gate.ts`).
 #
-# WO-024 finding 1f: the "Refs:" policy checker itself is built from the range's *base* ref, in a separate
-# checkout, and only ever run against that base build - never against a binary built from the PR/push head. A PR
-# cannot alter its own policy checker (e.g. by patching commit-policy-git.ts) to make itself pass.
-#
-# Optional repository secret NEO4J_PASSWORD; without it a throwaway password is used for the ephemeral
-# service container, which is only reachable from this job's runner and holds no data beyond the CI run.
+# `PRDM_SERVER`/`PRDM_TOKEN` are mandatory in CI (`resolveRemoteServerOrigin`/`resolveRemoteCredential`
+# abort with a clear error rather than silently falling back to a local file that doesn't exist here) —
+# repository secrets, never hardcoded: `PRDM_TOKEN` is a `project_ci` token scoped to
+# `governance:read`/`reports:write`/`reports:baseline` only, `PRDM_SERVER` is this project's own prdm
+# server origin. The `Refs: WO-xxx` commit-message policy is enforced by the server's own cached policy
+# now (SDD-010: "usando la caché de política del servidor"), via each developer's local `prdm hooks
+# install` — no separate CI step rebuilds a base-ref policy checker anymore, because the enforcement
+# authority no longer lives in this repository's own (PR-editable) code the way WO-024's local-mode
+# defense had to guard against.
 #
 # WO-200 (SDD-010 §"CI en .github/workflows/prdm-sync.yml con servicio Postgres..."): three more jobs,
 # alongside `sync-check` above rather than folded into it, since each has its own service-container shape
@@ -16,8 +23,7 @@
 #  - `npm-audit`: fast, no services, `npm audit --audit-level=high` (see that job's own comment for why
 #    that threshold and not "any finding at all").
 #  - `integration-tests`: the real Postgres+Neo4j-backed suites (`packages/*/tests/integration/**` and
-#    friends) that `sync-check`'s own `npm run test:unit` deliberately never touches — this is the first
-#    time this repository's own CI ever runs them.
+#    friends) that `sync-check`'s own `npm run test:unit` deliberately never touches.
 #  - `e2e`: WO-201's Playwright journey against a real, in-process `buildServer()` instance (see
 #    `packages/server/tests/e2e/harness.ts`), needing the same two services plus the built `@prdm/app` SPA.
 #
@@ -26,7 +32,9 @@
 # mounting it as the service's own `docker-entrypoint-initdb.d`): GitHub Actions starts `services:`
 # containers before any step — including `actions/checkout` — ever runs, so a bind-mount of a path inside
 # this repository's own checkout isn't available yet at service-start time the way `docker-compose.yml`'s
-# local `postgres`/`postgres-test` services can rely on.
+# local `postgres`/`postgres-test` services can rely on. Neither of these two jobs touches `docs/` or
+# `prdm`'s own governance — they test this repository's *product* code, unrelated to which mode governs
+# the repository's own documents.
 name: prdm-sync
 
 on:
@@ -36,37 +44,14 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   sync-check:
     runs-on: ubuntu-latest
 
-    services:
-      neo4j:
-        image: neo4j:2026.08.1-community
-        env:
-          NEO4J_AUTH: neo4j/${{ secrets.NEO4J_PASSWORD || 'prdm-ci-ephemeral-neo4j' }}
-          NEO4J_PLUGINS: '["apoc"]'
-          NEO4J_dbms_security_procedures_allowlist: "apoc.path.*,apoc.coll.*,apoc.meta.*,apoc.version"
-        ports:
-          - 7687:7687
-        options: >-
-          --health-cmd "cypher-shell -u neo4j -p ${NEO4J_AUTH#neo4j/} 'RETURN 1'"
-          --health-interval 5s
-          --health-timeout 10s
-          --health-retries 30
-          --health-start-period 20s
-
-    env:
-      NEO4J_URI: neo4j://127.0.0.1:7687
-      NEO4J_USERNAME: neo4j
-      NEO4J_DATABASE: neo4j
-      NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD || 'prdm-ci-ephemeral-neo4j' }}
-
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -84,63 +69,14 @@ jobs:
 
       - run: npm run test:unit
 
-      # SDD-002 "Ciclo de vida": every commit touching governed code in the pushed/PR range must carry a valid
-      # "Refs: WO-xxx" trailer. A push whose `before` sha is all zeros (new branch) is checked from the default
-      # branch instead, since there is no prior sha to diff against. `base` (a sha or branch name) is also used
-      # below to check out the base ref for the pre-PR checker build (WO-024 finding 1f).
-      - name: "Determine base ref and commit range for the Refs: policy check"
-        id: range
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            base="${{ github.event.pull_request.base.sha }}"
-            head="${{ github.event.pull_request.head.sha }}"
-          elif [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
-            base="${{ github.event.repository.default_branch }}"
-            head="${{ github.sha }}"
-          else
-            base="${{ github.event.before }}"
-            head="${{ github.sha }}"
-          fi
-          echo "base=$base" >> "$GITHUB_OUTPUT"
-          echo "range=$base..$head" >> "$GITHUB_OUTPUT"
-
-      - run: node packages/cli/dist/index.js db migrate
-
+      # Remote mode (SDD-010): reports this push/PR's code state to this project's own prdm server. A real
+      # `push` to `main` with `id-token: write` earns baseline trust once the server verifies the attached
+      # GitHub Actions OIDC token; anything else (a PR, a push to another branch) is still reported and
+      # checked for drift, just never advances the official baseline — see this file's own header comment.
       - run: node packages/cli/dist/index.js sync --check
-
-      # Enforcement is defined by the base: a base without .prdm.yaml (e.g. the PR that adopts prdm) has no policy to
-      # enforce and no checker to build. The decision reads the base tree via git, never the PR checkout.
-      - name: "Detect whether the range base has adopted prdm"
-        id: base
-        run: |
-          if git cat-file -e "${{ steps.range.outputs.base }}:.prdm.yaml" 2>/dev/null; then
-            echo "adopted=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "adopted=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::base ${{ steps.range.outputs.base }} has no .prdm.yaml; Refs enforcement starts once it is merged"
-          fi
-
-      # The checker that enforces the "Refs:" policy is built from the range's base, in its own checkout, so a PR
-      # can never weaken (or blind) the very check it is being evaluated against (WO-024 finding 1f). It runs after
-      # sync --check so the extra checkout never shows up in the head's document scan.
-      - name: "Checkout the range base (for the pre-PR Refs: policy checker)"
-        if: steps.base.outputs.adopted == 'true'
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.range.outputs.base }}
-          path: prdm-base
-          fetch-depth: 0
-
-      - name: "Build the base Refs: policy checker"
-        if: steps.base.outputs.adopted == 'true'
-        working-directory: prdm-base
-        run: |
-          npm ci
-          npm run build
-
-      - name: "Check the Refs: policy over the range"
-        if: steps.base.outputs.adopted == 'true'
-        run: node prdm-base/packages/cli/dist/index.js check commits --range "${{ steps.range.outputs.range }}"
+        env:
+          PRDM_SERVER: ${{ secrets.PRDM_SERVER }}
+          PRDM_TOKEN: ${{ secrets.PRDM_TOKEN }}
 
   npm-audit:
     runs-on: ubuntu-latest

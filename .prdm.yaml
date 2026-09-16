@@ -1,40 +1,9 @@
-version: 1
+version: 2
 project:
-  id: prj_49140766174bf6e5
+  id: prj_2d8057a6d35ad63c
   name: prdmanager
-docs_dir: docs
-folders:
-  MRD: docs/mrd
-  PRD: docs/prd
-  FR: docs/fr
-  SDD: docs/sdd
-  ADR: docs/adr
-  WO: docs/work-orders
-  ART: docs/artifacts
-  FB: docs/feedback
-ignore:
-  - node_modules/**
-  - dist/**
-  - coverage/**
-  - .git/**
-  - .docker/**
-  - .claude/**
-  - .prdm/**
-  - tests/fixtures/**
-git:
-  max_commits: 500
-  enforce_refs: true
-  enforce_refs_since: d33a92ad3f6bddc83c61dde4ab22c3454106faca
-triage:
-  auto_link_min_score: 0.5
-  auto_link_margin: 1.05
-  max_candidates: 5
-  min_matched_terms: 2
-lifecycle:
-  grandfathered:
-    - id: MRD-001
-      hash: 800d537825a349946beb692ade513646d737e911542cbdaceb439f0d0232283c
-authoring:
-  draft_ttl_minutes: 60
-  max_drafts: 20
-  max_draft_bytes: 262144
+remote:
+  server: https://centurion.ngrok.app
+  org: centurionhq
+  project: prdmanager
+  offline_policy: warn

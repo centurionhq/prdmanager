@@ -4,7 +4,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { classifyDocument, type SourceBlock } from '../../../src/editor/source-map.js';
 
-const DOCS_ROOT = resolve(import.meta.dirname, '../../../../../docs');
+const DOCS_ROOT = resolve(import.meta.dirname, '../../fixtures/markdown-corpus');
 
 function collectMarkdownFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -219,7 +219,7 @@ describe('classifyDocument', () => {
     );
   });
 
-  it('corpus: every block classified from every docs/**/*.md file has valid, non-inverted, in-range offsets', () => {
+  it('corpus: every block classified from every file in the frozen governance-docs corpus has valid, non-inverted, in-range offsets', () => {
     const files = collectMarkdownFiles(DOCS_ROOT);
     expect(files.length).toBeGreaterThan(300);
 

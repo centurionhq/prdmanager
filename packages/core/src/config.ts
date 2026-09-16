@@ -117,8 +117,15 @@ function settingsFromLegacyConfig(rootAbs: string): LoadedSettings {
   return { settings, root: rootAbs };
 }
 
-/** Reads `NEO4J_*` from the real environment or this repository's `.env`, refusing a non-local host without an explicit opt-in (see `assertLocalNeo4j`). */
-function loadNeo4jConfig(rootAbs: string, env: NodeJS.ProcessEnv): Neo4jConfig {
+/** Reads `NEO4J_*` from the real environment or this repository's `.env`, refusing a non-local host
+ * without an explicit opt-in (see `assertLocalNeo4j`). Exported (not just `loadConfig`'s own internal
+ * use) because it never touches `.prdm.yaml`'s `version`/project settings at all — `@prdm/testkit`'s
+ * `testConfig` needs exactly this, standalone, to compare a test Neo4j URI against the *development*
+ * one without requiring the checked-out repo's own `.prdm.yaml` to be a `version: 1` (local) project
+ * (SDD-010 "Modo remoto": a repo that migrated itself to remote still needs to run its own local,
+ * Neo4j-backed integration tests — that's a property of the checkout's dev environment, not of which
+ * mode governs its own documents). */
+export function loadNeo4jConfig(rootAbs: string, env: NodeJS.ProcessEnv): Neo4jConfig {
   const dotenvPath = join(rootAbs, '.env');
   const dotenv = existsSync(dotenvPath) ? parseDotenv(readFileSync(dotenvPath)) : {};
   const get = (key: string): string | undefined => env[key] ?? dotenv[key];
