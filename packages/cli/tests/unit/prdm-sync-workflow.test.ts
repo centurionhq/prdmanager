@@ -12,6 +12,7 @@ interface WorkflowStep {
   with?: Record<string, unknown>;
   env?: Record<string, unknown>;
   ['working-directory']?: string;
+  ['continue-on-error']?: unknown;
 }
 
 function loadWorkflow(): { permissions?: Record<string, unknown>; jobs: Record<string, { steps: WorkflowStep[] }> } {
@@ -52,5 +53,12 @@ describe('SDD-010 "Modo remoto": prdm-sync.yml reports to this project\'s own re
     expect(syncStep?.env?.PRDM_SERVER).toBe('${{ secrets.PRDM_SERVER }}');
     expect(syncStep?.env?.PRDM_TOKEN).toBe('${{ secrets.PRDM_TOKEN }}');
     expect(syncStep?.env?.PRDM_PROJECT_ID).toBe('${{ secrets.PRDM_PROJECT_ID }}');
+  });
+
+  test('WO-395: sync --check only blocks the job on push, never on pull_request (its own drift gate can never pass on a PR whose Work Order is still open)', () => {
+    const { jobs } = loadWorkflow();
+    const steps = jobs['sync-check']?.steps ?? [];
+    const syncStep = steps.find((s) => typeof s.run === 'string' && s.run.includes('sync --check'));
+    expect(syncStep?.['continue-on-error']).toBe("${{ github.event_name == 'pull_request' }}");
   });
 });

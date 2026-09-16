@@ -102,7 +102,18 @@ jobs:
       # `push` to `main` with `id-token: write` earns baseline trust once the server verifies the attached
       # GitHub Actions OIDC token; anything else (a PR, a push to another branch) is still reported and
       # checked for drift, just never advances the official baseline — see this file's own header comment.
-      - run: node packages/cli/dist/index.js sync --check
+      #
+      # WO-395: blocking (`continue-on-error: false`) only on a `push` — never on `pull_request`. A PR
+      # that introduces newly-governed code under a still-*open* Work Order can never pass `--check`'s
+      # own drift gate on its own: remote mode's `complete_work_order` (WO-186) requires a `commit_sha`
+      # already verified `trust: baseline`, which only exists once that very commit has landed on `main`
+      # and been reported by a `push` run — so completing the WO is only possible *after* this PR merges.
+      # Mirrors the same push-vs-PR asymmetry the server's own baseline gate already uses
+      # (`packages/server/src/engine/baseline-gate.ts`: baseline trust only ever comes from a `push`);
+      # the drift is still reported and visible either way, just never blocks the PR itself.
+      - name: "prdm sync --check (blocking only on push to main)"
+        run: node packages/cli/dist/index.js sync --check
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         env:
           PRDM_SERVER: ${{ secrets.PRDM_SERVER }}
           PRDM_TOKEN: ${{ secrets.PRDM_TOKEN }}

@@ -32,6 +32,11 @@ export const MAX_REFS_PER_BLUEPRINT = 2000;
 export const MAX_GOVERNED_WARNINGS = 2000;
 export const MAX_COMMITS_PER_REPORT = 2000;
 export const MAX_DIRTY_PATHS = 5000;
+/** WO-395: found too tight by this repo's own real history — a bulk blueprint_hashes reconciliation
+ * commit legitimately cited 58 `Refs: WO-xxx` ids at once (the original cap was 50, a judgment call with
+ * no real data behind it). Generous enough for any realistic reconciliation commit while still bounding
+ * an adversarial one. */
+export const MAX_REFS_PER_COMMIT = 200;
 /** A normal commit has one parent, a merge two, an octopus merge more still — generous enough for any
  * realistic history while remaining a hard operational cap (WO-231). */
 export const MAX_PARENTS_PER_COMMIT = 32;
@@ -66,7 +71,7 @@ export const reportedCommitSchema = z.strictObject({
   author: z.string().min(1).max(200),
   date: z.iso.datetime(),
   subject: z.string().max(2000),
-  refs: z.array(z.string().max(200)).max(50),
+  refs: z.array(z.string().max(200)).max(MAX_REFS_PER_COMMIT),
   files: z.array(z.string().max(1000)).max(5000),
 });
 export type ReportedCommitDto = z.infer<typeof reportedCommitSchema>;

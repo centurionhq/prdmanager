@@ -3,7 +3,7 @@
  * WO-177/WO-180/WO-181).
  */
 import { describe, expect, test } from 'vitest';
-import { codeReportRequestSchema, codeReportResponseSchema, MAX_COMMITS_PER_REPORT, reportedCommitSchema } from '../../src/code-reports.js';
+import { codeReportRequestSchema, codeReportResponseSchema, MAX_COMMITS_PER_REPORT, MAX_REFS_PER_COMMIT, reportedCommitSchema } from '../../src/code-reports.js';
 
 const validReport = {
   schema_version: 1 as const,
@@ -38,6 +38,12 @@ describe('codeReportRequestSchema', () => {
   test('rejects more commits than MAX_COMMITS_PER_REPORT', () => {
     const commits = Array.from({ length: MAX_COMMITS_PER_REPORT + 1 }, (_, i) => ({ ...validReport.commits[0], sha: i.toString(16).padStart(40, '0') }));
     expect(() => codeReportRequestSchema.parse({ ...validReport, commits })).toThrow();
+  });
+
+  test('WO-395 regression: accepts a commit citing MAX_REFS_PER_COMMIT Refs: ids (a real bulk reconciliation commit cited 58 against the old cap of 50) and rejects one more', () => {
+    const refs = Array.from({ length: MAX_REFS_PER_COMMIT }, (_, i) => `WO-${i}`);
+    expect(reportedCommitSchema.parse({ ...validReport.commits[0], refs }).refs).toHaveLength(MAX_REFS_PER_COMMIT);
+    expect(() => reportedCommitSchema.parse({ ...validReport.commits[0], refs: [...refs, 'WO-extra'] })).toThrow();
   });
 
   test('rejects an unknown top-level key (strict object)', () => {
