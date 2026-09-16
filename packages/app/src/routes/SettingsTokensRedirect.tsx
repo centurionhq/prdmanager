@@ -11,6 +11,7 @@ import { LoadingState } from '@prdm/ui';
 import { getProjectsOverview, listOrganizations } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
+import { FormNotice } from '../components/FormNotice.js';
 import formStyles from '../styles/forms.module.css';
 
 type Status = { kind: 'loading' } | { kind: 'redirect'; to: string } | { kind: 'no-project' } | { kind: 'error'; message: string };
@@ -53,14 +54,7 @@ export function SettingsTokensRedirect(): ReactElement {
   if (status.kind === 'redirect') return <Navigate to={status.to} replace />;
 
   if (status.kind === 'no-project') {
-    return (
-      <div className={formStyles.page}>
-        <div className={formStyles.card}>
-          <h1 className={formStyles.title}>Todavía no tenés un proyecto</h1>
-          <p className={formStyles.subtitle}>Pedile a un administrador que te invite a un proyecto para gestionar tus tokens.</p>
-        </div>
-      </div>
-    );
+    return <FormNotice title="Todavía no tenés un proyecto" subtitle="Pedile a un administrador que te invite a un proyecto para gestionar tus tokens." />;
   }
 
   return (

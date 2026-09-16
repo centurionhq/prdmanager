@@ -8,6 +8,7 @@
 import type { NodeDetail, RefreshReport, Subgraph, TreeNode, WorkOrderStatus, WorkOrderSummary } from '@prdm/core';
 import type { SearchHitDto, SearchResultDto } from '@prdm/contracts';
 import { request } from './request.js';
+import { buildQuery } from './build-query.js';
 
 export interface TreeResponse {
   forest: TreeNode[];
@@ -20,15 +21,6 @@ export interface WorkOrdersFilter {
 
 function graphBase(orgSlug: string, projectSlug: string): string {
   return `/api/app/organizations/${encodeURIComponent(orgSlug)}/projects/${encodeURIComponent(projectSlug)}/graph`;
-}
-
-function buildQuery(params: Record<string, string | undefined>): string {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) query.set(key, value);
-  }
-  const qs = query.toString();
-  return qs.length > 0 ? `?${qs}` : '';
 }
 
 export function getFullGraph(orgSlug: string, projectSlug: string): Promise<Subgraph> {

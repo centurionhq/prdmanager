@@ -4,6 +4,7 @@
 import type { DocumentVersionListItem, DocumentVersionSummary } from '@prdm/contracts';
 import type { LineDiffOp } from '@prdm/collab';
 import { request } from './request.js';
+import { buildQuery } from './build-query.js';
 
 function versionsBase(orgSlug: string, projectSlug: string, docId: string): string {
   return `/api/app/organizations/${encodeURIComponent(orgSlug)}/projects/${encodeURIComponent(projectSlug)}/documents/${encodeURIComponent(docId)}/versions`;
@@ -20,11 +21,8 @@ export interface ListDocumentVersionsPage {
 }
 
 export function listDocumentVersions(orgSlug: string, projectSlug: string, docId: string, page: { limit?: number; offset?: number } = {}): Promise<ListDocumentVersionsPage> {
-  const query = new URLSearchParams();
-  if (page.limit !== undefined) query.set('limit', String(page.limit));
-  if (page.offset !== undefined) query.set('offset', String(page.offset));
-  const suffix = query.size > 0 ? `?${query.toString()}` : '';
-  return request<ListDocumentVersionsPage>(`${versionsBase(orgSlug, projectSlug, docId)}${suffix}`);
+  const query = buildQuery({ limit: page.limit?.toString(), offset: page.offset?.toString() });
+  return request<ListDocumentVersionsPage>(`${versionsBase(orgSlug, projectSlug, docId)}${query}`);
 }
 
 export function saveDocumentVersion(orgSlug: string, projectSlug: string, docId: string, label: string): Promise<DocumentVersionSummary> {

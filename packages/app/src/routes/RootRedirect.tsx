@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router';
 import { getSession, listOrganizations } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
+import { FormNotice } from '../components/FormNotice.js';
 import styles from '../styles/forms.module.css';
 
 type Status = { kind: 'loading' } | { kind: 'no-organizations' } | { kind: 'error'; message: string };
@@ -56,12 +57,10 @@ export function RootRedirect(): ReactElement {
 
   if (status.kind === 'no-organizations') {
     return (
-      <div className={styles.page}>
-        <div className={styles.card}>
-          <h1 className={styles.title}>Todavía no pertenecés a ninguna organización</h1>
-          <p className={styles.subtitle}>Pedile a un administrador que te invite, o esperá el enlace de invitación por email.</p>
-        </div>
-      </div>
+      <FormNotice
+        title="Todavía no pertenecés a ninguna organización"
+        subtitle="Pedile a un administrador que te invite, o esperá el enlace de invitación por email."
+      />
     );
   }
 

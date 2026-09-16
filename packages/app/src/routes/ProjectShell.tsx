@@ -23,6 +23,7 @@ import { errorMessage } from '../api/error-message.js';
 import { AppShell, type AppShellData } from '../components/shell/AppShell.js';
 import { projectRoleLabel } from '../components/shell/project-nav.js';
 import { FormError } from '../components/FormError.js';
+import { FormNotice } from '../components/FormNotice.js';
 import type { OrgShellContext } from './OrgShell.js';
 import formStyles from '../styles/forms.module.css';
 
@@ -91,25 +92,11 @@ export function ProjectShell(): ReactElement {
   const project = loaded.projects.find((p) => p.slug === projectSlug);
 
   if (!currentOrg) {
-    return (
-      <div className={formStyles.page}>
-        <div className={formStyles.card}>
-          <h1 className={formStyles.title}>Organización no encontrada</h1>
-          <p className={formStyles.subtitle}>No pertenecés a esta organización o no existe.</p>
-        </div>
-      </div>
-    );
+    return <FormNotice title="Organización no encontrada" subtitle="No pertenecés a esta organización o no existe." />;
   }
 
   if (!project) {
-    return (
-      <div className={formStyles.page}>
-        <div className={formStyles.card}>
-          <h1 className={formStyles.title}>Proyecto no encontrado</h1>
-          <p className={formStyles.subtitle}>No pertenecés a este proyecto o no existe.</p>
-        </div>
-      </div>
-    );
+    return <FormNotice title="Proyecto no encontrado" subtitle="No pertenecés a este proyecto o no existe." />;
   }
 
   const subject: PermissionSubject = { orgRole: currentOrg.role, projectRole: asProjectRole(project.myRole) };

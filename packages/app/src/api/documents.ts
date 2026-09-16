@@ -13,6 +13,7 @@ import type {
 import type { ClosureReadiness } from '@prdm/core';
 import type { BlameResult } from '@prdm/collab';
 import { request } from './request.js';
+import { buildQuery } from './build-query.js';
 
 function documentsBase(orgSlug: string, projectSlug: string): string {
   return `/api/app/organizations/${encodeURIComponent(orgSlug)}/projects/${encodeURIComponent(projectSlug)}/documents`;
@@ -27,11 +28,8 @@ export function listDocuments(
   projectSlug: string,
   filter: { kind?: DocumentKind; workflowState?: DocumentWorkflowState } = {},
 ): Promise<DocumentSummary[]> {
-  const query = new URLSearchParams();
-  if (filter.kind) query.set('kind', filter.kind);
-  if (filter.workflowState) query.set('workflowState', filter.workflowState);
-  const suffix = query.size > 0 ? `?${query.toString()}` : '';
-  return request<{ documents: DocumentSummary[] }>(`${documentsBase(orgSlug, projectSlug)}${suffix}`).then((r) => r.documents);
+  const query = buildQuery({ kind: filter.kind, workflowState: filter.workflowState });
+  return request<{ documents: DocumentSummary[] }>(`${documentsBase(orgSlug, projectSlug)}${query}`).then((r) => r.documents);
 }
 
 export function createDocument(orgSlug: string, projectSlug: string, input: { kind: DocumentKind; title: string }): Promise<DocumentDetail> {
