@@ -129,6 +129,35 @@ export interface ListCodeReportsInput {
   limit?: number;
 }
 
+export interface GetCodeReportByIdInput {
+  projectId: string;
+  orgId: string;
+  reportId: string;
+}
+
+/** Single-row lookup (WO-340, SDD-012) for the drift dashboard's report-detail view — `null` for both a
+ * nonexistent id and a real report belonging to a different project (RLS already scopes `orgId`; the
+ * explicit `projectId` filter is what additionally keeps one project's report ids 404ing for another
+ * project in the same org, same "wrong scope looks like missing" rule every other repository here uses). */
+export async function getCodeReportById(pool: Pool, input: GetCodeReportByIdInput): Promise<CodeReportListItem | null> {
+  return withTenantTx(pool, input.orgId, async (tx) => {
+    const [row] = await tx
+      .select({
+        id: codeReports.id,
+        mode: codeReports.mode,
+        headSha: codeReports.headSha,
+        branch: codeReports.branch,
+        result: codeReports.result,
+        createdAt: codeReports.createdAt,
+        tokenName: apiTokens.name,
+      })
+      .from(codeReports)
+      .innerJoin(apiTokens, eq(codeReports.tokenId, apiTokens.id))
+      .where(and(eq(codeReports.id, input.reportId), eq(codeReports.projectId, input.projectId)));
+    return row ?? null;
+  });
+}
+
 export async function listCodeReports(pool: Pool, input: ListCodeReportsInput): Promise<CodeReportListItem[]> {
   return withTenantTx(pool, input.orgId, async (tx) => {
     const rows = await tx

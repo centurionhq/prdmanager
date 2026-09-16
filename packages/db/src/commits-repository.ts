@@ -19,10 +19,31 @@
  * `ON CONFLICT DO UPDATE` that never names a column simply leaves it as-is (SDD-010: policy is
  * evaluated at a commit's *first* recorded sighting, not whenever it was last (re-)reported).
  */
-import { sql } from 'drizzle-orm';
+import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
+import { decodeCursor, paginateKeyset } from './pagination.js';
 import { commits } from './schema/documents.js';
 import { withTenantTx } from './tenant.js';
+
+export type CommitRecord = typeof commits.$inferSelect;
+
+const DEFAULT_LIST_COMMITS_LIMIT = 50;
+
+export interface ListCommitsInput {
+  projectId: string;
+  orgId: string;
+  limit?: number;
+  cursor?: string | null;
+  /** Restricts to commits reported on this branch (WO-341, SDD-012) — a plain `@>` containment check
+   * against the `branches` array column, the same "reported on more than one branch over time" set
+   * `upsertReportedCommits`'s own `branchesUnion` maintains. */
+  ref?: string;
+}
+
+export interface ListCommitsPage {
+  items: CommitRecord[];
+  nextCursor: string | null;
+}
 
 export interface ReportedCommitInput {
   sha: string;
@@ -101,5 +122,26 @@ export async function upsertReportedCommits(pool: Pool, input: UpsertReportedCom
           });
       }
     }
+  });
+}
+
+/** Newest-first (by commit `date`, `sha` as tiebreaker) paginated listing for one project (SDD-012, WO-332). */
+export async function listCommits(pool: Pool, input: ListCommitsInput): Promise<ListCommitsPage> {
+  const limit = input.limit ?? DEFAULT_LIST_COMMITS_LIMIT;
+  const cursor = decodeCursor(input.cursor);
+
+  return withTenantTx(pool, input.orgId, async (tx) => {
+    const conditions = [eq(commits.projectId, input.projectId)];
+    if (cursor) {
+      conditions.push(or(lt(commits.date, cursor.timestamp), and(eq(commits.date, cursor.timestamp), lt(commits.sha, cursor.id))!)!);
+    }
+    if (input.ref) conditions.push(sql`${commits.branches} @> ARRAY[${input.ref}]::text[]`);
+    const rows = await tx
+      .select()
+      .from(commits)
+      .where(and(...conditions))
+      .orderBy(desc(commits.date), desc(commits.sha))
+      .limit(limit + 1);
+    return paginateKeyset(rows, limit, (row) => ({ timestamp: row.date, id: row.sha }));
   });
 }

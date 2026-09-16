@@ -1,7 +1,12 @@
 /**
  * Project CI tokens section on `/o/:orgSlug/p/:projectSlug/settings` (SDD-006 §Permisos
- * "tokens de CI", `manage_ci_tokens`, project admin only, WO-119) — mounted by `ProjectSettings.tsx`
+ * "tokens de CI", `manage_ci_tokens`, project admin only, WO-119) — mounted by `AjustesTokens.tsx`
  * only once `can(subject, 'manage_ci_tokens')` is true, same as the members section's own gate.
+ *
+ * WO-364: deliberately has no "branch" field when creating a token (unlike the canvas mock's own
+ * `AjustesTokens.dc.html`) — a real CI token isn't tied to a chosen branch at all; the official drift
+ * baseline instead depends on the project's own default branch plus OIDC verifying which CI run produced
+ * a report, so this section says so instead of offering a field with no real effect.
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import type { CreatedTokenResponse, TokenScopeDto, TokenSummaryDto } from '@prdm/contracts';
@@ -45,6 +50,9 @@ export function CiTokensSection({ orgSlug, projectSlug }: { orgSlug: string; pro
   return (
     <div>
       <h2 className={styles.title}>Tokens de CI</h2>
+      <p className={styles.hint}>
+        La baseline oficial depende de la rama por defecto del proyecto y de un token de CI verificado por OIDC.
+      </p>
       <FormError message={error} />
       {justCreated && <TokenSecretPanel secret={justCreated.secret} onDismiss={() => setJustCreated(null)} />}
       {!tokens ? <LoadingState label="Cargando tokens de CI…" /> : <TokenTable tokens={tokens} onRevoke={(id) => void handleRevoke(id)} />}

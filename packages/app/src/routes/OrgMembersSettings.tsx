@@ -1,19 +1,28 @@
 /**
- * `/o/:orgSlug/settings/members` (SDD-006 §Permisos "Miembros, roles ... auditados", WO-118): member
+ * `/o/:orgSlug/ajustes/miembros` (SDD-006 §Permisos "Miembros, roles ... auditados", WO-118): member
  * list with role changes/removal, invite-by-email (`InviteMemberForm`) and pending-invitation
  * list/revoke. Mutating controls are gated to org owners/admins client-side (`isOrgAdmin`) purely for UX
  * — every mutation still goes through the real `/api/app/organizations/:orgSlug/*` routes, which enforce
  * it again server-side and reject (surfaced here as a normal form error) a rule this screen doesn't even
  * try to pre-empt, like removing the organization's last owner.
+ *
+ * WO-363 additions: a "Proyectos" column (how many of the org's own projects each member actually has a
+ * `project_members` row in — there's no batch endpoint for this yet, so it's `listProjectMembers` once
+ * per project and counted client-side, fine at this screen's scale), blocking self-removal the same way
+ * `ProjectMembersSection` does, and a "Reenviar" action on pending invitations (`resendInvitation`,
+ * WO-343) with its own short-lived confirmation banner.
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import { ORG_ROLES, type InvitationSummary, type OrganizationMember, type OrgRole, type ProjectSummary } from '@prdm/contracts';
 import { LoadingState } from '@prdm/ui';
 import {
+  getSession,
   listOrganizationInvitations,
   listOrganizationMembers,
+  listProjectMembers,
   listProjects,
   removeOrganizationMember,
+  resendInvitation,
   revokeOrganizationInvitation,
   updateOrganizationMemberRole,
 } from '../api/client.js';
@@ -29,6 +38,19 @@ interface Loaded {
   members: OrganizationMember[];
   invitations: InvitationSummary[];
   projects: ProjectSummary[];
+  projectCountByUserId: Map<string, number>;
+  currentUserId: string | null;
+}
+
+async function countProjectsByMember(orgSlug: string, projects: ProjectSummary[]): Promise<Map<string, number>> {
+  const memberLists = await Promise.all(projects.map((project) => listProjectMembers(orgSlug, project.slug)));
+  const counts = new Map<string, number>();
+  for (const members of memberLists) {
+    for (const member of members) {
+      counts.set(member.userId, (counts.get(member.userId) ?? 0) + 1);
+    }
+  }
+  return counts;
 }
 
 export function OrgMembersSettings(): ReactElement {
@@ -37,19 +59,27 @@ export function OrgMembersSettings(): ReactElement {
   const [data, setData] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   useDocumentTitle(`Miembros de ${currentOrg.name}`);
 
   async function reload(): Promise<void> {
     try {
-      const [members, invitations, projects] = await Promise.all([
+      const [members, invitations, projects, session] = await Promise.all([
         listOrganizationMembers(orgSlug),
         canManage ? listOrganizationInvitations(orgSlug) : Promise.resolve([]),
         listProjects(orgSlug),
+        getSession(),
       ]);
-      setData({ members, invitations, projects });
+      const projectCountByUserId = await countProjectsByMember(orgSlug, projects);
+      setData({ members, invitations, projects, projectCountByUserId, currentUserId: session?.user.id ?? null });
     } catch (err) {
       setError(errorMessage(err));
     }
+  }
+
+  function showToast(message: string): void {
+    setToast(message);
+    setTimeout(() => setToast(null), 4000);
   }
 
   useEffect(() => {
@@ -89,6 +119,16 @@ export function OrgMembersSettings(): ReactElement {
     }
   }
 
+  async function handleResend(invitationId: string): Promise<void> {
+    setRowError(null);
+    try {
+      await resendInvitation(orgSlug, invitationId);
+      showToast('Invitación reenviada');
+    } catch (err) {
+      setRowError(errorMessage(err));
+    }
+  }
+
   if (error) return <FormError message={error} />;
   if (!data) return <LoadingState label="Cargando miembros…" />;
 
@@ -103,6 +143,7 @@ export function OrgMembersSettings(): ReactElement {
               <th>Email</th>
               <th>Nombre</th>
               <th>Rol</th>
+              <th>Proyectos</th>
               {canManage && <th>Acciones</th>}
             </tr>
           </thead>
@@ -124,11 +165,16 @@ export function OrgMembersSettings(): ReactElement {
                     member.role
                   )}
                 </td>
+                <td>{data.projectCountByUserId.get(member.userId) ?? 0}</td>
                 {canManage && (
                   <td>
-                    <button type="button" className={formStyles.secondaryButton} onClick={() => void handleRemove(member.userId)}>
-                      Quitar
-                    </button>
+                    {member.userId === data.currentUserId ? (
+                      <span className={formStyles.hint}>No podés quitarte</span>
+                    ) : (
+                      <button type="button" className={formStyles.secondaryButton} onClick={() => void handleRemove(member.userId)}>
+                        Quitar
+                      </button>
+                    )}
                   </td>
                 )}
               </tr>
@@ -161,6 +207,11 @@ export function OrgMembersSettings(): ReactElement {
                       <td>{invitation.status}</td>
                       <td>{invitation.expiresAt}</td>
                       <td>
+                        {invitation.status === 'pending' && (
+                          <button type="button" className={formStyles.link} onClick={() => void handleResend(invitation.id)}>
+                            Reenviar
+                          </button>
+                        )}{' '}
                         <button type="button" className={formStyles.secondaryButton} onClick={() => void handleRevoke(invitation.id)}>
                           Revocar
                         </button>
@@ -174,6 +225,12 @@ export function OrgMembersSettings(): ReactElement {
 
           <InviteMemberForm orgSlug={orgSlug} projects={data.projects} canInviteOwner={currentOrg.role === 'owner'} onInvited={() => void reload()} />
         </>
+      )}
+
+      {toast && (
+        <div role="status" className={formStyles.notice}>
+          {toast}
+        </div>
       )}
     </div>
   );

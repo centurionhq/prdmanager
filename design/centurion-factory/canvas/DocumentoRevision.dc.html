@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 960px; overflow: hidden; display: flex; flex-direction: column; background: #E9ECEB;">
+
+  <header style="flex: none; display: flex; flex-direction: column; gap: 4px; padding: 24px 32px 0;">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 24px; height: 40px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <button type="button" onClick="{{ onBack }}" style="height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: transparent; border: 0; font-family: inherit; font-size: 14px; font-weight: 600; color: #33383D; cursor: pointer;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>
+          Volver a editar
+        </button>
+        <span style="font-size: 14px; color: #565D63;">/</span>
+        <span class="id">SDD-011</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button type="button" style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px; cursor: pointer;">Volver a editar</button>
+        <button type="button" onClick="{{ onPublish }}" style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px; cursor: pointer;">Publicar versión 8</button>
+      </div>
+    </div>
+    <h1 style="margin: 8px 0 0; font-size: 36px; line-height: 1.1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Revisar antes de publicar</h1>
+    <div style="font-size: 14px; color: #565D63; margin-bottom: 16px;">Congelás la versión 7 en el estado en que está ahora. Publicar la vuelve la copia oficial que leen los developers.</div>
+  </header>
+
+  <main style="flex: 1; min-height: 0; padding: 0 32px 32px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; overflow: hidden;">
+    <section style="min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 24px; padding-right: 4px;">
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <h2 style="margin: 0; font-size: 16px; font-weight: 700;">Frontmatter</h2>
+        <div style="display: flex; flex-direction: column; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 13px; line-height: 22px;">
+          <div style="display: flex; padding: 0 12px; background: #E1F0E8;"><span style="width: 20px; color: #565D63;">+</span><span>status: "approved"</span></div>
+          <div style="display: flex; padding: 0 12px; background: #F6E3E1; text-decoration: line-through; color: #565D63;"><span style="width: 20px;">−</span><span>status: "in_review"</span></div>
+          <div style="display: flex; padding: 0 12px; background: #E1F0E8;"><span style="width: 20px; color: #565D63;">+</span><span style="font-weight: 700;">impacts_paths: [..., "design/centurion-factory/canvas/**"]</span></div>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 13px; color: #33383D;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><circle cx="12" cy="16.2" r="0.6"></circle></svg>
+          <span><span style="font-weight: 600;">impacts_paths cambió.</span> Vuelve a hashear el gobierno de este SDD; cualquier WO abierta contra la versión anterior queda fuera de sincronía y hay que reconciliarla.</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <h2 style="margin: 0; font-size: 16px; font-weight: 700;">## Tareas</h2>
+        <div style="display: flex; flex-direction: column; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 13px; line-height: 22px;">
+          <div style="display: flex; padding: 0 12px; background: #E1F0E8;"><span style="width: 20px; color: #565D63;">+</span><span>- [ ] Revisión visual manual en mobile</span></div>
+          <div style="display: flex; padding: 0 12px; background: #E1F0E8;"><span style="width: 20px; color: #565D63;">+</span><span>- [ ] Capturas de cada vista a 375 px</span></div>
+        </div>
+        <div style="font-size: 13px; color: #565D63;">2 tareas nuevas van a generar 2 work orders al publicar.</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <h2 style="margin: 0; font-size: 16px; font-weight: 700;">Links y comandos agregados desde la versión publicada</h2>
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px;">
+          <div style="display: flex; align-items: center; gap: 8px;"><span class="id" style="background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 2px; padding: 1px 6px;">IMPLEMENTS</span><span class="id">ADR-007</span><span style="color: #565D63;">— ya existía</span></div>
+          <div style="display: flex; align-items: center; gap: 8px;"><span class="id" style="background: #E1F0E8; border: 1px solid #C9CFCD; border-radius: 2px; padding: 1px 6px; color: #19703F;">+ARCHITECTS</span><span class="id">PRD-007</span></div>
+        </div>
+      </div>
+    </section>
+
+    <aside style="min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+        <h3 style="margin: 0; font-size: 14px; font-weight: 700;">Qué va a pasar</h3>
+        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #33383D;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" style="flex: none; margin-top: 3px;"><circle cx="12" cy="12" r="1"></circle></svg><span>El estado pasa a <span style="font-weight: 600;">approved</span></span></div>
+        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #33383D;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" style="flex: none; margin-top: 3px;"><circle cx="12" cy="12" r="1"></circle></svg><span>Se congela la versión 8, motivo <span class="id">published</span></span></div>
+        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #33383D;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" style="flex: none; margin-top: 3px;"><circle cx="12" cy="12" r="1"></circle></svg><span>Se generan 2 work orders nuevas</span></div>
+        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #33383D;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" style="flex: none; margin-top: 3px;"><circle cx="12" cy="12" r="1"></circle></svg><span>Los developers ven esta versión por MCP a partir de ahora</span></div>
+      </div>
+
+      <sc-if value="{{ hasRetry }}" hint-placeholder-val="{{ false }}">
+        <div role="alert" style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: #FBFCFB; border: 1px solid #B8322A; border-radius: 2px;">
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="flex: none; width: 10px; height: 10px; background: #B8322A;"></span><span style="font-size: 14px; font-weight: 700;">No se pudieron generar las work orders</span></div>
+          <div style="font-size: 13px; color: #33383D;">El documento ya quedó publicado. Reintentá la generación cuando quieras.</div>
+          <button type="button" style="align-self: flex-start; height: 32px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Reintentar</button>
+        </div>
+      </sc-if>
+
+      <div style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+        <h3 style="margin: 0; font-size: 14px; font-weight: 700;">Validación</h3>
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #19703F;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#19703F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>0 errores, 0 avisos</div>
+      </div>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { retry: false };
+  }
+  renderVals() {
+    return {
+      hasRetry: this.state.retry,
+      onBack: () => {},
+      onPublish: () => this.setState({ retry: true })
+    };
+  }
+}
+</script>
+</body>
+</html>

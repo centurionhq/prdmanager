@@ -21,6 +21,14 @@ export function revokeOrganizationInvitation(orgSlug: string, invitationId: stri
   }).then(() => undefined);
 }
 
+/** `POST .../invitations/:id/resend` (SDD-012, WO-343): re-sends the same still-pending invitation
+ * (a fresh email, not a new secret/expiry) — admin/owner only, gated server-side. */
+export function resendInvitation(orgSlug: string, invitationId: string): Promise<void> {
+  return request(`/api/app/organizations/${encodeURIComponent(orgSlug)}/invitations/${encodeURIComponent(invitationId)}/resend`, {
+    method: 'POST',
+  }).then(() => undefined);
+}
+
 export interface AcceptInvitationResult {
   userId: string;
   organizationId: string;

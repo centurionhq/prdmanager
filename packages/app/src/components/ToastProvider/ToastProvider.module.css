@@ -1,0 +1,36 @@
+.region {
+  position: fixed;
+  z-index: 100;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .region {
+    left: 0;
+    right: 0;
+    bottom: calc(var(--bottom-bar-height) + var(--space-4));
+    justify-content: center;
+  }
+}
+
+.toast {
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  background: var(--grafito);
+  color: var(--acero);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border-radius: var(--radius-plate);
+  box-shadow: var(--sombra-overlay);
+}
+
+.icon {
+  flex: none;
+  color: var(--linea-hecho);
+}

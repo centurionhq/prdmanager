@@ -1,0 +1,37 @@
+/* Documento (SDD-013, WO-357): built from the Centurion Factory tokens, see
+   `design/centurion-factory/canvas/Documento.dc.html`. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.collabLayout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
+  gap: var(--space-4);
+  align-items: start;
+  margin-top: var(--space-4);
+}
+
+@media (max-width: 1023px) {
+  .collabLayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+

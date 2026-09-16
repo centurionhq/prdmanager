@@ -36,6 +36,16 @@ function isAppErrorBody(body: unknown): body is AppErrorBody {
   return typeof code === 'string' && typeof message === 'string';
 }
 
+/** The flat `{error: '<code>', message}` shape a few routes use instead of the nested envelope above —
+ * see the doc comment on `FlatApiErrorCode` in `./api-client-error.ts`. Checked only after
+ * {@link isAppErrorBody} rejects the body, since a nested `error` object would otherwise also satisfy
+ * `typeof error !== 'string'` here and fall through correctly either way. */
+function isFlatErrorBody(body: unknown): body is { error: string; message: string } {
+  if (typeof body !== 'object' || body === null) return false;
+  const { error, message } = body as { error?: unknown; message?: unknown };
+  return typeof error === 'string' && typeof message === 'string';
+}
+
 interface AuthErrorBody {
   message: string;
   code?: string;
@@ -77,6 +87,37 @@ function isMutating(method: string): boolean {
   return MUTATING_METHODS.has(method);
 }
 
+/** Any ASCII control character (tab, newline, carriage return, ...) — the WHATWG URL parser (the same
+ * algorithm every browser uses for `location.href`/`<a href>`) strips these from a URL before parsing it,
+ * so `/\t/evil.com` and `/\n/evil.com` both resolve to `//evil.com` (protocol-relative, cross-origin) even
+ * though neither literally starts with `//` as a JS string. */
+const CONTROL_CHAR_PATTERN = /[\u0000-\u001f]/;
+
+/** Guards the `next=` redirect target below against an open redirect: only a same-origin, root-relative
+ * path is safe. Rejects a protocol-relative path (`//evil.com`, parsed by browsers as same-scheme,
+ * cross-origin), any path carrying its own scheme (`https://evil.com`, `javascript:...`), any path
+ * containing a backslash (the same URL parser treats `\` as `/`, so `/\evil.com` also resolves to
+ * `evil.com`), and any path carrying a stripped control character (see {@link CONTROL_CHAR_PATTERN}). */
+function isSafeNextPath(path: string): boolean {
+  if (CONTROL_CHAR_PATTERN.test(path)) return false;
+  if (path.includes('\\')) return false;
+  return path.startsWith('/') && !path.startsWith('//') && !path.includes('://');
+}
+
+/** Exported for tests; every other caller reaches this only via {@link request}'s own 401 handling. */
+export function buildLoginRedirectUrl(currentPath: string): string {
+  return isSafeNextPath(currentPath) ? `/login?next=${encodeURIComponent(currentPath)}` : '/login';
+}
+
+/** SDD-013 §"Capa de datos": any `/api/app/*` call answered with 401 means the session is gone (expired,
+ * signed out elsewhere) — bounce to `/login` with a `next=` back to the current route. No-op outside a
+ * browser (e.g. this module's own Node-run unit tests never hit a 401 today, but stay defensive). */
+function redirectToLogin(): void {
+  if (typeof window === 'undefined' || !window.location) return;
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  window.location.href = buildLoginRedirectUrl(currentPath);
+}
+
 /** Exported for `./agent.ts`'s streaming `fetch` call (WO-176), which can't go through {@link request}
  * itself since that always reads the *whole* body as JSON — an SSE response is read incrementally. */
 export async function buildFetchInit(path: string, options: RequestOptions, includeCsrf: boolean): Promise<RequestInit> {
@@ -108,8 +149,12 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   if (!response.ok) {
+    if (response.status === 401) redirectToLogin();
     if (isAppErrorBody(body)) {
       throw new ApiClientError(response.status, body.error.code as ApiErrorCode, body.error.message);
+    }
+    if (isFlatErrorBody(body)) {
+      throw new ApiClientError(response.status, body.error, body.message);
     }
     throw new ApiClientError(response.status, 'unknown', `request to ${path} failed with status ${response.status}`);
   }

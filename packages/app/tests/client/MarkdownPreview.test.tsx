@@ -71,4 +71,32 @@ describe('MarkdownPreview — XSS payloads never execute or render as live marku
     expect(screen.getByRole('heading', { name: 'Title' })).toBeTruthy();
     expect(screen.getByText('bold').tagName).toBe('STRONG');
   });
+
+  test('GFM tables render as a real <table>, not a plain paragraph (WO-358)', () => {
+    const body = ['| Kind | Count |', '| --- | --- |', '| PRD | 3 |'].join('\n');
+    render(<MarkdownPreview body={body} />);
+
+    expect(screen.getByRole('table')).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Kind' })).toBeTruthy();
+    expect(screen.getByRole('cell', { name: 'PRD' })).toBeTruthy();
+  });
+
+  test('GFM task lists render real checkboxes (WO-358)', () => {
+    render(<MarkdownPreview body={'- [ ] Revisión visual\n- [x] Capturas de cada vista'} />);
+
+    const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
+    expect(checkboxes).toHaveLength(2);
+    expect(checkboxes[0]?.checked).toBe(false);
+    expect(checkboxes[1]?.checked).toBe(true);
+  });
+
+  // WO-369/WO-387 (accessibility gate): `remark-gfm`'s own task-list checkbox has no accessible name at
+  // all by default (axe: "Form elements must have labels", critical) — real when a task list is nested
+  // deeply enough that `PreviewEditor.tsx` falls back to rendering it here as an island.
+  test('GFM task-list checkboxes have an accessible name that tracks checked state', () => {
+    render(<MarkdownPreview body={'- [ ] Revisión visual\n- [x] Capturas de cada vista'} />);
+
+    expect(screen.getByRole('checkbox', { name: 'Tarea pendiente' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'Tarea completada' })).toBeTruthy();
+  });
 });

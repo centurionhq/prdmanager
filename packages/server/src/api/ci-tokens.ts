@@ -6,7 +6,18 @@
  */
 import { createCiTokenInputSchema } from '@prdm/contracts';
 import { can } from '@prdm/contracts';
-import { createCiToken, createTenantDb, findTokenById, InvalidScopeError, listCiTokensForProject, ProjectNotInOrgError, revokeToken, TokenTtlTooLongError, type TokenRecord } from '@prdm/db';
+import {
+  createCiToken,
+  createTenantDb,
+  findTokenById,
+  InvalidScopeError,
+  listCiTokensForProject,
+  ProjectNotInOrgError,
+  revokeToken,
+  TokenTtlTooLongError,
+  type CiTokenRecordWithCreator,
+  type TokenRecord,
+} from '@prdm/db';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
@@ -32,7 +43,7 @@ interface CiTokenRouteParams extends ProjectRouteParams {
   tokenId: string;
 }
 
-function toTokenSummary(record: TokenRecord) {
+function toTokenSummary(record: TokenRecord & Partial<Pick<CiTokenRecordWithCreator, 'createdByName'>>) {
   return {
     id: record.id,
     kind: record.kind,
@@ -44,6 +55,7 @@ function toTokenSummary(record: TokenRecord) {
     lastUsedAt: record.lastUsedAt ? record.lastUsedAt.toISOString() : null,
     revokedAt: record.revokedAt ? record.revokedAt.toISOString() : null,
     createdAt: record.createdAt.toISOString(),
+    createdByName: record.createdByName ?? null,
   };
 }
 

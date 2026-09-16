@@ -1,0 +1,32 @@
+/**
+ * Success-metrics DTO validation (SDD-012, WO-327): mirrors `@prdm/core`'s `SuccessMetrics`
+ * (`packages/core/src/metrics/metrics.ts`).
+ */
+import { describe, expect, test } from 'vitest';
+import { successMetricsSchema } from '../../src/metrics.js';
+
+describe('successMetricsSchema', () => {
+  const valid = {
+    agentHumanEfficiency: { completedWorkOrders: 4, measuredWorkOrders: 3, avgResolutionHours: 2.5, medianResolutionHours: 2 },
+    systemIntegrity: { governedTotal: 10, governedSynced: 8, syncedPercent: 80 },
+    traceability: { featuresTotal: 5, featuresTraced: 4, featurePercent: 80, commitsTotal: 6, commitsWithRefs: 5, commitsTraced: 5, commitPercent: 83.3 },
+  };
+
+  test('accepts a full metrics payload', () => {
+    expect(successMetricsSchema.parse(valid)).toEqual(valid);
+  });
+
+  test('accepts null percents/resolution hours for an empty project', () => {
+    const empty = {
+      agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null },
+      systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
+      traceability: { featuresTotal: 0, featuresTraced: 0, featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null },
+    };
+    expect(successMetricsSchema.parse(empty)).toEqual(empty);
+  });
+
+  test('rejects a missing section', () => {
+    const { traceability: _traceability, ...withoutTraceability } = valid;
+    expect(() => successMetricsSchema.parse(withoutTraceability)).toThrow();
+  });
+});

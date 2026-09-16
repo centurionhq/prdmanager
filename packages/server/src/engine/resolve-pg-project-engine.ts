@@ -9,7 +9,7 @@ import type { ProjectRecord } from '@prdm/db';
 import type { Hocuspocus } from '@hocuspocus/server';
 import type { Pool } from 'pg';
 import { createPgProjectEngine, type PgProjectEngine } from './pg-project-engine.js';
-import { buildProjectSettings, saasProjectRoot } from './pg-project-settings.js';
+import { buildProjectSettings, projectHashAlgoVersion, saasProjectRoot } from './pg-project-settings.js';
 
 /**
  * Throws a clear, user-facing error instead of a `Cannot read properties of undefined` when this
@@ -30,5 +30,5 @@ export function requireNeo4j(neo4j: Neo4jGraphDatabase | undefined): Neo4jGraphD
  */
 export function resolvePgProjectEngine(pool: Pool, neo4j: Neo4jGraphDatabase, orgId: string, project: ProjectRecord, hocuspocus?: Hocuspocus): PgProjectEngine {
   const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: saasProjectRoot(project.id) });
-  return createPgProjectEngine({ pool, orgId, projectId: project.id, settings: buildProjectSettings(project), store, hocuspocus });
+  return createPgProjectEngine({ pool, orgId, projectId: project.id, settings: buildProjectSettings(project), hashAlgoVersion: projectHashAlgoVersion(project), store, hocuspocus });
 }

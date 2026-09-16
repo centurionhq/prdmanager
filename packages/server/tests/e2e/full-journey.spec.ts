@@ -36,7 +36,7 @@ async function login(page: Page, baseUrl: string, email: string): Promise<void> 
   await page.goto(`${baseUrl}/login`);
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Contraseña').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Ingresar' }).click();
+  await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/o\//);
 }
 
@@ -51,11 +51,28 @@ async function typeLines(page: Page, text: string): Promise<void> {
   }
 }
 
+/** WO-358: the body editor's `.cm-content` only exists behind the "Markdown" tab now (the default tab is
+ * "Vista previa", the read-only `MarkdownPreview` bridge) — every direct CodeMirror interaction below
+ * switches to it first. Idempotent: clicking an already-selected tab is harmless. */
+async function switchToMarkdownTab(page: Page): Promise<void> {
+  await page.getByRole('tab', { name: 'Markdown' }).click();
+}
+
+/** WO-359/WO-164: "Solicitar revisión"/"Publicar"/"Archivar" for a collab-origin document live inside
+ * `ValidationPanel`, itself behind the "Validación" tab of `DocumentPanelTabs`'s own tab set (default
+ * active tab is "Agente") — `Tabs.tsx` renders every inactive panel with a native `hidden` attribute, so
+ * an unscoped `getByRole('button', { name: 'Solicitar revisión' })` never finds it without switching first.
+ * Idempotent: clicking an already-selected tab is harmless. */
+async function switchToValidationTab(page: Page): Promise<void> {
+  await page.getByRole('tab', { name: 'Validación' }).click();
+}
+
 /** A freshly created document's live `Y.Doc` starts genuinely empty (its `working_state` is only ever
  * written once a real collab edit happens — the template used to seed `document_versions` never seeds
  * the live document itself), so the very first edit can just click into `.cm-content` and type: the
  * caret lands at the document's only (empty) line. */
 async function typeIntoEmptyBody(page: Page, text: string): Promise<void> {
+  await switchToMarkdownTab(page);
   await page.locator('.cm-content').click();
   await typeLines(page, text);
 }
@@ -67,6 +84,7 @@ async function typeIntoEmptyBody(page: Page, text: string): Promise<void> {
  * content so far is exactly what the previous step appended — so "the real end of the document" and
  * "right after that content" are the same place. */
 async function appendAtEnd(page: Page, text: string): Promise<void> {
+  await switchToMarkdownTab(page);
   await page.locator('.cm-content').click();
   await page.keyboard.press('Control+End');
   await page.keyboard.press('Enter');
@@ -99,10 +117,38 @@ async function waitForBodyOnServer(context: BrowserContext, url: string, expecte
   const probe = await context.newPage();
   try {
     await probe.goto(url);
+    await switchToMarkdownTab(probe);
     await expect(probe.locator('.cm-content')).toContainText(expectedText);
   } finally {
     await probe.close();
   }
+}
+
+/** WO-357: "Publicar" only opens the `PublishReviewModal` review screen now — the real `publishDocument`
+ * call happens when its own "Publicar versión N" button is confirmed instead. */
+async function publishFromReview(page: Page): Promise<void> {
+  await switchToValidationTab(page);
+  await page.getByRole('button', { name: 'Publicar' }).click();
+  await page.getByRole('button', { name: /^Publicar versión \d+$/ }).click();
+}
+
+/** Opens the "Nuevo documento" dialog and creates a document of `kind` titled `title`. Every field lookup
+ * is scoped to the dialog itself: the documents list page behind it also has its own "Buscar por id o
+ * título" search input, whose accessible name contains "título" too, so an unscoped `page.getByLabel('Título')`
+ * would match both and fail Playwright's strict-locator check. */
+async function createDocument(page: Page, kind: string, title: string): Promise<void> {
+  await page.getByRole('button', { name: 'Nuevo documento' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Tipo de documento').selectOption(kind);
+  await dialog.getByLabel('Título').fill(title);
+  await dialog.getByRole('button', { name: 'Crear' }).click();
+}
+
+/** Same "Título" ambiguity as `createDocument`'s own doc comment, on a document's OWN detail page
+ * instead of the creation dialog: `FrontmatterForm`'s `&lt;fieldset&gt;` ("Frontmatter" legend, mapped to
+ * `role="group"`) scopes the lookup so it never matches the documents list's lingering search input. */
+function frontmatterField(page: Page, label: string) {
+  return page.getByRole('group', { name: 'Frontmatter' }).getByLabel(label);
 }
 
 test('full product journey', async ({ browser }) => {
@@ -122,10 +168,7 @@ test('full product journey', async ({ browser }) => {
 
   await test.step('Alice creates the PRD', async () => {
     await pageAlice.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents`);
-    await pageAlice.getByRole('button', { name: 'Nuevo documento' }).click();
-    await pageAlice.getByLabel('Tipo de documento').selectOption('PRD');
-    await pageAlice.getByLabel('Título').fill('Product Vision');
-    await pageAlice.getByRole('button', { name: 'Crear' }).click();
+    await createDocument(pageAlice, 'PRD', 'Product Vision');
 
     const link = pageAlice.getByRole('link', { name: /^PRD-\d+$/ });
     await expect(link).toBeVisible();
@@ -136,13 +179,14 @@ test('full product journey', async ({ browser }) => {
     // The live collab document starts empty (see `typeIntoEmptyBody`'s own doc comment) — the frontmatter
     // form's "Título" is filled here for real, not just the one-off title `NewDocumentForm` sent to create
     // the document's very first `document_versions` row.
-    await pageAlice.getByLabel('Título').fill('Product Vision');
-    await pageAlice.getByLabel('Título').blur();
+    await frontmatterField(pageAlice, 'Título').fill('Product Vision');
+    await frontmatterField(pageAlice, 'Título').blur();
   });
 
   await test.step('Bob opens the same PRD', async () => {
     await pageBob.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${prdDocId}`);
     await expect(pageBob.getByRole('heading', { name: 'Product Vision' })).toBeVisible();
+    await switchToMarkdownTab(pageBob);
     await expect(pageBob.locator('.cm-content')).toBeVisible();
   });
 
@@ -164,12 +208,16 @@ test('full product journey', async ({ browser }) => {
     await pageBob.getByLabel('Nuevo comentario').fill('Let’s keep latency low here.');
     await pageBob.getByRole('button', { name: 'Comentar', exact: true }).click();
 
+    // WO-359: the side panels (Agente/Comentarios/Versiones/Validación) live behind their own tab set
+    // now, defaulting to "Agente" — Alice must switch to "Comentarios" before that region exists.
+    await pageAlice.getByRole('tab', { name: 'Comentarios' }).click();
     const comments = pageAlice.getByRole('region', { name: 'Comentarios' });
     await expect(comments.getByText('Let’s keep latency low here.')).toBeVisible();
   });
 
   await test.step('Both see real blame attribution for each other', async () => {
     await pageAlice.reload();
+    await switchToMarkdownTab(pageAlice);
     await expect(pageAlice.locator('.cm-content')).toContainText('ship real-time collaboration');
     const markers = pageAlice.locator('button.cm-blame-marker');
     await expect(markers.first()).toBeVisible();
@@ -193,18 +241,15 @@ test('full product journey', async ({ browser }) => {
 
   await test.step('Alice creates and publishes a Feedback that justifies the PRD (PRD-002 lifecycle)', async () => {
     await pageAlice.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents`);
-    await pageAlice.getByRole('button', { name: 'Nuevo documento' }).click();
-    await pageAlice.getByLabel('Tipo de documento').selectOption('FB');
-    await pageAlice.getByLabel('Título').fill('Customers ask for real-time collaboration');
-    await pageAlice.getByRole('button', { name: 'Crear' }).click();
+    await createDocument(pageAlice, 'FB', 'Customers ask for real-time collaboration');
 
     const link = pageAlice.getByRole('link', { name: /^FB-\d+$/ });
     await expect(link).toBeVisible();
     const fbDocId = (await link.textContent())!.trim();
     await link.click();
 
-    await pageAlice.getByLabel('Título').fill('Customers ask for real-time collaboration');
-    await pageAlice.getByLabel('Título').blur();
+    await frontmatterField(pageAlice, 'Título').fill('Customers ask for real-time collaboration');
+    await frontmatterField(pageAlice, 'Título').blur();
     await pageAlice.getByLabel('Fuente').fill('other');
     await pageAlice.getByLabel('Fuente').blur();
     // `root: true` (never "Informa a" pointing forward at the not-yet-published PRD): a publish-mode
@@ -223,10 +268,11 @@ test('full product journey', async ({ browser }) => {
     await fbProbe.close();
     await waitForBodyOnServer(contextAlice, fbUrl, 'Several customers asked for live multi-user editing.');
 
+    await switchToValidationTab(pageAlice);
     await pageAlice.getByRole('button', { name: 'Solicitar revisión' }).click();
-    await expect(pageAlice.getByText(/in_review/)).toBeVisible();
-    await pageAlice.getByRole('button', { name: 'Publicar' }).click();
-    await expect(pageAlice.getByText(/published/)).toBeVisible();
+    await expect(pageAlice.locator('p', { hasText: /in_review/ })).toBeVisible();
+    await publishFromReview(pageAlice);
+    await expect(pageAlice.locator('p', { hasText: /published/ })).toBeVisible();
 
     fbDocIdRef = fbDocId;
   });
@@ -243,18 +289,16 @@ test('full product journey', async ({ browser }) => {
     // is a real event this test can wait on, not a guess at how long that recompute takes.
     await expect(pageAlice.getByText(/has no justification/)).toBeHidden();
 
+    await switchToValidationTab(pageAlice);
     await pageAlice.getByRole('button', { name: 'Solicitar revisión' }).click();
-    await expect(pageAlice.getByText(/in_review/)).toBeVisible();
-    await pageAlice.getByRole('button', { name: 'Publicar' }).click();
-    await expect(pageAlice.getByText(/published/)).toBeVisible();
+    await expect(pageAlice.locator('p', { hasText: /in_review/ })).toBeVisible();
+    await publishFromReview(pageAlice);
+    await expect(pageAlice.locator('p', { hasText: /published/ })).toBeVisible();
   });
 
   await test.step('Alice creates and publishes an SDD that architects the PRD', async () => {
     await pageAlice.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents`);
-    await pageAlice.getByRole('button', { name: 'Nuevo documento' }).click();
-    await pageAlice.getByLabel('Tipo de documento').selectOption('SDD');
-    await pageAlice.getByLabel('Título').fill('Collaboration System Design');
-    await pageAlice.getByRole('button', { name: 'Crear' }).click();
+    await createDocument(pageAlice, 'SDD', 'Collaboration System Design');
 
     const link = pageAlice.getByRole('link', { name: /^SDD-\d+$/ });
     await expect(link).toBeVisible();
@@ -262,8 +306,8 @@ test('full product journey', async ({ browser }) => {
     await link.click();
     await expect(pageAlice.getByRole('heading', { name: 'Collaboration System Design' })).toBeVisible();
 
-    await pageAlice.getByLabel('Título').fill('Collaboration System Design');
-    await pageAlice.getByLabel('Título').blur();
+    await frontmatterField(pageAlice, 'Título').fill('Collaboration System Design');
+    await frontmatterField(pageAlice, 'Título').blur();
     await pageAlice.getByLabel('Arquitecta a').fill(prdDocId);
     await pageAlice.getByLabel('Arquitecta a').blur();
     await pageAlice.getByLabel('Rutas impactadas').fill('packages/app/src/e2e/vision.ts');
@@ -279,10 +323,11 @@ test('full product journey', async ({ browser }) => {
     await waitForFieldOnServer(contextAlice, sddUrl, 'Rutas impactadas', 'packages/app/src/e2e/vision.ts');
     await waitForBodyOnServer(contextAlice, sddUrl, 'Wire the shared vision banner into the dashboard');
 
+    await switchToValidationTab(pageAlice);
     await pageAlice.getByRole('button', { name: 'Solicitar revisión' }).click();
-    await expect(pageAlice.getByText(/in_review/)).toBeVisible();
-    await pageAlice.getByRole('button', { name: 'Publicar' }).click();
-    await expect(pageAlice.getByText(/published/)).toBeVisible();
+    await expect(pageAlice.locator('p', { hasText: /in_review/ })).toBeVisible();
+    await publishFromReview(pageAlice);
+    await expect(pageAlice.locator('p', { hasText: /published/ })).toBeVisible();
     await expect(pageAlice.getByText(/Work orders generados: 1/)).toBeVisible();
   });
 

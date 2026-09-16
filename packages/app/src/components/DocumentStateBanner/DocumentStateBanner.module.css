@@ -1,0 +1,31 @@
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-sm);
+  color: var(--grafito);
+  max-width: 42rem;
+}
+
+.neutral {
+  background: var(--relleno);
+  border: var(--rule);
+  color: var(--apagado);
+}
+
+.alert {
+  background: var(--superficie);
+  border: 1px solid var(--paro);
+}
+
+.icon {
+  flex: none;
+  margin-top: 1px;
+  color: inherit;
+}
+
+.alert .icon {
+  color: var(--paro);
+}

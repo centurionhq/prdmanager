@@ -10,6 +10,7 @@ import type { OrganizationSummary } from '@prdm/contracts';
 import { listOrganizations, setActiveOrganization, signOut } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
+import { FormNotice } from '../components/FormNotice.js';
 import { LoadingState } from '@prdm/ui';
 import formStyles from '../styles/forms.module.css';
 import styles from '../styles/dashboard.module.css';
@@ -77,14 +78,7 @@ export function OrgShell(): ReactElement {
 
   const currentOrg = organizations.find((org) => org.slug === orgSlug);
   if (!currentOrg) {
-    return (
-      <div className={formStyles.page}>
-        <div className={formStyles.card}>
-          <h1 className={formStyles.title}>Organización no encontrada</h1>
-          <p className={formStyles.subtitle}>No pertenecés a esta organización o no existe.</p>
-        </div>
-      </div>
-    );
+    return <FormNotice title="Organización no encontrada" subtitle="No pertenecés a esta organización o no existe." />;
   }
 
   return (
@@ -105,7 +99,8 @@ export function OrgShell(): ReactElement {
         </select>
         <nav className={styles.nav}>
           <Link to={`/o/${currentOrg.slug}`}>Proyectos</Link>
-          <Link to={`/o/${currentOrg.slug}/settings/members`}>Miembros</Link>
+          <Link to={`/o/${currentOrg.slug}/ajustes/miembros`}>Miembros</Link>
+          <Link to={`/o/${currentOrg.slug}/ajustes/auditoria`}>Auditoría</Link>
           <Link to="/settings/tokens">Tokens</Link>
           <button type="button" className={styles.signOutButton} onClick={() => void handleSignOut()}>
             Cerrar sesión

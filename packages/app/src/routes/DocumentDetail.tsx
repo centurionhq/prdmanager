@@ -1,59 +1,47 @@
 /**
- * `/o/:orgSlug/p/:projectSlug/documents/:docId` (SDD-007 "Documentos y flujo", WO-141): a read-only
- * placeholder view (a real collaborative editor is SDD-008's job) showing the document's current
- * frontmatter/body as plain text, with "Solicitar revisión"/"Publicar"/"Archivar" gated per role and
- * current `workflowState` — matching the permission matrix and state machine the server enforces
- * (`packages/server/src/api/documents.ts`/`documents-publish.ts`).
+ * `/o/:orgSlug/p/:projectSlug/documents/:docId` (SDD-013 §"Documentos", ports SDD-007/WO-141's screen):
+ * the document's real header (id/título/estado), workflow actions gated by `can(subject, action)` against
+ * the caller's *real* project role (`useProjectShellContext`, never a simulated selector), and — before a
+ * `publish` actually lands — the `PublishReviewModal` review screen (WO-357, `DocumentoRevision.dc.html`).
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import { Link, useParams } from 'react-router';
-import { can, type DocumentDetail as DocumentDetailDto, type PermissionSubject } from '@prdm/contracts';
+import { can, type DocumentDetail as DocumentDetailDto } from '@prdm/contracts';
 import { LoadingState } from '@prdm/ui';
-import { archiveDocument, generateWorkOrders, getDocument, getProject, getSession, listProjectMembers, publishDocument, requestDocumentReview } from '../api/client.js';
+import { archiveDocument, generateWorkOrders, getDocument, publishDocument, requestDocumentReview } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { CloseFeatureAction } from './CloseFeatureAction.js';
-import { AgentPanel } from '../components/AgentPanel.js';
 import { CollabEditor } from '../components/CollabEditor.js';
-import { CommentsPanel } from '../components/CommentsPanel.js';
-import { VersionsPanel } from '../components/VersionsPanel.js';
-import { ValidationPanel } from '../components/ValidationPanel.js';
+import { DocumentPanelTabs } from './DocumentPanelTabs.js';
 import { FrontmatterForm } from '../components/FrontmatterForm.js';
+import { Button, DocumentStateBanner, IdTag, PublishReviewModal, StatusBadge } from '../components/index.js';
 import { CollabDocumentProvider } from '../collab/collab-document-context.js';
 import { formatCollabDocumentName } from '../collab/document-name.js';
 import { FormError } from '../components/FormError.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
-import { useOrgShellContext } from './OrgShell.js';
+import { useProjectShellContext } from './ProjectShell.js';
 import formStyles from '../styles/forms.module.css';
+import styles from './DocumentDetail.module.css';
 
 const FEATURE_KINDS = new Set(['MRD', 'PRD', 'FR']);
 
 type WorkOrdersOutcome = { generated: boolean; created: number; error?: string };
 
 export function DocumentDetail(): ReactElement {
-  const { orgSlug, currentOrg } = useOrgShellContext();
-  const { projectSlug, docId } = useParams<{ projectSlug: string; docId: string }>();
+  const { orgSlug, projectSlug: project, project: projectOverview, subject } = useProjectShellContext();
+  const { docId } = useParams<{ docId: string }>();
   const [doc, setDoc] = useState<DocumentDetailDto | null>(null);
-  const [subject, setSubject] = useState<PermissionSubject | null>(null);
-  const [projectId, setProjectId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [workOrders, setWorkOrders] = useState<WorkOrdersOutcome | undefined>(undefined);
+  const [reviewOpen, setReviewOpen] = useState(false);
   useDocumentTitle(doc ? doc.docId : 'Documento');
 
   async function reload(): Promise<void> {
-    if (!projectSlug || !docId) return;
+    if (!docId) return;
     try {
-      const [session, members, fetchedDoc, project] = await Promise.all([
-        getSession(),
-        listProjectMembers(orgSlug, projectSlug),
-        getDocument(orgSlug, projectSlug, docId),
-        getProject(orgSlug, projectSlug),
-      ]);
-      const own = session ? members.find((m) => m.userId === session.user.id) : undefined;
-      setSubject({ orgRole: currentOrg.role, projectRole: own?.role });
-      setDoc(fetchedDoc);
-      setProjectId(project.id);
+      setDoc(await getDocument(orgSlug, project, docId));
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -64,12 +52,11 @@ export function DocumentDetail(): ReactElement {
     setError(null);
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgSlug, projectSlug, docId]);
+  }, [orgSlug, project, docId]);
 
   if (error) return <FormError message={error} />;
-  if (!doc || !subject || !projectSlug || !docId) return <LoadingState label="Cargando documento…" />;
+  if (!doc || !docId) return <LoadingState label="Cargando documento…" />;
 
-  const project = projectSlug;
   const id = docId;
   const latestVersion = doc.latestVersion;
 
@@ -86,13 +73,19 @@ export function DocumentDetail(): ReactElement {
     }
   }
 
-  async function handlePublish(): Promise<void> {
+  function openPublishReview(): void {
+    setActionError(null);
+    setReviewOpen(true);
+  }
+
+  async function handleConfirmPublish(): Promise<void> {
     if (!latestVersion) return;
     setActionError(null);
     setBusy(true);
     try {
       const result = await publishDocument(orgSlug, project, id, { versionId: latestVersion.id, contentHash: latestVersion.contentHash });
       setWorkOrders(result.workOrders);
+      setReviewOpen(false);
       await reload();
     } catch (err) {
       setActionError(errorMessage(err));
@@ -136,13 +129,18 @@ export function DocumentDetail(): ReactElement {
   const canCloseFeature = isApprovedFeature && can(subject, 'close_feature');
 
   return (
-    <div>
-      <p>
-        <Link className={formStyles.link} to={`/o/${orgSlug}/p/${projectSlug}/documents`}>
-          ← Documentos
+    <div className={styles.page}>
+      <nav aria-label="Breadcrumb" className={styles.breadcrumb}>
+        <Link className={formStyles.link} to={`/o/${orgSlug}/p/${project}/documents`}>
+          Documentos
         </Link>
-      </p>
-      <h1 className={formStyles.title}>{doc.title}</h1>
+        <span aria-hidden="true">/</span>
+        <IdTag id={doc.docId} />
+      </nav>
+      <div className={styles.headerRow}>
+        <h1 className={formStyles.title}>{doc.title}</h1>
+        <StatusBadge kind="workflow" status={doc.workflowState} />
+      </div>
       <p className={formStyles.subtitle}>
         {doc.docId} · {doc.kind} · {doc.workflowState}
       </p>
@@ -156,19 +154,19 @@ export function DocumentDetail(): ReactElement {
         {doc.origin !== 'collab' && (
           <>
             {canRequestReview && (
-              <button type="button" className={formStyles.primaryButton} disabled={busy} onClick={() => void handleRequestReview()}>
+              <Button type="button" variant="primary" disabled={busy} onClick={() => void handleRequestReview()}>
                 Solicitar revisión
-              </button>
+              </Button>
             )}
             {canPublish && (
-              <button type="button" className={formStyles.primaryButton} disabled={busy} onClick={() => void handlePublish()}>
+              <Button type="button" variant="primary" disabled={busy} onClick={openPublishReview}>
                 Publicar
-              </button>
+              </Button>
             )}
             {canArchive && (
-              <button type="button" className={formStyles.secondaryButton} disabled={busy} onClick={() => void handleArchive()}>
+              <Button type="button" variant="secondary" disabled={busy} onClick={() => void handleArchive()}>
                 Archivar
-              </button>
+              </Button>
             )}
           </>
         )}
@@ -178,36 +176,54 @@ export function DocumentDetail(): ReactElement {
       {isBlueprint && doc.workflowState === 'published' && workOrders && !workOrders.generated && (
         <div role="alert" className={formStyles.error}>
           <p>No se pudieron generar los work orders: {workOrders.error}</p>
-          <button type="button" className={formStyles.secondaryButton} disabled={busy} onClick={() => void handleRetryWorkOrders()}>
+          <Button type="button" variant="secondary" disabled={busy} onClick={() => void handleRetryWorkOrders()}>
             Reintentar generación de work orders
-          </button>
+          </Button>
         </div>
       )}
       {isBlueprint && doc.workflowState === 'published' && workOrders?.generated && (
         <p className={formStyles.success}>Work orders generados: {workOrders.created}</p>
       )}
 
-      {doc.origin === 'collab' && projectId ? (
-        <CollabDocumentProvider documentName={formatCollabDocumentName(projectId, doc.id)} orgSlug={orgSlug} projectSlug={project} docId={doc.docId}>
-          <FrontmatterForm kind={doc.kind} />
-          <CollabEditor subject={subject} />
-          <AgentPanel subject={subject} />
-          <CommentsPanel subject={subject} />
-          <VersionsPanel subject={subject} />
-          <ValidationPanel
-            subject={subject}
-            initialIssues={doc.lastValidation}
-            canRequestReview={canRequestReview}
-            canPublish={canPublish}
-            canArchive={canArchive}
-            busy={busy}
-            onRequestReview={() => void handleRequestReview()}
-            onPublish={() => void handlePublish()}
-            onArchive={() => void handleArchive()}
-          />
+      {latestVersion && (
+        <PublishReviewModal
+          open={reviewOpen}
+          orgSlug={orgSlug}
+          projectSlug={project}
+          docId={id}
+          kind={doc.kind}
+          currentVersion={latestVersion}
+          publishedVersionId={doc.publishedVersionId}
+          validation={doc.lastValidation}
+          busy={busy}
+          onClose={() => setReviewOpen(false)}
+          onConfirm={() => void handleConfirmPublish()}
+        />
+      )}
+
+      {doc.origin === 'collab' ? (
+        <CollabDocumentProvider documentName={formatCollabDocumentName(projectOverview.id, doc.id)} orgSlug={orgSlug} projectSlug={project} docId={doc.docId}>
+          <div className={styles.collabLayout}>
+            <FrontmatterForm kind={doc.kind} />
+            <CollabEditor subject={subject} archived={doc.workflowState === 'archived'} />
+            <DocumentPanelTabs
+              subject={subject}
+              lastValidation={doc.lastValidation}
+              canRequestReview={canRequestReview}
+              canPublish={canPublish}
+              canArchive={canArchive}
+              busy={busy}
+              onRequestReview={() => void handleRequestReview()}
+              onPublish={openPublishReview}
+              onArchive={() => void handleArchive()}
+            />
+          </div>
         </CollabDocumentProvider>
       ) : (
-        <pre className={formStyles.card}>{content || '(sin contenido)'}</pre>
+        <>
+          <DocumentStateBanner variant={doc.workflowState === 'archived' ? 'archivado' : 'generado'} />
+          <pre className={formStyles.card}>{content || '(sin contenido)'}</pre>
+        </>
       )}
     </div>
   );

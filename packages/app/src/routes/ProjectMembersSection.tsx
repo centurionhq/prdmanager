@@ -3,13 +3,69 @@
  * WO-118): a project member is always chosen from the organization's own members (`addProjectMemberInput`
  * takes a `userId`, not an email — there is no separate "invite to a project" flow, only org invitations
  * that may carry project grants, WO-105).
+ *
+ * WO-363 additions: nobody can remove themselves from the table (`currentUserId`, mirroring the canvas's
+ * "No podés quitarte" — the server would reject it anyway via its own last-admin-style checks, this is
+ * purely a clearer client-side affordance) and a static "qué puede hacer cada rol" matrix, derived
+ * straight from `@prdm/contracts`'s own `can()`/`PERMISSION_MATRIX` rather than a hand-kept copy of it.
  */
 import { useState, type FormEvent, type ReactElement } from 'react';
-import { PROJECT_ROLES, type OrganizationMember, type ProjectMemberDto, type ProjectRole } from '@prdm/contracts';
+import {
+  can,
+  PROJECT_ROLES,
+  type OrganizationMember,
+  type PermissionAction,
+  type ProjectMemberDto,
+  type ProjectRole,
+} from '@prdm/contracts';
 import { addProjectMember, removeProjectMember, updateProjectMemberRole } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
 import styles from '../styles/forms.module.css';
+
+/** SDD-006 §Permisos row labels worth surfacing on this screen, in the same order as the canvas's own
+ * "Qué puede hacer cada rol" table — a curated subset of `PERMISSION_ACTIONS`, not every row in the SDD. */
+const ROLE_MATRIX_ROWS: readonly { label: string; action: PermissionAction }[] = [
+  { label: 'Ver', action: 'view' },
+  { label: 'Comentar', action: 'comment' },
+  { label: 'Editar documentos', action: 'edit_document' },
+  { label: 'Publicar', action: 'publish' },
+  { label: 'Tomar órdenes', action: 'claim_work_order' },
+  { label: 'Reconocer drift', action: 'acknowledge_drift' },
+  { label: 'Cerrar feature', action: 'close_feature' },
+  { label: 'Gestionar miembros', action: 'manage_members' },
+];
+
+function RoleMatrix(): ReactElement {
+  return (
+    <div>
+      <h3 className={styles.title}>Qué puede hacer cada rol</h3>
+      <p className={styles.hint}>Cada persona tiene un solo rol en este proyecto. Solo un admin puede cambiarlo.</p>
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th />
+              {PROJECT_ROLES.map((role) => (
+                <th key={role}>{role}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ROLE_MATRIX_ROWS.map((row) => (
+              <tr key={row.action}>
+                <th scope="row">{row.label}</th>
+                {PROJECT_ROLES.map((role) => (
+                  <td key={role}>{can({ projectRole: role }, row.action) ? 'Sí' : 'No'}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 export function ProjectMembersSection({
   orgSlug,
@@ -17,6 +73,7 @@ export function ProjectMembersSection({
   members,
   orgMembers,
   canManage,
+  currentUserId,
   onChanged,
 }: {
   orgSlug: string;
@@ -24,6 +81,7 @@ export function ProjectMembersSection({
   members: ProjectMemberDto[];
   orgMembers: OrganizationMember[];
   canManage: boolean;
+  currentUserId: string | null;
   onChanged: () => void;
 }): ReactElement {
   const [rowError, setRowError] = useState<string | null>(null);
@@ -110,9 +168,13 @@ export function ProjectMembersSection({
                 </td>
                 {canManage && (
                   <td>
-                    <button type="button" className={styles.secondaryButton} onClick={() => void handleRemove(member.userId)}>
-                      Quitar
-                    </button>
+                    {member.userId === currentUserId ? (
+                      <span className={styles.hint}>No podés quitarte</span>
+                    ) : (
+                      <button type="button" className={styles.secondaryButton} onClick={() => void handleRemove(member.userId)}>
+                        Quitar
+                      </button>
+                    )}
                   </td>
                 )}
               </tr>
@@ -155,6 +217,8 @@ export function ProjectMembersSection({
           </div>
         </form>
       )}
+
+      <RoleMatrix />
     </div>
   );
 }

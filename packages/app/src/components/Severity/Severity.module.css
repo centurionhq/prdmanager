@@ -1,0 +1,30 @@
+.severity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.error {
+  color: var(--paro);
+}
+
+.warning {
+  color: var(--andon-texto);
+}
+
+.mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+}
+
+.markSquare {
+  background: var(--paro);
+}
+
+.markDot {
+  border-radius: 4px;
+  background: var(--andon);
+}

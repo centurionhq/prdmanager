@@ -219,6 +219,10 @@ export const projectCodeState = pgTable(
      * (be an ancestor of) without an audited admin override (`force_push_overrides`). `null` until the
      * project's first-ever CI-verified baseline report. */
     latestBaselineHeadSha: text('latest_baseline_head_sha'),
+    /** WO-333: the last baseline report's `governed_warnings[]` (`GovernedWarningDto[]`, `@prdm/contracts`
+     * `code-reports.ts`), persisted verbatim so the dashboard can show them without re-parsing the raw
+     * report. `null` before a project's first baseline report ever sets it. */
+    governedWarnings: jsonb('governed_warnings'),
   },
   (table) => [
     foreignKey({
@@ -227,5 +231,44 @@ export const projectCodeState = pgTable(
       name: 'project_code_state_project_org_fk',
     }),
     index('project_code_state_org_id_idx').on(table.orgId),
+  ],
+);
+
+/**
+ * `project_code_refs` (SDD-012 "Centurion Factory conectado al backend SaaS", WO-331): one row per
+ * governed code reference as of the last baseline report that covered its blueprint — the persisted
+ * replacement for `PgProjectEngine.buildDriftInput`'s previously-always-empty `governed` map (WO-334
+ * fixes the read side; WO-333 owns the transactional replace-on-baseline-report write side, via
+ * `packages/db`'s own `replaceProjectCodeRefs`).
+ *
+ * PK is `(project_id, blueprint_id, ref_key)` — `ref_key` is `CodeRefState.key` (`path` or
+ * `path#symbol`), unique per blueprint per project, exactly what a baseline report's `governed[]`
+ * already keys refs by (`@prdm/contracts`' `governedEntrySchema`). `hash_algo_version` is compared
+ * against the project's current `hash_algo_version` setting by `buildDriftInput` (WO-334) — a ref
+ * computed under a since-changed hash algorithm must never be treated as current.
+ */
+export const projectCodeRefs = pgTable(
+  'project_code_refs',
+  {
+    projectId: uuid('project_id').notNull(),
+    orgId: text('org_id').notNull(),
+    blueprintId: text('blueprint_id').notNull(),
+    refKey: text('ref_key').notNull(),
+    path: text('path').notNull(),
+    symbol: text('symbol'),
+    hash: text('hash'),
+    hashAlgoVersion: integer('hash_algo_version').notNull(),
+    reportId: uuid('report_id').notNull(),
+    headSha: text('head_sha').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.blueprintId, table.refKey], name: 'project_code_refs_pkey' }),
+    foreignKey({
+      columns: [table.projectId, table.orgId],
+      foreignColumns: [projects.id, projects.orgId],
+      name: 'project_code_refs_project_org_fk',
+    }),
+    index('project_code_refs_org_id_idx').on(table.orgId),
   ],
 );

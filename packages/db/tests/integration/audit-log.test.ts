@@ -31,7 +31,7 @@ describe('audit_log (WO-103)', () => {
     });
     expect(entry.orgId).toBe(org.id);
 
-    expect(await db.auditLog.list()).toEqual([entry]);
+    expect(await db.auditLog.list()).toEqual({ items: [entry], nextCursor: null });
   });
 
   test("another org's audit_log rows are invisible", async () => {
@@ -42,7 +42,7 @@ describe('audit_log (WO-103)', () => {
       .forOrg(orgA.id)
       .auditLog.record({ actorType: 'user', actorId: user.id, action: 'org.rename', target: orgA.id });
 
-    await expect(createTenantDb(pg.appPool).forOrg(orgB.id).auditLog.list()).resolves.toEqual([]);
+    await expect(createTenantDb(pg.appPool).forOrg(orgB.id).auditLog.list()).resolves.toEqual({ items: [], nextCursor: null });
   });
 
   test('recording metadata that looks like a secret throws before touching the database', async () => {
@@ -53,7 +53,43 @@ describe('audit_log (WO-103)', () => {
     await expect(
       db.auditLog.record({ actorType: 'user', actorId: user.id, action: 'x', target: 'y', metadata: { authorization: 'Bearer x' } }),
     ).rejects.toThrow(/looks like a secret/);
-    expect(await db.auditLog.list()).toEqual([]);
+    expect(await db.auditLog.list()).toEqual({ items: [], nextCursor: null });
+  });
+
+  test('filters by action', async () => {
+    const org = await createOrganizationFixture(pg);
+    const user = await createUserFixture(pg);
+    const db = createTenantDb(pg.appPool).forOrg(org.id);
+    await db.auditLog.record({ actorType: 'user', actorId: user.id, action: 'project.create', target: 'a' });
+    await db.auditLog.record({ actorType: 'user', actorId: user.id, action: 'project.delete', target: 'a' });
+
+    const page = await db.auditLog.list({ action: 'project.delete' });
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]?.action).toBe('project.delete');
+  });
+
+  test('paginates with a cursor, newest first, with no gaps or duplicates across pages', async () => {
+    const org = await createOrganizationFixture(pg);
+    const user = await createUserFixture(pg);
+    const db = createTenantDb(pg.appPool).forOrg(org.id);
+    for (let i = 0; i < 5; i += 1) {
+      await db.auditLog.record({ actorType: 'user', actorId: user.id, action: `action.${i}`, target: 'a' });
+    }
+
+    const firstPage = await db.auditLog.list({ limit: 2 });
+    expect(firstPage.items).toHaveLength(2);
+    expect(firstPage.nextCursor).not.toBeNull();
+
+    const secondPage = await db.auditLog.list({ limit: 2, cursor: firstPage.nextCursor });
+    expect(secondPage.items).toHaveLength(2);
+    expect(secondPage.nextCursor).not.toBeNull();
+
+    const thirdPage = await db.auditLog.list({ limit: 2, cursor: secondPage.nextCursor });
+    expect(thirdPage.items).toHaveLength(1);
+    expect(thirdPage.nextCursor).toBeNull();
+
+    const allIds = [...firstPage.items, ...secondPage.items, ...thirdPage.items].map((r) => r.id);
+    expect(new Set(allIds).size).toBe(5);
   });
 
   test('prdm_app cannot UPDATE, DELETE or TRUNCATE audit_log (append-only)', async () => {

@@ -12,6 +12,7 @@ import { injectCspNonce } from './spa-html.js';
 import { installBearerAccessPreHandler } from './access/bearer-access-prehandler.js';
 import { installRouteAccessRegistry, type RouteRegistry } from './access/route-registry.js';
 import { registerAdminOrganizationRoutes } from './api/admin-organizations.js';
+import { registerAuditLogRoutes } from './api/audit-log.js';
 import { registerCiTokenRoutes } from './api/ci-tokens.js';
 import { registerCodeReportRoutes } from './api/code-reports.js';
 import { buildCodeReportRateLimiter } from './rate-limit/code-report-rate-limits.js';
@@ -43,9 +44,16 @@ import { registerGovernanceRoutes } from './api/governance.js';
 import { registerImportRoutes } from './api/import.js';
 import { buildImportRateLimiter } from './rate-limit/import-rate-limits.js';
 import { registerGraphRoutes } from './api/graph.js';
+import { registerLineBoardRoutes } from './api/line-board.js';
 import { registerOrganizationRoutes } from './api/organizations.js';
 import { registerPolicyDocsRoutes } from './api/policy-docs.js';
+import { registerProjectMetricsRoutes } from './api/project-metrics.js';
+import { registerProjectCodeHistoryRoutes } from './api/project-code-history.js';
+import { registerProjectDriftIssueRoutes } from './api/project-drift-issues.js';
+import { registerProjectFeedbackRoutes } from './api/project-feedback.js';
+import { registerProjectOverviewRoutes } from './api/project-overview.js';
 import { registerProjectRoutes } from './api/projects.js';
+import { registerProjectWorkOrderRoutes } from './api/project-work-orders.js';
 import { registerTokenRoutes } from './api/tokens.js';
 import { registerV1MeRoute } from './api/v1-me.js';
 import { buildAuth, type Auth } from './auth/build-auth.js';
@@ -58,6 +66,7 @@ import type { Mailer } from './mailer.js';
 import { buildAuthRateLimiters } from './rate-limit/auth-rate-limits.js';
 import { buildBearerAuthRateLimiter } from './rate-limit/bearer-rate-limits.js';
 import { buildInvitationAcceptRateLimiter } from './rate-limit/invitation-rate-limits.js';
+import { buildOrganizationInvitationRateLimiter } from './rate-limit/organization-invitation-rate-limits.js';
 import { registerSecurityHeaders } from './security-headers.js';
 
 declare module 'fastify' {
@@ -246,8 +255,9 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerCsrfEnforcement(app, env);
       registerOrganizationRoutes(app, { auth, pool, env });
       registerAdminOrganizationRoutes(app, { auth, pool, mailer, env });
-      registerOrganizationInvitationRoutes(app, { auth, pool, mailer, env });
+      registerOrganizationInvitationRoutes(app, { auth, pool, mailer, env, rateLimiter: buildOrganizationInvitationRateLimiter(app) });
       registerProjectRoutes(app, { auth, pool, env, collabRevocationHub });
+      registerProjectOverviewRoutes(app, { auth, pool, env, neo4j });
       registerDocumentRoutes(app, { auth, pool, env, collabRevocationHub });
       const hocuspocus = registerCollabRoute(app, {
         auth,
@@ -280,6 +290,13 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerDriftRoutes(app, { auth, pool, env, neo4j });
       registerForcePushOverrideRoutes(app, { auth, pool, env });
       registerGraphRoutes(app, { auth, pool, env, neo4j });
+      registerLineBoardRoutes(app, { auth, pool, env, neo4j });
+      registerProjectMetricsRoutes(app, { auth, pool, env, neo4j });
+      registerProjectWorkOrderRoutes(app, { auth, pool, env, neo4j });
+      registerProjectFeedbackRoutes(app, { auth, pool, env, neo4j });
+      registerProjectDriftIssueRoutes(app, { auth, pool, env, neo4j });
+      registerProjectCodeHistoryRoutes(app, { auth, pool, env, neo4j });
+      registerAuditLogRoutes(app, { auth, pool, env });
       registerCloseFeatureRoutes(app, { auth, pool, env, neo4j, hocuspocus });
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
       registerTokenRoutes(app, { auth, pool, env, clock });

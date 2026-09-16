@@ -4,6 +4,7 @@ import { attachArtifact, ingestArtifactFile, MAX_ARTIFACT_BYTES } from '../../sr
 import type { PrdmConfig } from '../../src/config.js';
 import { Engine } from '../../src/engine.js';
 import { createFeatureRequest, submitFeedback } from '../../src/feedback/ingest.js';
+import { triageFeedback } from '../../src/feedback/link.js';
 import type { Neo4jGraphDatabase } from '../../src/graph/database.js';
 import type { GraphStore } from '../../src/graph/types.js';
 import { createFixtureRepo, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
@@ -186,5 +187,30 @@ describe('Artifact ingestion (F-01)', () => {
 
   test('attachArtifact rejects oversize content directly', async () => {
     await expect(attachArtifact(engine, { title: 'x', content: 'a'.repeat(MAX_ARTIFACT_BYTES + 1), source: 'other' })).rejects.toThrow(/exceeds/);
+  });
+});
+
+describe('triageFeedback (SDD-012, WO-330)', () => {
+  test('links an unlinked feedback to a feature and marks it triaged, applied immediately (local Engine)', async () => {
+    const submitted = await submitFeedback(engine, { text: 'contenido sin relación con nada conocido todavía', source: 'chat' });
+    expect(submitted.linkedTo).toEqual([]);
+
+    const result = await triageFeedback(engine, submitted.id, { informs: ['PRD-001'] });
+    expect(result).toEqual({ id: submitted.id, linkedTo: ['PRD-001'], root: false, applied: 'immediate' });
+
+    const node = await store.getNode(submitted.id);
+    expect(node?.node).toMatchObject({ status: 'triaged' });
+    expect(node?.links).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'INFORMS', direction: 'out', ref: 'PRD-001' })]));
+  });
+
+  test('rejects triaging a feedback that is already triaged', async () => {
+    const submitted = await submitFeedback(engine, { text: 'otro contenido sin relación conocida aún', source: 'chat' });
+    await triageFeedback(engine, submitted.id, { informs: ['PRD-001'] });
+    await expect(triageFeedback(engine, submitted.id, { informs: ['PRD-001'] })).rejects.toThrow(/only new feedback can be triaged/);
+  });
+
+  test('rejects an informs target that does not exist', async () => {
+    const submitted = await submitFeedback(engine, { text: 'contenido sin relación aún, otra vez', source: 'chat' });
+    await expect(triageFeedback(engine, submitted.id, { informs: ['PRD-404'] })).rejects.toThrow(/not found/);
   });
 });

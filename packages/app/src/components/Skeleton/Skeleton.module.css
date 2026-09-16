@@ -1,0 +1,22 @@
+.skeleton {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 42px;
+  border-bottom: var(--rule-row);
+}
+
+.bar {
+  height: 12px;
+  border-radius: var(--radius-plate);
+  background: var(--regla-fila);
+}
+
+.row .bar {
+  flex: 1;
+}

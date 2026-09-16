@@ -1,5 +1,5 @@
 /**
- * The "invite by email" form on `/o/:orgSlug/settings/members` (SDD-006 §Autenticación, WO-118): org
+ * The "invite by email" form on `/o/:orgSlug/ajustes/miembros` (SDD-006 §Autenticación, WO-118): org
  * role plus optional per-project grants, picked from the org's own projects (SDD-006's invitation
  * contract only accepts `projectId`s that already belong to the organization).
  */

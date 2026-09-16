@@ -1,0 +1,13 @@
+/* Remote collaborator cursor tag (SDD-014, WO-380) — re-tokenized onto `../styles/tokens.css`. */
+
+.marker {
+  display: inline-block;
+  margin-left: var(--space-1);
+  padding: 0 var(--space-1);
+  border: 1px solid;
+  border-radius: var(--radius-plate);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  vertical-align: super;
+  pointer-events: none;
+}

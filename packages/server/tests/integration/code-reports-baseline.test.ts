@@ -307,4 +307,83 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports baseline mode (WO-1
 
     await app.close();
   }, 30_000);
+
+  test('a baseline report persists project_code_refs and governed_warnings (WO-333)', async () => {
+    const app = buildApp();
+    const { project, secret } = await setupProject(app);
+    const headSha = 'a'.repeat(40);
+    const oidcToken = await signOidcToken({}, headSha);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'refs-1', 'x-prdm-github-oidc-token': oidcToken },
+      payload: baseReport(headSha, {
+        governed: [{ blueprintId: 'SDD-001', refs: [{ key: 'src/foo.ts', path: 'src/foo.ts', symbol: null, hash: 'b'.repeat(64) }] }],
+        governed_warnings: [{ blueprintId: 'SDD-002', message: 'no files matched impacts_paths' }],
+      }),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().mode).toBe('baseline');
+
+    const { rows: refRows } = await pg.ownerPool.query(`SELECT blueprint_id, ref_key, path, hash, hash_algo_version, head_sha FROM "project_code_refs" WHERE project_id = $1`, [project.id]);
+    expect(refRows).toEqual([
+      expect.objectContaining({ blueprint_id: 'SDD-001', ref_key: 'src/foo.ts', path: 'src/foo.ts', hash: 'b'.repeat(64), hash_algo_version: 1, head_sha: headSha }),
+    ]);
+
+    const { rows: stateRows } = await pg.ownerPool.query(`SELECT governed_warnings FROM "project_code_state" WHERE project_id = $1`, [project.id]);
+    expect(stateRows[0].governed_warnings).toEqual([{ blueprintId: 'SDD-002', message: 'no files matched impacts_paths' }]);
+
+    await app.close();
+  });
+
+  test('a preview report never writes to project_code_refs (WO-333)', async () => {
+    const app = buildApp();
+    const { project, secret } = await setupProject(app);
+    const headSha = 'b'.repeat(40);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'refs-preview' },
+      payload: baseReport(headSha, { governed: [{ blueprintId: 'SDD-001', refs: [{ key: 'src/foo.ts', path: 'src/foo.ts', symbol: null, hash: 'b'.repeat(64) }] }] }),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().mode).toBe('preview');
+
+    const { rows } = await pg.ownerPool.query(`SELECT 1 FROM "project_code_refs" WHERE project_id = $1`, [project.id]);
+    expect(rows).toHaveLength(0);
+
+    await app.close();
+  });
+
+  test('retrying the same Idempotency-Key never duplicates or corrupts project_code_refs (WO-333)', async () => {
+    const app = buildApp();
+    const { project, secret } = await setupProject(app);
+    const headSha = 'a'.repeat(40);
+    const oidcToken = await signOidcToken({}, headSha);
+    const payload = baseReport(headSha, { governed: [{ blueprintId: 'SDD-001', refs: [{ key: 'src/foo.ts', path: 'src/foo.ts', symbol: null, hash: 'b'.repeat(64) }] }] });
+
+    const first = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'refs-retry', 'x-prdm-github-oidc-token': oidcToken },
+      payload,
+    });
+    expect(first.statusCode).toBe(200);
+
+    const second = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'refs-retry', 'x-prdm-github-oidc-token': oidcToken },
+      payload,
+    });
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toEqual(first.json());
+
+    const { rows } = await pg.ownerPool.query(`SELECT ref_key FROM "project_code_refs" WHERE project_id = $1`, [project.id]);
+    expect(rows).toEqual([{ ref_key: 'src/foo.ts' }]);
+
+    await app.close();
+  });
 });

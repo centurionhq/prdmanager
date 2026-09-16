@@ -11,8 +11,20 @@
  *   already strips `javascript:`/other unsafe protocols on its own.
  * - Every link gets `rel="noopener noreferrer"` and its full URL as a `title` attribute (SDD-008: "URLs
  *   completas visibles" — a title attribute satisfies this without cluttering the rendered text).
+ *
+ * `remark-gfm` (WO-358): tables, task lists and strikethrough render correctly instead of as plain
+ * paragraphs — this preview is the temporary read-only bridge `SDD-013` §"Vista previa" describes until
+ * the lossless block editor (ADR-009/SDD-014) replaces it.
+ *
+ * WO-369/WO-387 (accessibility gate): `remark-gfm`'s own task-list checkboxes render as a bare
+ * `<input type="checkbox" disabled>` with no accessible name at all (axe's "Form elements must have
+ * labels" — critical impact) — this shows up here whenever a task list is too structurally complex for
+ * `PreviewEditor.tsx`'s own editable task-item rendering and falls back to an `IslandBlock` using this
+ * component instead. The `input` override below is the one place every task-list checkbox from either
+ * path renders through.
  */
 import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { ReactElement } from 'react';
 
 interface UrlTransformNode {
@@ -41,6 +53,12 @@ const components: Components = {
       {children}
     </a>
   ),
+  input: ({ type, checked, ...rest }) =>
+    type === 'checkbox' ? (
+      <input {...rest} type="checkbox" checked={checked} aria-label={checked ? 'Tarea completada' : 'Tarea pendiente'} />
+    ) : (
+      <input {...rest} type={type} checked={checked} />
+    ),
 };
 
 export interface MarkdownPreviewProps {
@@ -49,7 +67,7 @@ export interface MarkdownPreviewProps {
 
 export function MarkdownPreview({ body }: MarkdownPreviewProps): ReactElement {
   return (
-    <ReactMarkdown skipHtml urlTransform={urlTransform} components={components}>
+    <ReactMarkdown skipHtml remarkPlugins={[remarkGfm]} urlTransform={urlTransform} components={components}>
       {body}
     </ReactMarkdown>
   );

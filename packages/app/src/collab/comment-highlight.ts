@@ -40,7 +40,7 @@ export const commentHighlightField = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 });
 
-export const commentHighlightExtension = [commentHighlightField, EditorView.baseTheme({ '.cm-comment-highlight': { backgroundColor: 'var(--color-status-warning-glow, rgba(255,176,32,0.25))' } })];
+export const commentHighlightExtension = [commentHighlightField, EditorView.baseTheme({ '.cm-comment-highlight': { backgroundColor: 'var(--seleccion)' } })];
 
 function decodeAnchorBase64(base64: string): Uint8Array {
   return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));

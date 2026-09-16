@@ -6,7 +6,9 @@
  * concrete backend themselves) work unchanged here.
  */
 import type { NodeDetail, RefreshReport, Subgraph, TreeNode, WorkOrderStatus, WorkOrderSummary } from '@prdm/core';
+import type { SearchHitDto, SearchResultDto } from '@prdm/contracts';
 import { request } from './request.js';
+import { buildQuery } from './build-query.js';
 
 export interface TreeResponse {
   forest: TreeNode[];
@@ -19,15 +21,6 @@ export interface WorkOrdersFilter {
 
 function graphBase(orgSlug: string, projectSlug: string): string {
   return `/api/app/organizations/${encodeURIComponent(orgSlug)}/projects/${encodeURIComponent(projectSlug)}/graph`;
-}
-
-function buildQuery(params: Record<string, string | undefined>): string {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) query.set(key, value);
-  }
-  const qs = query.toString();
-  return qs.length > 0 ? `?${qs}` : '';
 }
 
 export function getFullGraph(orgSlug: string, projectSlug: string): Promise<Subgraph> {
@@ -48,6 +41,19 @@ export function listWorkOrders(orgSlug: string, projectSlug: string, filter: Wor
 
 export function getDrift(orgSlug: string, projectSlug: string): Promise<RefreshReport> {
   return request<RefreshReport>(`/api/app/organizations/${encodeURIComponent(orgSlug)}/projects/${encodeURIComponent(projectSlug)}/drift`);
+}
+
+/** `GET .../graph/search` (SDD-012, WO-337): free-text search over the project graph (features,
+ * blueprints, work orders, artifacts, feedback), ranked by relevance — the Arbol screen's search box. */
+export function searchGraph(orgSlug: string, projectSlug: string, q: string): Promise<SearchHitDto[]> {
+  return request<SearchResultDto>(`${graphBase(orgSlug, projectSlug)}/search${buildQuery({ q })}`).then((r) => r.results);
+}
+
+/** `GET .../graph/branch/:nodeId` (SDD-012, WO-337): one feature's own subtree (its blueprints, work
+ * orders and artifacts) — same `Subgraph` shape as {@link getFullGraph}, just scoped to one root instead
+ * of the whole project, for the tree view's focused-branch mode. */
+export function getFeatureBranch(orgSlug: string, projectSlug: string, nodeId: string): Promise<Subgraph> {
+  return request<Subgraph>(`${graphBase(orgSlug, projectSlug)}/branch/${encodeURIComponent(nodeId)}`);
 }
 
 /** `POST .../drift/acknowledge` (WO-140): admin-only server-side, gated the same way client-side. */

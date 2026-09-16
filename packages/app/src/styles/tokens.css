@@ -1,0 +1,88 @@
+/*
+ * Centurion Factory design tokens (SDD-011, approved canvas 15/09/2026).
+ * The ONLY place hex values may appear. Components use var(--token) exclusively.
+ */
+:root {
+  /* Product colors */
+  --grafito: #17191C;
+  --acero: #E9ECEB;
+  --cianotipo: #1F4FA0;
+  --andon: #F5C400;
+  --senal: #1E7F4F;
+  --paro: #B8322A;
+  /* --senal is 4.20:1 on --acero, which fails AA for text. Use --senal-texto for green TEXT
+     on light backgrounds (acero, superficie, diff-agregado); --senal stays for fills/marks. */
+  --senal-texto: #19703F;
+
+  /* Derived neutrals and states */
+  --superficie: #FBFCFB;
+  --regla: #C9CFCD;
+  --regla-fila: #DDE1DF;
+  --relleno: #F1F3F2;
+  --texto-secundario: #33383D;
+  --apagado: #565D63;
+  --cianotipo-hover: #173C7A;
+  --andon-texto: #7A5A00;
+  --seleccion: #D5E0F1;
+  --diff-quitado: #F6E3E1;
+  --diff-agregado: #E1F0E8;
+  --blanco: #FFFFFF;
+
+  /* Inside the dark line band only */
+  --linea-regla: #2E3338;
+  --linea-apagado: #8E979F;
+  --linea-texto: #C4CAD0;
+  --linea-hecho: #6FCF9A;
+  --linea-pendiente: #3A4046;
+  --linea-tinte-andon: rgba(245, 196, 0, 0.14);
+
+  /* Elevation */
+  --sombra-overlay: 0 12px 32px rgba(23, 25, 28, 0.18);
+  --scrim: rgba(23, 25, 28, 0.45);
+
+  /* Type */
+  --font-sans: 'Archivo Variable', 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+  --text-xs: 0.75rem;   /* 12 */
+  --text-sm: 0.875rem;  /* 14 */
+  --text-md: 1rem;      /* 16 */
+  --text-lg: 1.25rem;   /* 20 */
+  --text-xl: 1.75rem;   /* 28 */
+  --text-2xl: 2.75rem;  /* 44 */
+  --stretch-wide: 112%;
+  --stretch-display: 125%;
+
+  /* Spacing (4px base) */
+  --space-1: 0.25rem;  /* 4 */
+  --space-2: 0.5rem;   /* 8 */
+  --space-3: 0.75rem;  /* 12 */
+  --space-4: 1rem;     /* 16 */
+  --space-6: 1.5rem;   /* 24 */
+  --space-8: 2rem;     /* 32 */
+  --space-12: 3rem;    /* 48 */
+
+  /* Shape */
+  --radius-plate: 2px;
+  --radius-input: 4px;
+  --rule: 1px solid var(--regla);
+  --rule-row: 1px solid var(--regla-fila);
+
+  /* Layout */
+  --sidebar-width: 224px;
+  --bottom-bar-height: 64px;
+  --control-height: 40px;
+  --hit-target: 44px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --duration-fast: 160ms;
+  --duration-reveal: 420ms;
+  --focus-ring: 0 0 0 2px var(--superficie), 0 0 0 4px var(--cianotipo);
+}
+
+/* Every control needs a 44px hit target below the mobile breakpoint (SDD-011 WO-298). */
+@media (max-width: 767px) {
+  :root {
+    --control-height: var(--hit-target);
+  }
+}

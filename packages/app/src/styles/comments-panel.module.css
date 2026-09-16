@@ -1,37 +1,37 @@
+/* Comments panel (SDD-013 §"Documentos", WO-359): re-tokenized onto the Centurion Factory token sheet
+   (`./tokens.css`) — lives inside DocumentPanelTabs' own bordered card now, so no border/background of
+   its own here. */
+
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  padding: 0.75rem;
-  background: var(--color-bg-elevated-solid);
+  gap: var(--space-3);
 }
 
 .filters {
   display: flex;
-  gap: 0.35rem;
+  gap: var(--space-2);
 }
 
 .filter,
 .filterActive {
-  border: 1px solid var(--color-border);
+  border: var(--rule);
   background: transparent;
-  color: var(--color-fg-muted);
-  border-radius: 999px;
-  padding: 0.15rem 0.6rem;
-  font-size: 0.8rem;
+  color: var(--apagado);
+  border-radius: var(--radius-plate);
+  padding: 1px var(--space-3);
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 
 .filterActive {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  border-color: var(--cianotipo);
+  color: var(--cianotipo);
 }
 
 .error {
-  color: var(--color-status-error);
-  font-size: 0.85rem;
+  color: var(--paro);
+  font-size: var(--text-sm);
 }
 
 .threadList {
@@ -40,92 +40,92 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-3);
 }
 
 .thread,
 .threadSelected {
-  border: 1px solid var(--color-border);
-  border-radius: 0.4rem;
-  padding: 0.5rem;
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  padding: var(--space-2);
 }
 
 .threadSelected {
-  border-color: var(--color-accent);
+  border-color: var(--cianotipo);
 }
 
 .quotedText {
   display: block;
   width: 100%;
   text-align: left;
-  background: var(--color-bg-inset);
+  background: var(--relleno);
   border: none;
-  border-radius: 0.3rem;
-  padding: 0.25rem 0.4rem;
-  color: var(--color-fg-subtle);
+  border-radius: var(--radius-plate);
+  padding: var(--space-1) var(--space-2);
+  color: var(--apagado);
   font-style: italic;
   cursor: pointer;
 }
 
 .commentList {
   list-style: none;
-  margin: 0.35rem 0;
+  margin: var(--space-2) 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--space-1);
 }
 
 .comment {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .commentBody {
   margin: 0;
-  font-size: 0.85rem;
-  color: var(--color-fg);
+  font-size: var(--text-sm);
+  color: var(--grafito);
 }
 
 .linkButton,
 .smallButton {
   background: none;
   border: none;
-  color: var(--color-accent);
-  font-size: 0.75rem;
+  color: var(--cianotipo);
+  font-size: var(--text-xs);
   cursor: pointer;
   padding: 0;
 }
 
 .smallButton {
-  border: 1px solid var(--color-border);
-  border-radius: 0.3rem;
-  padding: 0.15rem 0.5rem;
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  padding: 1px var(--space-2);
 }
 
 .replyForm {
   display: flex;
-  gap: 0.35rem;
-  margin-top: 0.35rem;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .replyInput {
   flex: 1;
-  background: var(--color-bg-inset);
-  border: 1px solid var(--color-border);
-  border-radius: 0.3rem;
-  color: var(--color-fg);
-  padding: 0.2rem 0.4rem;
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  color: var(--grafito);
+  padding: 2px var(--space-2);
   font: inherit;
 }
 
 .threadActions {
-  margin-top: 0.35rem;
+  margin-top: var(--space-2);
 }
 
 .empty {
-  color: var(--color-fg-subtle);
-  font-size: 0.85rem;
+  color: var(--apagado);
+  font-size: var(--text-sm);
 }

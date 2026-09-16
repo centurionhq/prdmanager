@@ -48,6 +48,10 @@ export const tokenSummarySchema = z.object({
   lastUsedAt: z.string().nullable(),
   revokedAt: z.string().nullable(),
   createdAt: z.string(),
+  /** Display name of the user who created this token, `null` once that account no longer exists
+   * (SDD-012: lets a CI-token list show who issued a shared project credential); optional so an older
+   * server response missing this addition still parses. */
+  createdByName: z.string().nullable().optional(),
 });
 export type TokenSummaryDto = z.infer<typeof tokenSummarySchema>;
 

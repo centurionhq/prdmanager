@@ -1,169 +1,232 @@
 /**
- * `/o/:orgSlug/p/:projectSlug/drift` (SDD-010 §Dashboard, WO-199): the code-report-backed drift view —
- * distinct from `ProjectGraph`'s blueprint/work-order `DriftBanner` (that one reflects
- * `PgProjectEngine.inspect()` directly; this one is "who verified what, and when", straight from the
- * `code_reports` history WO-180/WO-181 already write).
- *
- * Three sections, per SDD-010: the **official** report for the default branch (never a preview shown as
- * if it were official — the label is always explicit text, never color alone, per this codebase's
- * earlier UI/a11y review gate), **preview** drift by branch, and the full chronological **history**.
+ * `/o/:orgSlug/p/:projectSlug/drift` (SDD-013 §"Shell y router", WO-361): the code-report-backed drift
+ * view — reporte oficial de la rama por defecto, vistas previas por rama, historial completo y el
+ * detalle de un reporte (`getDriftReportDetail`), con "Reconocer drift" (`acknowledgeDrift`). Ported
+ * from the old graph/`getDriftDashboard`-only screen to also drive `getDriftIssues` (SDD-012, WO-340),
+ * the same feature/blueprint/station-attributed issues `Drift.dc.html` shows.
  */
-import { useEffect, useState, type ReactElement } from 'react';
-import { useParams } from 'react-router';
-import type { DriftDashboardDto, DriftReportSummaryDto } from '@prdm/contracts';
-import { LoadingState } from '@prdm/ui';
-import { getDriftDashboard } from '../api/client.js';
+import { useState, type ReactElement } from 'react';
+import { getDriftDashboard, getDriftIssues } from '../api/client.js';
+import { acknowledgeDrift } from '../api/graph.js';
 import { errorMessage } from '../api/error-message.js';
-import { FormError } from '../components/FormError.js';
+import { useApiQuery } from '../api/use-api-query.js';
+import { Button, ErrorState, PageHeader, Severity, Skeleton, ToastProvider, useToast } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
-import { useOrgShellContext } from './OrgShell.js';
-import formStyles from '../styles/forms.module.css';
-import styles from '../styles/drift-dashboard.module.css';
+import { useProjectShellContext } from './ProjectShell.js';
+import { AcknowledgeModal } from './drift/AcknowledgeModal.js';
+import { acknowledgeableTargets } from './drift/drift-groups.js';
+import { DriftIssuesList } from './drift/DriftIssuesList.js';
+import { ReportDetailModal } from './drift/ReportDetailModal.js';
+import styles from './drift/Drift.module.css';
 
 function shortSha(sha: string): string {
   return sha.slice(0, 12);
 }
 
-/** Text-labelled badge — SDD-006's earlier a11y review gate ruled out color-only status indicators, so
- * "Oficial"/"Vista previa" is always the actual accessible name, with color only as reinforcement. */
-function ModeBadge({ mode }: { mode: DriftReportSummaryDto['mode'] }): ReactElement {
-  const label = mode === 'baseline' ? 'Oficial' : 'Vista previa';
-  return <span className={`${styles.badge} ${mode === 'baseline' ? styles.badgeOfficial : styles.badgePreview}`}>{label}</span>;
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString();
 }
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
-function OfficialSection({ official }: { official: DriftReportSummaryDto | null }): ReactElement {
-  return (
-    <section className={styles.section} aria-labelledby="drift-official-heading">
-      <h2 id="drift-official-heading" className={styles.sectionTitle}>
-        Rama por defecto (oficial)
-      </h2>
-      {!official && <p className={styles.empty}>Todavía no hay un reporte oficial verificado por CI para este proyecto.</p>}
-      {official && (
-        <div className={styles.officialCard}>
-          <p>
-            <ModeBadge mode="baseline" /> verificado por el token <strong>{official.tokenName}</strong>
-          </p>
-          <p>
-            Commit <span className={styles.sha}>{shortSha(official.headSha)}</span>
-          </p>
-          <p className={styles.meta}>
-            {official.issueCount} {official.issueCount === 1 ? 'issue' : 'issues'}
-            {official.hasBlockingIssues ? ' (bloqueantes)' : ''} · {formatTimestamp(official.createdAt)}
-          </p>
-        </div>
-      )}
-    </section>
-  );
+function isActivationKey(key: string): boolean {
+  return key === 'Enter' || key === ' ' || key === 'Spacebar';
 }
 
-function PreviewsSection({ previews }: { previews: DriftReportSummaryDto[] }): ReactElement {
-  return (
-    <section className={styles.section} aria-labelledby="drift-previews-heading">
-      <h2 id="drift-previews-heading" className={styles.sectionTitle}>
-        Vistas previas por rama
-      </h2>
-      {previews.length === 0 && <p className={styles.empty}>No hay reportes de vista previa todavía.</p>}
-      {previews.length > 0 && (
-        <ul>
-          {previews.map((report) => (
-            <li key={report.id}>
-              <ModeBadge mode="preview" /> <strong>{report.branch ?? '(rama desconocida)'}</strong> · <span className={styles.sha}>{shortSha(report.headSha)}</span> ·{' '}
-              {report.tokenName} · {report.issueCount} {report.issueCount === 1 ? 'issue' : 'issues'} · {formatTimestamp(report.createdAt)}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
+function DriftContent(): ReactElement {
+  const { orgSlug, projectSlug } = useProjectShellContext();
+  useDocumentTitle('Drift');
+  const { show } = useToast();
 
-function HistorySection({ history }: { history: DriftReportSummaryDto[] }): ReactElement {
+  const dashboardQuery = useApiQuery(`drift-dashboard:${orgSlug}:${projectSlug}`, () => getDriftDashboard(orgSlug, projectSlug), [orgSlug, projectSlug]);
+  const issuesQuery = useApiQuery(`drift-issues:${orgSlug}:${projectSlug}`, () => getDriftIssues(orgSlug, projectSlug), [orgSlug, projectSlug]);
+
+  const [ackOpen, setAckOpen] = useState(false);
+  const [ackSubmitting, setAckSubmitting] = useState(false);
+  const [reportId, setReportId] = useState<string | undefined>(undefined);
+
+  if (dashboardQuery.status === 'cargando' || issuesQuery.status === 'cargando') return <Skeleton rows={6} />;
+  if (dashboardQuery.status === 'error') {
+    return <ErrorState title="No pudimos cargar el drift" body={errorMessage(dashboardQuery.error)} onRetry={dashboardQuery.retry} />;
+  }
+  if (issuesQuery.status === 'error') {
+    return <ErrorState title="No pudimos cargar los issues de drift" body={errorMessage(issuesQuery.error)} onRetry={issuesQuery.retry} />;
+  }
+
+  const dashboard = dashboardQuery.data ?? { official: null, previews: [], history: [] };
+  const issues = issuesQuery.data ?? [];
+  const errorCount = issues.filter((issue) => issue.severity === 'error').length;
+  const warningCount = issues.filter((issue) => issue.severity === 'warning').length;
+  const targets = acknowledgeableTargets(issues);
+
+  async function handleAcknowledge(target: string): Promise<void> {
+    setAckSubmitting(true);
+    try {
+      await acknowledgeDrift(orgSlug, projectSlug, target);
+      setAckOpen(false);
+      show('Drift reconocido', { tone: 'success' });
+      dashboardQuery.retry();
+      issuesQuery.retry();
+    } catch (err) {
+      show(errorMessage(err));
+    } finally {
+      setAckSubmitting(false);
+    }
+  }
+
   return (
-    <section className={styles.section} aria-labelledby="drift-history-heading">
-      <h2 id="drift-history-heading" className={styles.sectionTitle}>
-        Historial de reportes
-      </h2>
-      {history.length === 0 && <p className={styles.empty}>Todavía no se reportó ningún código para este proyecto.</p>}
-      {history.length > 0 && (
-        <div className={formStyles.tableWrap}>
-          <table className={formStyles.table}>
-            <caption className={formStyles.hint}>Reportes de código, oficiales y de vista previa, del más reciente al más antiguo.</caption>
-            <thead>
-              <tr>
-                <th scope="col">Nivel de confianza</th>
-                <th scope="col">Rama</th>
-                <th scope="col">Commit</th>
-                <th scope="col">Token</th>
-                <th scope="col">Issues</th>
-                <th scope="col">Fecha</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.map((report) => (
-                <tr key={report.id}>
-                  <td>
-                    <ModeBadge mode={report.mode} />
-                  </td>
-                  <td>{report.branch ?? '(rama desconocida)'}</td>
-                  <td className={styles.sha}>{shortSha(report.headSha)}</td>
-                  <td>{report.tokenName}</td>
-                  <td>
-                    {report.issueCount}
-                    {report.hasBlockingIssues ? ' (bloqueantes)' : ''}
-                  </td>
-                  <td>{formatTimestamp(report.createdAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div className={styles.page}>
+      <PageHeader
+        title="Drift"
+        subtitle={
+          dashboard.official ? (
+            <>
+              Reporte oficial de <span className="id">{dashboard.official.branch ?? '(rama desconocida)'}</span> · commit{' '}
+              <span className="id">{shortSha(dashboard.official.headSha)}</span> · {formatTimestamp(dashboard.official.createdAt)}
+            </>
+          ) : (
+            'Todavía no hay un reporte oficial verificado por CI para este proyecto.'
+          )
+        }
+        actions={
+          <div className={styles.headerActions}>
+            <Button type="button" variant="secondary" disabled title="Requiere admin">
+              Autorizar force-push
+            </Button>
+            <Button type="button" variant="primary" onClick={() => setAckOpen(true)}>
+              Reconocer drift
+            </Button>
+          </div>
+        }
+      />
+
+      {!dashboard.official ? (
+        <div className={styles.awaitingOfficial}>
+          <Severity severity="warning" />
+          <span>Esperando el primer reporte de CI verificado sobre la rama por defecto.</span>
         </div>
-      )}
-    </section>
+      ) : null}
+
+      <section className={styles.summary} aria-label="Resumen de drift">
+        <div className={styles.summaryItem}>
+          <div className={styles.summaryHeadline}>
+            <span className={`${styles.summaryDot} ${styles.dotError}`} aria-hidden="true" />
+            <span className={styles.summaryCount}>{errorCount}</span>
+            <span className={styles.summaryUnit}>errores</span>
+          </div>
+        </div>
+        <div className={styles.summaryItem}>
+          <div className={styles.summaryHeadline}>
+            <span className={`${styles.summaryDot} ${styles.dotWarning}`} aria-hidden="true" />
+            <span className={styles.summaryCount}>{warningCount}</span>
+            <span className={styles.summaryUnit}>avisos</span>
+          </div>
+        </div>
+      </section>
+
+      <div className={styles.columns}>
+        <div>
+          <h2 className={styles.sectionTitle}>Issues</h2>
+          <DriftIssuesList issues={issues} />
+        </div>
+
+        <div className={styles.sidebar}>
+          <div>
+            <h2 className={styles.sectionTitle}>Previews por rama</h2>
+            {dashboard.previews.length === 0 ? (
+              <p>No hay reportes de vista previa todavía.</p>
+            ) : (
+              <>
+                <div className={styles.previewsHead}>
+                  <span>Rama</span>
+                  <span>Issues</span>
+                </div>
+                <ul className={styles.list}>
+                  {dashboard.previews.map((report) => (
+                    <li key={report.id} className={styles.previewRow}>
+                      <div className={styles.branchInfo}>
+                        <span className="id">{report.branch ?? '(rama desconocida)'}</span>
+                        <span className={styles.previewBadge}>vista previa</span>
+                      </div>
+                      <span className={[styles.issueCount, report.issueCount === 0 ? styles.issueCountZero : styles.issueCountSome].join(' ')}>
+                        {report.issueCount}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+
+          <div>
+            <h2 className={styles.sectionTitle}>Historial</h2>
+            {dashboard.history.length === 0 ? (
+              <p>Todavía no se reportó ningún código para este proyecto.</p>
+            ) : (
+              <table className={styles.historyTable}>
+                <caption className="visually-hidden">Historial de reportes de drift, del más reciente al más antiguo.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col" className={styles.historyHeaderCell}>
+                      Fecha
+                    </th>
+                    <th scope="col" className={styles.historyHeaderCell}>
+                      Commit
+                    </th>
+                    <th scope="col" className={styles.historyHeaderCell}>
+                      Token
+                    </th>
+                    <th scope="col" className={`${styles.historyHeaderCell} ${styles.historyHeaderCellEnd}`}>
+                      Issues
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dashboard.history.map((report) => (
+                    <tr
+                      key={report.id}
+                      className={styles.historyRow}
+                      tabIndex={0}
+                      onClick={() => setReportId(report.id)}
+                      onKeyDown={(event) => {
+                        if (!isActivationKey(event.key)) return;
+                        event.preventDefault();
+                        setReportId(report.id);
+                      }}
+                    >
+                      <td className={styles.historyCell}>{formatDate(report.createdAt)}</td>
+                      <td className={styles.historyCell}>
+                        <span className="id">{shortSha(report.headSha)}</span>
+                      </td>
+                      <td className={styles.historyCell}>{report.tokenName}</td>
+                      <td className={`${styles.historyCell} ${styles.historyCellEnd}`}>{report.issueCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <AcknowledgeModal
+        open={ackOpen}
+        targets={targets}
+        submitting={ackSubmitting}
+        onClose={() => setAckOpen(false)}
+        onConfirm={(target) => void handleAcknowledge(target)}
+      />
+      <ReportDetailModal orgSlug={orgSlug} projectSlug={projectSlug} reportId={reportId} onClose={() => setReportId(undefined)} />
+    </div>
   );
 }
 
 export function DriftDashboard(): ReactElement {
-  const { orgSlug } = useOrgShellContext();
-  const { projectSlug } = useParams<{ projectSlug: string }>();
-  const [dashboard, setDashboard] = useState<DriftDashboardDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useDocumentTitle('Drift');
-
-  useEffect(() => {
-    if (!projectSlug) return;
-    let cancelled = false;
-    setDashboard(null);
-    setError(null);
-    getDriftDashboard(orgSlug, projectSlug)
-      .then((data) => {
-        if (!cancelled) setDashboard(data);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(errorMessage(err));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [orgSlug, projectSlug]);
-
-  if (!projectSlug) return <LoadingState label="Cargando drift…" />;
-
   return (
-    <div>
-      <h1 className={formStyles.title}>Drift</h1>
-      <FormError message={error} />
-      {!dashboard && !error && <LoadingState label="Cargando drift…" />}
-      {dashboard && (
-        <>
-          <OfficialSection official={dashboard.official} />
-          <PreviewsSection previews={dashboard.previews} />
-          <HistorySection history={dashboard.history} />
-        </>
-      )}
-    </div>
+    <ToastProvider>
+      <DriftContent />
+    </ToastProvider>
   );
 }

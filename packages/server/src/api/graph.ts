@@ -8,7 +8,7 @@
  * Visible to any project member (`view`) — the admin-only "Reconocer" action is WO-140's
  * `/drift/acknowledge`, not one of these.
  */
-import { buildForest, docId, WORK_ORDER_STATUSES, type GraphStore } from '@prdm/core';
+import { buildForest, docId, NODE_LABELS, WORK_ORDER_STATUSES, type GraphStore } from '@prdm/core';
 import { can } from '@prdm/contracts';
 import type { Neo4jGraphDatabase } from '@prdm/core';
 import type { FastifyInstance } from 'fastify';
@@ -40,6 +40,11 @@ interface NodeRouteParams extends ProjectRouteParams {
 
 const treeQuerySchema = z.object({ root: docId.optional() });
 const workOrdersQuerySchema = z.object({ status: z.enum(WORK_ORDER_STATUSES).optional(), blueprint: docId.optional() });
+const searchQuerySchema = z.object({
+  q: z.string().min(1).max(300),
+  label: z.enum(NODE_LABELS).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+});
 
 /** Mirrors `packages/web/src/api/tree.ts`'s `loadTreeGraph`: full graph when unrooted, else `getNode` first so an
  * unknown `root` 404s instead of silently rendering an empty tree. */
@@ -93,6 +98,31 @@ export function registerGraphRoutes(app: FastifyInstance, opts: RegisterGraphRou
       const detail = await store.getNode(req.params.nodeId);
       if (!detail) throw new NotFoundError(`${req.params.nodeId} not found`);
       return detail;
+    },
+  );
+
+  app.get<{ Params: ProjectRouteParams; Querystring: Record<string, unknown> }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/graph/search',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const store = await resolveStore(req.params.orgSlug, req.params.projectSlug, session.user.id);
+      const parsedQuery = searchQuerySchema.safeParse(req.query);
+      if (!parsedQuery.success) throw new ValidationError('invalid query');
+      const results = await store.search(parsedQuery.data.q, { labels: parsedQuery.data.label ? [parsedQuery.data.label] : undefined, limit: parsedQuery.data.limit });
+      return { results };
+    },
+  );
+
+  app.get<{ Params: NodeRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/graph/branch/:nodeId',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const store = await resolveStore(req.params.orgSlug, req.params.projectSlug, session.user.id);
+      const subgraph = await store.branch(req.params.nodeId);
+      if (subgraph.nodes.length === 0) throw new NotFoundError(`${req.params.nodeId} not found`);
+      return { nodes: subgraph.nodes, edges: subgraph.edges };
     },
   );
 

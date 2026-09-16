@@ -64,7 +64,7 @@ describe('organization membership (WO-104)', () => {
 
     const members = await listOrganizationMembers(pg.appPool, org.id);
 
-    expect(members).toEqual([{ userId: user.id, email: user.email, name: user.email, role: 'owner' }]);
+    expect(members).toEqual([{ userId: user.id, email: user.email, name: user.email, role: 'owner', lastActiveAt: null }]);
   });
 
   test('an owner can promote a member to admin', async () => {

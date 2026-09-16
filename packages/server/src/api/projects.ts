@@ -195,7 +195,9 @@ export function registerProjectRoutes(app: FastifyInstance, opts: RegisterProjec
     const { project } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
 
     const members = await createTenantDb(pool).forOrg(org.id).forProject(project.id).members.list();
-    return { members: members.map((m) => ({ userId: m.userId, email: m.email, name: m.name, role: m.role })) };
+    return {
+      members: members.map((m) => ({ userId: m.userId, email: m.email, name: m.name, role: m.role, lastActiveAt: m.lastActiveAt ? new Date(m.lastActiveAt).toISOString() : null })),
+    };
   });
 
   app.post<{ Params: ProjectRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/members', { config: { access: { kind: 'session' } } }, async (req) => {

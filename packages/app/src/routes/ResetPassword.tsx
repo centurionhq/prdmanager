@@ -1,8 +1,10 @@
 /**
- * `/reset-password` (SDD-006 §Dashboard shell, WO-116): the request step (email only) and the
- * completion step (new password), picked purely by whether `?token=` is present in the URL — the emailed
- * link lands here with that query param once better-auth's own `GET /api/auth/reset-password/:token`
- * redirect validates it (see `packages/server/src/auth/allowlist.ts`'s WO-116 addition).
+ * `/reset-password` (SDD-006 §Dashboard shell, WO-116; re-skinned to the approved canvas per SDD-013
+ * §"Login, TOTP, reseteo, invitación" — `design/centurion-factory/canvas/ResetPassword.dc.html`): the
+ * request step (email only) and the completion step (new password), picked purely by whether `?token=`
+ * is present in the URL — the emailed link lands here with that query param once better-auth's own
+ * `GET /api/auth/reset-password/:token` redirect validates it (see `packages/server/src/auth/allowlist.ts`'s
+ * WO-116 addition).
  */
 import { useState, type FormEvent, type ReactElement } from 'react';
 import { Link, useSearchParams } from 'react-router';
@@ -11,10 +13,14 @@ import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { useFocusOnChange } from '../hooks/use-focus-on-change.js';
-import styles from '../styles/forms.module.css';
+import styles from '../styles/auth.module.css';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 12;
+
+function Brand(): ReactElement {
+  return <div className={styles.brand}>Centurion Factory</div>;
+}
 
 function RequestResetForm(): ReactElement {
   const [email, setEmail] = useState('');
@@ -24,7 +30,7 @@ function RequestResetForm(): ReactElement {
   const [sent, setSent] = useState(false);
 
   const emailValid = EMAIL_PATTERN.test(email);
-  useDocumentTitle(sent ? 'Revisá tu email' : 'Restablecer contraseña');
+  useDocumentTitle(sent ? 'Enlace enviado' : 'Recuperar acceso');
   // See Login.tsx's TotpStep for why focus (not a live region) is the fix here.
   const confirmationRef = useFocusOnChange<HTMLHeadingElement>(sent);
 
@@ -52,10 +58,13 @@ function RequestResetForm(): ReactElement {
     return (
       <div className={styles.page}>
         <div className={styles.card}>
-          <h1 className={styles.title} ref={confirmationRef} tabIndex={-1}>
-            Revisá tu email
-          </h1>
-          <p className={styles.subtitle}>Si ese email existe en el sistema, vas a recibir un enlace para restablecer tu contraseña.</p>
+          <Brand />
+          <div className={styles.statusCard} role="status">
+            <h1 className={styles.statusHeading} ref={confirmationRef} tabIndex={-1}>
+              Enlace enviado
+            </h1>
+            <p className={styles.statusBody}>Revisá {email}. Si ese email existe en el sistema, el enlace vence pronto y sirve una sola vez.</p>
+          </div>
         </div>
       </div>
     );
@@ -64,37 +73,41 @@ function RequestResetForm(): ReactElement {
   return (
     <div className={styles.page}>
       <form className={styles.card} onSubmit={handleSubmit} noValidate>
-        <h1 className={styles.title}>Restablecer contraseña</h1>
-        <div className={styles.field}>
-          <label htmlFor="reset-email">Email</label>
-          <input
-            id="reset-email"
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            data-touched={touched}
-            aria-describedby={touched && !emailValid ? 'reset-email-hint' : undefined}
-            aria-invalid={touched && !emailValid}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          {touched && !emailValid && (
-            <span id="reset-email-hint" className={styles.hint}>
-              Ingresá un email válido.
-            </span>
-          )}
-        </div>
-        <FormError message={error} />
-        <div className={styles.actions}>
-          <Link to="/login" className={styles.link}>
-            Volver a iniciar sesión
-          </Link>
-        </div>
-        <div className={styles.actions}>
+        <Brand />
+        <div className={styles.section}>
+          <div className={styles.heading}>
+            <h1 className={styles.title}>Recuperar acceso</h1>
+            <p className={styles.subtitle}>Te mandamos un enlace para elegir una contraseña nueva.</p>
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="reset-email">Email</label>
+            <input
+              id="reset-email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              data-touched={touched}
+              aria-describedby={touched && !emailValid ? 'reset-email-hint' : undefined}
+              aria-invalid={touched && !emailValid}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            {touched && !emailValid && (
+              <span id="reset-email-hint" className={styles.hint}>
+                Ingresá un email válido.
+              </span>
+            )}
+          </div>
+          <FormError message={error} />
           <button type="submit" className={styles.primaryButton} disabled={submitting}>
-            Enviar enlace
+            Mandar enlace
           </button>
+          <div className={styles.actions}>
+            <Link to="/login" className={styles.link}>
+              Volver a entrar
+            </Link>
+          </div>
         </div>
       </form>
     </div>
@@ -111,7 +124,7 @@ function CompleteResetForm({ token }: { token: string }): ReactElement {
 
   const passwordValid = password.length >= MIN_PASSWORD_LENGTH;
   const confirmValid = confirmPassword === password;
-  useDocumentTitle(done ? 'Contraseña actualizada' : 'Elegí una nueva contraseña');
+  useDocumentTitle(done ? 'Contraseña actualizada' : 'Elegí una contraseña nueva');
   const confirmationRef = useFocusOnChange<HTMLHeadingElement>(done);
 
   async function handleSubmit(event: FormEvent): Promise<void> {
@@ -135,15 +148,16 @@ function CompleteResetForm({ token }: { token: string }): ReactElement {
     return (
       <div className={styles.page}>
         <div className={styles.card}>
-          <h1 className={styles.title} ref={confirmationRef} tabIndex={-1}>
-            Contraseña actualizada
-          </h1>
-          <p className={styles.subtitle}>Ya podés iniciar sesión con tu nueva contraseña.</p>
-          <div className={styles.actions}>
-            <Link to="/login" className={styles.primaryButton}>
-              Iniciar sesión
-            </Link>
+          <Brand />
+          <div className={styles.statusCard} role="status">
+            <h1 className={styles.statusHeading} ref={confirmationRef} tabIndex={-1}>
+              Contraseña actualizada
+            </h1>
+            <p className={styles.statusBody}>Ya podés iniciar sesión con tu nueva contraseña.</p>
           </div>
+          <Link to="/login" className={styles.primaryButton}>
+            Iniciar sesión
+          </Link>
         </div>
       </div>
     );
@@ -152,49 +166,53 @@ function CompleteResetForm({ token }: { token: string }): ReactElement {
   return (
     <div className={styles.page}>
       <form className={styles.card} onSubmit={handleSubmit} noValidate>
-        <h1 className={styles.title}>Elegí una nueva contraseña</h1>
-        <div className={styles.field}>
-          <label htmlFor="new-password">Nueva contraseña</label>
-          <input
-            id="new-password"
-            name="password"
-            type="password"
-            required
-            autoComplete="new-password"
-            value={password}
-            data-touched={touched}
-            aria-describedby={touched && !passwordValid ? 'new-password-hint' : undefined}
-            aria-invalid={touched && !passwordValid}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          {touched && !passwordValid && (
-            <span id="new-password-hint" className={styles.hint}>
-              Mínimo {MIN_PASSWORD_LENGTH} caracteres.
-            </span>
-          )}
-        </div>
-        <div className={styles.field}>
-          <label htmlFor="confirm-password">Confirmar contraseña</label>
-          <input
-            id="confirm-password"
-            name="confirmPassword"
-            type="password"
-            required
-            autoComplete="new-password"
-            value={confirmPassword}
-            data-touched={touched}
-            aria-describedby={touched && !confirmValid ? 'confirm-password-hint' : undefined}
-            aria-invalid={touched && !confirmValid}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-          />
-          {touched && !confirmValid && (
-            <span id="confirm-password-hint" className={styles.hint}>
-              Las contraseñas no coinciden.
-            </span>
-          )}
-        </div>
-        <FormError message={error} />
-        <div className={styles.actions}>
+        <Brand />
+        <div className={styles.section}>
+          <div className={styles.heading}>
+            <h1 className={styles.title}>Elegí una contraseña nueva</h1>
+            <p className={styles.subtitle}>Mínimo {MIN_PASSWORD_LENGTH} caracteres. Al confirmar, cerramos tus otras sesiones.</p>
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="new-password">Contraseña nueva</label>
+            <input
+              id="new-password"
+              name="password"
+              type="password"
+              required
+              autoComplete="new-password"
+              value={password}
+              data-touched={touched}
+              aria-describedby={touched && !passwordValid ? 'new-password-hint' : undefined}
+              aria-invalid={touched && !passwordValid}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            {touched && !passwordValid && (
+              <span id="new-password-hint" className={styles.hint}>
+                Mínimo {MIN_PASSWORD_LENGTH} caracteres.
+              </span>
+            )}
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="confirm-password">Confirmar contraseña</label>
+            <input
+              id="confirm-password"
+              name="confirmPassword"
+              type="password"
+              required
+              autoComplete="new-password"
+              value={confirmPassword}
+              data-touched={touched}
+              aria-describedby={touched && !confirmValid ? 'confirm-password-hint' : undefined}
+              aria-invalid={touched && !confirmValid}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+            {touched && !confirmValid && (
+              <span id="confirm-password-hint" className={styles.hint}>
+                Las contraseñas no coinciden.
+              </span>
+            )}
+          </div>
+          <FormError message={error} />
           <button type="submit" className={styles.primaryButton} disabled={submitting}>
             Guardar
           </button>
