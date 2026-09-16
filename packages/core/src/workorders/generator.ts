@@ -161,3 +161,58 @@ export async function generateWorkOrders(engine: ProjectEngine, blueprintId: str
     { atomic: true },
   );
 }
+
+const MAX_TASK_TEXT = 500;
+
+export interface AddBlueprintTaskResult {
+  blueprint_id: string;
+  task: string;
+}
+
+/**
+ * Appends one `- [ ] <text>` line to a blueprint's `## Tareas`/`## Tasks` checklist (creating the
+ * section, at the end of the body, if the blueprint doesn't have one yet) via `ops.replaceDocument` —
+ * the same engine-write primitive `generateWorkOrders` above uses to create new WO documents, safe for
+ * exactly the non-`collab`-origin documents this repo's blueprints are (SDD-007's `PgProjectEngine`
+ * refuses `replaceDocument` on a document with a live collaborative working copy). Added alongside the
+ * remote MCP's own `generate_work_orders` (SDD-010 revisited) so a developer's code assistant can turn
+ * a new requirement into a claimable Work Order end-to-end without the dashboard's collaborative
+ * editor, which blueprints never use anyway.
+ */
+export async function addBlueprintTask(engine: ProjectEngine, blueprintId: string, taskText: string): Promise<AddBlueprintTaskResult> {
+  const text = taskText.trim();
+  if (text.length === 0) throw new Error('task text must not be empty');
+  if (text.length > MAX_TASK_TEXT) throw new Error(`task text must be at most ${MAX_TASK_TEXT} characters`);
+
+  return engine.transaction(
+    async (ops) => {
+      const scan = await ops.scan();
+      const blueprint = scan.docs.find((d) => d.node.id === blueprintId);
+      if (!blueprint) throw new Error(`blueprint ${blueprintId} not found`);
+      if (!isBlueprint(blueprint)) throw new Error(`${blueprintId} is not a blueprint`);
+
+      const body = blueprint.node.body;
+      const line = `- [ ] ${text}`;
+      const heading = TASKS_HEADING.exec(body);
+      const nextBody = heading
+        ? insertIntoTasksSection(body, heading, line)
+        : `${body.trimEnd()}\n\n## Tareas\n\n${line}\n`;
+
+      const content = renderDocument(blueprint.frontmatter as unknown as Record<string, FieldValue>, nextBody);
+      await ops.replaceDocument(blueprintId, content);
+
+      return { blueprint_id: blueprintId, task: text };
+    },
+    { atomic: true },
+  );
+}
+
+/** Inserts `line` as the last checklist item of the `## Tareas`/`## Tasks` section located by `heading`
+ * (right before the next `##` heading, or at the end of the body if the tasks section is the last one). */
+function insertIntoTasksSection(body: string, heading: RegExpExecArray, line: string): string {
+  const sectionStart = heading.index + heading[0].length;
+  const rest = body.slice(sectionStart);
+  const next = ANY_HEADING.exec(rest);
+  const insertAt = next ? sectionStart + next.index : body.length;
+  return `${body.slice(0, insertAt).trimEnd()}\n${line}\n\n${body.slice(insertAt).trimStart()}`.trimEnd() + '\n';
+}

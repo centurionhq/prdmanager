@@ -2,13 +2,11 @@
  * The single most important correctness test in WO-194 (SDD-010 "Importador"): runs the real
  * `prdm link --import` pipeline (`readLocalImportPayload` + `uploadImportPayload`, against a real
  * in-process server backed by a real (disposable, truncated-after) test Postgres project — never the
- * actual prdmanager SaaS project) over *this repository's own real `docs/` tree*, and asserts every
- * document's content round-trips byte-for-byte: `contentHash(render(projectDoc(import(raw)))) ==
- * contentHash(raw)`.
- *
- * SDD-010: "El dogfooding sobre este repo no commitea remote:" — this test never writes to this
- * repository's own `.prdm.yaml`/`docs/`; it only *reads* them, uploading into a throwaway project in the
- * test database.
+ * actual prdmanager SaaS project) over a frozen, ~430-file snapshot of this repository's own real
+ * governance docs (`packages/app/tests/fixtures/markdown-corpus/`, taken the moment this repo migrated
+ * itself to remote mode — SDD-010 "Modo remoto" — since its live `docs/`/`version: 1` `.prdm.yaml` no
+ * longer exist to import from), and asserts every document's content round-trips byte-for-byte:
+ * `contentHash(render(projectDoc(import(raw)))) == contentHash(raw)`.
  */
 import { resolve } from 'node:path';
 import { sha256 } from '@prdm/core';
@@ -21,10 +19,9 @@ import { seedUser } from '../../../server/tests/helpers/seed-auth.js';
 import { buildTestServerEnv } from '../../../server/tests/helpers/test-env.js';
 import { readLocalImportPayload, uploadImportPayload } from '../../src/remote/import.js';
 
-/** This repository's own root — four levels up from this test file. */
-const REPO_ROOT = resolve(import.meta.dirname, '../../../..');
+const CORPUS_ROOT = resolve(import.meta.dirname, '../../../app/tests/fixtures/markdown-corpus');
 
-describe('prdm link --import round trip against this repository\'s own docs (SDD-010, WO-194)', () => {
+describe('prdm link --import round trip against a real ~430-doc corpus (SDD-010, WO-194)', () => {
   let pg: PgTestDb;
   const env = buildTestServerEnv();
   const AUTH_HOST = { host: new URL(env.publicUrl).host };
@@ -58,7 +55,7 @@ describe('prdm link --import round trip against this repository\'s own docs (SDD
     return (Array.isArray(cookie) ? cookie[0] : cookie)!.split(';')[0]!;
   }
 
-  test('every document under docs/ round-trips its exact raw content and hash', async () => {
+  test('every document in the corpus round-trips its exact raw content and hash', async () => {
     const { app, baseUrl } = await startApp();
     try {
       const owner = await seedUser(env, pg.appPool, PASSWORD);
@@ -76,8 +73,8 @@ describe('prdm link --import round trip against this repository\'s own docs (SDD
       expect(tokenRes.statusCode).toBe(200);
       const secret = tokenRes.json().secret as string;
 
-      const payload = await readLocalImportPayload(REPO_ROOT);
-      expect(payload.documents.length).toBeGreaterThan(100); // sanity: this repo really has ~260 real docs
+      const payload = await readLocalImportPayload(CORPUS_ROOT);
+      expect(payload.documents.length).toBeGreaterThan(100); // sanity: the frozen corpus really has ~430 real docs
 
       const lines: string[] = [];
       await uploadImportPayload(payload, { server: baseUrl, graphProjectId: project.graphProjectId, token: secret }, { stdout: (l) => lines.push(l) });

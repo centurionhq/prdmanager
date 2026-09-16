@@ -1,10 +1,17 @@
 /**
- * Remote-only write tools (SDD-010 "MCP remoto", WO-184/WO-186): `claim_work_order`,
- * `complete_work_order` and `submit_feedback` are the only three write tools ever exposed over
- * `/mcp/:graphProjectId`, and each additionally needs the *role* check SDD-010's own profile table
- * lists (`mcp:write` alone isn't enough — a viewer with a stray `mcp:write`-scoped token still can't
- * claim work) — something the local/stdio profile never needed, since a local session has no
- * per-project role concept at all. Registered separately from `tools-write.ts`'s
+ * Remote-only write tools (SDD-010 "MCP remoto", WO-184/WO-186, revisited post-migration when this
+ * repository dogfooded its own remote governance and found `generate_work_orders` reachable only from
+ * the dashboard left no way for a developer's code assistant to turn a blueprint's checklist into
+ * claimable Work Orders at all once a project has no local/stdio project left): `claim_work_order`,
+ * `complete_work_order`, `submit_feedback` and `generate_work_orders` are the only write tools ever
+ * exposed over `/mcp/:graphProjectId`, and each additionally needs the *role* check SDD-010's own
+ * profile table lists (`mcp:write` alone isn't enough — a viewer with a stray `mcp:write`-scoped token
+ * still can't claim work) — something the local/stdio profile never needed, since a local session has no
+ * per-project role concept at all. `generate_work_orders` keeps the "architect-gated" intent
+ * `tools-write.ts`'s own comment describes for the local profile: gated to `admin`/`editor` project
+ * roles (`@prdm/contracts`'s `generate_work_orders` permission), never `developer` — turning a
+ * blueprint's prose checklist into governance structure stays a reviewed, higher-trust action than
+ * claiming/completing an already-generated Work Order. Registered separately from `tools-write.ts`'s
  * `registerCoreWriteTools` (used verbatim by the local profile) rather than adding a profile branch
  * inside it, so the local/stdio tool set is provably untouched by this file.
  *
@@ -25,7 +32,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { claimWorkOrder, CommitNotVerifiedError, completeWorkOrder, docId, SHA_PATTERN, submitFeedback } from '@prdm/core';
+import { addBlueprintTask, claimWorkOrder, CommitNotVerifiedError, completeWorkOrder, docId, generateWorkOrders, SHA_PATTERN, submitFeedback } from '@prdm/core';
 import { can, type PermissionAction, type PermissionSubject } from '@prdm/contracts';
 import type { PrdmDeps } from './deps.js';
 import { jsonResult, safeTool, WRITE_ONCE } from './shared.js';
@@ -131,6 +138,44 @@ export function registerRemoteWriteTools(server: McpServer, deps: PrdmDeps, auth
       if (denial) return denial;
       const result = await submitFeedback(deps.engine, args);
       await auth.audit('mcp.submit_feedback', result.id);
+      return jsonResult({ ...result });
+    }),
+  );
+
+  server.registerTool(
+    'generate_work_orders',
+    {
+      title: 'Generate work orders',
+      description:
+        'Converts the `## Tareas`/`## Tasks` checklist of a Blueprint (SDD/ADR) into WO-xxx documents; tasks already turned into Work Orders are skipped, so re-running after editing the checklist is safe. Requires an admin/editor project role. Follow up with list_work_orders/claim_work_order.',
+      inputSchema: { blueprint_id: docId },
+      annotations: { title: 'Generate work orders', ...WRITE_ONCE },
+    },
+    safeTool(async ({ blueprint_id }: { blueprint_id: string }) => {
+      const denial = denyRemoteWrite(auth, 'generate_work_orders');
+      if (denial) return denial;
+
+      const result = await generateWorkOrders(deps.engine, blueprint_id);
+      await auth.audit('mcp.generate_work_orders', blueprint_id, { created: result.created.length });
+      return jsonResult({ ...result });
+    }),
+  );
+
+  server.registerTool(
+    'add_blueprint_task',
+    {
+      title: 'Add blueprint task',
+      description:
+        'Appends one `- [ ] <text>` item to a Blueprint\'s (SDD/ADR) `## Tareas`/`## Tasks` checklist, creating the section if the blueprint has none yet. Requires an admin/editor project role. Follow up with generate_work_orders on the same blueprint_id to turn it into a claimable Work Order.',
+      inputSchema: { blueprint_id: docId, task: z.string().min(1).max(500) },
+      annotations: { title: 'Add blueprint task', ...WRITE_ONCE },
+    },
+    safeTool(async ({ blueprint_id, task }: { blueprint_id: string; task: string }) => {
+      const denial = denyRemoteWrite(auth, 'generate_work_orders');
+      if (denial) return denial;
+
+      const result = await addBlueprintTask(deps.engine, blueprint_id, task);
+      await auth.audit('mcp.add_blueprint_task', blueprint_id, { task });
       return jsonResult({ ...result });
     }),
   );

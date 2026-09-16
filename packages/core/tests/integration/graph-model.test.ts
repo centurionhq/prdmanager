@@ -8,6 +8,14 @@ import type { GraphStore } from '../../src/graph/types.js';
 import type { PrdmConfig } from '../../src/config.js';
 import { createFixtureRepo, openTestDb, removeDir, testConfig } from '@prdm/testkit';
 
+// `testConfig` needs *some* project root to resolve, but this describe block only ever reads
+// `config.neo4j.*` (to connect and run migrations) — never this root's own documents/settings. A
+// throwaway fixture repo, same as the second describe block already uses, means this test never
+// depends on whatever `.prdm.yaml` version this monorepo's own root happens to be checked out with
+// (SDD-010 "Modo remoto": this repo migrated its own governance server-side, so its root is no longer
+// necessarily a `version: 1` local project `testConfig`/`loadConfig` could parse).
+const SCHEMA_TEST_ROOT = createFixtureRepo();
+
 /**
  * WO-022 (ADR-002 tarea "Validar el modelo multi-proyecto con neo4j-data-modeling y actualizar
  * docs/model/graph-model.json"): keeps docs/model/graph-model.json honest by checking it against the real
@@ -61,7 +69,7 @@ interface GraphModel {
 const MODEL_PATH = resolve(import.meta.dirname, '../../../../docs/model/graph-model.json');
 const model = JSON.parse(readFileSync(MODEL_PATH, 'utf8')) as GraphModel;
 
-const config = testConfig(process.cwd());
+const config = testConfig(SCHEMA_TEST_ROOT);
 let rawDriver: Driver;
 
 async function showConstraints(): Promise<{ name: string; type: string; label: string; properties: string[] }[]> {
@@ -100,6 +108,7 @@ beforeAll(() => {
 
 afterAll(async () => {
   await rawDriver?.close();
+  removeDir(SCHEMA_TEST_ROOT);
 });
 
 describe('docs/model/graph-model.json vs. the real schema (SHOW CONSTRAINTS / SHOW INDEXES)', () => {

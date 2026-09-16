@@ -18,3 +18,5 @@ packages/web/playwright-report/
 packages/web/blob-report/
 packages/web/playwright/.cache/
 packages/server/test-results/
+.prdm/remote/
+.prdm/baseline.json

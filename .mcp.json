@@ -3,17 +3,24 @@
     "neo4j": {
       "type": "stdio",
       "command": "bash",
-      "args": ["scripts/mcp-neo4j.sh"]
+      "args": [
+        "scripts/mcp-neo4j.sh"
+      ]
     },
     "neo4j-data-modeling": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["mcp-neo4j-data-modeling@0.8.2", "--transport", "stdio"]
+      "args": [
+        "mcp-neo4j-data-modeling@0.8.2",
+        "--transport",
+        "stdio"
+      ]
     },
-    "prdm-graph": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["--no-install", "tsx", "--conditions=@prdm/source", "packages/mcp/src/server.ts"]
+    "prdm-remote": {
+      "command": "prdm",
+      "args": [
+        "mcp-proxy"
+      ]
     }
   }
 }

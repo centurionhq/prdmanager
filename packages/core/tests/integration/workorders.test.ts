@@ -5,7 +5,7 @@ import { Engine } from '../../src/engine.js';
 import type { Neo4jGraphDatabase } from '../../src/graph/database.js';
 import type { GraphStore } from '../../src/graph/types.js';
 import { getWorkOrderContext } from '../../src/workorders/context.js';
-import { generateWorkOrders } from '../../src/workorders/generator.js';
+import { addBlueprintTask, generateWorkOrders } from '../../src/workorders/generator.js';
 import { claimWorkOrder, completeWorkOrder } from '../../src/workorders/lifecycle.js';
 import { commitAll, createFixtureRepo, git, makeTmpDir, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 
@@ -140,6 +140,70 @@ describe('Work Order Generator (F-04)', () => {
     await expect(claimWorkOrder(engine, 'WO-404', 'agent:claude')).rejects.toThrow(/not found/i);
     await expect(claimWorkOrder(engine, 'WO-003', 'not-an-actor')).rejects.toThrow(/invalid assignee/);
     await expect(completeWorkOrder(engine, 'WO-002', { commitSha: 'not-a-sha' })).rejects.toThrow(/invalid commit sha/);
+  });
+});
+
+describe('addBlueprintTask (remote MCP `add_blueprint_task`, SDD-010 revisited)', () => {
+  test('appends a new checklist item to an existing ## Tareas section, which generateWorkOrders then picks up', async () => {
+    const taskRoot = createFixtureRepo();
+    const taskConfig = testConfig(taskRoot);
+    const { db: taskDb, store: taskStore } = await openTestDb(taskConfig);
+    const taskEngine = new Engine(taskConfig, taskStore);
+    await taskEngine.refresh();
+    try {
+      const result = await addBlueprintTask(taskEngine, 'SDD-001', 'Agregar métricas de latencia');
+      expect(result).toEqual({ blueprint_id: 'SDD-001', task: 'Agregar métricas de latencia' });
+
+      const updated = readFileSync(`${taskRoot}/docs/blueprints/SDD-001.md`, 'utf8');
+      expect(updated).toContain('- [ ] Agregar métricas de latencia');
+      // The two pre-existing tasks stay intact and the new one lands after them, still inside ## Tareas.
+      expect(updated.indexOf('Leer commits de git')).toBeLessThan(updated.indexOf('Agregar métricas de latencia'));
+
+      await taskEngine.refresh();
+      const generated = await generateWorkOrders(taskEngine, 'SDD-001');
+      expect(generated.created.map((c) => c.title)).toContain('Agregar métricas de latencia');
+    } finally {
+      await taskDb.close();
+      removeDir(taskRoot);
+    }
+  });
+
+  test('creates a ## Tareas section when the blueprint has none yet', async () => {
+    const taskRoot = createFixtureRepo();
+    const taskConfig = testConfig(taskRoot);
+    const { db: taskDb, store: taskStore } = await openTestDb(taskConfig);
+    const taskEngine = new Engine(taskConfig, taskStore);
+    await taskEngine.refresh();
+    try {
+      writeFiles(taskRoot, {
+        'docs/blueprints/SDD-002.md': '---\nid: SDD-002\ntype: SDD\ntitle: "Sin tareas todavía"\narchitects: ["PRD-001"]\nimpacts_paths: ["src/**"]\n---\ndiseño sin checklist\n',
+      });
+      await taskEngine.refresh();
+
+      await addBlueprintTask(taskEngine, 'SDD-002', 'Primera tarea');
+      const updated = readFileSync(`${taskRoot}/docs/blueprints/SDD-002.md`, 'utf8');
+      expect(updated).toMatch(/## Tareas\s*\n\s*- \[ \] Primera tarea/);
+    } finally {
+      await taskDb.close();
+      removeDir(taskRoot);
+    }
+  });
+
+  test('rejects an empty task, one over the length cap, a non-blueprint id and a missing blueprint', async () => {
+    const taskRoot = createFixtureRepo();
+    const taskConfig = testConfig(taskRoot);
+    const { db: taskDb, store: taskStore } = await openTestDb(taskConfig);
+    const taskEngine = new Engine(taskConfig, taskStore);
+    await taskEngine.refresh();
+    try {
+      await expect(addBlueprintTask(taskEngine, 'SDD-001', '   ')).rejects.toThrow(/must not be empty/);
+      await expect(addBlueprintTask(taskEngine, 'SDD-001', 'x'.repeat(501))).rejects.toThrow(/at most 500 characters/);
+      await expect(addBlueprintTask(taskEngine, 'PRD-001', 'x')).rejects.toThrow(/not a blueprint/i);
+      await expect(addBlueprintTask(taskEngine, 'SDD-404', 'x')).rejects.toThrow(/not found/i);
+    } finally {
+      await taskDb.close();
+      removeDir(taskRoot);
+    }
   });
 });
 

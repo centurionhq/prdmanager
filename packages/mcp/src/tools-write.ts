@@ -17,10 +17,11 @@ import type { PrdmDeps } from './deps.js';
 import { jsonResult, safeTool, WRITE_IDEMPOTENT, WRITE_ONCE } from './shared.js';
 
 
-/** `generate_work_orders`/`create_feature_request`/`attach_artifact` (SDD-010's remote profile,
- * WO-184): local/stdio profile only — the remote MCP has no `create_feature_request`/`attach_artifact`
- * (authoring stays dashboard-only) and `generate_work_orders` is architect-gated, never a remote-agent
- * action. */
+/** `create_feature_request`/`attach_artifact` (SDD-010's remote profile, WO-184): local/stdio profile
+ * only — the remote MCP has neither (document authoring stays dashboard-only). `generate_work_orders`
+ * is also registered here for the local/stdio profile, but the remote MCP exposes its own
+ * role-gated copy via `tools-remote.ts`'s `registerRemoteWriteTools` instead of this function, since it
+ * needs the per-caller `RemoteWriteAuth` role check this file has no reason to know about. */
 export function registerAuthoringWriteTools(server: McpServer, deps: PrdmDeps): void {
   server.registerTool(
     'generate_work_orders',

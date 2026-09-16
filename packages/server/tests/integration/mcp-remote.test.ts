@@ -93,8 +93,19 @@ describe('remote MCP endpoint (SDD-010, WO-184)', () => {
 
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
-    expect(names).toEqual(expect.arrayContaining(['get_project', 'get_node', 'list_work_orders', 'claim_work_order', 'complete_work_order', 'submit_feedback']));
-    for (const forbidden of ['draft_artifact', 'commit_artifact', 'generate_work_orders', 'acknowledge_sync', 'refresh_index', 'create_feature_request', 'attach_artifact']) {
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'get_project',
+        'get_node',
+        'list_work_orders',
+        'claim_work_order',
+        'complete_work_order',
+        'submit_feedback',
+        'generate_work_orders',
+        'add_blueprint_task',
+      ]),
+    );
+    for (const forbidden of ['draft_artifact', 'commit_artifact', 'acknowledge_sync', 'refresh_index', 'create_feature_request', 'attach_artifact']) {
       expect(names).not.toContain(forbidden);
     }
 
