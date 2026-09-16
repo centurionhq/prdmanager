@@ -65,3 +65,4 @@ Propiedades con `fast-check`: los bytes fuera del rango editado son idénticos b
 - [ ] Gate: revisión de seguridad (XSS, CSP)
 - [ ] Gate: auditoría de accesibilidad
 - [ ] Gate: correcciones del code review
+- [ ] Gate: correcciones post-cierre encontradas por CI (umbral de wall-clock del presupuesto de rendimiento demasiado ajustado para el runner compartido de CI)
