@@ -13,10 +13,13 @@
  */
 import { useEffect, useReducer, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactElement, type ReactNode } from 'react';
 import * as Y from 'yjs';
+import type { Awareness } from 'y-protocols/awareness';
 import { classifyDocument, type BlockKind, type EditableRun, type SourceBlock } from './source-map.js';
 import { runDisplayText } from './run-text.js';
 import { usePreviewInput } from './use-preview-input.js';
 import { usePreviewSelection } from './use-preview-selection.js';
+import { useRemoteCursors } from './remote-cursors.js';
+import { RemoteCursors } from './RemoteCursors.js';
 import { toggleMark } from './edit-ops.js';
 import { applySplice } from './y-binding.js';
 import { matchMarkShortcut, Toolbar } from './Toolbar.js';
@@ -26,6 +29,10 @@ export interface PreviewEditorProps {
   ytext: Y.Text;
   readOnly?: boolean;
   onEditInMarkdown?: (offset: number) => void;
+  /** Shared with the Markdown (CodeMirror) tab's `yCollab` plugin — same `HocuspocusProvider.awareness`
+   * instance, so cursors are mutually visible across tabs (WO-380). `undefined` outside a collab context
+   * (e.g. a document with no live connection at all). */
+  awareness?: Awareness | null;
 }
 
 type ListGroupKind = 'bullet' | 'ordered';
@@ -150,7 +157,7 @@ function renderGroup(source: string, group: RenderGroup, onEditInMarkdown?: (off
   return renderSingleBlock(source, group.blocks[0]!, onEditInMarkdown);
 }
 
-export function PreviewEditor({ ytext, readOnly = false, onEditInMarkdown }: PreviewEditorProps): ReactElement {
+export function PreviewEditor({ ytext, readOnly = false, onEditInMarkdown, awareness = null }: PreviewEditorProps): ReactElement {
   useYTextVersion(ytext);
   const containerRef = useRef<HTMLDivElement | null>(null);
   usePreviewInput({ ytext, containerRef, readOnly });
@@ -159,6 +166,7 @@ export function PreviewEditor({ ytext, readOnly = false, onEditInMarkdown }: Pre
   const blocks = classifyDocument(source);
   const groups = groupBlocks(blocks);
   const selection = usePreviewSelection({ containerRef, blocks });
+  const remoteCursors = useRemoteCursors({ ytext, awareness, containerRef, blocks });
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
     if (readOnly || !selection) return;
@@ -181,6 +189,7 @@ export function PreviewEditor({ ytext, readOnly = false, onEditInMarkdown }: Pre
         onKeyDown={handleKeyDown}
       >
         {groups.map((group) => renderGroup(source, group, onEditInMarkdown))}
+        <RemoteCursors markers={remoteCursors} containerRef={containerRef} />
       </div>
     </>
   );
