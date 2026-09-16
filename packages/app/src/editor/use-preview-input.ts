@@ -29,7 +29,8 @@
  */
 import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import * as Y from 'yjs';
-import { classifyDocument, type SourceBlock } from './source-map.js';
+import type { SourceBlock } from './source-map.js';
+import { classifyCached } from './parse-cache.js';
 import { deleteRange, escapeMarkdownText, insertText, joinBlocks, splitBlock, type Splice } from './edit-ops.js';
 import { applySplice } from './y-binding.js';
 import { blockOffsetToDomPosition, domPositionToBlockOffset, type BlockDomPosition } from './dom-selection.js';
@@ -152,7 +153,7 @@ export function usePreviewInput({ ytext, containerRef, readOnly }: UsePreviewInp
     if (target === null || !container) return;
 
     const source = ytext.toString();
-    const block = findBlockAt(classifyDocument(source), target);
+    const block = findBlockAt(classifyCached(ytext, source), target);
     if (!block) return;
 
     const position = blockOffsetToDomPosition(container, block, target - block.contentFrom);
@@ -177,7 +178,7 @@ export function usePreviewInput({ ytext, containerRef, readOnly }: UsePreviewInp
       if (readOnly) return;
 
       const source = ytext.toString();
-      const blocks = classifyDocument(source);
+      const blocks = classifyCached(ytext, source);
       const positions = resolveSelectionPositions(blocks);
       if (!positions) return;
 
@@ -205,7 +206,7 @@ export function usePreviewInput({ ytext, containerRef, readOnly }: UsePreviewInp
 
       const blockFrom = Number(baseline.blockElement.getAttribute('data-block-from'));
       const source = ytext.toString();
-      const block = classifyDocument(source).find((candidate) => candidate.from === blockFrom);
+      const block = classifyCached(ytext, source).find((candidate) => candidate.from === blockFrom);
       if (!block) return;
 
       const from = displayOffsetToSourceOffset(source, block, diff.start);
@@ -221,7 +222,7 @@ export function usePreviewInput({ ytext, containerRef, readOnly }: UsePreviewInp
       if (!text) return;
 
       const source = ytext.toString();
-      const blocks = classifyDocument(source);
+      const blocks = classifyCached(ytext, source);
       const positions = resolveSelectionPositions(blocks);
       if (!positions) return;
 

@@ -8,6 +8,7 @@
  */
 import * as Y from 'yjs';
 import type { Splice } from './edit-ops.js';
+import { recordEdit } from './parse-cache.js';
 
 export const PREVIEW_ORIGIN = Symbol('preview-editor');
 
@@ -15,6 +16,11 @@ export const PREVIEW_ORIGIN = Symbol('preview-editor');
  * Applies `splice` to `ytext` in one transaction. The delete runs before the insert, and both use
  * `splice`'s own offsets as given (absolute positions in `ytext` *before* this transaction) — recomputing
  * an offset between the two calls would double-count the just-deleted range.
+ *
+ * Primes `parse-cache.ts` with the resulting source right after (WO-384): this is the one point every
+ * local edit passes through with its exact `{ from, oldEnd, newEnd }` range already known, so it's the
+ * cheapest place to do the (incremental) re-parse the edit needs, once, instead of leaving every caller of
+ * `classifyCached` to re-parse the whole document independently.
  */
 export function applySplice(ytext: Y.Text, splice: Splice): void {
   const doc = ytext.doc;
@@ -24,6 +30,8 @@ export function applySplice(ytext: Y.Text, splice: Splice): void {
     if (splice.to > splice.from) ytext.delete(splice.from, splice.to - splice.from);
     if (splice.insert.length > 0) ytext.insert(splice.from, splice.insert);
   }, PREVIEW_ORIGIN);
+
+  recordEdit(ytext, ytext.toString(), { from: splice.from, oldEnd: splice.to, newEnd: splice.from + splice.insert.length });
 }
 
 /**
