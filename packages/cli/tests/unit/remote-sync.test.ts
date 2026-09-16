@@ -114,6 +114,34 @@ describe('runRemoteSync (WO-195)', () => {
     await expect(runRemoteSync(root, remoteFile('https://app.example.test'), {}, { stdout: () => undefined, env: { XDG_CONFIG_HOME: xdgHome }, fetchImpl })).rejects.toThrow(CliError);
   });
 
+  test('WO-395 regression: succeeds in CI with no local project pin at all, checked against PRDM_PROJECT_ID instead', async () => {
+    const lines: string[] = [];
+    const fetchImpl = fakeServer(200, { mode: 'baseline', reportId: 'r1', headSha: 'a'.repeat(40), issues: [], hasBlockingIssues: false });
+    await runRemoteSync(
+      root,
+      remoteFile('https://app.example.test'),
+      {},
+      {
+        stdout: (l) => lines.push(l),
+        env: { XDG_CONFIG_HOME: xdgHome, CI: 'true', PRDM_SERVER: 'https://app.example.test', PRDM_TOKEN: 't', PRDM_PROJECT_ID: 'prj_0123456789abcdef' },
+        fetchImpl,
+      },
+    );
+    expect(lines.join('\n')).toContain('drift: none');
+  });
+
+  test('aborts in CI when PRDM_PROJECT_ID is not set (never falls back to a local pin under CI)', async () => {
+    const fetchImpl = fakeServer(200, {});
+    await expect(
+      runRemoteSync(
+        root,
+        remoteFile('https://app.example.test'),
+        {},
+        { stdout: () => undefined, env: { XDG_CONFIG_HOME: xdgHome, CI: 'true', PRDM_SERVER: 'https://app.example.test', PRDM_TOKEN: 't' }, fetchImpl },
+      ),
+    ).rejects.toThrow(/PRDM_PROJECT_ID is required in CI/);
+  });
+
   test('falls back to GITHUB_REF_NAME in detached HEAD', async () => {
     saveCredentials({ 'https://app.example.test': { token: 't' } }, { XDG_CONFIG_HOME: xdgHome });
     saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });

@@ -5,7 +5,7 @@ import { chmodSync, mkdirSync, statSync, symlinkSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { makeTmpDir, removeDir } from '@prdm/testkit';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { credentialsPath, InsecureCredentialsPathError, loadCredentials, loadProjectPin, saveCredentials, saveProjectPin } from '../../src/remote/credentials.js';
+import { checkProjectPinMismatch, credentialsPath, InsecureCredentialsPathError, loadCredentials, loadProjectPin, saveCredentials, saveProjectPin } from '../../src/remote/credentials.js';
 
 let xdgHome: string;
 let env: NodeJS.ProcessEnv;
@@ -97,6 +97,38 @@ describe('project pins (WO-234)', () => {
 
     expect(loadCredentials(env)).toEqual({ 'https://a.example.test': { token: 'legacy' } });
     expect(loadProjectPin('/repo/a', env)).toBeUndefined();
+  });
+});
+
+describe('checkProjectPinMismatch (WO-234, CI exemption added by WO-395)', () => {
+  test('rejects with no pin recorded at all', () => {
+    expect(checkProjectPinMismatch('/repo/a', 'prj_0000000000000001', env)).toMatch(/no local project pin recorded/);
+  });
+
+  test('rejects when the pinned graphProjectId disagrees with .prdm.yaml\'s', () => {
+    saveProjectPin('/repo/a', { server: 'https://a.example.test', graphProjectId: 'prj_0000000000000001' }, env);
+    expect(checkProjectPinMismatch('/repo/a', 'prj_fedcba9876543210', env)).toMatch(/refusing to guess which one is correct/);
+  });
+
+  test('passes when the pin agrees', () => {
+    saveProjectPin('/repo/a', { server: 'https://a.example.test', graphProjectId: 'prj_0000000000000001' }, env);
+    expect(checkProjectPinMismatch('/repo/a', 'prj_0000000000000001', env)).toBeNull();
+  });
+
+  test('in CI, checks PRDM_PROJECT_ID instead of the (never-recorded) local pin', () => {
+    expect(checkProjectPinMismatch('/repo/a', 'prj_0000000000000001', { ...env, CI: 'true', PRDM_PROJECT_ID: 'prj_0000000000000001' })).toBeNull();
+    expect(checkProjectPinMismatch('/repo/a', 'prj_0000000000000001', { ...env, CI: '1', PRDM_PROJECT_ID: 'prj_0000000000000001' })).toBeNull();
+  });
+
+  test('in CI, rejects when PRDM_PROJECT_ID is not set, even with a local pin recorded (never trusted in CI)', () => {
+    saveProjectPin('/repo/a', { server: 'https://a.example.test', graphProjectId: 'prj_0000000000000001' }, env);
+    expect(checkProjectPinMismatch('/repo/a', 'prj_0000000000000001', { ...env, CI: 'true' })).toMatch(/PRDM_PROJECT_ID is required in CI/);
+  });
+
+  test('in CI, rejects when PRDM_PROJECT_ID disagrees with .prdm.yaml\'s project.id', () => {
+    expect(checkProjectPinMismatch('/repo/a', 'prj_0000000000000001', { ...env, CI: 'true', PRDM_PROJECT_ID: 'prj_fedcba9876543210' })).toMatch(
+      /refusing to guess which one is correct/,
+    );
   });
 });
 

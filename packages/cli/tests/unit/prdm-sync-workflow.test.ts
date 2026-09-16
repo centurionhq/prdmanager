@@ -51,5 +51,6 @@ describe('SDD-010 "Modo remoto": prdm-sync.yml reports to this project\'s own re
     expect(syncStep, 'sync-check must have a step running "sync --check"').toBeDefined();
     expect(syncStep?.env?.PRDM_SERVER).toBe('${{ secrets.PRDM_SERVER }}');
     expect(syncStep?.env?.PRDM_TOKEN).toBe('${{ secrets.PRDM_TOKEN }}');
+    expect(syncStep?.env?.PRDM_PROJECT_ID).toBe('${{ secrets.PRDM_PROJECT_ID }}');
   });
 });

@@ -7,11 +7,15 @@
 # push to any other branch silently earns only preview-mode drift reporting, never baseline trust, exactly
 # as the server-side gate itself decides (`packages/server/src/engine/baseline-gate.ts`).
 #
-# `PRDM_SERVER`/`PRDM_TOKEN` are mandatory in CI (`resolveRemoteServerOrigin`/`resolveRemoteCredential`
-# abort with a clear error rather than silently falling back to a local file that doesn't exist here) —
-# repository secrets, never hardcoded: `PRDM_TOKEN` is a `project_ci` token scoped to
-# `governance:read`/`reports:write`/`reports:baseline` only, `PRDM_SERVER` is this project's own prdm
-# server origin. The `Refs: WO-xxx` commit-message policy is enforced by the server's own cached policy
+# `PRDM_SERVER`/`PRDM_TOKEN`/`PRDM_PROJECT_ID` are mandatory in CI (`resolveRemoteServerOrigin`/
+# `resolveRemoteCredential`/`checkProjectPinMismatch` each abort with a clear error rather than silently
+# falling back to a local file/pin that doesn't exist here) — repository secrets, never hardcoded:
+# `PRDM_TOKEN` is a `project_ci` token scoped to `governance:read`/`reports:write`/`reports:baseline`
+# only, `PRDM_SERVER` is this project's own prdm server origin, and `PRDM_PROJECT_ID` is this project's
+# own `graphProjectId` — cross-checked against `.prdm.yaml`'s repo-tracked `project.id` (WO-395) exactly
+# like `PRDM_SERVER` is cross-checked against `remote.server`, since a PR that edited only `project.id`
+# could otherwise silently retarget this run's report at a different project on the same trusted server.
+# The `Refs: WO-xxx` commit-message policy is enforced by the server's own cached policy
 # now (SDD-010: "usando la caché de política del servidor"), via each developer's local `prdm hooks
 # install` — no separate CI step rebuilds a base-ref policy checker anymore, because the enforcement
 # authority no longer lives in this repository's own (PR-editable) code the way WO-024's local-mode
@@ -102,6 +106,7 @@ jobs:
         env:
           PRDM_SERVER: ${{ secrets.PRDM_SERVER }}
           PRDM_TOKEN: ${{ secrets.PRDM_TOKEN }}
+          PRDM_PROJECT_ID: ${{ secrets.PRDM_PROJECT_ID }}
 
   npm-audit:
     runs-on: ubuntu-latest

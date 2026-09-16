@@ -180,12 +180,31 @@ export function saveProjectPin(root: string, pin: ProjectPin, env: NodeJS.Proces
 
 /**
  * A pure check shared by every remote entry point that reads `.prdm.yaml`'s repo-tracked `project.id`
- * (WO-234) — `null` when it agrees with the local, non-repo-controlled pin `prdm link` recorded;
- * otherwise a ready-to-display reason a caller wraps in its own error type (`McpProxyAbortError` for
+ * (WO-234) — `null` when it agrees with a trusted, non-repo-controlled source; otherwise a
+ * ready-to-display reason a caller wraps in its own error type (`McpProxyAbortError` for
  * `mcp-proxy.ts`, `CliError` for `sync.ts` and friends), mirroring how `server-origin.ts`'s
  * `resolveRemoteServerOrigin` already cross-checks `remote.server` the same way.
+ *
+ * Outside CI, the trusted source is the local pin `prdm link` recorded (`loadProjectPin`) — a
+ * developer's own machine state a PR can never touch. In CI (WO-395, found by this repo's own first
+ * real CI run of this exact path), a fresh runner has no such pin and never runs `prdm link`, so the
+ * trusted source is instead the mandatory `PRDM_PROJECT_ID` repository secret — exactly
+ * `resolveRemoteServerOrigin`'s own "in CI, PRDM_SERVER is mandatory" treatment of `remote.server`,
+ * applied to `project.id`. This is a real security boundary, not a convenience skip: a CI token can be
+ * created unscoped (`project_ids: null`, every project in the org), so a PR that edited only
+ * `.prdm.yaml`'s `project.id` could otherwise silently retarget this CI run's report at a different
+ * project on the same trusted server — comparing against a secret the PR cannot see or edit closes
+ * exactly that gap the same way the local pin does for a developer's machine.
  */
 export function checkProjectPinMismatch(root: string, remoteProjectId: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  if (isCi(env)) {
+    const expected = env.PRDM_PROJECT_ID;
+    if (!expected) return 'PRDM_PROJECT_ID is required in CI for a remote-mode project (it was not set)';
+    if (expected !== remoteProjectId) {
+      return `.prdm.yaml's project.id is "${remoteProjectId}", but PRDM_PROJECT_ID is "${expected}"; refusing to guess which one is correct`;
+    }
+    return null;
+  }
   const pin = loadProjectPin(root, env);
   if (!pin) return 'no local project pin recorded for this repository; run "prdm link" first';
   if (pin.graphProjectId !== remoteProjectId) {
