@@ -126,5 +126,9 @@ Unitarios de `deriveLineBoard` (una tabla por regla de estación) y de `attribut
 - [ ] Rutas `GET P/commits`, `GET P/code-refs` con sus sondas
 - [ ] Rutas de audit log de proyecto y de organización con sus sondas y un chequeo de canario en la metadata
 - [ ] Reenvío de invitación, `lastActiveAt` de miembros y `createdByName` de tokens de CI, con sus sondas
-- [ ] Gate: correcciones de la revisión de seguridad (IDOR, alcance de RLS de las rutas nuevas, límites de tasa donde falten, cobertura de auditoría)
+- [x] Gate: correcciones de la revisión de seguridad (IDOR, alcance de RLS de las rutas nuevas, límites de tasa donde falten, cobertura de auditoría)
 - [ ] Gate: correcciones del code review
+
+## Revisión
+
+**Seguridad (WO-344, 2026-09-15).** Sin hallazgos. Se revisaron los 8 vectores previstos (aislamiento entre organizaciones/proyectos, permisos reales contra la matriz de SDD-006, inyección SQL, validación de filtros, fuga de secretos en auditoría, límite de tasa, el fix de `buildDriftInput` y CSRF) contra el código real, no solo la documentación, y se corrieron las suites de aislamiento e integración correspondientes en verde. El único hallazgo posible (sin límite de tasa dedicado en las rutas de órdenes/feedback) resultó ser el mismo patrón ya usado por `documents.ts` para mutaciones de sesión autenticadas y auditadas, no una regresión de SDD-012.
