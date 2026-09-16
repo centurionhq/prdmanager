@@ -173,6 +173,16 @@
   overflow-wrap: break-word;
 }
 
+/* WO-369 (accessibility gate): `--cianotipo` on `--grafito` body text is only ~2.25:1 — well under the
+   3:1 axe's `link-in-text-block` rule (and WCAG 1.4.1) requires for a link inline in a text block that
+   relies on color alone. An inline body link (`PreviewEditor.tsx`'s own runs, and `MarkdownPreview.tsx`'s
+   island rendering — both only ever mount inside this `.preview` region) gets its underline back rather
+   than the app-wide `a { text-decoration: none }` reset, which chrome/nav links (never surrounded by
+   plain text, so axe's own rule doesn't apply to them) keep as-is. */
+.preview a {
+  text-decoration: underline;
+}
+
 .commentTrigger {
   margin-left: auto;
   background: transparent;

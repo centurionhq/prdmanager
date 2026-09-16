@@ -23,7 +23,10 @@ describe('PreviewEditor (WO-376)', () => {
 
     render(<PreviewEditor ytext={ytext} />);
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Title' })).toBeTruthy();
+    // WO-387 (accessibility gate): a body `# heading` renders as `<h2>`, never `<h1>` — the page's own
+    // `<h1>` is always `DocumentDetail.tsx`'s document title, rendered outside this component entirely.
+    expect(screen.getByRole('heading', { level: 2, name: 'Title' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
     expect(screen.getByText('bold').tagName).toBe('STRONG');
     expect(screen.getByText('em').tagName).toBe('EM');
 
@@ -38,6 +41,10 @@ describe('PreviewEditor (WO-376)', () => {
     expect(checkboxes).toHaveLength(2);
     expect(checkboxes[0]!.checked).toBe(false);
     expect(checkboxes[1]!.checked).toBe(true);
+    // WO-387 (accessibility gate): the label tracks checked state, never a static "completed" claim for
+    // a still-pending task (contradicting the checkbox's own native checked/unchecked announcement).
+    expect(screen.getByRole('checkbox', { name: 'Tarea pendiente' })).toBe(checkboxes[0]);
+    expect(screen.getByRole('checkbox', { name: 'Tarea completada' })).toBe(checkboxes[1]);
   });
 
   it('renders an island distinguishably and read-only, with an "Editar en Markdown" callback', () => {
@@ -57,7 +64,7 @@ describe('PreviewEditor (WO-376)', () => {
   it('re-renders automatically when the Y.Text changes from outside (another collaborator)', () => {
     const ytext = docWithBody('# Original');
     render(<PreviewEditor ytext={ytext} />);
-    expect(screen.getByRole('heading', { level: 1, name: 'Original' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 2, name: 'Original' })).toBeTruthy();
 
     act(() => {
       const doc = ytext.doc!;
@@ -67,7 +74,26 @@ describe('PreviewEditor (WO-376)', () => {
       }, 'remote-collaborator');
     });
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Updated' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 2, name: 'Updated' })).toBeTruthy();
     expect(screen.queryByText('Original')).toBeNull();
+  });
+
+  it('exposes the editable surface as a labeled, multiline textbox to assistive technology (WO-387)', () => {
+    const ytext = docWithBody('A paragraph.');
+    render(<PreviewEditor ytext={ytext} />);
+
+    const editable = screen.getByRole('textbox', { name: 'Cuerpo del documento' });
+    expect(editable).toBe(screen.getByTestId('preview-editor'));
+    expect(editable.getAttribute('aria-multiline')).toBe('true');
+    expect(editable.getAttribute('contenteditable')).toBe('true');
+  });
+
+  it('marks the read-only surface as non-editable while keeping the same accessible name (WO-387)', () => {
+    const ytext = docWithBody('A paragraph.');
+    render(<PreviewEditor ytext={ytext} readOnly />);
+
+    const editable = screen.getByRole('textbox', { name: 'Cuerpo del documento' });
+    expect(editable.getAttribute('aria-readonly')).toBe('true');
+    expect(editable.getAttribute('contenteditable')).toBe('false');
   });
 });

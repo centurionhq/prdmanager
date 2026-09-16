@@ -34,6 +34,10 @@ export function buildEditorExtensions(opts: BuildEditorExtensionsOptions): Exten
     yCollab(ytext, provider.awareness, { undoManager }),
     EditorState.readOnly.of(readOnly),
     EditorView.editable.of(!readOnly),
+    // WO-369/WO-387 (accessibility gate): CodeMirror already marks `.cm-content` `role="textbox"
+    // aria-multiline="true"` on its own, but ships no accessible name at all — axe's
+    // "aria-input-field-name" (serious) on every document's Markdown tab otherwise.
+    EditorView.contentAttributes.of({ 'aria-label': 'Cuerpo del documento (Markdown)' }),
     blameGutterExtension,
     commentHighlightExtension,
   ];

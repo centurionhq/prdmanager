@@ -116,6 +116,49 @@ describe('Toolbar (WO-379)', () => {
     expect(onApplySplice).toHaveBeenCalledWith({ from: 0, to: 5, insert: '[hello](https://example.com)' } satisfies Splice);
   });
 
+  it('returns focus to the Enlace button after a successful "Insertar" (WO-387)', async () => {
+    const user = userEvent.setup();
+    const source = 'hello world';
+    render(<Toolbar source={source} activeBlock={blockOf(source)} selectionRange={{ from: 0, to: 5 }} onApplySplice={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Enlace' }));
+    await user.type(screen.getByLabelText('URL del enlace'), 'https://example.com');
+    await user.click(screen.getByRole('button', { name: 'Insertar' }));
+
+    expect(screen.queryByLabelText('URL del enlace')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Enlace' }));
+  });
+
+  it('returns focus to the Enlace button after Escape or Cancelar (WO-387)', async () => {
+    const user = userEvent.setup();
+    const source = 'hello world';
+    render(<Toolbar source={source} activeBlock={blockOf(source)} selectionRange={{ from: 0, to: 5 }} onApplySplice={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Enlace' }));
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByLabelText('URL del enlace')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Enlace' }));
+  });
+
+  it('falls back to focusing the toolbar itself if the selection is gone by the time the popover closes (WO-387)', async () => {
+    // A real browser collapses `window.getSelection()` the instant the popover's own `autoFocus`ed input
+    // takes focus — `usePreviewSelection` then reports `null`, which `PreviewEditor.tsx` passes straight
+    // through as a new `selectionRange` prop. Simulated here via a `rerender` rather than a real DOM
+    // selection change, which jsdom does not model realistically (see this file's own WO-387 comment).
+    const user = userEvent.setup();
+    const source = 'hello world';
+    const { rerender } = render(<Toolbar source={source} activeBlock={blockOf(source)} selectionRange={{ from: 0, to: 5 }} onApplySplice={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Enlace' }));
+    rerender(<Toolbar source={source} activeBlock={blockOf(source)} selectionRange={null} onApplySplice={vi.fn()} />);
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByLabelText('URL del enlace')).toBeNull();
+    expect((screen.getByRole('button', { name: 'Enlace' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole('toolbar', { name: 'Formato' }));
+  });
+
   it('Enlace is disabled without a non-collapsed selection', () => {
     const source = 'hello world';
     render(<Toolbar source={source} activeBlock={blockOf(source)} selectionRange={{ from: 3, to: 3 }} onApplySplice={vi.fn()} />);

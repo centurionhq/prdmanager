@@ -11,7 +11,7 @@
  * so wiring a button to nothing would just be dead UI.
  */
 import { Link as LinkIcon } from 'lucide-react';
-import { useId, useState, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactElement } from 'react';
+import { useId, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactElement } from 'react';
 import { Button } from '../components/Button/Button.js';
 import { insertLink, isProtectedTareasHeading, setBlockType, toggleMark, toggleTask, type Splice } from './edit-ops.js';
 import type { SourceBlock } from './source-map.js';
@@ -122,14 +122,52 @@ function handleRovingFocus(event: KeyboardEvent<HTMLDivElement>): void {
   buttons[targetIndex]?.focus();
 }
 
+interface CapturedLinkSelection {
+  readonly block: SourceBlock;
+  readonly from: number;
+  readonly to: number;
+}
+
 export function Toolbar({ source, activeBlock, selectionRange, onApplySplice }: ToolbarProps): ReactElement {
   const [linkOpen, setLinkOpen] = useState(false);
+  // WO-387 (accessibility gate): a real browser collapses `window.getSelection()` the instant focus moves
+  // into the popover's own `autoFocus`ed input — `usePreviewSelection`'s live `selectionchange` listener
+  // then reports `null` for as long as the popover stays open, which a jsdom-based unit test (no real
+  // selection-follows-focus behavior) never surfaces. Capturing the selection at the moment the popover
+  // *opens* — same reasoning as `PreviewEditor.tsx`'s own `CommentTrigger`/`onCapture` — is what keeps
+  // "Insertar" working at all, not just what makes the toolbar's own re-disable-on-close predictable.
+  const [capturedLink, setCapturedLink] = useState<CapturedLinkSelection | null>(null);
+  const linkButtonRef = useRef<HTMLButtonElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+
+  // Closing the popover (via Cancel, Escape, or a successful "Insertar") unmounts its `autoFocus`ed input
+  // — with nothing else done, focus would silently fall back to `document.body`, an easy-to-miss dead end
+  // for a keyboard/AT user. Same "return focus to the trigger" convention `use-dialog-controller.ts`
+  // already uses for real `<dialog>`s (never a focus *trap* here, though — this is a non-modal inline
+  // popover, and trapping focus out of it would itself be the anti-pattern). The trigger is disabled again
+  // by the time this runs whenever the underlying selection is now genuinely gone (the normal case right
+  // after inserting a link collapses it) — a disabled control can never receive focus, so the toolbar's
+  // own root (`tabIndex={-1}`, focusable only programmatically) is the fallback rather than leaving focus
+  // to land nowhere.
+  function closeLinkPopover(): void {
+    setLinkOpen(false);
+    setCapturedLink(null);
+    const trigger = linkButtonRef.current;
+    if (trigger && !trigger.disabled) trigger.focus();
+    else toolbarRef.current?.focus();
+  }
 
   const hasSelection = selectionRange !== null && selectionRange.from !== selectionRange.to;
   const blockTypeDisabled = !activeBlock || activeBlock.kind === 'island' || isProtectedTareasHeading(activeBlock, source);
   const markDisabled = !activeBlock || !hasSelection;
   const linkDisabled = !activeBlock || !hasSelection;
   const taskDisabled = !activeBlock || activeBlock.kind !== 'task-item';
+
+  function openLinkPopover(): void {
+    if (!activeBlock || !selectionRange || linkDisabled) return;
+    setCapturedLink({ block: activeBlock, from: selectionRange.from, to: selectionRange.to });
+    setLinkOpen(true);
+  }
 
   function handleSetBlockType(kind: BlockStyleKind): void {
     if (!activeBlock || blockTypeDisabled) return;
@@ -148,13 +186,14 @@ export function Toolbar({ source, activeBlock, selectionRange, onApplySplice }: 
   }
 
   function handleInsertLink(href: string): void {
-    setLinkOpen(false);
-    if (!activeBlock || !selectionRange || linkDisabled) return;
-    onApplySplice(insertLink(activeBlock, selectionRange.from, selectionRange.to, href, source));
+    const captured = capturedLink;
+    closeLinkPopover();
+    if (!captured) return;
+    onApplySplice(insertLink(captured.block, captured.from, captured.to, href, source));
   }
 
   return (
-    <div role="toolbar" aria-label="Formato" className={styles.toolbar} onKeyDown={handleRovingFocus}>
+    <div ref={toolbarRef} role="toolbar" aria-label="Formato" tabIndex={-1} className={styles.toolbar} onKeyDown={handleRovingFocus}>
       <div className={styles.group}>
         {BLOCK_STYLE_OPTIONS.map((option) => (
           <button
@@ -203,17 +242,18 @@ export function Toolbar({ source, activeBlock, selectionRange, onApplySplice }: 
       </button>
       <span className={styles.divider} aria-hidden="true" />
       <button
+        ref={linkButtonRef}
         type="button"
         title="Enlace"
         aria-label="Enlace"
         className={styles.button}
         disabled={linkDisabled}
         onMouseDown={keepFocus}
-        onClick={() => setLinkOpen(true)}
+        onClick={openLinkPopover}
       >
         <LinkIcon aria-hidden="true" size={18} />
       </button>
-      {linkOpen ? <LinkPopover onSubmit={handleInsertLink} onCancel={() => setLinkOpen(false)} /> : null}
+      {linkOpen ? <LinkPopover onSubmit={handleInsertLink} onCancel={closeLinkPopover} /> : null}
     </div>
   );
 }

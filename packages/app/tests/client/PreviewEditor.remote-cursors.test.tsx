@@ -46,6 +46,9 @@ describe('PreviewEditor remote cursors (WO-380)', () => {
     const marker = screen.getByTestId('remote-cursor');
     expect(marker.textContent).toBe('Bea');
     expect(marker.closest('p[data-block-from]')?.textContent).toContain('Second paragraph');
+    // WO-387 (accessibility gate): purely a sighted-user visual cue, injected mid-sentence into a block a
+    // screen reader would otherwise read as the editable region's own text — hidden from the a11y tree.
+    expect(marker.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('publishes the local selection to awareness as a cursor field', () => {

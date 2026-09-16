@@ -57,6 +57,17 @@ describe('CollabEditor tabs and state banners (WO-358)', () => {
     expect(screen.getByRole('tab', { name: 'Markdown' }).getAttribute('aria-selected')).toBe('true');
   });
 
+  // WO-369/WO-387 (accessibility gate): CodeMirror gives `.cm-content` its own `role="textbox"
+  // aria-multiline="true"` automatically, but no accessible name — `buildEditorExtensions`'s
+  // `EditorView.contentAttributes` fix is what actually announces the region to a screen reader.
+  it('gives the Markdown tab\'s CodeMirror content an accessible name', async () => {
+    mockContext();
+    render(<CollabEditor subject={editorSubject} />);
+    await userEvent.click(await screen.findByRole('tab', { name: 'Markdown' }));
+
+    expect(screen.getByRole('textbox', { name: 'Cuerpo del documento (Markdown)' })).toBeTruthy();
+  });
+
   it('shows no banner for a normal, connected, editable document', () => {
     mockContext();
     render(<CollabEditor subject={editorSubject} />);
