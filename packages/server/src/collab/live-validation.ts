@@ -10,6 +10,11 @@
  * bumps (SDD-007's outbox projection), so it's cached per project id and only recomputed once that
  * number moves — never per keystroke/store, which would otherwise mean an O(published docs) rescan on
  * every single collab flush.
+ *
+ * `scan.ids` is the exception (SDD-015): it holds every doc_id in any workflow state, and creating a draft
+ * never bumps `graph_version`, so the cached ids would miss a just-created document and report a false
+ * `stale_base`. They're re-read on every store with a single-column query and merged over the cached ids
+ * (which keep the synthetic `id_counters` entries `PgProjectEngine.scan()` adds).
  */
 import { eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
@@ -78,18 +83,20 @@ export function createLiveValidationExtension(deps: LiveValidationDeps): LiveVal
         scanCache.set(project.id, cached);
       }
 
-      const documentRow = await withTenantTx(pool, resolved.orgId, async (tx) => {
+      const { documentRow, projectDocIds } = await withTenantTx(pool, resolved.orgId, async (tx) => {
         const [row] = await tx.select({ docId: schema.documents.docId, kind: schema.documents.kind }).from(schema.documents).where(eq(schema.documents.id, parsed.documentId));
-        return row ?? null;
+        const idRows = await tx.select({ docId: schema.documents.docId }).from(schema.documents).where(eq(schema.documents.projectId, project.id));
+        return { documentRow: row ?? null, projectDocIds: idRows.map((r) => r.docId) };
       });
       if (!documentRow) return;
+      const scan: ScanResult = { ...cached.scan, ids: [...new Set([...cached.scan.ids, ...projectDocIds])] };
 
       const projection = projectDoc(document);
       const { id: _id, type: _type, title: _title, ...fields } = projection.fields;
 
       const outcome = validateDocument(
         { kind: documentRow.kind as DraftKind, title: projection.title, fields, body: projection.body, id: documentRow.docId, mode: 'edit' },
-        { scan: cached.scan, grandfathered: cached.grandfathered },
+        { scan, grandfathered: cached.grandfathered },
       );
       const issues = outcome.issues.map(toLiveValidationIssue);
 
