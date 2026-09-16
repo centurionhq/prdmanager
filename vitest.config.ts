@@ -25,29 +25,40 @@ export default defineConfig({
     },
   },
   test: {
-    // vitest 4 replaced `environmentMatchGlobs` with `projects`: one Node project for every package's
-    // unit/integration suites, one jsdom project scoped to packages/web's client component tests.
-    // Playwright E2E specs use the *.spec.ts convention and live under packages/web/tests/e2e, so they
-    // never match either project's include and never compete with vitest for the same file.
+    // vitest 4 replaced `environmentMatchGlobs` with `projects`. PRD-008 §4.1 / SDD-016 split them by whether a
+    // suite needs a database, not just by environment: `unit-node` and `unit-jsdom` must pass with Docker down
+    // (`npm run test:unit`, the only suites CI runs), `db` holds everything that talks to Neo4j/Postgres
+    // (`npm run test:db`, run locally by the pre-push hook). Classification is by directory only, so a new test
+    // lands on the right side by where it's created. Playwright specs use *.spec.ts and never match any project.
     projects: [
       {
         extends: true,
         test: {
-          name: 'node',
-          include: ['packages/*/tests/**/*.test.ts'],
+          name: 'unit-node',
+          include: ['packages/*/tests/unit/**/*.test.ts', 'packages/*/tests/client/**/*.test.ts', 'packages/app/tests/collab/**/*.test.ts'],
+          env: { PRDM_TEST_NO_DB: '1' },
         },
       },
       {
         extends: true,
         test: {
-          name: 'jsdom',
+          name: 'unit-jsdom',
           environment: 'jsdom',
-          include: ['packages/web/tests/client/**/*.test.tsx', 'packages/app/tests/client/**/*.test.tsx', 'packages/ui/tests/client/**/*.test.tsx'],
+          include: ['packages/*/tests/client/**/*.test.tsx'],
+          env: { PRDM_TEST_NO_DB: '1' },
           // Testing Library's cleanup() doesn't auto-run under Vitest (only under a Jest-like global test
           // framework), so it's wired in explicitly here; see packages/web/tests/client/setup.ts.
           setupFiles: ['packages/web/tests/client/setup.ts'],
           // Same reason as the top-level fileParallelism below: kept isolated per project.
           fileParallelism: false,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'db',
+          include: ['packages/*/tests/{integration,e2e,collab,isolation,learning}/**/*.test.ts'],
+          exclude: ['packages/app/tests/collab/**'],
         },
       },
     ],
