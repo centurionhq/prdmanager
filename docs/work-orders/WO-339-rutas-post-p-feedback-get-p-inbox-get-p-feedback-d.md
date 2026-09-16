@@ -12,7 +12,7 @@ assigned_to: "agent:claude"
 claimed_at: "2026-09-15T22:07:43.448Z"
 completed_at: "2026-09-15T22:57:03.802Z"
 resolved_by: ["5b48ae95a0a13cc27ae2158045b9142dc3afa032"]
-blueprint_hashes: {"SDD-012":"d425e24bdec27ebfeed89dd830ca2ba9e8d9b34103adffd8aca1417799ccb1cd"}
+blueprint_hashes: {"SDD-012":"89c5f5f1a7b15a0b4e86635ba5a51263d8583e13cd3b5e23116ff98a549bd68d"}
 ---
 
 ## Objetivo

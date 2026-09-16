@@ -543,8 +543,6 @@ La importación (una sola vez) exige:
 
 Una vez importado, el primer push a la rama por defecto con un workflow de CI configurado convierte esa baseline en "verificada".
 
-> **Limitación conocida (FB-009):** el comando `prdm link --import` de la CLI, tal como está hoy, **no puede completarse** cuando el repo de origen ya tiene un `.prdm.yaml` local real (`version: 1`) — que es justo el caso de uso que esta sección describe. Hasta que se resuelva, el camino verificado para importar los documentos de un repo existente es llamar `readLocalImportPayload`/`uploadImportPayload` (`packages/cli/src/remote/import.ts`) directamente, como hace `packages/cli/tests/integration/import-round-trip.test.ts`, sin pasar por `runLink`/`planLink`.
->
 > **Limitación conocida (FB-010):** un proyecto SaaS recién creado e importado muestra Planta y Entrada funcionando de inmediato (leen Postgres), pero el Árbol (`graph/full`/`graph/node`) queda completamente vacío hasta que corre el primer reporte de CI baseline — la proyección a Neo4j solo ocurre como efecto de ese reporte, no del import. No hay aviso en la API ni en la UI que lo explique.
 
 ## Skills (Claude Code)

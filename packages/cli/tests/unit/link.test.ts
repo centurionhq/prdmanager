@@ -8,7 +8,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { parseRemoteProjectFile } from '@prdm/core';
-import { makeTmpDir, removeDir } from '@prdm/testkit';
+import { makeTmpDir, removeDir, writeFiles } from '@prdm/testkit';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { CliError } from '../../src/errors.js';
 import { loadProjectPin, saveCredentials } from '../../src/remote/credentials.js';
@@ -19,6 +19,11 @@ const PROJECTS = [{ id: 'prj_0123456789abcdef', name: 'Widgets', slug: 'widgets'
 function buildFakeServer(orgSlug: string): FastifyInstance {
   const app = Fastify({ logger: false });
   app.get('/api/v1/me', async () => ({ organization: { id: 'org_1', slug: orgSlug, name: orgSlug } }));
+
+  app.post('/api/v1/projects/:graphProjectId/import', async (req) => {
+    const body = req.body as { documents: { sourcePath: string }[] };
+    return { imported: body.documents.length, documents: body.documents.map((d, i) => ({ id: `PRD-00${i + 1}`, sourcePath: d.sourcePath })) };
+  });
 
   app.post('/mcp', async (req, reply) => {
     const server = new McpServer({ name: 'fake', version: '0.0.0' });
@@ -107,5 +112,20 @@ describe('runLink (SDD-010, WO-188)', () => {
       runLink(root, { server: baseUrl, target: 'acme/widgets', import: true }, { stdout: () => undefined, env: { XDG_CONFIG_HOME: xdgHome } }),
     ).rejects.toThrow(/\.prdm\.yaml not found/);
     expect(existsSync(join(root, '.prdm.yaml'))).toBe(false);
+  });
+
+  test('--import succeeds against a real local (version 1) .prdm.yaml, uploading its docs (FB-009)', async () => {
+    writeFiles(root, {
+      '.prdm.yaml': 'version: 1\nproject:\n  id: prj_0123456789abcdef\n  name: x\n',
+      'docs/prd/PRD-001-example.md': '---\nid: "PRD-001"\ntype: "PRD"\ntitle: "Example"\nstatus: "approved"\n---\n\nBody.\n',
+    });
+
+    const lines: string[] = [];
+    await runLink(root, { server: baseUrl, target: 'acme/widgets', import: true }, { stdout: (l) => lines.push(l), env: { XDG_CONFIG_HOME: xdgHome } });
+
+    const remoteFile = parseRemoteProjectFile(readFileSync(join(root, '.prdm.yaml'), 'utf8'));
+    expect(remoteFile.remote).toEqual({ server: baseUrl, org: 'acme', project: 'widgets', offlinePolicy: 'warn' });
+    expect(lines.some((l) => l.includes('imported 1 document'))).toBe(true);
+    expect(lines.some((l) => l.includes('docs/prd/PRD-001-example.md'))).toBe(true);
   });
 });

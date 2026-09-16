@@ -18,6 +18,10 @@ export interface PlanLinkInput {
   project: string;
   offlinePolicy: OfflinePolicy;
   mcp?: boolean;
+  /** `prdm link --import` (FB-009): the caller already read whatever it needed from the existing local
+   * (`version: 1`) `.prdm.yaml` before calling this — an existing local project is exactly the case
+   * `--import` exists to migrate, not a reason to refuse. */
+  importing?: boolean;
 }
 
 export interface LinkFileWrite {
@@ -41,13 +45,14 @@ function sameRemote(a: RemoteProjectFile, input: PlanLinkInput): boolean {
  * Computes the file writes `prdm link` performs, without touching the filesystem. Refuses outright
  * (rather than silently overwriting) when `root` already has a `version: 1` `.prdm.yaml` (switching an
  * existing local project to remote is a decision an operator must make explicitly, e.g. by removing the
- * file first) or a `version: 2` one pointing at a *different* server/org/project (relinking a repository
- * to a different remote project is never silent). Re-running with the exact same target is idempotent.
+ * file first, or passing `--import` to migrate it) or a `version: 2` one pointing at a *different*
+ * server/org/project (relinking a repository to a different remote project is never silent). Re-running
+ * with the exact same target is idempotent.
  */
 export async function planLink(root: string, input: PlanLinkInput): Promise<LinkPlan> {
   const mode = detectProjectFileMode(root);
-  if (mode.kind === 'local') {
-    throw new AlreadyLocalProjectError('.prdm.yaml already exists as a local (version 1) project; remove it first if you really want to link this repository to a remote project');
+  if (mode.kind === 'local' && !input.importing) {
+    throw new AlreadyLocalProjectError('.prdm.yaml already exists as a local (version 1) project; remove it first, or pass --import to migrate it, if you really want to link this repository to a remote project');
   }
   if (mode.kind === 'remote' && !sameRemote(mode.file, input)) {
     throw new ConflictingRemoteLinkError(

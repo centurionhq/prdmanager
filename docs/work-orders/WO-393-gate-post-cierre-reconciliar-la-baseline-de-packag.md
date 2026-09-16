@@ -1,22 +1,22 @@
 ---
-id: "WO-343"
+id: "WO-393"
 type: "WO"
-title: "Reenvío de invitación, `lastActiveAt` de miembros y `createdByName` de tokens de CI, con sus sondas"
+title: "Gate post-cierre: reconciliar la baseline de `packages/core/tests/unit/scaffold-link.test.ts` tras el fix de FB-009 (WO-391), que también cae bajo el `impacts_paths` de este SDD"
 status: "done"
-created_at: "2026-09-15"
+created_at: "2026-09-16"
 implements: ["SDD-012"]
 impacts_paths: ["packages/contracts/src/**","packages/contracts/tests/**","packages/core/src/**","packages/core/tests/**","packages/db/src/**","packages/db/tests/**","packages/db/migrations/**","packages/server/src/**","packages/server/tests/**","packages/mcp/src/**","package.json","package-lock.json","vitest.config.ts","tsconfig.test.json"]
-source_task: "d76a901384ca0fc2"
+source_task: "ecf3b06bdd97763f"
 tags: ["saas","api","lifecycle","drift","feedback"]
 assigned_to: "agent:claude"
-claimed_at: "2026-09-15T22:08:01.944Z"
-completed_at: "2026-09-15T22:57:24.608Z"
-resolved_by: ["2f29dc31446bc1c2d1f77b7ebdd089f7174ee50b"]
+claimed_at: "2026-09-16T12:55:55.841Z"
+completed_at: "2026-09-16T12:56:39.263Z"
+resolved_by: ["52fd37e5792353759eff6ecb7e1339940c134018"]
 blueprint_hashes: {"SDD-012":"89c5f5f1a7b15a0b4e86635ba5a51263d8583e13cd3b5e23116ff98a549bd68d"}
 ---
 
 ## Objetivo
-Reenvío de invitación, `lastActiveAt` de miembros y `createdByName` de tokens de CI, con sus sondas
+Gate post-cierre: reconciliar la baseline de `packages/core/tests/unit/scaffold-link.test.ts` tras el fix de FB-009 (WO-391), que también cae bajo el `impacts_paths` de este SDD
 
 ## Contexto
 SDD-012 — API de backend para el frontend de Centurion Factory: estaciones, agregados, órdenes, feedback y baseline de código; features: PRD-007
@@ -24,4 +24,4 @@ SDD-012 — API de backend para el frontend de Centurion Factory: estaciones, ag
 ## Criterios de aceptación
 - [ ] Implementación realizada dentro del código gobernado por SDD-012
 - [ ] Tests que cubren el cambio
-- [ ] Commit realizado con el trailer `Refs: WO-343`
+- [ ] Commit realizado con el trailer `Refs: WO-393`

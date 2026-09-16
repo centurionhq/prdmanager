@@ -60,6 +60,7 @@ export async function runLink(root: string, options: LinkOptions, deps: LinkIoDe
     project,
     offlinePolicy: options.offlinePolicy ?? 'warn',
     mcp: options.mcp,
+    importing: options.import,
   });
   await applyLink(root, plan);
 
