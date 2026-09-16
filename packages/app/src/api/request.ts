@@ -87,10 +87,20 @@ function isMutating(method: string): boolean {
   return MUTATING_METHODS.has(method);
 }
 
+/** Any ASCII control character (tab, newline, carriage return, ...) — the WHATWG URL parser (the same
+ * algorithm every browser uses for `location.href`/`<a href>`) strips these from a URL before parsing it,
+ * so `/\t/evil.com` and `/\n/evil.com` both resolve to `//evil.com` (protocol-relative, cross-origin) even
+ * though neither literally starts with `//` as a JS string. */
+const CONTROL_CHAR_PATTERN = /[\u0000-\u001f]/;
+
 /** Guards the `next=` redirect target below against an open redirect: only a same-origin, root-relative
  * path is safe. Rejects a protocol-relative path (`//evil.com`, parsed by browsers as same-scheme,
- * cross-origin) and any path carrying its own scheme (`https://evil.com`, `javascript:...`). */
+ * cross-origin), any path carrying its own scheme (`https://evil.com`, `javascript:...`), any path
+ * containing a backslash (the same URL parser treats `\` as `/`, so `/\evil.com` also resolves to
+ * `evil.com`), and any path carrying a stripped control character (see {@link CONTROL_CHAR_PATTERN}). */
 function isSafeNextPath(path: string): boolean {
+  if (CONTROL_CHAR_PATTERN.test(path)) return false;
+  if (path.includes('\\')) return false;
   return path.startsWith('/') && !path.startsWith('//') && !path.includes('://');
 }
 

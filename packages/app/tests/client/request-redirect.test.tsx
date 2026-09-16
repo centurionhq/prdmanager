@@ -27,6 +27,22 @@ describe('buildLoginRedirectUrl', () => {
   it('drops next= for a path that is not root-relative', () => {
     expect(buildLoginRedirectUrl('evil.com')).toBe('/login');
   });
+
+  it('drops next= for a backslash path the URL parser treats as protocol-relative', () => {
+    // The WHATWG URL parser (same algorithm as `location.href`/`<a href>`) treats `\` as `/`, so
+    // `new URL('/\\evil.com', origin).host` is `evil.com`, not the current origin.
+    expect(buildLoginRedirectUrl('/\\evil.com')).toBe('/login');
+  });
+
+  it('drops next= for a tab-injected path the URL parser strips into protocol-relative', () => {
+    // Literal control characters are stripped by the URL parser before it runs, so `/\t/evil.com`
+    // resolves the same way `//evil.com` does even though the raw string never contains `//`.
+    expect(buildLoginRedirectUrl('/\t/evil.com')).toBe('/login');
+  });
+
+  it('drops next= for a newline-injected path the URL parser strips into protocol-relative', () => {
+    expect(buildLoginRedirectUrl('/\n/evil.com')).toBe('/login');
+  });
 });
 
 describe('request() on a 401', () => {
