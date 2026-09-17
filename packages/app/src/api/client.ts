@@ -23,3 +23,4 @@ export * from './feedback.js';
 export * from './commits.js';
 export * from './code-refs.js';
 export * from './audit.js';
+export * from './profile.js';

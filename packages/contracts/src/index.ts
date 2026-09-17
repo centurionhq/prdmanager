@@ -23,4 +23,5 @@ export * from './project-settings.js';
 export * from './projects.js';
 export * from './search.js';
 export * from './tokens.js';
+export * from './user-profile.js';
 export * from './work-orders.js';

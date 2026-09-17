@@ -407,6 +407,18 @@ export function registerBaseIsolationRoutes(): void {
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' }, body: { reason: 'probe', bypass: ['project_clean'] } })),
   });
 
+  // WO-430 (SDD-021): same tenant-scoped resolution as generate-work-orders above -- docId is a blueprint.
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/impacts-paths/drift', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'SDD-001' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'SDD-001' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/impacts-paths/sync', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'SDD-001' }, body: { expectedSuggestion: ['probe.ts'], reason: 'probe' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'SDD-001' }, body: { expectedSuggestion: ['probe.ts'], reason: 'probe' } })),
+  });
+
   registerIsolationProbe('POST', '/api/app/invitations/:id/accept', {
     skip: 'public (SDD-006: authenticated by the invitation\'s own one-time secret, not by org/project membership)',
   });
@@ -454,6 +466,15 @@ export function registerBaseIsolationRoutes(): void {
 
   registerIsolationProbe('GET', '/api/v1/me', {
     skip: 'scoped to the caller\'s own token, any valid token — no org/project id in the path to probe',
+  });
+
+  registerIsolationProbe('GET', '/api/app/profile', {
+    skip: 'scoped to the caller\'s own session, user_profile is a global 1:1 with user — no org/project id in the path to probe (WO-432)',
+  });
+
+  registerIsolationProbe('POST', '/api/app/profile/handle', {
+    mutating: true,
+    skip: 'scoped to the caller\'s own session, user_profile is a global 1:1 with user — no org/project id in the path to probe (WO-432)',
   });
 
   // SDD-010 (WO-178): resolved through `resolveProjectByGraphProjectId` before `app.org_id` is ever
