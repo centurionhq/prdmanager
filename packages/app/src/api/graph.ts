@@ -63,3 +63,16 @@ export function acknowledgeDrift(orgSlug: string, projectSlug: string, target: s
     body: { target },
   });
 }
+
+/** `POST .../code-reports/force-push-overrides` (SDD-010, WO-181): `manage_ci_tokens`-only server-side
+ * (same trust boundary as who can mint a baseline-capable CI token) — the audited admin escape hatch for
+ * a CI baseline report whose `head_sha` doesn't verify as a fast-forward of the currently registered
+ * baseline head (`packages/server/src/engine/baseline-gate.ts`'s `isHeadRegression`, a bounded ancestry
+ * check over the reported commit window — it can false-positive on an otherwise legitimate merge commit
+ * whose relevant parent chain isn't fully covered by that window, not just on a genuine force-push). */
+export function authorizeForcePushOverride(orgSlug: string, projectSlug: string, headSha: string): Promise<{ headSha: string }> {
+  return request<{ headSha: string }>(
+    `/api/app/organizations/${encodeURIComponent(orgSlug)}/projects/${encodeURIComponent(projectSlug)}/code-reports/force-push-overrides`,
+    { method: 'POST', body: { headSha } },
+  );
+}

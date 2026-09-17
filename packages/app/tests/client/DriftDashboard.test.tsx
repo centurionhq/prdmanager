@@ -173,4 +173,40 @@ describe('DriftDashboard', () => {
 
     expect(await screen.findByRole('alert')).toBeTruthy();
   });
+
+  it('authorizes a force-push override and shows a success toast', async () => {
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({ official: fakeReport({ mode: 'baseline', branch: 'main' }), previews: [], history: [] });
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+    const authorize = vi.spyOn(graphApi, 'authorizeForcePushOverride').mockResolvedValue({ headSha: 'c'.repeat(40) });
+
+    renderPage();
+    await screen.findByRole('button', { name: 'Autorizar force-push' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Autorizar force-push' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Autorizar force-push' });
+
+    const confirmButton = within(dialog).getByRole('button', { name: 'Autorizar' }) as HTMLButtonElement;
+    expect(confirmButton.disabled).toBe(true);
+
+    await userEvent.type(within(dialog).getByLabelText('Commit (head_sha) a autorizar'), 'c'.repeat(40));
+    expect(confirmButton.disabled).toBe(false);
+    await userEvent.click(confirmButton);
+
+    await waitFor(() => expect(authorize).toHaveBeenCalledWith('acme', 'web', 'c'.repeat(40)));
+    expect(await screen.findByText('Force-push autorizado')).toBeTruthy();
+  });
+
+  it('keeps the force-push confirm button disabled for a sha that is too short', async () => {
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({ official: fakeReport({ mode: 'baseline', branch: 'main' }), previews: [], history: [] });
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+
+    renderPage();
+    await screen.findByRole('button', { name: 'Autorizar force-push' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Autorizar force-push' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Autorizar force-push' });
+
+    await userEvent.type(within(dialog).getByLabelText('Commit (head_sha) a autorizar'), 'abc123');
+    expect((within(dialog).getByRole('button', { name: 'Autorizar' }) as HTMLButtonElement).disabled).toBe(true);
+  });
 });

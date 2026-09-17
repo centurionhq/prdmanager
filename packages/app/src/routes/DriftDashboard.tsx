@@ -6,8 +6,9 @@
  * the same feature/blueprint/station-attributed issues `Drift.dc.html` shows.
  */
 import { useState, type ReactElement } from 'react';
+import { can } from '@prdm/contracts';
 import { getDriftDashboard, getDriftIssues } from '../api/client.js';
-import { acknowledgeDrift } from '../api/graph.js';
+import { acknowledgeDrift, authorizeForcePushOverride } from '../api/graph.js';
 import { errorMessage } from '../api/error-message.js';
 import { useApiQuery } from '../api/use-api-query.js';
 import { Button, ErrorState, PageHeader, Severity, Skeleton, ToastProvider, useToast } from '../components/index.js';
@@ -16,6 +17,7 @@ import { useProjectShellContext } from './ProjectShell.js';
 import { AcknowledgeModal } from './drift/AcknowledgeModal.js';
 import { acknowledgeableTargets } from './drift/drift-groups.js';
 import { DriftIssuesList } from './drift/DriftIssuesList.js';
+import { ForcePushOverrideModal } from './drift/ForcePushOverrideModal.js';
 import { ReportDetailModal } from './drift/ReportDetailModal.js';
 import styles from './drift/Drift.module.css';
 
@@ -36,7 +38,7 @@ function isActivationKey(key: string): boolean {
 }
 
 function DriftContent(): ReactElement {
-  const { orgSlug, projectSlug } = useProjectShellContext();
+  const { orgSlug, projectSlug, subject } = useProjectShellContext();
   useDocumentTitle('Drift');
   const { show } = useToast();
 
@@ -46,6 +48,8 @@ function DriftContent(): ReactElement {
   const [ackOpen, setAckOpen] = useState(false);
   const [ackSubmitting, setAckSubmitting] = useState(false);
   const [reportId, setReportId] = useState<string | undefined>(undefined);
+  const [forcePushOpen, setForcePushOpen] = useState(false);
+  const [forcePushSubmitting, setForcePushSubmitting] = useState(false);
 
   if (dashboardQuery.status === 'cargando' || issuesQuery.status === 'cargando') return <Skeleton rows={6} />;
   if (dashboardQuery.status === 'error') {
@@ -76,6 +80,19 @@ function DriftContent(): ReactElement {
     }
   }
 
+  async function handleForcePushOverride(headSha: string): Promise<void> {
+    setForcePushSubmitting(true);
+    try {
+      await authorizeForcePushOverride(orgSlug, projectSlug, headSha);
+      setForcePushOpen(false);
+      show('Force-push autorizado', { tone: 'success' });
+    } catch (err) {
+      show(errorMessage(err));
+    } finally {
+      setForcePushSubmitting(false);
+    }
+  }
+
   return (
     <div className={styles.page}>
       <PageHeader
@@ -92,7 +109,13 @@ function DriftContent(): ReactElement {
         }
         actions={
           <div className={styles.headerActions}>
-            <Button type="button" variant="secondary" disabled title="Requiere admin">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!can(subject, 'manage_ci_tokens')}
+              title={can(subject, 'manage_ci_tokens') ? undefined : 'Requiere admin'}
+              onClick={() => setForcePushOpen(true)}
+            >
               Autorizar force-push
             </Button>
             <Button type="button" variant="primary" onClick={() => setAckOpen(true)}>
@@ -219,6 +242,12 @@ function DriftContent(): ReactElement {
         onConfirm={(target) => void handleAcknowledge(target)}
       />
       <ReportDetailModal orgSlug={orgSlug} projectSlug={projectSlug} reportId={reportId} onClose={() => setReportId(undefined)} />
+      <ForcePushOverrideModal
+        open={forcePushOpen}
+        submitting={forcePushSubmitting}
+        onClose={() => setForcePushOpen(false)}
+        onConfirm={(headSha) => void handleForcePushOverride(headSha)}
+      />
     </div>
   );
 }
