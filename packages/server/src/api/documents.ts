@@ -15,7 +15,7 @@
  * `templateFor(kind)` and moving `draft -> in_review` is deliberately as far as this WO's server-side
  * writes go.
  */
-import { foldersForDocsDir, scanContents, setFrontmatterFields, sha256, slugify, templateFor, todayIso, type TemplateKind } from '@prdm/core';
+import { scanContents, type TemplateKind } from '@prdm/core';
 import { can, createDocumentInputSchema, listDocumentsQuerySchema, type DocumentDetail, type DocumentSummary } from '@prdm/contracts';
 import { createTenantDb, type DocumentRecord, type DocumentVersionRecord } from '@prdm/db';
 import type { FastifyInstance } from 'fastify';
@@ -25,6 +25,7 @@ import type { CollabRevocationHub } from '../collab/revocation.js';
 import type { ServerEnv } from '../env.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { captureDocumentVersion } from '../collab/versions.js';
+import { createAndSubmitDocument } from '../documents/create-and-submit.js';
 import { requireAppSession } from './app-session.js';
 import { requireMemberOrg } from './require-member-org.js';
 import { resolveVisibleProject, userAgentOf } from './projects.js';
@@ -47,8 +48,6 @@ interface ProjectRouteParams {
 interface DocumentRouteParams extends ProjectRouteParams {
   docId: string;
 }
-
-const DOCS_DIR = 'docs';
 
 function toSummary(document: DocumentRecord): DocumentSummary {
   return {
@@ -127,28 +126,14 @@ export function registerDocumentRoutes(app: FastifyInstance, opts: RegisterDocum
       if (!parsed.success) throw new ValidationError('invalid body');
       const kind = parsed.data.kind as TemplateKind;
       const title = parsed.data.title;
-      const folder = foldersForDocsDir(DOCS_DIR)[kind];
 
       const scope = createTenantDb(pool).forOrg(org.id).forProject(project.id);
-      const { document, latestVersion } = await scope.documents.createDraft({
-        kind,
-        title,
-        createdBy: session.user.id,
-        buildContent: (docId) => {
-          // WO-217: `type` is substituted here too (previously left untouched from the static template,
-          // which hand-writes it unquoted, e.g. `type: PRD`), so `setFrontmatterFields`'s own
-          // `JSON.stringify`-based rewrite quotes it exactly like it already does for `id`/`title`/
-          // `status`/`created_at` — matching the quoting convention every later version snapshot
-          // (`captureDocumentVersion`'s `renderDocument` call) already uses for the very same field.
-          // Before this, opening the editor and saving again with *no real edit* produced a spurious
-          // `type: PRD` / `type: "PRD"` diff line on the very first save. `setFrontmatterFields` only
-          // rewrites the keys it's given and leaves every other template line untouched, so this can't
-          // regress SDD/ADR's placeholder-only `architects: []` the way a full schema-validating re-parse
-          // of the template would.
-          const renderedMarkdown = setFrontmatterFields(templateFor(kind), { id: docId, type: kind, title, status: 'draft', created_at: todayIso() });
-          return { sourcePath: `${folder}/${docId}-${slugify(title)}.md`, renderedMarkdown, contentHash: sha256(renderedMarkdown) };
-        },
-      });
+      // WO-217: `createAndSubmitDocument` substitutes `type` via `setFrontmatterFields`'s own
+      // `JSON.stringify`-based rewrite, quoted exactly like `id`/`title`/`status`/`created_at` already
+      // are — matching the quoting convention every later version snapshot (`captureDocumentVersion`'s
+      // `renderDocument` call) already uses for the same field, so opening the editor and saving again
+      // with no real edit never produces a spurious `type: PRD` / `type: "PRD"` diff line.
+      const { document, latestVersion } = await createAndSubmitDocument(scope, { kind, title, createdBy: session.user.id, submitForReview: false });
 
       await createTenantDb(pool)
         .forOrg(org.id)
