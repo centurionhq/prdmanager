@@ -23,6 +23,7 @@ const EXPECTED_ROLES_BY_ACTION: Record<PermissionAction, readonly ProjectRole[]>
   close_feature: ['admin'],
   claim_work_order: ['admin', 'editor', 'developer'],
   complete_work_order: ['admin', 'editor', 'developer'],
+  archive_work_order: ['admin'],
   generate_work_orders: ['admin', 'editor'],
   report_code_preview: ['admin', 'editor', 'developer'],
   manage_members: ['admin'],

@@ -18,8 +18,8 @@
  * SDD-010's own remote-MCP error code exactly, rather than falling through to the generic `ConflictError`
  * every other domain-thrown `Error` gets.
  */
-import { claimWorkOrder, CommitNotVerifiedError, completeWorkOrder, getWorkOrderContext } from '@prdm/core';
-import { can, claimWorkOrderInputSchema, completeWorkOrderInputSchema, type WorkOrderContextDto } from '@prdm/contracts';
+import { archiveWorkOrder, claimWorkOrder, CommitNotVerifiedError, completeWorkOrder, getWorkOrderContext } from '@prdm/core';
+import { archiveWorkOrderInputSchema, can, claimWorkOrderInputSchema, completeWorkOrderInputSchema, type WorkOrderContextDto } from '@prdm/contracts';
 import { createTenantDb, findUserProfile } from '@prdm/db';
 import type { Neo4jGraphDatabase } from '@prdm/core';
 import type { FastifyInstance } from 'fastify';
@@ -141,6 +141,44 @@ export function registerProjectWorkOrderRoutes(app: FastifyInstance, opts: Regis
           action: 'work_order.completed',
           target: req.params.woId,
           metadata: { commitSha: parsed.data.commitSha },
+          ip: req.ip,
+          userAgent: userAgentOf(req),
+        });
+
+      return { result };
+    },
+  );
+
+  app.post<{ Params: WorkOrderRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/work-orders/:woId/archive',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+      const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+      if (!can(subject, 'archive_work_order')) throw new ForbiddenError();
+
+      const parsed = archiveWorkOrderInputSchema.safeParse(req.body ?? {});
+      if (!parsed.success) throw new ValidationError('invalid body');
+
+      const neo4j = requireNeo4j(opts.neo4j);
+      const engine = resolvePgProjectEngine(pool, neo4j, org.id, project);
+      let result;
+      try {
+        result = await archiveWorkOrder(engine, req.params.woId, `dev:${session.user.id}`, { reason: parsed.data.reason });
+      } catch (err) {
+        throw new ConflictError(err instanceof Error ? err.message : String(err));
+      }
+
+      await createTenantDb(pool)
+        .forOrg(org.id)
+        .auditLog.record({
+          projectId: project.id,
+          actorType: 'user',
+          actorId: session.user.id,
+          action: 'work_order.archived',
+          target: req.params.woId,
+          metadata: { reason: parsed.data.reason },
           ip: req.ip,
           userAgent: userAgentOf(req),
         });

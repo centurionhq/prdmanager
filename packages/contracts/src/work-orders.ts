@@ -61,3 +61,10 @@ export const completeWorkOrderInputSchema = z.object({
   commitSha: z.string().regex(SHA_PATTERN),
 });
 export type CompleteWorkOrderInput = z.infer<typeof completeWorkOrderInputSchema>;
+
+/** `POST .../work-orders/:id/archive` (SDD-018, WO-415): `reason` is optional, matching
+ * `@prdm/core`'s `archiveWorkOrder` own `ArchiveOptions.reason`. */
+export const archiveWorkOrderInputSchema = z.object({
+  reason: z.string().max(2000).optional(),
+});
+export type ArchiveWorkOrderInput = z.infer<typeof archiveWorkOrderInputSchema>;
