@@ -118,6 +118,7 @@ import type { Pool } from 'pg';
 import * as Y from 'yjs';
 import { formatDocumentName } from '../collab/document-name.js';
 import { saasProjectRoot } from './pg-project-settings.js';
+import { computeImpactsPathsDrift } from './impacts-paths-drift.js';
 
 type DocumentRow = typeof schema.documents.$inferSelect;
 type DocumentKindValue = (typeof schema.documentKind.enumValues)[number];
@@ -857,6 +858,32 @@ export class PgProjectEngine implements ProjectEngine {
     });
   }
 
+  /**
+   * WO-429 (SDD-021 "Reconciliacion de impacts_paths desde CI"): writes a blueprint's `impacts_paths`
+   * straight to `published_raw`, unconditionally (regardless of `collab`/`generated` origin) -- never
+   * routed through `writeGeneratedFields`'s `isServerManagedField` split. That split exists to protect
+   * `collab`-origin fields a human draft could otherwise set from being silently overwritten by an
+   * ordinary authoring write; `impacts_paths` is deliberately *not* in that server-managed set (authors
+   * normally set it freely when drafting an SDD/ADR), so reusing it here would incorrectly also forbid
+   * normal human authoring of the field. This method is reachable only from the admin-gated, audited
+   * `sync_impacts_paths` REST route (WO-430) -- never a general-purpose field setter a human draft path
+   * could accidentally trigger -- which is what makes bypassing that protection safe here.
+   *
+   * `nextImpactsPaths` replaces the field entirely (the caller -- `sync_impacts_paths` -- already merged
+   * the CI-suggested additions onto the current patterns and asked the operator to confirm the exact
+   * result, mirroring `publish_document`'s own optimistic-concurrency contract).
+   */
+  async applyCiSuggestedImpactsPaths(blueprintId: string, nextImpactsPaths: readonly string[]): Promise<ParsedDoc> {
+    return this.withTx(async (tx) => {
+      const row = await this.findDocumentRow(tx, blueprintId);
+      if (row.publishedRaw === null) throw new Error(`document ${blueprintId} has no published content to update`);
+      const fields: Record<string, FieldValue> = { impacts_paths: [...nextImpactsPaths] };
+      const parsed = await this.writeGeneratedContent(tx, row, setFrontmatterFields(row.publishedRaw, fields));
+      if (row.origin === 'collab') this.pendingLiveDocSyncs.push({ documentId: row.id, fields });
+      return parsed;
+    });
+  }
+
   /** `EngineOps.readCommit` (SDD-007): only commits that arrived through a CI-verified baseline report
    * (SDD-010, not yet built) are ever visible; anything else — including a sha real in git but never
    * reported, or reported only as an unverified preview — answers `null` here exactly like an unknown
@@ -954,7 +981,7 @@ export class PgProjectEngine implements ProjectEngine {
    * hash changed (or that was never reported at all) gets a non-blocking `awaiting_ci_report` issue and
    * must never have its stored `baseline.governs` entry touched by this refresh.
    */
-  private reconcileByHash(scan: ScanResult, reportedHashes: Record<string, string>): { warnings: DriftIssue[]; staleBlueprintIds: string[] } {
+  private async reconcileByHash(scan: ScanResult, reportedHashes: Record<string, string>): Promise<{ warnings: DriftIssue[]; staleBlueprintIds: string[] }> {
     const warnings: DriftIssue[] = [];
     const staleBlueprintIds: string[] = [];
     for (const doc of scan.docs) {
@@ -962,11 +989,16 @@ export class PgProjectEngine implements ProjectEngine {
       const currentHash = impactsPathsHash(doc.impactsPaths);
       if (reportedHashes[doc.node.id] === currentHash) continue;
       staleBlueprintIds.push(doc.node.id);
+      // WO-428: only computed for a blueprint already flagged stale above -- never on every refresh for
+      // every blueprint, so this stays a bounded, occasional read rather than an N+1 cost on the common
+      // (nothing stale) path.
+      const drift = await computeImpactsPathsDrift(this.pool, this.orgId, this.projectId, scan.docs, doc.node.id);
       warnings.push({
         kind: 'awaiting_ci_report',
         severity: 'warning',
         nodeId: doc.node.id,
         message: `${doc.node.id}'s impacts_paths changed since the last CI-verified code report (or none exists yet); its code governance baseline is left untouched until a new report arrives`,
+        ...(drift && drift.suggestedAdditions.length > 0 ? { suggestedImpactsPathsAdditions: drift.suggestedAdditions } : {}),
       });
     }
     return { warnings, staleBlueprintIds };
@@ -992,7 +1024,7 @@ export class PgProjectEngine implements ProjectEngine {
     // stale blueprint's project_code_refs rows are excluded from this refresh entirely rather than fed
     // into detectDrift only to have their resulting baseline entry overwritten afterward.
     const reportedHashes = await this.loadImpactsHashes(tx);
-    const { warnings, staleBlueprintIds } = this.reconcileByHash(scan, reportedHashes);
+    const { warnings, staleBlueprintIds } = await this.reconcileByHash(scan, reportedHashes);
     const input = await this.buildDriftInput(tx, scan, new Set(staleBlueprintIds));
     const built = buildRefreshReport(input);
     const issues: DriftIssue[] = [...built.issues, ...warnings];

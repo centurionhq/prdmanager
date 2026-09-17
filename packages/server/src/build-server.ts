@@ -21,6 +21,7 @@ import { registerHealthRoute } from './api/health.js';
 import { registerInvitationAcceptRoute } from './api/invitation-accept.js';
 import { registerOrganizationInvitationRoutes } from './api/organization-invitations.js';
 import { registerCloseFeatureRoutes } from './api/close-feature.js';
+import { registerImpactsPathsSyncRoutes } from './api/impacts-paths-sync.js';
 import { registerCollabRoute, registerCollabWebsocketPlugin } from './collab/register-collab-route.js';
 import { createCollabRevocationHub, type CollabRevocationHub } from './collab/revocation.js';
 import { realCollabScheduler, type CollabScheduler } from './collab/scheduler.js';
@@ -298,6 +299,7 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerProjectCodeHistoryRoutes(app, { auth, pool, env, neo4j });
       registerAuditLogRoutes(app, { auth, pool, env });
       registerCloseFeatureRoutes(app, { auth, pool, env, neo4j, hocuspocus });
+      registerImpactsPathsSyncRoutes(app, { auth, pool, env, neo4j });
       registerInvitationAcceptRoute(app, { auth, pool, env, rateLimiter: buildInvitationAcceptRateLimiter(app) });
       registerTokenRoutes(app, { auth, pool, env, clock });
       registerCiTokenRoutes(app, { auth, pool, env, clock });

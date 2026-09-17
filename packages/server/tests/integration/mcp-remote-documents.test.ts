@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { Neo4jGraphDatabase } from '@prdm/core';
+import { createCiToken, upsertReportedCommits } from '@prdm/db';
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
@@ -287,6 +288,63 @@ describe('remote create_document / update_document / publish_document (SDD-020)'
     expect(toolBody<{ error: string }>(result).error).toBe('insufficient_role');
 
     await editorClient.close();
+    await app.close();
+  });
+
+  test('get_impacts_paths_drift surfaces the SDD-016-shaped suggestion over MCP, read-only for an editor token (SDD-021, WO-431)', async () => {
+    const { app, baseUrl } = await startApp();
+    const { org, project, editorSecret } = await setupProject(app);
+
+    const BLUEPRINT_ID = 'SDD-001';
+    const WO_ID = 'WO-001';
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+       VALUES ($1, $2, 'FR-001', 'FR', 'Example feature', 'docs/fr/FR-001.md', 'collab', 'published', $3)`,
+      [org.id, project.id, `---\nid: FR-001\ntype: FR\ntitle: "Example feature"\n---\n\n## Solicitud\n`],
+    );
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+       VALUES ($1, $2, $3, 'SDD', 'Example blueprint', 'docs/sdd/SDD-001.md', 'collab', 'published', $4)`,
+      [org.id, project.id, BLUEPRINT_ID, `---\nid: ${BLUEPRINT_ID}\ntype: SDD\ntitle: "Example blueprint"\narchitects: ["FR-001"]\nimpacts_paths: ["packages/core/tests"]\n---\n\n## Contexto\n\n## Tareas\n\n- [ ] x\n`],
+    );
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+       VALUES ($1, $2, $3, 'WO', 'Do the thing', 'docs/work-orders/WO-001.md', 'generated', 'published', $4)`,
+      [org.id, project.id, WO_ID, `---\nid: ${WO_ID}\ntype: WO\ntitle: "Do the thing"\nstatus: done\nimplements: ["${BLUEPRINT_ID}"]\n---\n\ntask\n`],
+    );
+    const { rows: ownerRows } = await pg.ownerPool.query<{ userId: string }>(`SELECT "userId" FROM "member" WHERE "organizationId" = $1 AND role = 'owner' LIMIT 1`, [org.id]);
+    const token = await createCiToken(pg.appPool, { orgId: org.id, projectIds: [project.id], name: 'ci', scopes: ['reports:baseline'], expiresAt: new Date(Date.now() + DAY_MS), createdBy: ownerRows[0]!.userId });
+    await upsertReportedCommits(pg.appPool, {
+      projectId: project.id,
+      orgId: org.id,
+      tokenId: token.record.id,
+      trust: 'baseline',
+      branch: 'main',
+      commits: [{ sha: 'a'.repeat(40), author: 'Alice', date: '2026-09-17T00:00:00.000Z', subject: `feat: x\n\nRefs: ${WO_ID}`, refs: [WO_ID], files: ['packages/core/tests/unit/foo.test.ts'] }],
+    });
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClient(`${baseUrl}/mcp/${project.graphProjectId}`, editorSecret));
+    const result = await client.callTool({ name: 'get_impacts_paths_drift', arguments: { blueprint_id: BLUEPRINT_ID } });
+    expect(result.isError).toBeFalsy();
+    const body = toolBody<{ blueprintId: string; currentPatterns: string[]; suggestedAdditions: string[] }>(result);
+    expect(body).toMatchObject({ blueprintId: BLUEPRINT_ID, currentPatterns: ['packages/core/tests'], suggestedAdditions: ['packages/core/tests/unit/foo.test.ts'] });
+
+    await client.close();
+    await app.close();
+  });
+
+  test('get_impacts_paths_drift returns found: false for an id that is not a blueprint', async () => {
+    const { app, baseUrl } = await startApp();
+    const { project, editorSecret } = await setupProject(app);
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClient(`${baseUrl}/mcp/${project.graphProjectId}`, editorSecret));
+    const result = await client.callTool({ name: 'get_impacts_paths_drift', arguments: { blueprint_id: 'SDD-999' } });
+    expect(result.isError).toBeFalsy();
+    expect(toolBody<{ found: boolean }>(result)).toEqual({ found: false });
+
+    await client.close();
     await app.close();
   });
 });

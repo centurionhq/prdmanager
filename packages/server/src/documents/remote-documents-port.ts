@@ -14,9 +14,10 @@
 import { parseDocument, setFrontmatterFields, sha256, type DraftKind, type FieldValue } from '@prdm/core';
 import type { DocumentRecord, DocumentVersionRecord, DocumentWithLatestVersion, ProjectRecord } from '@prdm/db';
 import { createTenantDb } from '@prdm/db';
-import type { RemoteDocumentSummary, RemoteDocumentVersionSummary, RemoteDocumentWithVersion, RemoteDocumentsPort } from '@prdm/mcp/lib';
+import type { RemoteDocumentSummary, RemoteDocumentVersionSummary, RemoteDocumentWithVersion, RemoteDocumentsPort, RemoteImpactsPathsDrift } from '@prdm/mcp/lib';
 import type { Pool } from 'pg';
 import { ConflictError, NotFoundError } from '../errors.js';
+import { computeImpactsPathsDrift } from '../engine/impacts-paths-drift.js';
 import type { PgProjectEngine } from '../engine/pg-project-engine.js';
 import { buildProjectSettings } from '../engine/pg-project-settings.js';
 import { createAndSubmitDocument } from './create-and-submit.js';
@@ -114,6 +115,11 @@ export function buildRemoteDocumentsPort(pool: Pool, orgId: string, project: Pro
       });
 
       return { document: toSummary(result.document), workOrders: result.workOrders };
+    },
+
+    async getImpactsPathsDrift(blueprintId): Promise<RemoteImpactsPathsDrift | null> {
+      const scan = await engine.scan();
+      return computeImpactsPathsDrift(pool, orgId, project.id, scan.docs, blueprintId);
     },
   };
 }

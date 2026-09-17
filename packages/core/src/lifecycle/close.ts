@@ -17,7 +17,10 @@ function architectingBlueprints(docs: readonly ParsedDoc[], featureId: string): 
   return docs.filter((d) => d.node.label === 'Blueprint' && d.edges.some((e) => e.type === 'ARCHITECTS' && e.to === featureId));
 }
 
-function workOrdersImplementing(docs: readonly ParsedDoc[], blueprintId: string): ParsedDoc[] {
+/** Exported for reuse by SDD-021's `impacts_paths` CI-reconciliation (WO-427): finding every WO that
+ * implements a blueprint is the same edge-walk closure readiness already needs, so this stays the one
+ * place that logic lives rather than a second copy. */
+export function workOrdersImplementing(docs: readonly ParsedDoc[], blueprintId: string): ParsedDoc[] {
   return docs.filter((d) => d.node.label === 'WorkOrder' && d.edges.some((e) => e.type === 'IMPLEMENTS' && e.to === blueprintId));
 }
 

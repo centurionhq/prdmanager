@@ -53,9 +53,20 @@ export interface RemotePublishInput {
   publishedBy: string;
 }
 
+export interface RemoteImpactsPathsDrift {
+  blueprintId: string;
+  currentPatterns: readonly string[];
+  suggestedAdditions: readonly string[];
+  basedOnCommits: readonly string[];
+}
+
 export interface RemoteDocumentsPort {
   createAndSubmit(kind: DraftKind, title: string, createdBy: string): Promise<RemoteDocumentWithVersion>;
   findByDocId(docId: string): Promise<RemoteDocumentWithVersion | null>;
   saveDraftVersion(docId: string, input: RemoteSaveDraftVersionInput): Promise<RemoteDocumentWithVersion>;
   publish(docId: string, input: RemotePublishInput): Promise<RemotePublishResult>;
+  /** `null` when `blueprintId` doesn't exist or isn't a Blueprint (SDD-021, WO-431) -- read-only, exposed
+   * over MCP unlike `saveDraftVersion`/`publish`'s write counterpart (`sync_impacts_paths` stays
+   * REST/dashboard-only, per this project's own trust-tier precedent for governance-metadata writes). */
+  getImpactsPathsDrift(blueprintId: string): Promise<RemoteImpactsPathsDrift | null>;
 }

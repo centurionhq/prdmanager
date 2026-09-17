@@ -43,6 +43,7 @@ export const PERMISSION_ACTIONS = [
   'manage_project_settings',
   'manage_ci_tokens',
   'import',
+  'sync_impacts_paths',
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
@@ -81,6 +82,7 @@ const PERMISSION_MATRIX: Readonly<Record<PermissionAction, readonly ProjectRole[
   manage_project_settings: ['admin'],
   manage_ci_tokens: ['admin'],
   import: ['admin'],
+  sync_impacts_paths: ['admin'],
 };
 
 /** SDD-006 §Permisos: "owner y admin de organización heredan admin de proyecto" — an org owner/admin is

@@ -125,6 +125,30 @@ export async function upsertReportedCommits(pool: Pool, input: UpsertReportedCom
   });
 }
 
+export interface CommitFilesRow {
+  sha: string;
+  files: string[];
+}
+
+/**
+ * Every stored commit (any trust level — a preview report's `files[]` is just as real a signal of what
+ * a WO's work actually touched as a baseline one's) whose `refs[]` contains at least one of `woIds`
+ * (SDD-021 "Reconciliacion de impacts_paths desde CI", WO-427): the raw, independent-of-`impacts_paths`
+ * signal the diff in `packages/server/src/engine/impacts-paths-drift.ts` unions and tests against a
+ * blueprint's current governed patterns. `&&` is Postgres's array-overlap operator — true when the two
+ * arrays share at least one element, exactly the "referenced any of these WOs" check needed here.
+ */
+export async function findCommitsReferencingAny(pool: Pool, orgId: string, projectId: string, woIds: readonly string[]): Promise<CommitFilesRow[]> {
+  if (woIds.length === 0) return [];
+  return withTenantTx(pool, orgId, async (tx) => {
+    const rows = await tx
+      .select({ sha: commits.sha, files: commits.files })
+      .from(commits)
+      .where(and(eq(commits.projectId, projectId), sql`${commits.refs} && ARRAY[${sql.join(woIds.map((id) => sql`${id}`), sql`, `)}]::text[]`));
+    return rows;
+  });
+}
+
 /** Newest-first (by commit `date`, `sha` as tiebreaker) paginated listing for one project (SDD-012, WO-332). */
 export async function listCommits(pool: Pool, input: ListCommitsInput): Promise<ListCommitsPage> {
   const limit = input.limit ?? DEFAULT_LIST_COMMITS_LIMIT;
