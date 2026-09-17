@@ -6,7 +6,7 @@ import type { Neo4jGraphDatabase } from '../../src/graph/database.js';
 import type { GraphStore } from '../../src/graph/types.js';
 import { getWorkOrderContext } from '../../src/workorders/context.js';
 import { addBlueprintTask, generateWorkOrders } from '../../src/workorders/generator.js';
-import { claimWorkOrder, completeWorkOrder } from '../../src/workorders/lifecycle.js';
+import { archiveWorkOrder, claimWorkOrder, completeWorkOrder } from '../../src/workorders/lifecycle.js';
 import { commitAll, createFixtureRepo, git, makeTmpDir, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
 
 // Isolate the journal HMAC key (WO-023 finding 1) from the developer's real ~/.config/prdm/journal.key.
@@ -140,6 +140,73 @@ describe('Work Order Generator (F-04)', () => {
     await expect(claimWorkOrder(engine, 'WO-404', 'agent:claude')).rejects.toThrow(/not found/i);
     await expect(claimWorkOrder(engine, 'WO-003', 'not-an-actor')).rejects.toThrow(/invalid assignee/);
     await expect(completeWorkOrder(engine, 'WO-002', { commitSha: 'not-a-sha' })).rejects.toThrow(/invalid commit sha/);
+  });
+});
+
+describe('archiveWorkOrder (WO-413, SDD-018)', () => {
+  test('archives pending/in_progress/out_of_sync work orders, rejects done, validates the actor, and never touches source_task (regression, SDD-018)', async () => {
+    const archRoot = createFixtureRepo();
+    const archConfig = testConfig(archRoot);
+    const { db: archDb, store: archStore } = await openTestDb(archConfig);
+    const archEngine = new Engine(archConfig, archStore);
+    await archEngine.refresh();
+    try {
+      const generated = await generateWorkOrders(archEngine, 'SDD-001');
+      expect(generated.created).toHaveLength(2);
+      const [wo2, wo3] = generated.created;
+
+      const beforeContent = readFileSync(`${archRoot}/${wo2!.path}`, 'utf8');
+      const sourceTaskBefore = /source_task: "([^"]+)"/.exec(beforeContent)?.[1];
+      expect(sourceTaskBefore).toBeDefined();
+
+      // pending -> archived
+      const archived = await archiveWorkOrder(archEngine, wo2!.id, 'dev:tester', { reason: 'superseded, no longer needed' });
+      expect(archived).toMatchObject({ id: wo2!.id, status: 'archived', archivedBy: 'dev:tester' });
+      expect((await archStore.getNode(wo2!.id))?.node.status).toBe('archived');
+
+      // source_task is untouched by archiving (WO-413 regression: generate_work_orders dedups on
+      // source_task regardless of status, so archiving must never clear or alter it).
+      const afterContent = readFileSync(`${archRoot}/${wo2!.path}`, 'utf8');
+      const sourceTaskAfter = /source_task: "([^"]+)"/.exec(afterContent)?.[1];
+      expect(sourceTaskAfter).toBe(sourceTaskBefore);
+
+      // Behavioral proof of the same regression: re-running generateWorkOrders for SDD-001 must still
+      // skip both tasks (dedup by source_task), never create a duplicate WO for the now-archived one.
+      const regenerated = await generateWorkOrders(archEngine, 'SDD-001');
+      expect(regenerated.created).toEqual([]);
+      expect(regenerated.skipped).toBe(2);
+
+      // in_progress -> archived
+      await claimWorkOrder(archEngine, wo3!.id, 'agent:claude');
+      const archived3 = await archiveWorkOrder(archEngine, wo3!.id, 'agent:claude', { reason: 'dup of another WO' });
+      expect(archived3.status).toBe('archived');
+
+      // out_of_sync -> archived: reuse WO-001, whose blueprint edit below makes it out_of_sync.
+      const sddPath = `${archRoot}/docs/blueprints/SDD-001.md`;
+      writeFiles(archRoot, { 'docs/blueprints/SDD-001.md': readFileSync(sddPath, 'utf8').replace('compara hashes', 'compara hashes y firmas') });
+      const drift = await archEngine.refresh();
+      expect(drift.workOrderUpdates.map((u) => u.id)).toContain('WO-001');
+      expect((await archStore.getNode('WO-001'))?.node.status).toBe('out_of_sync');
+      const archived1 = await archiveWorkOrder(archEngine, 'WO-001', 'dev:tester', { reason: 'stale' });
+      expect(archived1.status).toBe('archived');
+
+      // never from done
+      await expect(archiveWorkOrder(archEngine, wo2!.id, 'dev:tester', { reason: 'again' })).rejects.toThrow(/status is archived/);
+
+      // invalid actor
+      await expect(archiveWorkOrder(archEngine, wo3!.id, 'not-an-actor', { reason: 'x' })).rejects.toThrow(/invalid actor/);
+
+      // missing/not-a-work-order
+      await expect(archiveWorkOrder(archEngine, 'WO-404', 'dev:tester', { reason: 'x' })).rejects.toThrow(/not found/i);
+    } finally {
+      await archDb.close();
+      removeDir(archRoot);
+    }
+  });
+
+  test('rejects archiving a done work order', async () => {
+    // WO-001 in the shared fixture is `done` from the top-level beforeAll.
+    await expect(archiveWorkOrder(engine, 'WO-001', 'dev:tester', { reason: 'x' })).rejects.toThrow(/status is done/);
   });
 });
 

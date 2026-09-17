@@ -1,5 +1,6 @@
 import { ACTOR_PATTERN, ID_PATTERN, SHA_PATTERN, type ParsedDoc } from '../domain/schema.js';
 import type { EngineOps, ProjectEngine } from '../engine.js';
+import type { FieldValue } from '../parser/frontmatter-edit.js';
 import type { DriftIssue } from '../sync/monitor.js';
 
 type WorkOrderDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'WO' }> };
@@ -110,5 +111,45 @@ export async function completeWorkOrder(engine: ProjectEngine, id: string, optio
     const scope = new Set([id, ...doc.frontmatter.implements]);
     const drift = report.issues.filter((issue) => scope.has(issue.nodeId));
     return { id, status: 'done', completedAt, resolvedBy, drift };
+  });
+}
+
+export interface ArchiveOptions {
+  reason?: string;
+  now?: Date;
+}
+
+export interface ArchiveResult {
+  id: string;
+  status: 'archived';
+  archivedAt: string;
+  archivedBy: string;
+}
+
+/**
+ * Archives a pending/in_progress/out_of_sync work order (SDD-018 "Archivado de Work Orders"), never from
+ * `done` (that's what `completeWorkOrder` is for). Deliberately writes only `status`/`archived_at`/
+ * `archived_by`/`archive_reason` — `source_task` is never touched: `generate_work_orders`'s dedup key
+ * (`planWorkOrders` in `../workorders/generator.ts`) checks `source_task` across every existing work
+ * order regardless of status, so clearing it on archive would let regenerating the same blueprint task
+ * create a duplicate work order for something already accounted for.
+ */
+export async function archiveWorkOrder(engine: ProjectEngine, id: string, by: string, options: ArchiveOptions = {}): Promise<ArchiveResult> {
+  if (!ACTOR_PATTERN.test(by)) throw new Error(`invalid actor: ${by} (expected agent:name or dev:name)`);
+
+  return engine.transaction(async (ops) => {
+    const { docs } = await ops.scan();
+    const doc = findWorkOrder(docs, id);
+    if (doc.frontmatter.status !== 'pending' && doc.frontmatter.status !== 'in_progress' && doc.frontmatter.status !== 'out_of_sync') {
+      throw new Error(`cannot archive ${id}: status is ${doc.frontmatter.status}, expected pending, in_progress or out_of_sync`);
+    }
+
+    const archivedAt = (options.now ?? new Date()).toISOString();
+    const fields: Record<string, FieldValue> = { status: 'archived', archived_at: archivedAt, archived_by: by };
+    if (options.reason !== undefined) fields.archive_reason = options.reason;
+
+    await ops.updateDocument(id, fields);
+    await ops.refresh();
+    return { id, status: 'archived', archivedAt, archivedBy: by };
   });
 }
