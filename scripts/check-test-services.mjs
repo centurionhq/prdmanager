@@ -16,7 +16,9 @@ import pg from 'pg';
 const ROOT = resolve(import.meta.dirname, '..');
 const ENV_FILE = resolve(ROOT, '.env');
 
-if ((!process.env.NEO4J_TEST_URI || !process.env.DATABASE_TEST_URL) && existsSync(ENV_FILE)) {
+// Load .env whenever any of the three variables this script actually requires (none of which has a
+// fallback -- NEO4J_TEST_URI does, see checkNeo4j() below) isn't already in the environment.
+if ((!process.env.NEO4J_PASSWORD || !process.env.DATABASE_TEST_URL || !process.env.DATABASE_TEST_MIGRATION_URL) && existsSync(ENV_FILE)) {
   process.loadEnvFile(ENV_FILE);
 }
 

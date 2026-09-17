@@ -556,13 +556,14 @@ Plugin **`neo4j-skills@neo4j-skills-marketplace`** v1.0.1 (declarado en `.claude
 ## Tests
 
 ```bash
-# Instancia test efímera (127.0.0.1:7688)
-docker compose --profile test up -d neo4j-test
+# BD de test efímeras (neo4j-test 127.0.0.1:7688, postgres-test 127.0.0.1:5433)
+npm run test:services
 
-# Tests: unit + integración + E2E MCP
+# Todo: sin BD (unit-node/unit-jsdom) + con BD (db) -- ver "Tests y CI" más abajo
+# para la clasificación por directorio y qué corre en cada etapa local/CI.
 npm test
 
-# Cobertura (umbral 80%)
+# Cobertura (umbral 80%), corre contra las tres suites -- requiere test:services arriba
 npm run coverage
 ```
 

@@ -37,6 +37,11 @@ export default defineConfig({
           name: 'unit-node',
           include: ['packages/*/tests/unit/**/*.test.ts', 'packages/*/tests/client/**/*.test.ts', 'packages/app/tests/collab/**/*.test.ts'],
           env: { PRDM_TEST_NO_DB: '1' },
+          // Unlike unit-jsdom (Testing Library's global cleanup()) and db (a single shared Neo4j), this
+          // project has no per-file shared state to serialize against, so it overrides the top-level
+          // `fileParallelism: false` back on -- the whole point of PRD-008 §4.1 was to make this project
+          // DB-free and fast, for both `npm run test:unit` (the only suite CI runs) and pre-commit.
+          fileParallelism: true,
         },
       },
       {
