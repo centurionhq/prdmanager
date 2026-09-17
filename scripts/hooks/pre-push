@@ -1,0 +1,84 @@
+#!/usr/bin/env node
+/**
+ * PRD-008 §4.4 (WO-409): the versioned `pre-push` hook (SDD-017 §4.4). Not installed into `.git/hooks`
+ * by itself -- `npm run hooks:install` (WO-410, `scripts/hooks/install.mjs`) writes a thin `.git/hooks/
+ * pre-push` wrapper that `exec`s this file directly, so editing this script is enough to change what the
+ * installed hook does.
+ *
+ * Runs, in order, cutting at the first failure (README.md "Tests y CI" table):
+ *   1. npm run build
+ *   2. npm run test:unit
+ *   3. npm run test:services:check   (WO-401 -- fails fast with an actionable message if neo4j-test/
+ *      postgres-test aren't up, instead of letting `test:db` hang or error obscurely)
+ *   4. npm run test:db
+ *   5. the Playwright e2e journey, via the exact command `.github/workflows/prdm-sync.yml`'s own `e2e`
+ *      job runs: `NODE_OPTIONS=--conditions=@prdm/source npx playwright test -c
+ *      packages/server/tests/e2e/playwright.config.ts`
+ *
+ * Before stage 5, checks whether Playwright's Chromium build is installed (`findChromiumInstallDir`) and
+ * fails with the exact fix (`npx playwright install chromium`) instead of letting Playwright itself blow
+ * up mid-run with a much less actionable stack trace.
+ *
+ * Skipped entirely (exits 0 immediately, runs nothing) when `PRDM_SKIP_HOOKS=1` is set; `git push
+ * --no-verify` skips it too, natively, without this script ever running.
+ *
+ * Never touches the working tree or the index: every stage below is a read-only build/test/e2e run.
+ *
+ * The actual orchestration (stage order, first-failure cutoff, duration measurement, Chromium detection)
+ * lives in `./pre-push-lib.mjs`, which `packages/server/tests/unit/pre-push-hook.test.ts` exercises
+ * directly against fakes -- running this file end to end for real (a full build + test:db + e2e) is far
+ * too expensive to be a test.
+ */
+import { spawnSync } from 'node:child_process';
+import process from 'node:process';
+import { resolve } from 'node:path';
+import { findChromiumInstallDir, isSkipped, runStages } from './pre-push-lib.mjs';
+
+if (isSkipped()) {
+  process.exit(0);
+}
+
+const ROOT = resolve(import.meta.dirname, '..', '..');
+
+/**
+ * @param {string} npmScript
+ * @returns {() => import('./pre-push-lib.mjs').StageOutcome}
+ */
+function npmStage(npmScript) {
+  return () => {
+    const result = spawnSync('npm', ['run', npmScript], { cwd: ROOT, stdio: 'inherit', env: process.env });
+    if (result.error) return { success: false, message: `failed to start "npm run ${npmScript}": ${result.error.message}` };
+    return { success: result.status === 0, exitCode: result.status ?? 1 };
+  };
+}
+
+/** @returns {import('./pre-push-lib.mjs').StageOutcome} */
+function e2eStage() {
+  if (findChromiumInstallDir() === null) {
+    return {
+      success: false,
+      message: 'Playwright Chromium is not installed. Run "npx playwright install chromium" and try again.',
+    };
+  }
+  const result = spawnSync('npx', ['playwright', 'test', '-c', 'packages/server/tests/e2e/playwright.config.ts'], {
+    cwd: ROOT,
+    stdio: 'inherit',
+    env: { ...process.env, NODE_OPTIONS: '--conditions=@prdm/source' },
+  });
+  if (result.error) return { success: false, message: `failed to start playwright: ${result.error.message}` };
+  return { success: result.status === 0, exitCode: result.status ?? 1 };
+}
+
+const stages = [
+  { name: 'build', run: npmStage('build') },
+  { name: 'test:unit', run: npmStage('test:unit') },
+  { name: 'test:services:check', run: npmStage('test:services:check') },
+  { name: 'test:db', run: npmStage('test:db') },
+  { name: 'e2e', run: e2eStage },
+];
+
+const result = await runStages(stages);
+if (!result.success) {
+  console.error(`pre-push: stopped at "${result.failedStage}". Fix the failure above, or skip with PRDM_SKIP_HOOKS=1 / git push --no-verify.`);
+}
+process.exit(result.exitCode);
