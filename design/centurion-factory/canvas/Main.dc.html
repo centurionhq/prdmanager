@@ -71,46 +71,89 @@
         <h2 style="margin: 0; font-size: 20px; font-weight: 700; font-stretch: 118%;">La línea</h2>
         <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: #C4CAD0;">
           <span style="width: 10px; height: 10px; background: #F5C400; border-radius: 5px;"></span>
-          Línea detenida en Ejecución: 3 órdenes fuera de sincronía en <span class="id" style="color: #E9ECEB;">FR-002</span>
+          Línea detenida en Construcción: 3 órdenes fuera de sincronía en <span class="id" style="color: #E9ECEB;">BC-001</span>
         </div>
       </div>
-      <div style="display: grid; grid-template-columns: 280px repeat(6, minmax(0, 1fr)); column-gap: 0;">
-        <div style="font-size: 13px; color: #8E979F; padding-bottom: 10px;">Feature</div>
-        <div class="cf-station" style="font-size: 13px; color: #C4CAD0; padding: 0 0 10px 12px; border-left: 1px solid #2E3338; animation-delay: 0ms;">Ingesta</div>
-        <div class="cf-station" style="font-size: 13px; color: #C4CAD0; padding: 0 0 10px 12px; border-left: 1px solid #2E3338; animation-delay: 120ms;">Definición</div>
-        <div class="cf-station" style="font-size: 13px; color: #C4CAD0; padding: 0 0 10px 12px; border-left: 1px solid #2E3338; animation-delay: 240ms;">Diseño</div>
-        <div class="cf-station" style="font-size: 13px; color: #C4CAD0; padding: 0 0 10px 12px; border-left: 1px solid #2E3338; animation-delay: 360ms;">Planificación</div>
-        <div class="cf-andon" style="font-size: 13px; color: #17191C; font-weight: 700; padding: 0 0 10px 12px; background: #F5C400;">Ejecución</div>
-        <div class="cf-station" style="font-size: 13px; color: #C4CAD0; padding: 0 0 10px 12px; border-left: 1px solid #2E3338; animation-delay: 600ms;">Cierre</div>
+
+      <div style="display: grid; grid-template-columns: 300px repeat(7, minmax(0, 1fr)); margin-bottom: 10px;">
+        <div style="grid-column: 1;"></div>
+        <div style="grid-column: 2;"></div>
+        <div style="grid-column: 3; margin-right: 8px; padding: 0 0 5px 12px; border-bottom: 1px solid #2E3338; font-size: 12px; color: #8E979F;">Negocio</div>
+        <div style="grid-column: 4; margin-right: 8px; padding: 0 0 5px 12px; border-bottom: 1px solid #2E3338; font-size: 12px; color: #8E979F;">Producto</div>
+        <div style="grid-column: 5 / span 3; margin-right: 8px; padding: 0 0 5px 12px; border-bottom: 1px solid #2E3338; font-size: 12px; color: #8E979F;">Tecnología</div>
+        <div style="grid-column: 8;"></div>
       </div>
+
+      <div style="display: grid; grid-template-columns: 300px repeat(7, minmax(0, 1fr));">
+        <div style="grid-column: 1; font-size: 13px; color: #8E979F; padding-bottom: 10px;">Iniciativa</div>
+        <div class="cf-station" style="grid-column: 2; padding: 0 8px 10px 12px; border-left: 1px solid #2E3338; animation-delay: 0ms;">
+          <div style="font-size: 13px; color: #C4CAD0;">Entrada</div>
+          <div style="font-size: 11px; line-height: 1.3; color: #8E979F; margin-top: 3px;">Llegó sin evaluar</div>
+        </div>
+        <div class="cf-station" style="grid-column: 3; padding: 0 8px 10px 12px; border-left: 1px solid #2E3338; animation-delay: 100ms;">
+          <div style="font-size: 13px; color: #C4CAD0;">Caso de negocio</div>
+          <div style="font-size: 11px; line-height: 1.3; color: #8E979F; margin-top: 3px;">¿Por qué conviene?</div>
+        </div>
+        <div class="cf-station" style="grid-column: 4; padding: 0 8px 10px 12px; border-left: 1px solid #2E3338; animation-delay: 200ms;">
+          <div style="font-size: 13px; color: #C4CAD0;">Producto</div>
+          <div style="font-size: 11px; line-height: 1.3; color: #8E979F; margin-top: 3px;">¿Qué construimos?</div>
+        </div>
+        <div class="cf-station" style="grid-column: 5; padding: 0 8px 10px 12px; border-left: 1px solid #2E3338; animation-delay: 300ms;">
+          <div style="font-size: 13px; color: #C4CAD0;">Diseño técnico</div>
+          <div style="font-size: 11px; line-height: 1.3; color: #8E979F; margin-top: 3px;">¿Cómo lo hacemos?</div>
+        </div>
+        <div class="cf-station" style="grid-column: 6; padding: 0 8px 10px 12px; border-left: 1px solid #2E3338; animation-delay: 400ms;">
+          <div style="font-size: 13px; color: #C4CAD0;">Planificación</div>
+          <div style="font-size: 11px; line-height: 1.3; color: #8E979F; margin-top: 3px;">Sin arrancar</div>
+        </div>
+        <div class="cf-andon" style="grid-column: 7; padding: 0 8px 10px 12px; background: #F5C400;">
+          <div style="font-size: 13px; color: #17191C; font-weight: 700;">Construcción</div>
+          <div style="font-size: 11px; line-height: 1.3; color: #17191C; margin-top: 3px;">En curso</div>
+        </div>
+        <div class="cf-station" style="grid-column: 8; padding: 0 8px 10px 12px; border-left: 1px solid #2E3338; animation-delay: 600ms;">
+          <div style="font-size: 13px; color: #C4CAD0;">Entregado</div>
+          <div style="font-size: 11px; line-height: 1.3; color: #8E979F; margin-top: 3px;">Cerrado</div>
+        </div>
+      </div>
+
       <div style="display: flex; flex-direction: column;">
-        <div class="cf-row" style="animation-delay: 700ms; display: grid; grid-template-columns: 280px repeat(6, minmax(0, 1fr)); height: 48px; align-items: center; border-top: 1px solid #2E3338;">
-          <div style="display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">FR-002</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Importador incremental de repos</span></div>
-          <div style="grid-column: 2 / span 4; height: 2px; background: #E9ECEB;"></div>
-          <div style="display: flex; align-items: center; gap: 10px; height: 100%; padding-left: 12px; background: rgba(245, 196, 0, 0.14);"><span style="width: 14px; height: 14px; background: #F5C400;"></span><div style="display: flex; flex-direction: column; gap: 5px;"><span class="num" style="font-size: 13px; color: #F5C400; font-weight: 600;">14/22 · 3 paradas</span><div style="display: grid; grid-template-columns: repeat(22, 3px); gap: 1px;"><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #F5C400;"></span><span style="height: 5px; background: #F5C400;"></span><span style="height: 5px; background: #F5C400;"></span><span style="height: 5px; background: #3A4046;"></span><span style="height: 5px; background: #3A4046;"></span><span style="height: 5px; background: #3A4046;"></span><span style="height: 5px; background: #3A4046;"></span><span style="height: 5px; background: #3A4046;"></span></div></div></div>
-          <div></div>
+        <div class="cf-row" style="animation-delay: 700ms; display: grid; grid-template-columns: 300px repeat(7, minmax(0, 1fr)); height: 52px; align-items: center; border-top: 1px solid #2E3338;">
+          <div style="grid-column: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0;">
+            <div style="display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">BC-002</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Reducir el churn de cuentas</span></div>
+            <span style="font-size: 11px; color: #8E979F;">sin PRD todavía</span>
+          </div>
+          <div style="grid-column: 2; height: 2px; background: #E9ECEB;"></div>
+          <div style="grid-column: 3; display: flex; align-items: center; gap: 10px; padding-left: 12px;"><span style="width: 14px; height: 14px; background: #E9ECEB;"></span><span style="font-size: 13px; color: #C4CAD0;">esperando producto</span></div>
         </div>
-        <div class="cf-row" style="animation-delay: 790ms; display: grid; grid-template-columns: 280px repeat(6, minmax(0, 1fr)); height: 48px; align-items: center; border-top: 1px solid #2E3338;">
-          <div style="display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">PRD-006</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Rediseño del frontend con datos mock</span></div>
-          <div style="grid-column: 2 / span 2; height: 2px; background: #E9ECEB;"></div>
-          <div style="display: flex; align-items: center; gap: 10px; padding-left: 12px;"><span style="width: 14px; height: 14px; background: #E9ECEB;"></span><span style="font-size: 13px; color: #C4CAD0;">canvas en revisión</span></div>
-          <div></div><div style="height: 100%; background: rgba(245, 196, 0, 0.14);"></div><div></div>
-        </div>
-        <div class="cf-row" style="animation-delay: 880ms; display: grid; grid-template-columns: 280px repeat(6, minmax(0, 1fr)); height: 48px; align-items: center; border-top: 1px solid #2E3338;">
-          <div style="display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">FR-003</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Avisos de drift por rama</span></div>
-          <div style="height: 2px; background: #E9ECEB;"></div>
-          <div style="display: flex; align-items: center; gap: 10px; padding-left: 12px;"><span style="width: 14px; height: 14px; border: 2px solid #E9ECEB;"></span><span style="font-size: 13px; color: #C4CAD0;">borrador</span></div>
-          <div></div><div></div><div style="height: 100%; background: rgba(245, 196, 0, 0.14);"></div><div></div>
-        </div>
-        <div class="cf-row" style="animation-delay: 970ms; display: grid; grid-template-columns: 280px repeat(6, minmax(0, 1fr)); height: 48px; align-items: center; border-top: 1px solid #2E3338;">
-          <div style="display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">FR-001</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Persistencia de borradores</span></div>
+
+        <div class="cf-row" style="animation-delay: 790ms; display: grid; grid-template-columns: 300px repeat(7, minmax(0, 1fr)); height: 52px; align-items: center; border-top: 1px solid #2E3338;">
+          <div style="grid-column: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0;">
+            <div style="display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">BC-001</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Importador incremental de repos</span></div>
+            <span class="id" style="font-size: 11px; color: #8E979F; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">PRD-010 · SDD-022</span>
+          </div>
           <div style="grid-column: 2 / span 5; height: 2px; background: #E9ECEB;"></div>
-          <div style="display: flex; align-items: center; gap: 10px; padding-left: 12px;"><span style="width: 14px; height: 14px; background: #6FCF9A;"></span><span class="num" style="font-size: 13px; color: #C4CAD0;">4/4 · falta reconocer</span></div>
+          <div style="grid-column: 7; display: flex; align-items: center; gap: 10px; height: 100%; padding-left: 12px; background: rgba(245, 196, 0, 0.14);"><span style="flex: none; width: 14px; height: 14px; background: #F5C400;"></span><div style="display: flex; flex-direction: column; gap: 5px; min-width: 0;"><span class="num" style="font-size: 13px; color: #F5C400; font-weight: 600;">14/22 · 3 paradas</span><div style="display: grid; grid-template-columns: repeat(22, 3px); gap: 1px;"><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #E9ECEB;"></span><span style="height: 5px; background: #F5C400;"></span><span style="height: 5px; background: #F5C400;"></span><span style="height: 5px; background: #F5C400;"></span><span style="height: 5px; background: #3A4046;"></span><span style="height: 5px; background: #3A4046;"></span><span style="height: 5px; background: #3A4046;"></span><span style="height: 5px; background: #3A4046;"></span><span style="height: 5px; background: #3A4046;"></span></div></div></div>
         </div>
-        <div class="cf-row" style="animation-delay: 1060ms; display: grid; grid-template-columns: 280px repeat(6, minmax(0, 1fr)); height: 48px; align-items: center; border-top: 1px solid #2E3338; border-bottom: 1px solid #2E3338;">
-          <div style="display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">PRD-005</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Plataforma SaaS colaborativa de PRDs</span></div>
-          <div style="grid-column: 2 / span 5; height: 2px; background: #6B7278;"></div>
-          <div style="display: flex; align-items: center; gap: 10px; padding-left: 12px;"><span style="width: 14px; height: 14px; background: #6FCF9A;"></span><span class="num" style="font-size: 13px; color: #8E979F;">cerrada · 245/245</span></div>
+
+        <div class="cf-row" style="animation-delay: 880ms; display: grid; grid-template-columns: 300px repeat(7, minmax(0, 1fr)); height: 52px; align-items: center; border-top: 1px solid #2E3338;">
+          <div style="grid-column: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0;">
+            <div style="display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">PRD-006</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Rediseño del frontend</span></div>
+            <span style="font-size: 11px; color: #8E979F;">sin caso de negocio (exceptuada)</span>
+          </div>
+          <div style="grid-column: 2 / span 3; height: 2px; background: #E9ECEB;"></div>
+          <div style="grid-column: 5; display: flex; align-items: center; gap: 10px; padding-left: 12px;"><span style="width: 14px; height: 14px; background: #E9ECEB;"></span><span style="font-size: 13px; color: #C4CAD0;">canvas en revisión</span></div>
+        </div>
+
+        <div class="cf-row" style="animation-delay: 970ms; display: grid; grid-template-columns: 300px repeat(7, minmax(0, 1fr)); height: 52px; align-items: center; border-top: 1px solid #2E3338;">
+          <div style="grid-column: 1; display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">FR-001</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Persistencia de borradores</span></div>
+          <div style="grid-column: 2 / span 6; height: 2px; background: #E9ECEB;"></div>
+          <div style="grid-column: 8; display: flex; align-items: center; gap: 10px; padding-left: 12px;"><span style="width: 14px; height: 14px; background: #6FCF9A;"></span><span class="num" style="font-size: 13px; color: #C4CAD0;">4/4 · falta reconocer</span></div>
+        </div>
+
+        <div class="cf-row" style="animation-delay: 1060ms; display: grid; grid-template-columns: 300px repeat(7, minmax(0, 1fr)); height: 52px; align-items: center; border-top: 1px solid #2E3338; border-bottom: 1px solid #2E3338;">
+          <div style="grid-column: 1; display: flex; gap: 10px; align-items: baseline; min-width: 0;"><span class="id" style="flex: none; white-space: nowrap; color: #8E979F;">PRD-005</span><span style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Plataforma SaaS de PRDs</span></div>
+          <div style="grid-column: 2 / span 6; height: 2px; background: #6B7278;"></div>
+          <div style="grid-column: 8; display: flex; align-items: center; gap: 10px; padding-left: 12px;"><span style="width: 14px; height: 14px; background: #6FCF9A;"></span><span class="num" style="font-size: 13px; color: #8E979F;">cerrada · 245/245</span></div>
         </div>
       </div>
     </section>
