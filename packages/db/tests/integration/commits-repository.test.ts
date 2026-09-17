@@ -2,7 +2,7 @@
  * `upsertReportedCommits` (SDD-010 "Commits reportados con nivel de confianza", WO-182): baseline
  * always wins, a preview report can never downgrade or overwrite an already-baseline row.
  */
-import { createCiToken, listCommits, upsertReportedCommits } from '@prdm/db';
+import { createCiToken, findCommitsReferencingAny, listCommits, upsertReportedCommits } from '@prdm/db';
 import { createOrganizationFixture, createProjectFixture, createUserFixture, openTestPg, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 
@@ -189,5 +189,75 @@ describe('listCommits (WO-332)', () => {
 
     const page = await listCommits(pg.appPool, { orgId: org.id, projectId: project.id, limit: 10 });
     expect(page.items.map((r) => r.subject)).toEqual(['in project']);
+  });
+});
+
+describe('findCommitsReferencingAny (SDD-021, WO-427)', () => {
+  test('returns only commits whose refs overlap the given WO ids, any trust level, unioning files', async () => {
+    const { org, project, tokenId } = await setup();
+    await upsertReportedCommits(pg.appPool, {
+      projectId: project.id,
+      orgId: org.id,
+      tokenId,
+      trust: 'baseline',
+      branch: 'main',
+      commits: [
+        { sha: 'a'.repeat(40), author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'feat: x\n\nRefs: WO-427', refs: ['WO-427'], files: ['src/a.ts', 'src/b.ts'] },
+        { sha: 'b'.repeat(40), author: 'Alice', date: '2026-09-14T01:00:00.000Z', subject: 'unrelated', refs: ['WO-999'], files: ['src/other.ts'] },
+      ],
+    });
+    await upsertReportedCommits(pg.appPool, {
+      projectId: project.id,
+      orgId: org.id,
+      tokenId,
+      trust: 'preview',
+      branch: 'feature-x',
+      commits: [{ sha: 'c'.repeat(40), author: 'Bob', date: '2026-09-14T02:00:00.000Z', subject: 'wip\n\nRefs: WO-428', refs: ['WO-428'], files: ['src/c.ts'] }],
+    });
+
+    const rows = await findCommitsReferencingAny(pg.appPool, org.id, project.id, ['WO-427', 'WO-428']);
+
+    expect(rows.map((r) => r.sha).sort()).toEqual(['a'.repeat(40), 'c'.repeat(40)].sort());
+    const allFiles = new Set(rows.flatMap((r) => r.files));
+    expect(allFiles).toEqual(new Set(['src/a.ts', 'src/b.ts', 'src/c.ts']));
+  });
+
+  test('returns an empty array for an empty woIds list, without querying', async () => {
+    const { org, project } = await setup();
+    const rows = await findCommitsReferencingAny(pg.appPool, org.id, project.id, []);
+    expect(rows).toEqual([]);
+  });
+
+  test('never returns a commit from another project', async () => {
+    const { org, project, tokenId } = await setup();
+    const otherProject = await createProjectFixture(pg, { orgId: org.id });
+    const otherToken = await createCiToken(pg.appPool, {
+      orgId: org.id,
+      projectIds: [otherProject.id],
+      name: 'ci-2',
+      scopes: ['reports:baseline'],
+      expiresAt: new Date(Date.now() + DAY_MS),
+      createdBy: (await createUserFixture(pg)).id,
+    });
+    await upsertReportedCommits(pg.appPool, {
+      projectId: otherProject.id,
+      orgId: org.id,
+      tokenId: otherToken.record.id,
+      trust: 'baseline',
+      branch: 'main',
+      commits: [{ sha: 'd'.repeat(40), author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'x\n\nRefs: WO-427', refs: ['WO-427'], files: ['leaked.ts'] }],
+    });
+    await upsertReportedCommits(pg.appPool, {
+      projectId: project.id,
+      orgId: org.id,
+      tokenId,
+      trust: 'baseline',
+      branch: 'main',
+      commits: [{ sha: 'e'.repeat(40), author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'x\n\nRefs: WO-427', refs: ['WO-427'], files: ['own.ts'] }],
+    });
+
+    const rows = await findCommitsReferencingAny(pg.appPool, org.id, project.id, ['WO-427']);
+
+    expect(rows.map((r) => r.sha)).toEqual(['e'.repeat(40)]);
   });
 });
