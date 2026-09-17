@@ -83,6 +83,40 @@ describe('closureReadiness / closeFeature (WO-019, PRD-002 §3 "Cierre")', () =>
   });
 });
 
+describe('work_orders_done excludes archived work orders (WO-414, SDD-018)', () => {
+  test('a normal (non-forced) closeFeature succeeds when a blueprint has a mix of done and archived work orders', async () => {
+    const mixRoot = makeTmpDir('prdm-close-archived-');
+    const mixFiles: Record<string, string> = {
+      'prdm.config.json': JSON.stringify({ ignore: [] }),
+      'docs/prd/PRD-500.md': '---\nid: PRD-500\ntype: PRD\ntitle: "Mixed"\nstatus: approved\njustified_by: ["FB-500"]\n---\nproduct\n',
+      'docs/feedback/FB-500.md': '---\nid: FB-500\ntype: FB\ntitle: "Feedback"\nsource: email\nstatus: triaged\ninforms: ["PRD-500"]\n---\nfeedback\n',
+      'docs/blueprints/SDD-500.md': '---\nid: SDD-500\ntype: SDD\ntitle: "Design"\narchitects: ["PRD-500"]\nimpacts_paths: ["src/mixed.ts"]\n---\ndesign\n\n## Tareas\n- [x] hecho\n- [x] archivado\n',
+      'docs/work-orders/WO-500.md': '---\nid: WO-500\ntype: WO\ntitle: "Done task"\nstatus: done\nimplements: ["SDD-500"]\nsource_task: "t500"\n---\nobjetivo\n',
+      'docs/work-orders/WO-501.md': '---\nid: WO-501\ntype: WO\ntitle: "Archived task"\nstatus: archived\nimplements: ["SDD-500"]\nsource_task: "t501"\narchived_at: "2026-09-01T00:00:00.000Z"\narchived_by: "dev:tester"\narchive_reason: "no longer needed"\n---\nobjetivo\n',
+      'src/mixed.ts': 'export const mixed = 1;\n',
+    };
+    writeFiles(mixRoot, mixFiles);
+    gitInit(mixRoot);
+    commitAll(mixRoot, 'chore: initial docs');
+    const mixConfig = testConfig(mixRoot);
+    const { db: mixDb, store: mixStore } = await openTestDb(mixConfig);
+    const mixEngine = new Engine(mixConfig, mixStore);
+    await mixEngine.refresh();
+    try {
+      const readiness = await closureReadiness(mixEngine, 'PRD-500');
+      expect(readiness.checks.find((c) => c.name === 'work_orders_done')).toMatchObject({ ok: true });
+      expect(readiness.ready).toBe(true);
+
+      const result = await closeFeature(mixEngine, 'PRD-500', { by: 'dev:tester' });
+      expect(result.featureId).toBe('PRD-500');
+      expect((await mixStore.getNode('PRD-500'))?.node.status).toBe('closed');
+    } finally {
+      await mixDb.close();
+      removeDir(mixRoot);
+    }
+  });
+});
+
 describe('WO-023 finding 9: closureReadiness is read-only; closeFeature re-checks under the lock', () => {
   test('closureReadiness never writes the baseline or a graph snapshot', async () => {
     const baselineBefore = readFileSync(join(root, '.prdm/baseline.json'));

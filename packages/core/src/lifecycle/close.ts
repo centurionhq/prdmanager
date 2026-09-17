@@ -46,7 +46,9 @@ function evaluateReadiness(docs: readonly ParsedDoc[], featureId: string, report
   });
 
   const allWorkOrders = [...blueprintsById.values()].flat();
-  const pending = allWorkOrders.filter((wo) => wo.frontmatter.type === 'WO' && wo.frontmatter.status !== 'done');
+  // SDD-018 "Archivado de Work Orders": an archived work order is excluded from "pending" the same as a
+  // done one — archiving alone is enough to satisfy this check, without needing force-close.
+  const pending = allWorkOrders.filter((wo) => wo.frontmatter.type === 'WO' && wo.frontmatter.status !== 'done' && wo.frontmatter.status !== 'archived');
   checks.push({
     name: 'work_orders_done',
     ok: pending.length === 0,

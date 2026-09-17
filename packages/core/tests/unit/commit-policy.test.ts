@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { evaluateCommit, type EvaluateCommitInput, type PolicyDoc } from '../../src/sync/commit-policy.js';
+import { evaluateCommit, OPEN_WO_STATUSES, type EvaluateCommitInput, type PolicyDoc } from '../../src/sync/commit-policy.js';
 
 const SDD_001: PolicyDoc = { type: 'SDD', id: 'SDD-001', impactsPaths: ['src/sync/**'] };
 const SDD_002: PolicyDoc = { type: 'SDD', id: 'SDD-002', impactsPaths: ['src/other/**'] };
@@ -121,5 +121,18 @@ describe('evaluateCommit', () => {
     );
     expect(result.ok).toBe(false);
     expect(result.requiredFor).toEqual(['src/sync/git.ts']);
+  });
+});
+
+describe('WO-414/SDD-018 regression: archived must never satisfy Refs coverage', () => {
+  test('OPEN_WO_STATUSES stays exactly pending/in_progress/out_of_sync (archived is deliberately excluded)', () => {
+    expect(OPEN_WO_STATUSES).toEqual(['pending', 'in_progress', 'out_of_sync']);
+    expect(OPEN_WO_STATUSES).not.toContain('archived');
+  });
+
+  test('a commit naming an archived work order in Refs is still rejected (archiving a WO must never satisfy commit coverage)', () => {
+    const woArchived: PolicyDoc = { type: 'WO', id: 'WO-001', status: 'archived', implements: ['SDD-001'] };
+    const result = evaluateCommit(baseInput({ docsAtHead: [SDD_001, woArchived], docsInIndex: [SDD_001, woArchived], message: 'feat: x\n\nRefs: WO-001' }));
+    expect(result.ok).toBe(false);
   });
 });
