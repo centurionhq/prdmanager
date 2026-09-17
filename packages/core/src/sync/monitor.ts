@@ -42,6 +42,11 @@ export interface DriftIssue {
   nodeId: string;
   target?: string;
   message: string;
+  /** SDD-021 "Reconciliacion de impacts_paths desde CI" (WO-428): only ever set on an `awaiting_ci_report`
+   * issue, and only when CI-reported commits under this blueprint's own Work Orders touched files its
+   * current `impacts_paths` patterns don't cover -- see `computeImpactsPathsDrift`. Purely informational
+   * here (a suggestion to review, e.g. in the dashboard); applying it is `sync_impacts_paths`'s job. */
+  suggestedImpactsPathsAdditions?: readonly string[];
 }
 
 export type GovernedReason = 'unchanged' | 'new' | 'resolved_by_commit' | 'code_changed' | 'missing' | 'blueprint_changed' | 'feature_changed';

@@ -17,9 +17,8 @@
  * without review risks the same class of failure in the other direction (e.g. a file touched by an
  * unrelated commit that happened to carry the wrong `Refs:` trailer).
  */
-import { isGovernedPath, type PolicyBlueprint, type ProjectEngine } from '@prdm/core';
+import { isGovernedPath, workOrdersImplementing, type ParsedDoc, type PolicyBlueprint } from '@prdm/core';
 import { findCommitsReferencingAny } from '@prdm/db';
-import { workOrdersImplementing } from '@prdm/core';
 import type { Pool } from 'pg';
 
 export interface ImpactsPathsDrift {
@@ -32,9 +31,13 @@ export interface ImpactsPathsDrift {
   basedOnCommits: readonly string[];
 }
 
-/** `null` when `blueprintId` doesn't exist or isn't a Blueprint (caller returns 404). */
-export async function computeImpactsPathsDrift(pool: Pool, orgId: string, projectId: string, engine: ProjectEngine, blueprintId: string): Promise<ImpactsPathsDrift | null> {
-  const { docs } = await engine.scan();
+/**
+ * `docs` is the caller's own already-fetched `scan().docs` (never re-scanned here) -- `reconcileByHash`
+ * (WO-428) already has it in hand every refresh, and a REST/MCP caller (WO-430/431) fetches it once per
+ * request the same way every other read tool does. `null` when `blueprintId` doesn't exist or isn't a
+ * Blueprint (caller returns 404).
+ */
+export async function computeImpactsPathsDrift(pool: Pool, orgId: string, projectId: string, docs: readonly ParsedDoc[], blueprintId: string): Promise<ImpactsPathsDrift | null> {
   const blueprint = docs.find((d) => d.node.id === blueprintId && d.node.label === 'Blueprint');
   if (!blueprint) return null;
 

@@ -6,8 +6,8 @@
  * `awaiting_ci_report` issue and keeps its previously recorded `baseline.governs` entry untouched.
  */
 import { Neo4jGraphDatabase, sha256, type GraphStore } from '@prdm/core';
-import { createTenantDb } from '@prdm/db';
-import { createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
+import { createCiToken, createTenantDb, upsertReportedCommits } from '@prdm/db';
+import { createOrganizationFixture, createProjectFixture, createUserFixture, makeTmpDir, openTestPg, removeDir, testConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { createPgProjectEngine, type PgProjectEngine } from '../../src/engine/pg-project-engine.js';
 import { buildProjectSettings, saasProjectRoot } from '../../src/engine/pg-project-settings.js';
@@ -124,6 +124,38 @@ title: "Example feature"
     const warning = report.issues.find((i) => i.kind === 'awaiting_ci_report');
     expect(warning?.nodeId).toBe(BLUEPRINT_ID);
     expect(warning?.severity).toBe('warning');
+  });
+
+  test('SDD-021/WO-428: the awaiting_ci_report warning carries a suggested impacts_paths addition when CI-reported commits under the blueprint\'s own WOs touched an uncovered file', async () => {
+    const { engine, orgId, projectId } = await makeEngine();
+    await seedPublishedBlueprint(orgId, projectId, ['src/a.ts']);
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+       VALUES ($1, $2, 'WO-001', 'WO', 'Do the thing', 'docs/work-orders/WO-001.md', 'generated', 'published', $3)`,
+      [orgId, projectId, '---\nid: WO-001\ntype: WO\ntitle: "Do the thing"\nstatus: done\nimplements: ["SDD-001"]\n---\n\ntask\n'],
+    );
+    const user = await createUserFixture(pg);
+    const token = await createCiToken(pg.appPool, {
+      orgId,
+      projectIds: [projectId],
+      name: 'ci',
+      scopes: ['reports:baseline'],
+      expiresAt: new Date(Date.now() + 86_400_000),
+      createdBy: user.id,
+    });
+    await upsertReportedCommits(pg.appPool, {
+      projectId,
+      orgId,
+      tokenId: token.record.id,
+      trust: 'baseline',
+      branch: 'main',
+      commits: [{ sha: 'a'.repeat(40), author: 'Alice', date: '2026-09-17T00:00:00.000Z', subject: 'feat: x\n\nRefs: WO-001', refs: ['WO-001'], files: ['src/uncovered.ts'] }],
+    });
+
+    const report = await engine.refresh();
+
+    const warning = report.issues.find((i) => i.kind === 'awaiting_ci_report');
+    expect(warning?.suggestedImpactsPathsAdditions).toEqual(['src/uncovered.ts']);
   });
 
   test('a blueprint whose impacts_paths hash still matches the last report gets no warning', async () => {

@@ -98,7 +98,7 @@ describe('computeImpactsPathsDrift (WO-427)', () => {
     await seedDocs(orgId, projectId, 'packages/core/tests');
     await reportCommit(orgId, projectId, 'a'.repeat(40), ['packages/core/tests/unit/foo.test.ts', 'packages/core/tests/integration/bar.test.ts']);
 
-    const drift = await computeImpactsPathsDrift(pg.appPool, orgId, projectId, engine, BLUEPRINT_ID);
+    const drift = await computeImpactsPathsDrift(pg.appPool, orgId, projectId, (await engine.scan()).docs, BLUEPRINT_ID);
 
     expect(drift).not.toBeNull();
     expect(drift!.currentPatterns).toEqual(['packages/core/tests']);
@@ -111,7 +111,7 @@ describe('computeImpactsPathsDrift (WO-427)', () => {
     await seedDocs(orgId, projectId, 'packages/core/tests/**');
     await reportCommit(orgId, projectId, 'b'.repeat(40), ['packages/core/tests/unit/foo.test.ts']);
 
-    const drift = await computeImpactsPathsDrift(pg.appPool, orgId, projectId, engine, BLUEPRINT_ID);
+    const drift = await computeImpactsPathsDrift(pg.appPool, orgId, projectId, (await engine.scan()).docs, BLUEPRINT_ID);
 
     expect(drift!.suggestedAdditions).toEqual([]);
   });
@@ -137,7 +137,7 @@ describe('computeImpactsPathsDrift (WO-427)', () => {
       commits: [{ sha: 'c'.repeat(40), author: 'Alice', date: '2026-09-17T00:00:00.000Z', subject: 'unrelated\n\nRefs: WO-999', refs: ['WO-999'], files: ['unrelated/file.ts'] }],
     });
 
-    const drift = await computeImpactsPathsDrift(pg.appPool, orgId, projectId, engine, BLUEPRINT_ID);
+    const drift = await computeImpactsPathsDrift(pg.appPool, orgId, projectId, (await engine.scan()).docs, BLUEPRINT_ID);
 
     expect(drift!.suggestedAdditions).toEqual([]);
     expect(drift!.basedOnCommits).toEqual([]);
@@ -147,7 +147,7 @@ describe('computeImpactsPathsDrift (WO-427)', () => {
     const { engine, orgId, projectId } = await makeEngine();
     await seedDocs(orgId, projectId, 'packages/core/tests/**');
 
-    const drift = await computeImpactsPathsDrift(pg.appPool, orgId, projectId, engine, 'SDD-999');
+    const drift = await computeImpactsPathsDrift(pg.appPool, orgId, projectId, (await engine.scan()).docs, 'SDD-999');
 
     expect(drift).toBeNull();
   });

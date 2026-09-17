@@ -118,6 +118,7 @@ import type { Pool } from 'pg';
 import * as Y from 'yjs';
 import { formatDocumentName } from '../collab/document-name.js';
 import { saasProjectRoot } from './pg-project-settings.js';
+import { computeImpactsPathsDrift } from './impacts-paths-drift.js';
 
 type DocumentRow = typeof schema.documents.$inferSelect;
 type DocumentKindValue = (typeof schema.documentKind.enumValues)[number];
@@ -954,7 +955,7 @@ export class PgProjectEngine implements ProjectEngine {
    * hash changed (or that was never reported at all) gets a non-blocking `awaiting_ci_report` issue and
    * must never have its stored `baseline.governs` entry touched by this refresh.
    */
-  private reconcileByHash(scan: ScanResult, reportedHashes: Record<string, string>): { warnings: DriftIssue[]; staleBlueprintIds: string[] } {
+  private async reconcileByHash(scan: ScanResult, reportedHashes: Record<string, string>): Promise<{ warnings: DriftIssue[]; staleBlueprintIds: string[] }> {
     const warnings: DriftIssue[] = [];
     const staleBlueprintIds: string[] = [];
     for (const doc of scan.docs) {
@@ -962,11 +963,16 @@ export class PgProjectEngine implements ProjectEngine {
       const currentHash = impactsPathsHash(doc.impactsPaths);
       if (reportedHashes[doc.node.id] === currentHash) continue;
       staleBlueprintIds.push(doc.node.id);
+      // WO-428: only computed for a blueprint already flagged stale above -- never on every refresh for
+      // every blueprint, so this stays a bounded, occasional read rather than an N+1 cost on the common
+      // (nothing stale) path.
+      const drift = await computeImpactsPathsDrift(this.pool, this.orgId, this.projectId, scan.docs, doc.node.id);
       warnings.push({
         kind: 'awaiting_ci_report',
         severity: 'warning',
         nodeId: doc.node.id,
         message: `${doc.node.id}'s impacts_paths changed since the last CI-verified code report (or none exists yet); its code governance baseline is left untouched until a new report arrives`,
+        ...(drift && drift.suggestedAdditions.length > 0 ? { suggestedImpactsPathsAdditions: drift.suggestedAdditions } : {}),
       });
     }
     return { warnings, staleBlueprintIds };
@@ -992,7 +998,7 @@ export class PgProjectEngine implements ProjectEngine {
     // stale blueprint's project_code_refs rows are excluded from this refresh entirely rather than fed
     // into detectDrift only to have their resulting baseline entry overwritten afterward.
     const reportedHashes = await this.loadImpactsHashes(tx);
-    const { warnings, staleBlueprintIds } = this.reconcileByHash(scan, reportedHashes);
+    const { warnings, staleBlueprintIds } = await this.reconcileByHash(scan, reportedHashes);
     const input = await this.buildDriftInput(tx, scan, new Set(staleBlueprintIds));
     const built = buildRefreshReport(input);
     const issues: DriftIssue[] = [...built.issues, ...warnings];
