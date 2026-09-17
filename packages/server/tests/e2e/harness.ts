@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createLocalJWKSet, exportJWK, generateKeyPair, type JWTVerifyGetKey } from 'jose';
 import { Neo4jGraphDatabase } from '@prdm/core';
-import { createMemberFixture, createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, type PgTestDb } from '@prdm/testkit';
+import { assertDbAllowed, createMemberFixture, createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, type PgTestDb } from '@prdm/testkit';
 import { buildServer } from '../../src/build-server.js';
 import { createFakeLlmClient, type FakeLlmClient } from '../../src/agent/fake-llm-client.js';
 import { FakeMailer } from '../../src/mailer.js';
@@ -77,6 +77,10 @@ async function signInForm(app: Journey['app'], env: ReturnType<typeof buildTestS
 }
 
 export async function startJourney(): Promise<Journey> {
+  // This harness calls `Neo4jGraphDatabase.connect` directly (it needs the raw driver for `buildServer`,
+  // not `openTestDb`'s `GraphStore`), so it can't rely on `openTestPg`'s own internal guard alone —
+  // see `assertDbAllowed`'s own doc comment in `@prdm/testkit`.
+  assertDbAllowed();
   if (!existsSync(APP_DIST)) {
     throw new Error(`@prdm/app bundle not found at ${APP_DIST}; run "npm run build --workspace=@prdm/app" first`);
   }

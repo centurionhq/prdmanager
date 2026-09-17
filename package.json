@@ -22,7 +22,12 @@
     "dev": "node packages/server/scripts/dev.mjs",
     "db:migrate": "npm run db:migrate --workspace=@prdm/db",
     "test": "vitest run",
-    "test:unit": "vitest run packages/core/tests/unit packages/cli/tests/unit packages/web/tests/unit packages/contracts/tests/unit packages/db/tests/unit packages/server/tests/unit packages/testkit/tests/unit packages/app/tests/unit packages/ui/tests/unit",
+    "test:unit": "vitest run --project unit-node --project unit-jsdom",
+    "test:db": "vitest run --project db",
+    "check:test-projects": "node scripts/check-test-projects.mjs",
+    "test:services": "node scripts/test-services.mjs",
+    "test:services:check": "node scripts/check-test-services.mjs",
+    "hooks:install": "node scripts/hooks/install.mjs",
     "coverage": "vitest run --coverage"
   },
   "devDependencies": {

@@ -1,0 +1,113 @@
+#!/usr/bin/env node
+/**
+ * PRD-008 §4.3 (WO-408): the versioned `pre-commit` hook (SDD-017 §4.3). Not installed into `.git/hooks`
+ * by itself -- `npm run hooks:install` (WO-410, `scripts/hooks/install.mjs`) writes a thin `.git/hooks/
+ * pre-commit` wrapper that `exec`s this file directly, so editing this script is enough to change what
+ * the installed hook does (same wiring as `scripts/hooks/pre-push`, WO-409).
+ *
+ * Runs, in order, cutting at the first failure:
+ *   1. Nothing at all, if no staged file (`git diff --cached --name-only --diff-filter=ACM`) has a
+ *      relevant extension (`.ts`/`.tsx`/`.js`/`.mjs`/`.json`, or is `vitest.config.ts`) -- exits 0
+ *      immediately without touching typecheck or vitest.
+ *   2. `npm run typecheck`.
+ *   3. `npx vitest related --run --project unit-node --project unit-jsdom <staged files>` -- the two
+ *      projects that never need Neo4j/Postgres (see vitest.config.ts).
+ *   4. Only if the staged files have related tests in the `db` project -- detected by
+ *      `lib-detect-db-related.mjs` without running anything (see that file's header for why `vitest
+ *      related --run --project db` itself is unsafe to use for detection): `npm run test:services:check`
+ *      (WO-401, aborting with a literal, actionable message if it fails), then `npx vitest related --run
+ *      --project db <staged files>`.
+ *
+ * Skipped entirely (exits 0 immediately, runs nothing) when `PRDM_SKIP_HOOKS=1` is set; `git commit
+ * --no-verify` skips it too, natively, without this script ever running.
+ *
+ * Never touches the working tree or the index: every step below only reads (`git diff --cached`) or runs
+ * read-only build/test commands.
+ *
+ * The staged-file filtering logic lives in `./pre-commit-lib.mjs`, which `packages/server/tests/unit/
+ * pre-commit-hook.test.ts` exercises directly against fakes. That same test also spawns this file for
+ * real (against an isolated `git init` fixture, via `GIT_DIR`/`GIT_WORK_TREE` overrides) to check its two
+ * cheapest observable behaviors -- exiting 0 without running anything when nothing relevant is staged,
+ * and respecting `PRDM_SKIP_HOOKS=1` -- since running it end to end for real against the `db` project
+ * needs Docker, and even the unit-node/unit-jsdom path means a real typecheck + vitest run, both far too
+ * slow to exercise on every test run.
+ */
+import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import process from 'node:process';
+import { isSkipped } from './pre-push-lib.mjs';
+import { filterRelevantFiles, parseDbRelatedCount, parseStagedFiles } from './pre-commit-lib.mjs';
+
+if (isSkipped()) {
+  process.exit(0);
+}
+
+const ROOT = resolve(import.meta.dirname, '..', '..');
+
+/**
+ * Runs `cmd args...` with output inherited (so typecheck/vitest failures show their own error output
+ * unfiltered, WO-408 requirement 7), returning its exit code (or 1 if it could not even be started).
+ *
+ * @param {string} cmd
+ * @param {string[]} args
+ */
+function run(cmd, args) {
+  const result = spawnSync(cmd, args, { cwd: ROOT, stdio: 'inherit', env: process.env });
+  if (result.error) {
+    console.error(`pre-commit: failed to start "${cmd} ${args.join(' ')}": ${result.error.message}`);
+    return 1;
+  }
+  return result.status ?? 1;
+}
+
+const stagedResult = spawnSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACM'], {
+  cwd: ROOT,
+  encoding: 'utf8',
+  env: process.env,
+});
+if (stagedResult.error || stagedResult.status !== 0) {
+  console.error('pre-commit: failed to list staged files');
+  if (stagedResult.stderr) console.error(stagedResult.stderr);
+  process.exit(1);
+}
+
+const relevantFiles = filterRelevantFiles(parseStagedFiles(stagedResult.stdout));
+if (relevantFiles.length === 0) {
+  process.exit(0);
+}
+
+let code = run('npm', ['run', 'typecheck']);
+if (code !== 0) process.exit(code);
+
+code = run('npx', ['vitest', 'related', '--run', '--project', 'unit-node', '--project', 'unit-jsdom', ...relevantFiles]);
+if (code !== 0) process.exit(code);
+
+const detectResult = spawnSync(process.execPath, [resolve(import.meta.dirname, 'lib-detect-db-related.mjs'), ...relevantFiles], {
+  cwd: ROOT,
+  encoding: 'utf8',
+  env: process.env,
+});
+if (detectResult.error || detectResult.status !== 0) {
+  console.error('pre-commit: failed to determine whether staged changes affect db-project tests');
+  if (detectResult.stderr) console.error(detectResult.stderr);
+  process.exit(1);
+}
+
+const dbRelatedCount = parseDbRelatedCount(detectResult.stdout);
+if (dbRelatedCount === null) {
+  console.error(`pre-commit: unexpected output from lib-detect-db-related.mjs: ${detectResult.stdout}`);
+  process.exit(1);
+}
+
+if (dbRelatedCount > 0) {
+  code = run('npm', ['run', 'test:services:check']);
+  if (code !== 0) {
+    console.error('Faltan las BD de test: corré npm run test:services');
+    process.exit(code);
+  }
+
+  code = run('npx', ['vitest', 'related', '--run', '--project', 'db', ...relevantFiles]);
+  if (code !== 0) process.exit(code);
+}
+
+process.exit(0);

@@ -556,19 +556,61 @@ Plugin **`neo4j-skills@neo4j-skills-marketplace`** v1.0.1 (declarado en `.claude
 ## Tests
 
 ```bash
-# Instancia test efímera (127.0.0.1:7688)
-docker compose --profile test up -d neo4j-test
+# BD de test efímeras (neo4j-test 127.0.0.1:7688, postgres-test 127.0.0.1:5433)
+npm run test:services
 
-# Tests: unit + integración + E2E MCP
+# Todo: sin BD (unit-node/unit-jsdom) + con BD (db) -- ver "Tests y CI" más abajo
+# para la clasificación por directorio y qué corre en cada etapa local/CI.
 npm test
 
-# Cobertura (umbral 80%)
+# Cobertura (umbral 80%), corre contra las tres suites -- requiere test:services arriba
 npm run coverage
 ```
 
 Los tests de integración nunca usan BD de desarrollo (helper lo rechaza si la URI coincide).
 
 Cobertura verificada al cierre de PRD-005 (WO-204): 90.88% statements, 81.26% branches, 92.9% functions, 94.58% lines — por encima del umbral de 80% en las cuatro dimensiones. Único archivo sin cobertura por diseño: `packages/server/src/cli/run-bootstrap-superadmin.ts` (el entrypoint real de terminal, deliberadamente excluido de tests unitarios por el mismo motivo que `main.ts` — su lógica real y testeable vive en `bootstrap-superadmin.ts`, con 90.62%).
+
+## Tests y CI
+
+PRD-008 separa la suite en tests sin BD y tests con BD, y mueve casi toda la validación contra Neo4j/Postgres de GitHub Actions a la máquina del developer, en dos escalones (`pre-commit`/`pre-push`). `vitest.config.ts` clasifica cada archivo por directorio, no por lista de paths en `package.json` (ver proyectos `unit-node`, `unit-jsdom` y `db`).
+
+| Etapa | Qué corre | BD |
+|---|---|---|
+| **pre-commit** | `npm run typecheck` + `vitest related --run` sobre los archivos staged (proyectos `unit-node`/`unit-jsdom`; si algún test relacionado es del proyecto `db`, primero corre `test:services:check`) | Solo si hace falta, y solo contra las BD de test locales |
+| **pre-push** | `npm run build` → `npm run test:unit` → `npm run check:test-projects` → chequeo de servicios → `npm run test:db` → e2e de Playwright (`packages/server/tests/e2e/playwright.config.ts`) | Sí, completa |
+| **CI (GitHub Actions)** | `build`, build de `@prdm/web`, `typecheck`, `test:unit`, `npm audit`, `prdm sync --check` | **No** |
+
+Comandos:
+
+```bash
+# Tests sin BD (Docker apagado, es lo único que corre en CI)
+npm run test:unit
+
+# Tests con BD (Neo4j + Postgres de test)
+npm run test:db
+
+# Levanta neo4j-test (7688) y postgres-test (5433) y aplica el bootstrap de roles
+npm run test:services
+
+# Verifica que ambas BD de test están arriba y responden (usado por los hooks)
+npm run test:services:check
+
+# Instala los hooks pre-commit/pre-push versionados en scripts/hooks/ dentro de .git/hooks/
+# (no toca commit-msg ni post-commit, no usa core.hooksPath)
+npm run hooks:install
+```
+
+Cómo evitar los hooks: `PRDM_SKIP_HOOKS=1` (la misma variable que respeta `commit-msg`) antes del comando, o `git commit --no-verify` / `git push --no-verify`.
+
+> **Evitar el pre-push deja el cambio sin ninguna validación contra BD.** Desde PRD-008, CI ya no levanta Neo4j ni Postgres: la única red de seguridad contra regresiones que solo se ven con BD real es el pre-push local (o correr `npm run test:db` y el e2e a mano antes de pushear). Un `--no-verify`, un `PRDM_SKIP_HOOKS=1` o un clone sin `hooks:install` pueden llegar a `main` sin haber corrido un solo test contra BD.
+
+**Dónde va un test nuevo.** La clasificación es por directorio (ver `vitest.config.ts` en la raíz para los patterns exactos):
+- Sin BD (`test:unit`, proyectos `unit-node`/`unit-jsdom`): `packages/*/tests/unit/**/*.test.ts`, `packages/*/tests/client/**/*.{test.ts,test.tsx}` y `packages/app/tests/collab/**/*.test.ts`.
+- Con BD (`test:db`, proyecto `db`): `packages/*/tests/{integration,e2e,collab,isolation,learning}/**/*.test.ts` (excepto `packages/app/tests/collab`, que va sin BD).
+- Playwright (`*.spec.ts`) no matchea ningún proyecto de Vitest; corre aparte, solo en el pre-push.
+
+Si un test que abre Neo4j o Postgres queda mal ubicado en `tests/unit`, el guardarraíl de `packages/testkit` (`openTestDb` en `db.ts`, `openTestPg` en `pg.ts`) lo detecta: con `PRDM_TEST_NO_DB=1` (la variable que el proyecto `unit-node`/`unit-jsdom` setea automáticamente) esos helpers lanzan un error explícito en lugar de intentar conectar, indicando que el test usa BD y debe moverse a un directorio de integración. `npm run check:test-projects` complementa esto verificando que cada archivo de test pertenece a exactamente un proyecto de Vitest (ni cero ni dos) -- corre solo dentro del pre-push (`vitest list` enumera cada test individual, no archivo por archivo, así que tarda minutos sobre el repo completo: ni el presupuesto de CI ni el de pre-commit lo bancan).
 
 ## Seguridad
 

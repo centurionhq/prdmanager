@@ -101,4 +101,40 @@ describe('live validation after collab store (SDD-008, WO-155)', () => {
       await app.close();
     }
   });
+
+  test('a document created after the scan cache is warm validates its own existence cleanly on its first store (WO-396)', async () => {
+    const { org, project, editorCookie } = await setupOrgProjectAndEditor();
+    const warmId = await insertCollabDocumentFixture(pg, { orgId: org.id, projectId: project.id, docId: 'PRD-901' });
+    const { app, url } = await startCollabApp({ pool: pg.appPool, neo4j });
+    const headers = { cookie: editorCookie, origin: ISOLATION_ORIGIN };
+
+    async function storeAndCollectIssues(documentId: string): Promise<{ code: string; message: string }[]> {
+      const provider = makeCollabProvider(url, `${project.id}:${documentId}`, headers);
+      try {
+        await onceSynced(provider);
+        const statelessPromise = onceStateless(provider, (payload) => JSON.parse(payload).type === 'validation:updated');
+        provider.document.getMap('fm').set('title', 'A perfectly ordinary title');
+        provider.document.getText('body').insert(0, 'Some body content');
+        await onceUnsyncedChangesSettled(provider);
+        const stateless = await statelessPromise;
+        return (JSON.parse(stateless.payload) as { issues: { code: string; message: string }[] }).issues;
+      } finally {
+        provider.destroy();
+      }
+    }
+
+    try {
+      // Warms the per-project scan cache; graph_version never bumps below, so the cache is never invalidated.
+      await storeAndCollectIssues(warmId);
+
+      const freshId = await insertCollabDocumentFixture(pg, { orgId: org.id, projectId: project.id, docId: 'PRD-902' });
+      const issues = await storeAndCollectIssues(freshId);
+
+      // Guards against a false green: a schema issue returns before the existence check ever runs.
+      expect(issues.filter((i) => i.code === 'schema')).toEqual([]);
+      expect(issues.filter((i) => i.code === 'stale_base')).toEqual([]);
+    } finally {
+      await app.close();
+    }
+  });
 });
