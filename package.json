@@ -27,6 +27,7 @@
     "check:test-projects": "node scripts/check-test-projects.mjs",
     "test:services": "node scripts/test-services.mjs",
     "test:services:check": "node scripts/check-test-services.mjs",
+    "hooks:install": "node scripts/hooks/install.mjs",
     "coverage": "vitest run --coverage"
   },
   "devDependencies": {
