@@ -37,7 +37,7 @@ import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ErrorCode, McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { registerPrdmTools, registerRemoteWriteTools, type PrdmDeps, type RemoteWriteAuth } from '@prdm/mcp/lib';
+import { registerPrdmTools, registerRemoteWriteTools, REMOTE_WRITE_TOOL_NAMES, type PrdmDeps, type RemoteWriteAuth } from '@prdm/mcp/lib';
 import { can, type PermissionSubject } from '@prdm/contracts';
 import { createTenantDb, findMembership, findUserProfile, resolveProjectByGraphProjectId, type OrgRole, type ProjectRecord } from '@prdm/db';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -156,9 +156,12 @@ function rateLimitedResult(): CallToolResult {
   return { isError: true, content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data };
 }
 
-/** The only three tools this route ever registers via `registerRemoteWriteTools` — everything else
- * `registerPrdmTools({ profile: 'remote' })` registers is read-only per SDD-010's own table. */
-const REMOTE_WRITE_TOOL_NAMES = new Set(['claim_work_order', 'complete_work_order', 'submit_feedback']);
+/** WO-416: every tool this route registers via `registerRemoteWriteTools` requires `mcp:write` —
+ * everything else `registerPrdmTools({ profile: 'remote' })` registers is read-only per SDD-010's own
+ * table. Sourced from `@prdm/mcp/lib`'s own `REMOTE_WRITE_TOOL_NAMES` (`tools-remote.ts`'s single source
+ * of truth) instead of a separately hand-maintained set, which had gone stale here (missing
+ * `generate_work_orders`/`add_blueprint_task`). */
+const REMOTE_WRITE_TOOL_NAME_SET = new Set<string>(REMOTE_WRITE_TOOL_NAMES);
 
 function missingScopeResult(scope: string): CallToolResult {
   const data = { error: 'missing_scope', message: `this token does not carry the ${scope} scope` };
@@ -276,7 +279,7 @@ async function handleProjectMcpPost(req: FastifyRequest<{ Params: McpRouteParams
   };
 
   instrumentMcpCalls(server, async (toolName) => {
-    const requiredScope = REMOTE_WRITE_TOOL_NAMES.has(toolName) ? 'mcp:write' : 'mcp:read';
+    const requiredScope = REMOTE_WRITE_TOOL_NAME_SET.has(toolName) ? 'mcp:write' : 'mcp:read';
     if (!token.scopes.includes(requiredScope)) return missingScopeResult(requiredScope);
     const allowed = await rateLimiter.check(req, token.tokenId);
     if (!allowed) return rateLimitedResult();
