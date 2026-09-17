@@ -25,6 +25,8 @@
     "test:unit": "vitest run --project unit-node --project unit-jsdom",
     "test:db": "vitest run --project db",
     "check:test-projects": "node scripts/check-test-projects.mjs",
+    "test:services": "node scripts/test-services.mjs",
+    "test:services:check": "node scripts/check-test-services.mjs",
     "coverage": "vitest run --coverage"
   },
   "devDependencies": {
