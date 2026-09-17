@@ -127,3 +127,110 @@ function describeFailures(readiness: ClosureReadiness): string {
     .map((c) => `${c.name}: ${c.detail}`)
     .join('; ');
 }
+
+/**
+ * SDD-018 "Archivado de Work Orders y cierre forzado auditado": the exhaustive, deliberately explicit set
+ * of `ClosureCheck.name`s a force-close may bypass. Written as an explicit literal union (not derived from
+ * `ClosureCheck['name']` via `Omit`/`Exclude`) so `feature_exists`/`feature_approved` are structurally
+ * impossible to name in a `bypass` array — a caller would need an unsafe cast to even attempt it, and
+ * {@link filterBypassableFailures} below still refuses to honor one even then.
+ */
+export type ForceCloseBypassableCheck = 'blueprints_have_work_orders' | 'work_orders_done' | 'project_clean';
+
+const FORCE_CLOSE_BYPASSABLE_CHECK_NAMES: ReadonlySet<string> = new Set<ForceCloseBypassableCheck>(['blueprints_have_work_orders', 'work_orders_done', 'project_clean']);
+
+export interface BypassedCheck {
+  name: ForceCloseBypassableCheck;
+  detail: string;
+}
+
+interface FilteredReadiness {
+  ready: boolean;
+  blocking: ClosureCheck[];
+  bypassed: BypassedCheck[];
+}
+
+/**
+ * Splits a readiness result's failing checks into those `bypass` actually covers and those that still
+ * block. Defense in depth against a `bypass` array built through an unsafe cast (see
+ * {@link ForceCloseBypassableCheck}'s own doc comment): a failing check only ever counts as bypassed when
+ * its name is BOTH in `bypass` AND in {@link FORCE_CLOSE_BYPASSABLE_CHECK_NAMES} — `feature_exists`/
+ * `feature_approved` are never in the latter, so they can never be bypassed no matter what `bypass` claims.
+ */
+function filterBypassableFailures(readiness: ClosureReadiness, bypass: readonly ForceCloseBypassableCheck[]): FilteredReadiness {
+  const requested = new Set<string>(bypass);
+  const failing = readiness.checks.filter((c) => !c.ok);
+  const bypassed: BypassedCheck[] = [];
+  const blocking: ClosureCheck[] = [];
+  for (const check of failing) {
+    if (FORCE_CLOSE_BYPASSABLE_CHECK_NAMES.has(check.name) && requested.has(check.name)) {
+      bypassed.push({ name: check.name as ForceCloseBypassableCheck, detail: check.detail });
+    } else {
+      blocking.push(check);
+    }
+  }
+  return { ready: blocking.length === 0, blocking, bypassed };
+}
+
+function describeBlocking(blocking: readonly ClosureCheck[]): string {
+  return blocking.map((c) => `${c.name}: ${c.detail}`).join('; ');
+}
+
+export interface ForceCloseOptions {
+  by: string;
+  /** Mandatory, never defaultable (same `prdm close --ack` precedent as a deliberate confirmation: a
+   * bare boolean flag is too easy to pass without thinking about it). */
+  reason: string;
+  bypass: ForceCloseBypassableCheck[];
+  now?: Date;
+}
+
+export interface ForceCloseResult {
+  featureId: string;
+  closedAt: string;
+  closedBy: string;
+  reason: string;
+  /** The full detail of every check this force-close actually bypassed (name + detail, not just a
+   * count or a list of names), so it can be fully audited. */
+  bypassed: BypassedCheck[];
+  report: RefreshReport;
+}
+
+/**
+ * Audited, admin-only escape hatch for `closeFeature`'s hard gate (SDD-018): closes a Feature even when
+ * one or more of `blueprints_have_work_orders`/`work_orders_done`/`project_clean` fail, as long as every
+ * OTHER failing check (`feature_exists`/`feature_approved`, always) passes. Mirrors `closeFeature`'s own
+ * TOCTOU-safe structure exactly: `closureReadiness` runs once outside any transaction so a hopeless
+ * request fails fast, then is re-evaluated a second time INSIDE the atomic transaction, under the repo
+ * lock, immediately before writing — the same reasoning as `closeFeature`'s own doc comment (WO-023
+ * finding 9), now also covering the case where a concurrent change makes the bypass no longer cover
+ * everything that's failing.
+ */
+export async function forceCloseFeature(engine: ProjectEngine, featureId: string, options: ForceCloseOptions): Promise<ForceCloseResult> {
+  if (!ACTOR_PATTERN.test(options.by)) throw new Error(`invalid "by" actor: ${options.by} (expected agent:name or dev:name)`);
+  if (options.reason.trim().length === 0) throw new Error('reason is required to force-close a feature');
+
+  const readiness = await closureReadiness(engine, featureId);
+  const evaluated = filterBypassableFailures(readiness, options.bypass);
+  if (!evaluated.ready) throw new Error(`${featureId} is not ready to force-close: ${describeBlocking(evaluated.blocking)}`);
+
+  const closedAt = (options.now ?? new Date()).toISOString();
+  let bypassed: BypassedCheck[] = evaluated.bypassed;
+  await engine.transaction(
+    async (ops) => {
+      const docs = (await ops.scan()).docs;
+      const recheck = evaluateReadiness(docs, featureId, await ops.inspect());
+      const recheckEvaluated = filterBypassableFailures(recheck, options.bypass);
+      if (!recheckEvaluated.ready) {
+        throw new Error(`${featureId} is no longer ready to force-close (something changed since the readiness check): ${describeBlocking(recheckEvaluated.blocking)}`);
+      }
+      bypassed = recheckEvaluated.bypassed;
+      await ops.updateDocument(featureId, { status: 'closed', closed_at: closedAt, closed_by: options.by, close_reason: options.reason, closed_forced: true });
+      return ops.refresh();
+    },
+    { atomic: true },
+  );
+
+  const report = await engine.acknowledge(featureId);
+  return { featureId, closedAt, closedBy: options.by, reason: options.reason, bypassed, report };
+}
