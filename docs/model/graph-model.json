@@ -17,7 +17,7 @@
         { "name": "kind", "type": "STRING", "description": "Required. One of MRD|PRD|FR|SDD|ADR|WO|ART|FB (DocKind)." },
         { "name": "title", "type": "STRING", "description": "Required, 1-300 chars." },
         { "name": "body", "type": "STRING", "description": "Required. Normalized markdown body with frontmatter stripped." },
-        { "name": "status", "type": "STRING", "description": "Required. Free string; default depends on label (draft/active/pending/new, see DEFAULT_STATUS). WorkOrder further constrains this to pending|in_progress|done|out_of_sync." },
+        { "name": "status", "type": "STRING", "description": "Required. Free string; default depends on label (draft/active/pending/new, see DEFAULT_STATUS). WorkOrder further constrains this to pending|in_progress|done|out_of_sync|archived." },
         { "name": "tags", "type": "LIST<STRING>", "description": "Required (defaults to []). Free-form tags from frontmatter." },
         { "name": "tags_text", "type": "STRING", "description": "Required. tags.join(' '); exists only so tags participate in the node_text_v2 fulltext index (fulltext cannot index list properties directly)." },
         { "name": "source_path", "type": "STRING", "description": "Required. Repo-relative path to the source markdown file." },
@@ -33,7 +33,9 @@
       "properties": [
         { "name": "justified_by", "type": "LIST<STRING>", "description": "Required (always present; defaults to [] when the frontmatter key is omitted). Explicit ids of Feedback/Artifact that justify this feature; merged with the reverse of INFORMS/PROVIDES_CONTEXT_FOR to build JUSTIFIED_BY (ADR-002 D17)." },
         { "name": "closed_at", "type": "STRING", "description": "Optional (null when not closed). ISO datetime written by `prdm close` (ADR-002 D15)." },
-        { "name": "closed_by", "type": "STRING", "description": "Optional (null when not closed). Actor pattern agent:name | dev:name." }
+        { "name": "closed_by", "type": "STRING", "description": "Optional (null when not closed). Actor pattern agent:name | dev:name." },
+        { "name": "close_reason", "type": "STRING", "description": "Optional (null unless force-closed). Free-form justification written by forceCloseFeature (SDD-018)." },
+        { "name": "closed_forced", "type": "BOOLEAN", "description": "Required (defaults to false). True when this feature was closed via forceCloseFeature bypassing one or more otherwise-blocking readiness checks (SDD-018)." }
       ],
       "metadata": { "baseLabel": "Node", "docKinds": ["MRD", "PRD", "FR"] }
     },
@@ -48,7 +50,7 @@
     },
     {
       "label": "WorkOrder",
-      "description": "Actionable task implementing one or more blueprints. Always also carries :Node. Default/initial status: pending; enum pending|in_progress|done|out_of_sync.",
+      "description": "Actionable task implementing one or more blueprints. Always also carries :Node. Default/initial status: pending; enum pending|in_progress|done|out_of_sync|archived.",
       "key_property": { "name": "id", "type": "STRING", "description": "Inherited from :Node; see Node.key_property." },
       "properties": [
         { "name": "assigned_to", "type": "STRING", "description": "Optional (null when unassigned). Actor pattern agent:name | dev:name; also drives the ASSIGNED_TO edge and the (:Actor) node." },
@@ -56,7 +58,10 @@
         { "name": "completed_at", "type": "STRING", "description": "Optional (null when not completed). ISO datetime." },
         { "name": "resolved_by", "type": "LIST<STRING>", "description": "Required (defaults to []). Commit SHAs that closed this work order." },
         { "name": "impacts_paths", "type": "LIST<STRING>", "description": "Required (defaults to []). Same shape as Blueprint.impacts_paths, scoped to this work order." },
-        { "name": "source_task", "type": "STRING", "description": "Optional (null when absent). Free-form provenance string, max 64 chars." }
+        { "name": "source_task", "type": "STRING", "description": "Optional (null when absent). Free-form provenance string, max 64 chars." },
+        { "name": "archived_at", "type": "STRING", "description": "Optional (null unless archived). ISO datetime written by archiveWorkOrder (SDD-018)." },
+        { "name": "archived_by", "type": "STRING", "description": "Optional (null unless archived). Actor pattern agent:name | dev:name." },
+        { "name": "archive_reason", "type": "STRING", "description": "Optional (null when absent). Free-form justification written by archiveWorkOrder (SDD-018)." }
       ],
       "metadata": {
         "baseLabel": "Node",

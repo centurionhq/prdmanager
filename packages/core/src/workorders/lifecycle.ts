@@ -145,8 +145,12 @@ export async function archiveWorkOrder(engine: ProjectEngine, id: string, by: st
     }
 
     const archivedAt = (options.now ?? new Date()).toISOString();
-    const fields: Record<string, FieldValue> = { status: 'archived', archived_at: archivedAt, archived_by: by };
-    if (options.reason !== undefined) fields.archive_reason = options.reason;
+    const fields: Record<string, FieldValue> = {
+      status: 'archived',
+      archived_at: archivedAt,
+      archived_by: by,
+      ...(options.reason !== undefined ? { archive_reason: options.reason } : {}),
+    };
 
     await ops.updateDocument(id, fields);
     await ops.refresh();

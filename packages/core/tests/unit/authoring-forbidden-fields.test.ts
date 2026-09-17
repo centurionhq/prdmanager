@@ -43,6 +43,9 @@ describe('forbiddenFieldIssues', () => {
     expect(forbiddenFieldIssues({ status: 'closed' })).toHaveLength(1);
     expect(forbiddenFieldIssues({ status: 'done' })).toHaveLength(1);
     expect(forbiddenFieldIssues({ status: 'out_of_sync' })).toHaveLength(1);
+    // WO-412/SDD-018: currently unreachable via a real draft (WO cannot be drafted at all), listed as
+    // defense in depth -- see FORBIDDEN_TERMINAL_STATUS's own doc comment.
+    expect(forbiddenFieldIssues({ status: 'archived' })).toHaveLength(1);
     expect(forbiddenFieldIssues({ status: 'draft' })).toEqual([]);
     expect(forbiddenFieldIssues({ status: 'approved' })).toEqual([]);
   });

@@ -53,6 +53,18 @@ describe('deriveLineBoard — station rules', () => {
     expect(stationOf([prd(), sdd(), wo('WO-001', 'done'), wo('WO-002', 'done')])).toBe('cierre');
   });
 
+  test('cierre: every reachable work order is archived (WO-414/SDD-018: archived is resolved, same as done)', () => {
+    expect(stationOf([prd(), sdd(), wo('WO-001', 'archived'), wo('WO-002', 'archived')])).toBe('cierre');
+  });
+
+  test('cierre: a mix of done and archived work orders', () => {
+    expect(stationOf([prd(), sdd(), wo('WO-001', 'done'), wo('WO-002', 'archived')])).toBe('cierre');
+  });
+
+  test('ejecucion: an archived work order among still-pending ones (not all resolved yet)', () => {
+    expect(stationOf([prd(), sdd(), wo('WO-001', 'archived'), wo('WO-002', 'pending')])).toBe('ejecucion');
+  });
+
   test('cierre: feature status is closed regardless of work orders', () => {
     expect(stationOf([prd('status: closed')])).toBe('cierre');
   });
@@ -60,6 +72,11 @@ describe('deriveLineBoard — station rules', () => {
   test('progress counts done/total/stopped across every reachable work order', () => {
     const board = deriveLineBoard([prd(), sdd(), wo('WO-001', 'done'), wo('WO-002', 'pending'), wo('WO-003', 'out_of_sync')]);
     expect(board.features[0]?.progress).toEqual({ done: 1, total: 3, stopped: 1 });
+  });
+
+  test('progress counts an archived work order as done (WO-414/SDD-018)', () => {
+    const board = deriveLineBoard([prd(), sdd(), wo('WO-001', 'done'), wo('WO-002', 'archived'), wo('WO-003', 'pending')]);
+    expect(board.features[0]?.progress).toEqual({ done: 2, total: 3, stopped: 0 });
   });
 
   test('a feature with no blueprints and no work orders has zeroed progress', () => {
