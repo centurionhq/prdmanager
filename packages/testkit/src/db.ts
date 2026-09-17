@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { loadConfig, loadNeo4jConfig, Neo4jGraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
+import { assertDbAllowed } from './guard.js';
 
 const PROJECT_ROOT = resolve(import.meta.dirname, '../../..');
 
@@ -25,6 +26,7 @@ export interface TestDb {
  * `config.project`, cleared of any leftovers from a previous run of the same fixture.
  */
 export async function openTestDb(config: PrdmConfig): Promise<TestDb> {
+  assertDbAllowed();
   const db = Neo4jGraphDatabase.connect(config.neo4j);
   try {
     await db.verify();

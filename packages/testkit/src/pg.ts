@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { connect, createPool, runMigrations, type PgDatabase } from '@prdm/db';
 import type { Pool } from 'pg';
+import { assertDbAllowed } from './guard.js';
 
 const ROOT_ENV_FILE = join(process.cwd(), '.env');
 
@@ -50,16 +51,18 @@ export interface PgTestDb {
  * call from every test file since `fileParallelism: false` runs them one at a time), truncates whatever the
  * previous run of the same fixture left behind, and returns both pools plus an app-scoped Drizzle instance.
  */
-export async function openTestPg(config: PgTestConfig = testPgConfig()): Promise<PgTestDb> {
-  const ownerPool = createPool({ connectionString: config.migrationUrl });
-  const appPool = createPool({ connectionString: config.appUrl });
+export async function openTestPg(config?: PgTestConfig): Promise<PgTestDb> {
+  assertDbAllowed();
+  const resolvedConfig = config ?? testPgConfig();
+  const ownerPool = createPool({ connectionString: resolvedConfig.migrationUrl });
+  const appPool = createPool({ connectionString: resolvedConfig.appUrl });
   try {
     await ownerPool.query('SELECT 1');
   } catch (err) {
     await ownerPool.end();
     await appPool.end();
     throw new Error(
-      `Postgres test instance unreachable at ${config.migrationUrl}; run "docker compose --profile test up -d postgres-test" (${(err as Error).message})`,
+      `Postgres test instance unreachable at ${resolvedConfig.migrationUrl}; run "docker compose --profile test up -d postgres-test" (${(err as Error).message})`,
     );
   }
   await runMigrations(connect(ownerPool));
