@@ -54,6 +54,11 @@ export interface RemoteWriteAuth {
    * must resolve to `dev:<callerHandle>` or `agent:<name>` — never an arbitrary actor string claimed on
    * someone else's behalf. */
   callerHandle: string;
+  /** The calling personal token's own authenticated `user.id` (WO-421/SDD-020) — the actual FK value
+   * `documents.created_by`/`document_versions.created_by` expect, distinct from `callerHandle`'s
+   * `dev:<handle>` actor-pattern string (which those columns never store; only `assigned_to`/
+   * `archived_by`/`closed_by`-style frontmatter fields use the actor pattern). */
+  userId: string;
   /** Records an audit entry keyed by the actually-authenticated user (`claimed_by_user_id`, never just
    * the actor string a request claims) — supplied by the HTTP route so this package never needs its
    * own database dependency. */

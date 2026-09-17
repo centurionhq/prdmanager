@@ -7,5 +7,7 @@
 export { createPrdmServer } from './create.js';
 export { registerPrdmTools, type PrdmMcpProfile, type RegisterPrdmToolsOptions } from './tools.js';
 export { denyRemoteWrite, registerRemoteWriteTools, REMOTE_WRITE_TOOL_NAMES, type RemoteWriteAuth } from './tools-remote.js';
+export { REMOTE_AUTHORING_TOOL_NAMES, registerRemoteAuthoringTools } from './tools-remote-authoring.js';
 export { escapeFenceChars, fenceTag } from './prompts.js';
-export { requireAuthoring, type PrdmDeps } from './deps.js';
+export { requireAuthoring, requireDocumentsPort, type PrdmDeps } from './deps.js';
+export type { RemoteDocumentSummary, RemoteDocumentVersionSummary, RemoteDocumentWithVersion, RemoteDocumentsPort } from './documents-port.js';

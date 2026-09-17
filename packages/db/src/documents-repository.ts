@@ -15,7 +15,7 @@
  * `scanContents` over `listPublished()` first anyway — mixing that into this repository would make it
  * depend on `@prdm/core` too.
  */
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { nextDocId, type DocumentKind } from './id-counters.js';
 import { documents, documentVersions } from './schema/documents.js';
@@ -49,11 +49,29 @@ export interface PublishedDocumentRaw {
   publishedRaw: string;
 }
 
+export interface SaveVersionInput {
+  renderedMarkdown: string;
+  frontmatter: Record<string, unknown>;
+  contentHash: string;
+  createdBy: string;
+}
+
 export interface DocumentsRepository {
   list(filter?: DocumentListFilter): Promise<DocumentRecord[]>;
   /** `null` for both "wrong org" and "doesn't exist" (SDD-006 §Arquitectura: both map to 404). */
   findByDocId(docId: string): Promise<DocumentWithLatestVersion | null>;
   createDraft(input: CreateDraftDocumentInput): Promise<DocumentWithLatestVersion>;
+  /**
+   * Inserts a new `document_versions` row (`reason: 'engine_write'`, matching the enum value already
+   * used for server-driven writes outside a human's live collab session) for a `draft`/`in_review`
+   * document, without touching Yjs/live-collab state at all -- `null` when the document doesn't exist or
+   * isn't `draft`/`in_review` (caller returns 404/409). SDD-020 "Autoria remota de documentos por MCP":
+   * the remote MCP's `update_document` tool has no live Y.Doc session to edit (each `/mcp` request is
+   * stateless), so it writes a version row directly instead, the same way `createDraft` already does for
+   * version 1 -- this is deliberately NOT built on `captureDocumentVersion` (`packages/server/src/collab/
+   * versions.ts`), which requires an already-open live collab document to snapshot from.
+   */
+  saveVersion(docId: string, input: SaveVersionInput): Promise<DocumentWithLatestVersion | null>;
   /** Guarded `draft -> in_review`; `null` when the document wasn't `draft` (caller returns 409). */
   requestReview(docId: string): Promise<DocumentRecord | null>;
   /** Guarded `published -> archived`; `null` when the document wasn't `published` (caller returns
@@ -105,6 +123,41 @@ export function buildDocumentsRepository(pool: Pool, orgId: string, projectId: s
           .values({ orgId, documentId: document.id, versionNo: 1, reason: 'manual', renderedMarkdown, frontmatter: {}, contentHash, contributors: [input.createdBy], createdBy: input.createdBy })
           .returning();
         if (!latestVersion) throw new Error(`failed to insert version row for ${docId}`);
+
+        return { document, latestVersion };
+      }),
+
+    saveVersion: (docId, input) =>
+      withTenantTx(pool, orgId, async (tx) => {
+        const [document] = await tx
+          .select()
+          .from(documents)
+          .where(and(eq(documents.projectId, projectId), eq(documents.docId, docId)));
+        if (!document || (document.workflowState !== 'draft' && document.workflowState !== 'in_review')) return null;
+
+        const [previous] = await tx
+          .select({ versionNo: documentVersions.versionNo })
+          .from(documentVersions)
+          .where(eq(documentVersions.documentId, document.id))
+          .orderBy(desc(documentVersions.versionNo))
+          .limit(1);
+        const versionNo = (previous?.versionNo ?? 0) + 1;
+
+        const [latestVersion] = await tx
+          .insert(documentVersions)
+          .values({
+            orgId,
+            documentId: document.id,
+            versionNo,
+            reason: 'engine_write',
+            renderedMarkdown: input.renderedMarkdown,
+            frontmatter: input.frontmatter,
+            contentHash: input.contentHash,
+            contributors: [input.createdBy],
+            createdBy: input.createdBy,
+          })
+          .returning();
+        if (!latestVersion) throw new Error(`failed to insert version ${versionNo} for ${docId}`);
 
         return { document, latestVersion };
       }),
