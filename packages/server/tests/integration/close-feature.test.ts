@@ -249,4 +249,100 @@ describe('/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId
 
     await app.close();
   });
+
+  /** approved but with no justification at all -- project_clean fails project-wide (lifecycle_violation),
+   * every other check passes. */
+  async function seedProjectCleanFailingFeature(orgId: string, projectId: string): Promise<void> {
+    const featureContent = '---\nid: PRD-003\ntype: PRD\ntitle: "No justification"\nstatus: approved\n---\n\n## Resumen\n';
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+       VALUES ($1, $2, 'PRD-003', 'PRD', 'No justification', 'docs/prd/PRD-003.md', 'collab', 'published', $3)`,
+      [orgId, projectId, featureContent],
+    );
+  }
+
+  test('an editor is forbidden from force-closing; an admin force-closes with project_clean bypassed, writes close_reason/closed_forced directly, and audit-logs the full bypassed detail', async () => {
+    const { app, editor, owner, org, project } = await setup();
+    await seedProjectCleanFailingFeature(org.id, project.id);
+    const editorCookie = await signIn(app, editor.email);
+    const ownerCookie = await signIn(app, owner.email);
+
+    const forbidden = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/PRD-003/force-close`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), editorCookie),
+      payload: { reason: 'known issue, closing anyway', bypass: ['project_clean'] },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const ok = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/PRD-003/force-close`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
+      payload: { reason: 'known issue, closing anyway', bypass: ['project_clean'] },
+    });
+    expect(ok.statusCode).toBe(200);
+    const body = ok.json();
+    expect(body.result.featureId).toBe('PRD-003');
+    expect(body.result.bypassed).toEqual([expect.objectContaining({ name: 'project_clean' })]);
+
+    const { rows } = await pg.ownerPool.query(`SELECT published_raw, pending_editable_patch FROM "documents" WHERE project_id = $1 AND doc_id = 'PRD-003'`, [project.id]);
+    expect(rows[0].published_raw).toContain('status: "closed"');
+    expect(rows[0].published_raw).toContain('close_reason: "known issue, closing anyway"');
+    expect(rows[0].published_raw).toContain('closed_forced: true');
+    expect(rows[0].pending_editable_patch).toBeNull();
+
+    const { rows: auditRows } = await pg.ownerPool.query(`SELECT action, target, metadata FROM audit_log WHERE org_id = $1 AND action = 'feature.force_closed'`, [org.id]);
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0].target).toBe('PRD-003');
+    expect(auditRows[0].metadata).toMatchObject({ reason: 'known issue, closing anyway' });
+    expect(auditRows[0].metadata.bypassedChecks).toEqual([expect.objectContaining({ name: 'project_clean' })]);
+
+    await app.close();
+  });
+
+  test('force-close still 409s when feature_approved fails, even if bypass names every allowed check', async () => {
+    const { app, owner, org, project } = await setup();
+    const draftContent = '---\nid: PRD-004\ntype: PRD\ntitle: "Draft"\nstatus: draft\n---\n\n## Resumen\n';
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+       VALUES ($1, $2, 'PRD-004', 'PRD', 'Draft', 'docs/prd/PRD-004.md', 'collab', 'published', $3)`,
+      [org.id, project.id, draftContent],
+    );
+    const ownerCookie = await signIn(app, owner.email);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/PRD-004/force-close`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
+      payload: { reason: 'trying anyway', bypass: ['blueprints_have_work_orders', 'work_orders_done', 'project_clean'] },
+    });
+    expect(res.statusCode).toBe(409);
+
+    await app.close();
+  });
+
+  test('force-close rejects a missing reason or an empty bypass with 400', async () => {
+    const { app, owner, org, project } = await setup();
+    await seedProjectCleanFailingFeature(org.id, project.id);
+    const ownerCookie = await signIn(app, owner.email);
+
+    const missingReason = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/PRD-003/force-close`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
+      payload: { bypass: ['project_clean'] },
+    });
+    expect(missingReason.statusCode).toBe(400);
+
+    const emptyBypass = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/PRD-003/force-close`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
+      payload: { reason: 'x', bypass: [] },
+    });
+    expect(emptyBypass.statusCode).toBe(400);
+
+    await app.close();
+  });
 });

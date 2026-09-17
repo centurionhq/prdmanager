@@ -347,6 +347,13 @@ export function registerBaseIsolationRoutes(): void {
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, woId: 'WO-001' }, body: { commitSha: 'a'.repeat(40) } })),
   });
 
+  // WO-415 (SDD-018): same tenant-scoped resolution as claim/complete above.
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/work-orders/:woId/archive', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, woId: 'WO-001' }, body: { reason: 'probe' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, woId: 'WO-001' }, body: { reason: 'probe' } })),
+  });
+
   // WO-339: feedback submit/inbox/candidates/triage, same tenant-scoped resolution as every other
   // .../projects/:projectSlug/* route.
   registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback', {
@@ -391,6 +398,13 @@ export function registerBaseIsolationRoutes(): void {
     mutating: true,
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' } })),
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' } })),
+  });
+
+  // WO-419 (SDD-018): same tenant-scoped resolution as close above.
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/force-close', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' }, body: { reason: 'probe', bypass: ['project_clean'] } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'PRD-001' }, body: { reason: 'probe', bypass: ['project_clean'] } })),
   });
 
   registerIsolationProbe('POST', '/api/app/invitations/:id/accept', {
