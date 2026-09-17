@@ -31,6 +31,7 @@ const EXPECTED_ROLES_BY_ACTION: Record<PermissionAction, readonly ProjectRole[]>
   manage_project_settings: ['admin'],
   manage_ci_tokens: ['admin'],
   import: ['admin'],
+  sync_impacts_paths: ['admin'],
 };
 
 describe('can (WO-106) — exhaustive project-role x action matrix', () => {

@@ -9,6 +9,7 @@ export * from './drift.js';
 export * from './error-envelope.js';
 export * from './feedback.js';
 export * from './force-close.js';
+export * from './impacts-paths-sync.js';
 export * from './force-push-overrides.js';
 export * from './governance.js';
 export * from './import.js';
