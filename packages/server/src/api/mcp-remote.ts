@@ -37,7 +37,15 @@ import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ErrorCode, McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { registerPrdmTools, registerRemoteWriteTools, REMOTE_WRITE_TOOL_NAMES, type PrdmDeps, type RemoteWriteAuth } from '@prdm/mcp/lib';
+import {
+  registerPrdmTools,
+  registerRemoteAuthoringTools,
+  registerRemoteWriteTools,
+  REMOTE_AUTHORING_TOOL_NAMES,
+  REMOTE_WRITE_TOOL_NAMES,
+  type PrdmDeps,
+  type RemoteWriteAuth,
+} from '@prdm/mcp/lib';
 import { can, type PermissionSubject } from '@prdm/contracts';
 import { createTenantDb, findMembership, findUserProfile, resolveProjectByGraphProjectId, type OrgRole, type ProjectRecord } from '@prdm/db';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -47,6 +55,7 @@ import { isOrgAdmin } from './projects.js';
 import { rejectUntrustedOrigin } from './trusted-origin.js';
 import { buildPrdmConfig } from '../engine/pg-project-settings.js';
 import { resolvePgProjectEngine } from '../engine/resolve-pg-project-engine.js';
+import { buildRemoteDocumentsPort } from '../documents/remote-documents-port.js';
 import type { RequestToken } from '../auth/bearer-auth.js';
 import type { McpToolRateLimiter } from '../rate-limit/mcp-tool-rate-limits.js';
 
@@ -156,12 +165,13 @@ function rateLimitedResult(): CallToolResult {
   return { isError: true, content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data };
 }
 
-/** WO-416: every tool this route registers via `registerRemoteWriteTools` requires `mcp:write` —
- * everything else `registerPrdmTools({ profile: 'remote' })` registers is read-only per SDD-010's own
- * table. Sourced from `@prdm/mcp/lib`'s own `REMOTE_WRITE_TOOL_NAMES` (`tools-remote.ts`'s single source
- * of truth) instead of a separately hand-maintained set, which had gone stale here (missing
+/** WO-416/WO-425: every tool this route registers via `registerRemoteWriteTools`/
+ * `registerRemoteAuthoringTools` requires `mcp:write` — everything else `registerPrdmTools({ profile:
+ * 'remote' })` registers is read-only per SDD-010's own table. Sourced from `@prdm/mcp/lib`'s own
+ * `REMOTE_WRITE_TOOL_NAMES`/`REMOTE_AUTHORING_TOOL_NAMES` (each file's single source of truth) instead
+ * of a separately hand-maintained set, which had gone stale here once already (missing
  * `generate_work_orders`/`add_blueprint_task`). */
-const REMOTE_WRITE_TOOL_NAME_SET = new Set<string>(REMOTE_WRITE_TOOL_NAMES);
+const REMOTE_WRITE_TOOL_NAME_SET = new Set<string>([...REMOTE_WRITE_TOOL_NAMES, ...REMOTE_AUTHORING_TOOL_NAMES]);
 
 function missingScopeResult(scope: string): CallToolResult {
   const data = { error: 'missing_scope', message: `this token does not carry the ${scope} scope` };
@@ -209,7 +219,8 @@ async function auditToolCall(pool: Pool, orgId: string, projectId: string | unde
 
 async function buildRemoteDeps(pool: Pool, neo4j: Neo4jGraphDatabase, orgId: string, project: ProjectRecord): Promise<PrdmDeps> {
   const engine = resolvePgProjectEngine(pool, neo4j, orgId, project);
-  return { config: buildPrdmConfig(project), store: engine.store, engine };
+  const documents = buildRemoteDocumentsPort(pool, orgId, project, engine);
+  return { config: buildPrdmConfig(project), store: engine.store, engine, documents };
 }
 
 async function handleProjectMcpPost(req: FastifyRequest<{ Params: McpRouteParams }>, reply: FastifyReply, opts: RegisterMcpRemoteRoutesOptions): Promise<void> {
@@ -264,6 +275,7 @@ async function handleProjectMcpPost(req: FastifyRequest<{ Params: McpRouteParams
     subject,
     scopes: token.scopes,
     callerHandle: profile?.handle ?? '',
+    userId: auth.userId,
     audit: async (action, target, metadata) => {
       await createTenantDb(pool)
         .forOrg(resolved.orgId)
@@ -289,6 +301,7 @@ async function handleProjectMcpPost(req: FastifyRequest<{ Params: McpRouteParams
 
   registerPrdmTools(server, deps, { profile: 'remote' });
   registerRemoteWriteTools(server, deps, remoteAuth);
+  registerRemoteAuthoringTools(server, deps, remoteAuth);
 
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   reply.hijack();
