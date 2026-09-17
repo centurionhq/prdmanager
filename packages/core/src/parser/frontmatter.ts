@@ -32,9 +32,15 @@ const VOLATILE_FIELDS = new Set([
   'completed_at',
   'resolved_by',
   'blueprint_hashes',
-  // Not yet in the schema (added by a future work order); listed so their arrival never changes existing hashes.
   'closed_at',
   'closed_by',
+  // SDD-018 "Archivado de Work Orders": same reasoning as closed_at/closed_by above -- archiving/force-
+  // closing must never make a document look "changed" against its already-acknowledged baseline.
+  'archived_at',
+  'archived_by',
+  'archive_reason',
+  'close_reason',
+  'closed_forced',
 ]);
 
 export function parseDocument(content: string, sourcePath: string): ParseResult | null {

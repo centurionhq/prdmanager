@@ -177,6 +177,28 @@ Objetivo
     expect(h(base.replace('\n', '\r\n'))).toBe(h(base));
   });
 
+  test('close_reason/closed_forced (WO-418, SDD-018) are hash-neutral, same as closed_at/closed_by', () => {
+    const h = (c: string) => {
+      const r = parseDocument(c, 'x.md');
+      if (!r?.ok) throw new Error('expected ok');
+      return r.doc.node.contentHash;
+    };
+    const base = `---\nid: PRD-001\ntype: PRD\ntitle: x\nstatus: closed\n---\nbody\n`;
+    const withCloseFields = `---\nid: PRD-001\ntype: PRD\ntitle: x\nstatus: closed\nclosed_at: "2026-09-17T00:00:00.000Z"\nclosed_by: "dev:tester"\nclose_reason: "known issue, closing anyway"\nclosed_forced: true\n---\nbody\n`;
+    expect(h(withCloseFields)).toBe(h(base));
+  });
+
+  test('archived_at/archived_by/archive_reason (WO-412, SDD-018) are hash-neutral, same as closed_at/closed_by', () => {
+    const h = (c: string) => {
+      const r = parseDocument(c, 'x.md');
+      if (!r?.ok) throw new Error('expected ok');
+      return r.doc.node.contentHash;
+    };
+    const base = `---\nid: WO-001\ntype: WO\ntitle: x\nstatus: archived\nimplements: [SDD-001]\n---\nbody\n`;
+    const withArchiveFields = `---\nid: WO-001\ntype: WO\ntitle: x\nstatus: archived\nimplements: [SDD-001]\narchived_at: "2026-09-17T00:00:00.000Z"\narchived_by: "dev:tester"\narchive_reason: "superseded"\n---\nbody\n`;
+    expect(h(withArchiveFields)).toBe(h(base));
+  });
+
   test('content hash is identical whether a blueprint/WO uses "governs" or "impacts_paths"', () => {
     const hashOf = (content: string) => {
       const r = parseDocument(content, 'x.md');

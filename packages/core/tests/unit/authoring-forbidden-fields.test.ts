@@ -31,6 +31,8 @@ describe('forbiddenFieldIssues', () => {
       archived_at: 'now',
       archived_by: 'x',
       archive_reason: 'x',
+      close_reason: 'x',
+      closed_forced: true,
     };
     const issues = forbiddenFieldIssues(fields as never);
     expect(issues).toHaveLength(Object.keys(fields).length);
