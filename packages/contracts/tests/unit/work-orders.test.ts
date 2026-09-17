@@ -3,7 +3,7 @@
  * `@prdm/core`'s `getWorkOrderContext` result shape (`packages/core/src/workorders/context.ts`).
  */
 import { describe, expect, test } from 'vitest';
-import { claimWorkOrderInputSchema, completeWorkOrderInputSchema, workOrderContextDtoSchema } from '../../src/work-orders.js';
+import { archiveWorkOrderInputSchema, claimWorkOrderInputSchema, completeWorkOrderInputSchema, workOrderContextDtoSchema } from '../../src/work-orders.js';
 
 describe('workOrderContextDtoSchema', () => {
   const valid = {
@@ -51,5 +51,19 @@ describe('completeWorkOrderInputSchema', () => {
 
   test('rejects a missing commit sha', () => {
     expect(() => completeWorkOrderInputSchema.parse({})).toThrow();
+  });
+});
+
+describe('archiveWorkOrderInputSchema (WO-415/SDD-018)', () => {
+  test('accepts an omitted reason', () => {
+    expect(archiveWorkOrderInputSchema.parse({})).toEqual({});
+  });
+
+  test('accepts a non-empty reason', () => {
+    expect(archiveWorkOrderInputSchema.parse({ reason: 'superseded' })).toEqual({ reason: 'superseded' });
+  });
+
+  test('rejects an explicit empty-string reason (an empty justification is not the same as no reason)', () => {
+    expect(() => archiveWorkOrderInputSchema.parse({ reason: '' })).toThrow();
   });
 });

@@ -133,7 +133,7 @@ export function registerRemoteWriteTools(server: McpServer, deps: PrdmDeps, auth
       title: 'Archive work order',
       description:
         'Archives a pending/in_progress/out_of_sync Work Order (never done), recording who archived it, when, and why. An archived work order counts as resolved for closeFeature\'s work_orders_done check, but never satisfies a commit\'s "Refs:" coverage requirement. Requires an admin project role.',
-      inputSchema: { id: docId, reason: z.string().max(2000).optional() },
+      inputSchema: { id: docId, reason: z.string().min(1, 'reason must not be empty when given').max(2000).optional() },
       annotations: { title: 'Archive work order', ...WRITE_ONCE },
     },
     safeTool(async ({ id, reason }: { id: string; reason?: string }) => {

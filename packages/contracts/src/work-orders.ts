@@ -65,6 +65,6 @@ export type CompleteWorkOrderInput = z.infer<typeof completeWorkOrderInputSchema
 /** `POST .../work-orders/:id/archive` (SDD-018, WO-415): `reason` is optional, matching
  * `@prdm/core`'s `archiveWorkOrder` own `ArchiveOptions.reason`. */
 export const archiveWorkOrderInputSchema = z.object({
-  reason: z.string().max(2000).optional(),
+  reason: z.string().min(1, 'reason must not be empty when given').max(2000).optional(),
 });
 export type ArchiveWorkOrderInput = z.infer<typeof archiveWorkOrderInputSchema>;

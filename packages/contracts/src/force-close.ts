@@ -10,7 +10,10 @@ export const FORCE_CLOSE_BYPASSABLE_CHECKS = ['blueprints_have_work_orders', 'wo
 export type ForceCloseBypassableCheckDto = (typeof FORCE_CLOSE_BYPASSABLE_CHECKS)[number];
 
 export const forceCloseFeatureInputSchema = z.object({
-  reason: z.string().min(1, 'reason is required to force-close a feature').max(2000),
+  // `.trim()` first so a whitespace-only reason is rejected here (400) rather than passing this schema
+  // and only being caught by forceCloseFeature's own runtime check, which the REST route's generic
+  // catch-all would otherwise surface as a 409 Conflict instead of a 400 Validation error.
+  reason: z.string().trim().min(1, 'reason is required to force-close a feature').max(2000),
   bypass: z.array(z.enum(FORCE_CLOSE_BYPASSABLE_CHECKS)).min(1, 'bypass must name at least one check'),
 });
 export type ForceCloseFeatureInput = z.infer<typeof forceCloseFeatureInputSchema>;
