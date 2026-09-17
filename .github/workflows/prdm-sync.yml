@@ -54,7 +54,16 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      # Full history, not the default shallow (fetch-depth: 1) clone: `sync --check` below walks `git
+      # log` to build each report's `commits[]` list, and `readCommit` (the remote MCP's
+      # `complete_work_order`, SDD-010/WO-186) only ever finds a sha there once some baseline report's
+      # own `commits[]` actually contained it. A shallow checkout means every push-to-main report only
+      # ever sees the merge commit itself -- every individual commit merged into it (i.e. every `Refs:
+      # WO-xxx` commit `complete_work_order` needs to resolve) silently never becomes baseline-trusted,
+      # regardless of how legitimate the merge is.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
