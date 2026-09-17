@@ -14,6 +14,9 @@ export const FORBIDDEN_STATIC_FIELDS: ReadonlySet<string> = new Set([
   'claimed_at',
   'completed_at',
   'source_task',
+  'archived_at',
+  'archived_by',
+  'archive_reason',
 ]);
 
 /** `status` may be drafted freely except into a terminal/lifecycle-managed value. */

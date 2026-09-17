@@ -17,7 +17,21 @@ describe('forbiddenFieldIssues', () => {
   });
 
   test('flags identity, lifecycle and provenance fields', () => {
-    const fields = { id: 'PRD-001', type: 'PRD', assigned_to: 'agent:x', claimed_at: 'now', completed_at: 'now', resolved_by: ['abc'], blueprint_hashes: {}, closed_at: 'now', closed_by: 'x', source_task: 'abc' };
+    const fields = {
+      id: 'PRD-001',
+      type: 'PRD',
+      assigned_to: 'agent:x',
+      claimed_at: 'now',
+      completed_at: 'now',
+      resolved_by: ['abc'],
+      blueprint_hashes: {},
+      closed_at: 'now',
+      closed_by: 'x',
+      source_task: 'abc',
+      archived_at: 'now',
+      archived_by: 'x',
+      archive_reason: 'x',
+    };
     const issues = forbiddenFieldIssues(fields as never);
     expect(issues).toHaveLength(Object.keys(fields).length);
     expect(issues.every((i) => i.code === 'forbidden_field' && i.severity === 'error')).toBe(true);
