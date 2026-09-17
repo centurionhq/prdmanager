@@ -17,7 +17,23 @@ describe('forbiddenFieldIssues', () => {
   });
 
   test('flags identity, lifecycle and provenance fields', () => {
-    const fields = { id: 'PRD-001', type: 'PRD', assigned_to: 'agent:x', claimed_at: 'now', completed_at: 'now', resolved_by: ['abc'], blueprint_hashes: {}, closed_at: 'now', closed_by: 'x', source_task: 'abc' };
+    const fields = {
+      id: 'PRD-001',
+      type: 'PRD',
+      assigned_to: 'agent:x',
+      claimed_at: 'now',
+      completed_at: 'now',
+      resolved_by: ['abc'],
+      blueprint_hashes: {},
+      closed_at: 'now',
+      closed_by: 'x',
+      source_task: 'abc',
+      archived_at: 'now',
+      archived_by: 'x',
+      archive_reason: 'x',
+      close_reason: 'x',
+      closed_forced: true,
+    };
     const issues = forbiddenFieldIssues(fields as never);
     expect(issues).toHaveLength(Object.keys(fields).length);
     expect(issues.every((i) => i.code === 'forbidden_field' && i.severity === 'error')).toBe(true);
@@ -27,6 +43,9 @@ describe('forbiddenFieldIssues', () => {
     expect(forbiddenFieldIssues({ status: 'closed' })).toHaveLength(1);
     expect(forbiddenFieldIssues({ status: 'done' })).toHaveLength(1);
     expect(forbiddenFieldIssues({ status: 'out_of_sync' })).toHaveLength(1);
+    // WO-412/SDD-018: currently unreachable via a real draft (WO cannot be drafted at all), listed as
+    // defense in depth -- see FORBIDDEN_TERMINAL_STATUS's own doc comment.
+    expect(forbiddenFieldIssues({ status: 'archived' })).toHaveLength(1);
     expect(forbiddenFieldIssues({ status: 'draft' })).toEqual([]);
     expect(forbiddenFieldIssues({ status: 'approved' })).toEqual([]);
   });

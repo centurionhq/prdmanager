@@ -305,4 +305,113 @@ describe('remote claim_work_order / complete_work_order (WO-186)', () => {
     await client.close();
     await app.close();
   });
+
+  test('archive_work_order archives a pending work order and is audit-logged as mcp.archive_work_order', async () => {
+    const { app, baseUrl } = await startApp();
+    const { project, secret } = await setupProjectWithWorkOrder(app);
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClient(`${baseUrl}/mcp/${project.graphProjectId}`, secret));
+
+    const result = await client.callTool({ name: 'archive_work_order', arguments: { id: 'WO-001', reason: 'no longer needed' } });
+    expect(result.isError).toBeFalsy();
+    const body = JSON.parse((result.content as { text: string }[])[0]!.text) as { id: string; status: string };
+    expect(body).toMatchObject({ id: 'WO-001', status: 'archived' });
+
+    await client.close();
+    await app.close();
+  });
+
+  test('archive_work_order requires an admin project role: a developer-role token is denied with insufficient_role', async () => {
+    const { app, baseUrl } = await startApp();
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    const devUser = await seedUser(env, pg.appPool, PASSWORD);
+    const org = await createOrganizationFixture(pg);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    await createMemberFixture(pg, { organizationId: org.id, userId: devUser.id, role: 'member' });
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    await pg.ownerPool.query(`INSERT INTO "project_members" (project_id, user_id, org_id, role) VALUES ($1, $2, $3, 'developer')`, [project.id, devUser.id, org.id]);
+    const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: `saas://project/${project.id}` });
+    await store.clear();
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (id, org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw, published_content_hash)
+       VALUES ($1, $2, $3, 'SDD-001', 'SDD', 'Design', 'docs/blueprints/SDD-001.md', 'generated', 'published', $4, 'h1')`,
+      [randomUUID(), org.id, project.id, '---\nid: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\nimpacts_paths: ["src/**"]\n---\n## Tareas\n- [ ] x\n'],
+    );
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (id, org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw, published_content_hash)
+       VALUES ($1, $2, $3, 'WO-001', 'WO', 'Task', 'docs/work-orders/WO-001.md', 'generated', 'published', $4, 'h2')`,
+      [randomUUID(), org.id, project.id, '---\nid: WO-001\ntype: WO\ntitle: Task\nstatus: pending\nimplements: [SDD-001]\n---\ntask\n'],
+    );
+    const cookie = await signIn(app, devUser.email);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), cookie),
+      payload: { orgSlug: org.slug, name: 'dev token', scopes: ['mcp:read', 'mcp:write'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    const secret = created.json().secret as string;
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClient(`${baseUrl}/mcp/${project.graphProjectId}`, secret));
+    const result = await client.callTool({ name: 'archive_work_order', arguments: { id: 'WO-001', reason: 'x' } });
+    expect(result.isError).toBe(true);
+    const body = JSON.parse((result.content as { text: string }[])[0]!.text) as { error: string };
+    expect(body.error).toBe('insufficient_role');
+
+    await client.close();
+    await app.close();
+  });
+
+  test('WO-416 regression: the outer mcp:write scope gate covers every write tool registerRemoteWriteTools registers, rejecting generate_work_orders/add_blueprint_task/archive_work_order before the call is ever audited', async () => {
+    const { app, baseUrl } = await startApp();
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    const org = await createOrganizationFixture(pg);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: `saas://project/${project.id}` });
+    await store.clear();
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (id, org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw, published_content_hash)
+       VALUES ($1, $2, $3, 'SDD-001', 'SDD', 'Design', 'docs/blueprints/SDD-001.md', 'generated', 'published', $4, 'h1')`,
+      [randomUUID(), org.id, project.id, '---\nid: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\nimpacts_paths: ["src/**"]\n---\n## Tareas\n- [ ] x\n'],
+    );
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (id, org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw, published_content_hash)
+       VALUES ($1, $2, $3, 'WO-001', 'WO', 'Task', 'docs/work-orders/WO-001.md', 'generated', 'published', $4, 'h2')`,
+      [randomUUID(), org.id, project.id, '---\nid: WO-001\ntype: WO\ntitle: Task\nstatus: pending\nimplements: [SDD-001]\n---\ntask\n'],
+    );
+    const cookie = await signIn(app, owner.email);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/app/tokens',
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), cookie),
+      payload: { orgSlug: org.slug, name: 'read only', scopes: ['mcp:read'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    const secret = created.json().secret as string;
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClient(`${baseUrl}/mcp/${project.graphProjectId}`, secret));
+
+    for (const call of [
+      { name: 'generate_work_orders', arguments: { blueprint_id: 'SDD-001' } },
+      { name: 'add_blueprint_task', arguments: { blueprint_id: 'SDD-001', task: 'x' } },
+      { name: 'archive_work_order', arguments: { id: 'WO-001', reason: 'x' } },
+    ]) {
+      const result = await client.callTool(call);
+      expect(result.isError).toBe(true);
+      const body = JSON.parse((result.content as { text: string }[])[0]!.text) as { error: string };
+      expect(body.error).toBe('missing_scope');
+    }
+
+    // The outer gate must reject BEFORE auditToolCall ever runs for these three tools — if any of them
+    // were missing from REMOTE_WRITE_TOOL_NAMES (the exact WO-416 staleness bug), the outer check would
+    // wrongly require only mcp:read, let the call through to be audited, and only then get denied by the
+    // tool's own inner denyRemoteWrite check.
+    const { rows } = await pg.ownerPool.query(`SELECT target FROM audit_log WHERE org_id = $1 AND action = 'mcp.tool_call'`, [org.id]);
+    expect(rows.map((r: { target: string }) => r.target)).toEqual([]);
+
+    await client.close();
+    await app.close();
+  });
 });

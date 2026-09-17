@@ -64,9 +64,14 @@ function isJustified(doc: FeatureDoc, docs: readonly ParsedDoc[]): boolean {
   });
 }
 
+/** SDD-018 "Archivado de Work Orders": an archived work order is resolved, the same as a done one --
+ * `close.ts`'s own `work_orders_done` check already treats them identically (WO-414), so the dashboard
+ * must too, or a feature closeable via `closeFeature` could still show as stuck mid-pipeline here. */
+const isResolved = (wo: WorkOrderDoc): boolean => wo.frontmatter.status === 'done' || wo.frontmatter.status === 'archived';
+
 function computeProgress(workOrders: readonly WorkOrderDoc[]): FeatureLineProgress {
   return {
-    done: workOrders.filter((wo) => wo.frontmatter.status === 'done').length,
+    done: workOrders.filter(isResolved).length,
     total: workOrders.length,
     stopped: workOrders.filter((wo) => wo.frontmatter.status === 'out_of_sync').length,
   };
@@ -76,9 +81,10 @@ function computeProgress(workOrders: readonly WorkOrderDoc[]): FeatureLineProgre
  * WO-328: the first rule that applies wins, in this order (PRD-002 §3-adjacent, SDD-012's own station
  * mapping):
  *
- * 1. `cierre` — closed, or every reachable work order is done (and at least one exists).
- * 2. `ejecucion` — some reachable work order is in_progress, done or out_of_sync (not all done, or
- *    rule 1 would already have matched).
+ * 1. `cierre` — closed, or every reachable work order is done/archived (and at least one exists;
+ *    SDD-018: archived counts as resolved, same as done).
+ * 2. `ejecucion` — some reachable work order is in_progress, out_of_sync, done or archived (not all
+ *    done/archived, or rule 1 would already have matched).
  * 3. `planificacion` — has reachable work orders and every one is still pending.
  * 4. `diseno` — approved, or some blueprint architects it (with no work orders yet).
  * 5. `definicion` — justified (see {@link isJustified}).
@@ -89,7 +95,7 @@ function deriveStation(doc: FeatureDoc, docs: readonly ParsedDoc[]): { station: 
   const progress = computeProgress(workOrders);
 
   if (doc.node.status === 'closed' || (progress.total > 0 && progress.done === progress.total)) return { station: 'cierre', progress };
-  if (workOrders.some((wo) => wo.frontmatter.status === 'in_progress' || wo.frontmatter.status === 'done' || wo.frontmatter.status === 'out_of_sync')) {
+  if (workOrders.some((wo) => wo.frontmatter.status === 'in_progress' || wo.frontmatter.status === 'out_of_sync' || isResolved(wo))) {
     return { station: 'ejecucion', progress };
   }
   if (progress.total > 0 && workOrders.every((wo) => wo.frontmatter.status === 'pending')) return { station: 'planificacion', progress };

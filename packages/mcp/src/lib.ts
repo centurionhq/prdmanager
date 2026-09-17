@@ -6,6 +6,6 @@
  */
 export { createPrdmServer } from './create.js';
 export { registerPrdmTools, type PrdmMcpProfile, type RegisterPrdmToolsOptions } from './tools.js';
-export { denyRemoteWrite, registerRemoteWriteTools, type RemoteWriteAuth } from './tools-remote.js';
+export { denyRemoteWrite, registerRemoteWriteTools, REMOTE_WRITE_TOOL_NAMES, type RemoteWriteAuth } from './tools-remote.js';
 export { escapeFenceChars, fenceTag } from './prompts.js';
 export { requireAuthoring, type PrdmDeps } from './deps.js';

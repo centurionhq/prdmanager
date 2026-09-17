@@ -32,10 +32,18 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { addBlueprintTask, claimWorkOrder, CommitNotVerifiedError, completeWorkOrder, docId, generateWorkOrders, SHA_PATTERN, submitFeedback } from '@prdm/core';
+import { addBlueprintTask, archiveWorkOrder, claimWorkOrder, CommitNotVerifiedError, completeWorkOrder, docId, generateWorkOrders, SHA_PATTERN, submitFeedback } from '@prdm/core';
 import { can, type PermissionAction, type PermissionSubject } from '@prdm/contracts';
 import type { PrdmDeps } from './deps.js';
 import { jsonResult, safeTool, WRITE_ONCE } from './shared.js';
+
+/**
+ * WO-416 (SDD-018): the single source of truth for every write tool `registerRemoteWriteTools` below
+ * registers — `packages/server/src/api/mcp-remote.ts` imports this (rather than maintaining its own
+ * hand-copied set, which had gone stale: it was missing `generate_work_orders`/`add_blueprint_task`) to
+ * decide which tool calls require the `mcp:write` scope at its outer gate.
+ */
+export const REMOTE_WRITE_TOOL_NAMES = ['claim_work_order', 'complete_work_order', 'submit_feedback', 'generate_work_orders', 'add_blueprint_task', 'archive_work_order'] as const;
 
 export interface RemoteWriteAuth {
   subject: PermissionSubject;
@@ -116,6 +124,25 @@ export function registerRemoteWriteTools(server: McpServer, deps: PrdmDeps, auth
         if (err instanceof CommitNotVerifiedError) return toolErrorResult('commit_not_verified_by_ci', err.message);
         throw err;
       }
+    }),
+  );
+
+  server.registerTool(
+    'archive_work_order',
+    {
+      title: 'Archive work order',
+      description:
+        'Archives a pending/in_progress/out_of_sync Work Order (never done), recording who archived it, when, and why. An archived work order counts as resolved for closeFeature\'s work_orders_done check, but never satisfies a commit\'s "Refs:" coverage requirement. Requires an admin project role.',
+      inputSchema: { id: docId, reason: z.string().min(1, 'reason must not be empty when given').max(2000).optional() },
+      annotations: { title: 'Archive work order', ...WRITE_ONCE },
+    },
+    safeTool(async ({ id, reason }: { id: string; reason?: string }) => {
+      const denial = denyRemoteWrite(auth, 'archive_work_order');
+      if (denial) return denial;
+
+      const result = await archiveWorkOrder(deps.engine, id, `dev:${auth.callerHandle}`, { reason });
+      await auth.audit('mcp.archive_work_order', id, { reason });
+      return jsonResult({ ...result });
     }),
   );
 

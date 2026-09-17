@@ -178,4 +178,55 @@ describe('GET/POST .../work-orders/:woId/{context,claim,complete} (WO-338)', () 
 
     await app.close();
   });
+
+  test('POST archive requires admin (an editor is forbidden); an admin archives with a reason and it is audit-logged', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await setupProjectWithWorkOrder();
+    const editor = await seedUser(env, pg.appPool, PASSWORD);
+    await createMemberFixture(pg, { organizationId: org.id, userId: editor.id, role: 'member' });
+    await pg.ownerPool.query(`INSERT INTO "project_members" (project_id, user_id, org_id, role) VALUES ($1, $2, $3, 'editor')`, [project.id, editor.id, org.id]);
+    const editorCookie = await signIn(app, editor.email);
+    const ownerCookie = await signIn(app, owner.email);
+
+    const forbidden = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/work-orders/WO-001/archive`,
+      headers: await mutationHeaders(app, AUTH_HOST(), env.publicUrl, editorCookie),
+      payload: { reason: 'superseded' },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const ok = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/work-orders/WO-001/archive`,
+      headers: await mutationHeaders(app, AUTH_HOST(), env.publicUrl, ownerCookie),
+      payload: { reason: 'superseded' },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().result).toMatchObject({ id: 'WO-001', status: 'archived' });
+
+    const { rows } = await pg.ownerPool.query(`SELECT action, target, metadata FROM audit_log WHERE project_id = $1 AND action = 'work_order.archived'`, [project.id]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].target).toBe('WO-001');
+    expect(rows[0].metadata).toMatchObject({ reason: 'superseded' });
+
+    await app.close();
+  });
+
+  test('POST archive rejects archiving a work order that is already done', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await setupProjectWithWorkOrder();
+    await pg.ownerPool.query(`UPDATE "documents" SET published_raw = REPLACE(published_raw, 'status: pending', 'status: done') WHERE project_id = $1 AND doc_id = 'WO-001'`, [project.id]);
+    const ownerCookie = await signIn(app, owner.email);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/work-orders/WO-001/archive`,
+      headers: await mutationHeaders(app, AUTH_HOST(), env.publicUrl, ownerCookie),
+      payload: {},
+    });
+    expect(res.statusCode).toBe(409);
+
+    await app.close();
+  });
 });

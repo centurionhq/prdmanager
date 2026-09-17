@@ -32,9 +32,15 @@ const VOLATILE_FIELDS = new Set([
   'completed_at',
   'resolved_by',
   'blueprint_hashes',
-  // Not yet in the schema (added by a future work order); listed so their arrival never changes existing hashes.
   'closed_at',
   'closed_by',
+  // SDD-018 "Archivado de Work Orders": same reasoning as closed_at/closed_by above -- archiving/force-
+  // closing must never make a document look "changed" against its already-acknowledged baseline.
+  'archived_at',
+  'archived_by',
+  'archive_reason',
+  'close_reason',
+  'closed_forced',
 ]);
 
 export function parseDocument(content: string, sourcePath: string): ParseResult | null {
@@ -172,7 +178,14 @@ function extraProps(fm: Frontmatter): Record<string, PropValue> {
     case 'MRD':
     case 'PRD':
     case 'FR':
-      return { justified_by: fm.justified_by ?? [], closed_at: fm.closed_at ?? null, closed_by: fm.closed_by ?? null };
+      return {
+        justified_by: fm.justified_by ?? [],
+        closed_at: fm.closed_at ?? null,
+        closed_by: fm.closed_by ?? null,
+        // SDD-018 "Cierre forzado auditado": same audit-visibility treatment as closed_at/closed_by above.
+        close_reason: fm.close_reason ?? null,
+        closed_forced: fm.closed_forced ?? false,
+      };
     case 'SDD':
     case 'ADR':
       return { impacts_paths: fm.impacts_paths };
@@ -184,6 +197,10 @@ function extraProps(fm: Frontmatter): Record<string, PropValue> {
         resolved_by: fm.resolved_by,
         impacts_paths: fm.impacts_paths,
         source_task: fm.source_task ?? null,
+        // SDD-018 "Archivado de Work Orders": same audit-visibility treatment as the fields above.
+        archived_at: fm.archived_at ?? null,
+        archived_by: fm.archived_by ?? null,
+        archive_reason: fm.archive_reason ?? null,
       };
     case 'ART':
       return { source: fm.source, root: fm.root ?? false };

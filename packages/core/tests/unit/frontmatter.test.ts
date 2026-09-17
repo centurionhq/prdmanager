@@ -121,6 +121,20 @@ Objetivo
     expect(result.doc.actor).toEqual({ id: 'agent:claude', kind: 'ai_agent' });
   });
 
+  test('archived_at/archived_by/archive_reason reach the graph node props (WO-412/SDD-018)', () => {
+    const content = `---\nid: WO-004\ntype: WO\ntitle: Archived task\nstatus: archived\nimplements: [SDD-001]\narchived_at: "2026-09-17T00:00:00.000Z"\narchived_by: dev:tester\narchive_reason: superseded\n---\nObjetivo\n`;
+    const result = parseDocument(content, 'docs/work-orders/WO-004.md');
+    if (!result?.ok) throw new Error('expected ok');
+    expect(result.doc.node.props).toMatchObject({ archived_at: '2026-09-17T00:00:00.000Z', archived_by: 'dev:tester', archive_reason: 'superseded' });
+  });
+
+  test('close_reason/closed_forced reach the graph node props (WO-418/SDD-018)', () => {
+    const content = `---\nid: PRD-005\ntype: PRD\ntitle: Force closed\nstatus: closed\nclose_reason: known issue\nclosed_forced: true\n---\nResumen\n`;
+    const result = parseDocument(content, 'docs/prd/PRD-005.md');
+    if (!result?.ok) throw new Error('expected ok');
+    expect(result.doc.node.props).toMatchObject({ close_reason: 'known issue', closed_forced: true });
+  });
+
   test('parses Artifact and Feedback context edges', () => {
     const art = parseDocument(`---\nid: ART-001\ntype: ART\ntitle: Call\nsource: meeting\nprovides_context_for: [PRD-001]\n---\ntranscript`, 'a.md');
     const fb = parseDocument(`---\nid: FB-001\ntype: FB\ntitle: Queja\nsource: email\ninforms: [PRD-001]\n---\ntexto`, 'f.md');
@@ -175,6 +189,28 @@ Objetivo
     expect(h(base)).toBe(h(statusChanged));
     expect(h(base)).not.toBe(h(bodyChanged));
     expect(h(base.replace('\n', '\r\n'))).toBe(h(base));
+  });
+
+  test('close_reason/closed_forced (WO-418, SDD-018) are hash-neutral, same as closed_at/closed_by', () => {
+    const h = (c: string) => {
+      const r = parseDocument(c, 'x.md');
+      if (!r?.ok) throw new Error('expected ok');
+      return r.doc.node.contentHash;
+    };
+    const base = `---\nid: PRD-001\ntype: PRD\ntitle: x\nstatus: closed\n---\nbody\n`;
+    const withCloseFields = `---\nid: PRD-001\ntype: PRD\ntitle: x\nstatus: closed\nclosed_at: "2026-09-17T00:00:00.000Z"\nclosed_by: "dev:tester"\nclose_reason: "known issue, closing anyway"\nclosed_forced: true\n---\nbody\n`;
+    expect(h(withCloseFields)).toBe(h(base));
+  });
+
+  test('archived_at/archived_by/archive_reason (WO-412, SDD-018) are hash-neutral, same as closed_at/closed_by', () => {
+    const h = (c: string) => {
+      const r = parseDocument(c, 'x.md');
+      if (!r?.ok) throw new Error('expected ok');
+      return r.doc.node.contentHash;
+    };
+    const base = `---\nid: WO-001\ntype: WO\ntitle: x\nstatus: archived\nimplements: [SDD-001]\n---\nbody\n`;
+    const withArchiveFields = `---\nid: WO-001\ntype: WO\ntitle: x\nstatus: archived\nimplements: [SDD-001]\narchived_at: "2026-09-17T00:00:00.000Z"\narchived_by: "dev:tester"\narchive_reason: "superseded"\n---\nbody\n`;
+    expect(h(withArchiveFields)).toBe(h(base));
   });
 
   test('content hash is identical whether a blueprint/WO uses "governs" or "impacts_paths"', () => {

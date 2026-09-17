@@ -21,8 +21,8 @@
  * immediately instead of only on its next reload (WO-250; see `PgProjectEngine.
  * applyServerManagedFieldsToLiveDoc`).
  */
-import { closeFeature, closureReadiness } from '@prdm/core';
-import { can } from '@prdm/contracts';
+import { closeFeature, closureReadiness, forceCloseFeature, type ForceCloseBypassableCheck } from '@prdm/core';
+import { can, forceCloseFeatureInputSchema } from '@prdm/contracts';
 import type { Neo4jGraphDatabase } from '@prdm/core';
 import { createTenantDb } from '@prdm/db';
 import type { Hocuspocus } from '@hocuspocus/server';
@@ -31,7 +31,7 @@ import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
 import { resolvePgProjectEngine, requireNeo4j } from '../engine/resolve-pg-project-engine.js';
 import type { ServerEnv } from '../env.js';
-import { ConflictError, ForbiddenError } from '../errors.js';
+import { ConflictError, ForbiddenError, ValidationError } from '../errors.js';
 import { requireAppSession } from './app-session.js';
 import { requireMemberOrg } from './require-member-org.js';
 import { resolveVisibleProject, userAgentOf } from './projects.js';
@@ -102,6 +102,56 @@ export function registerCloseFeatureRoutes(app: FastifyInstance, opts: RegisterC
 
       // WO-250: no longer a `pending_editable_patch` (status/closed_at/closed_by are server-managed
       // fields written straight to `published_raw` by now) — nothing left pending to report.
+      return { result };
+    },
+  );
+
+  /**
+   * WO-419 (SDD-018): REST/dashboard-only per the SDD's explicit design decision — no MCP tool exposes
+   * this. `close_reason`/`closed_forced` reach `published_raw` immediately the same way `status`/
+   * `closed_at`/`closed_by` already do for `close` above: `forceCloseFeature` calls the same
+   * `ops.updateDocument`, and both new fields are in `FORBIDDEN_STATIC_FIELDS` (WO-418), which is exactly
+   * what `PgProjectEngine.isServerManagedField` checks to route a `collab`-origin write straight to
+   * `published_raw` instead of `pending_editable_patch`.
+   */
+  app.post<{ Params: DocumentRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId/force-close',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+      const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+      if (!can(subject, 'force_close_feature')) throw new ForbiddenError();
+
+      const parsed = forceCloseFeatureInputSchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError('invalid body');
+
+      const neo4j = requireNeo4j(opts.neo4j);
+      const engine = resolvePgProjectEngine(pool, neo4j, org.id, project, hocuspocus);
+      let result;
+      try {
+        result = await forceCloseFeature(engine, req.params.docId, {
+          by: `dev:${session.user.id}`,
+          reason: parsed.data.reason,
+          bypass: parsed.data.bypass as ForceCloseBypassableCheck[],
+        });
+      } catch (err) {
+        throw new ConflictError(err instanceof Error ? err.message : String(err));
+      }
+
+      await createTenantDb(pool)
+        .forOrg(org.id)
+        .auditLog.record({
+          projectId: project.id,
+          actorType: 'user',
+          actorId: session.user.id,
+          action: 'feature.force_closed',
+          target: req.params.docId,
+          metadata: { reason: result.reason, bypassedChecks: result.bypassed },
+          ip: req.ip,
+          userAgent: userAgentOf(req),
+        });
+
       return { result };
     },
   );

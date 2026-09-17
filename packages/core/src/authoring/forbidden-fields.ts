@@ -14,10 +14,22 @@ export const FORBIDDEN_STATIC_FIELDS: ReadonlySet<string> = new Set([
   'claimed_at',
   'completed_at',
   'source_task',
+  'archived_at',
+  'archived_by',
+  'archive_reason',
+  'close_reason',
+  'closed_forced',
 ]);
 
-/** `status` may be drafted freely except into a terminal/lifecycle-managed value. */
-export const FORBIDDEN_TERMINAL_STATUS: ReadonlySet<string> = new Set(['closed', 'done', 'out_of_sync']);
+/**
+ * `status` may be drafted freely except into a terminal/lifecycle-managed value. `archived` is
+ * currently unreachable through this guard in practice (WO documents can never be drafted at all --
+ * `assertDraftableKind` throws for `WO` before this is ever consulted -- and are always
+ * `origin: 'generated'`, so `PgProjectEngine`'s collab-only server-managed-field split never applies to
+ * them either), but is listed anyway as defense in depth against either of those two independently-
+ * necessary invariants changing in the future (SDD-018).
+ */
+export const FORBIDDEN_TERMINAL_STATUS: ReadonlySet<string> = new Set(['closed', 'done', 'out_of_sync', 'archived']);
 
 /** WO documents are never authored through drafts (they are generated from a blueprint's task checklist). */
 export function assertDraftableKind(kind: string): asserts kind is DraftKind {
