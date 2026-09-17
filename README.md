@@ -578,7 +578,7 @@ PRD-008 separa la suite en tests sin BD y tests con BD, y mueve casi toda la val
 | Etapa | Qué corre | BD |
 |---|---|---|
 | **pre-commit** | `npm run typecheck` + `vitest related --run` sobre los archivos staged (proyectos `unit-node`/`unit-jsdom`; si algún test relacionado es del proyecto `db`, primero corre `test:services:check`) | Solo si hace falta, y solo contra las BD de test locales |
-| **pre-push** | `npm run build` → `npm run test:unit` → chequeo de servicios → `npm run test:db` → e2e de Playwright (`packages/server/tests/e2e/playwright.config.ts`) | Sí, completa |
+| **pre-push** | `npm run build` → `npm run test:unit` → `npm run check:test-projects` → chequeo de servicios → `npm run test:db` → e2e de Playwright (`packages/server/tests/e2e/playwright.config.ts`) | Sí, completa |
 | **CI (GitHub Actions)** | `build`, build de `@prdm/web`, `typecheck`, `test:unit`, `npm audit`, `prdm sync --check` | **No** |
 
 Comandos:
@@ -610,7 +610,7 @@ Cómo evitar los hooks: `PRDM_SKIP_HOOKS=1` (la misma variable que respeta `comm
 - Con BD (`test:db`, proyecto `db`): `packages/*/tests/{integration,e2e,collab,isolation,learning}/**/*.test.ts` (excepto `packages/app/tests/collab`, que va sin BD).
 - Playwright (`*.spec.ts`) no matchea ningún proyecto de Vitest; corre aparte, solo en el pre-push.
 
-Si un test que abre Neo4j o Postgres queda mal ubicado en `tests/unit`, el guardarraíl de `packages/testkit` (`openTestDb` en `db.ts`, `openTestPg` en `pg.ts`) lo detecta: con `PRDM_TEST_NO_DB=1` (la variable que el proyecto `unit-node`/`unit-jsdom` setea automáticamente) esos helpers lanzan un error explícito en lugar de intentar conectar, indicando que el test usa BD y debe moverse a un directorio de integración. `npm run check:test-projects` complementa esto verificando que cada archivo de test pertenece a exactamente un proyecto de Vitest (ni cero ni dos).
+Si un test que abre Neo4j o Postgres queda mal ubicado en `tests/unit`, el guardarraíl de `packages/testkit` (`openTestDb` en `db.ts`, `openTestPg` en `pg.ts`) lo detecta: con `PRDM_TEST_NO_DB=1` (la variable que el proyecto `unit-node`/`unit-jsdom` setea automáticamente) esos helpers lanzan un error explícito en lugar de intentar conectar, indicando que el test usa BD y debe moverse a un directorio de integración. `npm run check:test-projects` complementa esto verificando que cada archivo de test pertenece a exactamente un proyecto de Vitest (ni cero ni dos) -- corre solo dentro del pre-push (`vitest list` enumera cada test individual, no archivo por archivo, así que tarda minutos sobre el repo completo: ni el presupuesto de CI ni el de pre-commit lo bancan).
 
 ## Seguridad
 

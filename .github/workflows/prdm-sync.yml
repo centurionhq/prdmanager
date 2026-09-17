@@ -73,11 +73,6 @@ jobs:
 
       - run: npm run test:unit
 
-      # PRD-008 §4.1d: catches a test file that lands in zero or more than one Vitest project (e.g. a
-      # `.tsx` misfiled under `tests/unit`) -- otherwise silently never run, or run twice, with nothing
-      # else in CI or either git hook checking for it.
-      - run: npm run check:test-projects
-
       # Remote mode (SDD-010): reports this push/PR's code state to this project's own prdm server. A real
       # `push` to `main` with `id-token: write` earns baseline trust once the server verifies the attached
       # GitHub Actions OIDC token; anything else (a PR, a push to another branch) is still reported and

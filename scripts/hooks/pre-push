@@ -8,14 +8,18 @@
  * Runs, in order, cutting at the first failure (README.md "Tests y CI" table):
  *   1. npm run build
  *   2. npm run test:unit
- *   3. npm run test:services:check   (WO-401 -- fails fast with an actionable message if neo4j-test/
+ *   3. npm run check:test-projects   (WO-400/review follow-up -- catches a test file landing in zero or
+ *      more than one Vitest project; `vitest list` enumerates every individual test case, not just
+ *      files, so this genuinely takes minutes on the full suite and belongs here, not in CI's own
+ *      sync-check budget or pre-commit's ~90s one)
+ *   4. npm run test:services:check   (WO-401 -- fails fast with an actionable message if neo4j-test/
  *      postgres-test aren't up, instead of letting `test:db` hang or error obscurely)
- *   4. npm run test:db
- *   5. the Playwright e2e journey, via the exact command `.github/workflows/prdm-sync.yml`'s own `e2e`
+ *   5. npm run test:db
+ *   6. the Playwright e2e journey, via the exact command `.github/workflows/prdm-sync.yml`'s own `e2e`
  *      job runs: `NODE_OPTIONS=--conditions=@prdm/source npx playwright test -c
  *      packages/server/tests/e2e/playwright.config.ts`
  *
- * Before stage 5, checks whether Playwright's Chromium build is installed (`findChromiumInstallDir`) and
+ * Before stage 6, checks whether Playwright's Chromium build is installed (`findChromiumInstallDir`) and
  * fails with the exact fix (`npx playwright install chromium`) instead of letting Playwright itself blow
  * up mid-run with a much less actionable stack trace.
  *
@@ -72,6 +76,7 @@ function e2eStage() {
 const stages = [
   { name: 'build', run: npmStage('build') },
   { name: 'test:unit', run: npmStage('test:unit') },
+  { name: 'check:test-projects', run: npmStage('check:test-projects') },
   { name: 'test:services:check', run: npmStage('test:services:check') },
   { name: 'test:db', run: npmStage('test:db') },
   { name: 'e2e', run: e2eStage },
