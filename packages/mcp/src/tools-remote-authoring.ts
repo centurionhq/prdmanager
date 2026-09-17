@@ -16,6 +16,13 @@
  * `templateFor`/`validateDocument`/`checkBlueprint`. `WO` stays excluded from `create_document`'s `kind`
  * enum on purpose — a Work Order is still always machine-generated via `generate_work_orders`, never
  * authored directly, local or remote.
+ *
+ * WO-426: this expansion is tracked directly on the real, published SDD-010 (not this repo's own
+ * `.prdm/remote/docs/SDD-010.md`, which is a read-only `prdm sync` cache, not the authoritative
+ * document, and gets overwritten on the next sync) via `add_blueprint_task` — the same mechanism this
+ * file's own `create_document`/`update_document`/`publish_document` exist to eventually replace for
+ * ordinary content, but which is already the correct, working tool for appending a tracked note to an
+ * already-published blueprint without a republish.
  */
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
