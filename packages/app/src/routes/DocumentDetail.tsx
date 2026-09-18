@@ -14,6 +14,7 @@ import { CloseFeatureAction } from './CloseFeatureAction.js';
 import { CollabEditor } from '../components/CollabEditor.js';
 import { DocumentPanelTabs } from './DocumentPanelTabs.js';
 import { FrontmatterForm } from '../components/FrontmatterForm.js';
+import { MarkdownPreview } from '../components/MarkdownPreview.js';
 import { Button, DocumentStateBanner, IdTag, PublishReviewModal, StatusBadge } from '../components/index.js';
 import { CollabDocumentProvider } from '../collab/collab-document-context.js';
 import { formatCollabDocumentName } from '../collab/document-name.js';
@@ -26,6 +27,23 @@ import styles from './DocumentDetail.module.css';
 const FEATURE_KINDS = new Set(['MRD', 'PRD', 'FR']);
 
 type WorkOrdersOutcome = { generated: boolean; created: number; error?: string };
+
+/**
+ * WO-466 (SDD-034/PRD-015): the body of a non-`collab` document, with its leading `---` frontmatter
+ * block removed. `publishedRaw`/`renderedMarkdown` are the whole file, so rendering them as-is printed
+ * the YAML as if it were part of the text. Deliberately a small local split rather than `@prdm/core`'s
+ * parser: `packages/app` doesn't depend on it, and the only thing needed here is "drop the front block".
+ * A document with no frontmatter (or an unterminated one) is returned whole — never truncated.
+ */
+function documentBody(content: string): string {
+  if (!content.startsWith('---')) return content;
+  const afterOpen = content.indexOf('\n');
+  if (afterOpen === -1) return content;
+  const close = content.indexOf('\n---', afterOpen);
+  if (close === -1) return content;
+  const afterClose = content.indexOf('\n', close + 1);
+  return afterClose === -1 ? '' : content.slice(afterClose + 1).replace(/^\n+/, '');
+}
 
 export function DocumentDetail(): ReactElement {
   const { orgSlug, projectSlug: project, project: projectOverview, subject } = useProjectShellContext();
@@ -125,6 +143,7 @@ export function DocumentDetail(): ReactElement {
   const canArchive = doc.workflowState === 'published' && can(subject, 'archive');
   const isBlueprint = doc.kind === 'SDD' || doc.kind === 'ADR';
   const content = doc.publishedRaw ?? latestVersion?.renderedMarkdown ?? '';
+  const body = documentBody(content);
   const isApprovedFeature = FEATURE_KINDS.has(doc.kind) && doc.workflowState === 'published' && latestVersion?.frontmatter.status === 'approved';
   const canCloseFeature = isApprovedFeature && can(subject, 'close_feature');
 
@@ -222,7 +241,9 @@ export function DocumentDetail(): ReactElement {
       ) : (
         <>
           <DocumentStateBanner variant={doc.workflowState === 'archived' ? 'archivado' : 'generado'} />
-          <pre className={formStyles.card}>{content || '(sin contenido)'}</pre>
+          <article className={styles.readingBody}>
+            <MarkdownPreview body={body} />
+          </article>
         </>
       )}
     </div>

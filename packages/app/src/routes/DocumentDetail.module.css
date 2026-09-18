@@ -35,3 +35,26 @@
   }
 }
 
+
+/* WO-466 (SDD-034/PRD-015): the read-only body of a non-collab document. Replaces the `<pre>` that
+   printed the raw markdown (frontmatter included) with no wrapping; `overflow-wrap` is what keeps a
+   long path or url from forcing the page to scroll sideways the way that `<pre>` did. */
+.readingBody {
+  margin-top: var(--space-4);
+  padding: var(--space-6);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-md);
+  line-height: 24px;
+  color: var(--texto-secundario);
+  overflow-wrap: anywhere;
+}
+
+.readingBody :first-child {
+  margin-top: 0;
+}
+
+.readingBody :last-child {
+  margin-bottom: 0;
+}

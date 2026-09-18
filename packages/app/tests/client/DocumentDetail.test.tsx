@@ -217,6 +217,31 @@ describe('DocumentDetail', () => {
     await waitFor(() => expect(archive).toHaveBeenCalledWith('acme', 'web', 'PRD-001'));
   });
 
+  it('renders a generated document as formatted markdown, never as raw source (WO-466, SDD-034)', async () => {
+    const raw = ['---', 'id: "FB-018"', 'type: "FB"', 'status: "new"', '---', '', '## Feedback', '', 'Primer punto del cuerpo.', '', '- una viñeta', ''].join('\n');
+    renderPage(baseDoc({ workflowState: 'published', kind: 'FB', origin: 'generated', publishedRaw: raw }), 'admin');
+    await screen.findByRole('heading', { name: 'Feature A' });
+
+    // "## Feedback" becomes a real heading, and the bullet a real list item -- not literal text.
+    expect(await screen.findByRole('heading', { name: 'Feedback' })).toBeTruthy();
+    expect(screen.getByRole('listitem').textContent).toBe('una viñeta');
+    expect(screen.getByText('Primer punto del cuerpo.')).toBeTruthy();
+
+    // The YAML block never reaches the reader: not as a heading, not as loose text.
+    expect(screen.queryByText(/id: "FB-018"/)).toBeNull();
+    expect(screen.queryByText(/^---$/)).toBeNull();
+    expect(document.body.textContent).not.toContain('type: "FB"');
+    expect(document.body.textContent).not.toContain('## Feedback');
+  });
+
+  it('renders a document that has no frontmatter whole, without truncating it (WO-466, SDD-034)', async () => {
+    renderPage(baseDoc({ workflowState: 'published', kind: 'WO', origin: 'generated', publishedRaw: '# Sin frontmatter\n\nTodo el cuerpo sigue acá.' }), 'admin');
+    await screen.findByRole('heading', { name: 'Feature A' });
+
+    expect(await screen.findByRole('heading', { name: 'Sin frontmatter' })).toBeTruthy();
+    expect(screen.getByText('Todo el cuerpo sigue acá.')).toBeTruthy();
+  });
+
   it('a collab-origin document renders the live CollabEditor instead of the static body view', async () => {
     renderPage(baseDoc({ origin: 'collab' }), 'editor');
     await screen.findByRole('heading', { name: 'Feature A' });
