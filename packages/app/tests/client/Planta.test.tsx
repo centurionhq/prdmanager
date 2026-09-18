@@ -121,13 +121,13 @@ describe('Planta', () => {
     expect(screen.queryAllByRole('link').some((link) => link.textContent?.startsWith('PRD-010'))).toBe(false);
   });
 
-  it('a BC with no PRD yet is still visible on the line (PRD-011 §4.4)', async () => {
+  it('a BC with no PRD/FR yet is still visible on the line (PRD-011 §4.4)', async () => {
     vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
     expect(await screen.findByText('BC-002')).toBeTruthy();
-    expect(screen.getByText('sin PRD todavía')).toBeTruthy();
+    expect(screen.getByText('sin PRD/FR todavía')).toBeTruthy();
   });
 
   it('a legacy PRD without a BC keeps its own row and names what it is missing', async () => {
@@ -136,7 +136,18 @@ describe('Planta', () => {
     renderPlanta();
 
     expect(await screen.findByText('PRD-006')).toBeTruthy();
-    expect(screen.getByText('sin caso de negocio')).toBeTruthy();
+    // WO-451: FR-001 (also in this fixture) now gets the same annotation, so "sin caso de negocio" is no
+    // longer unique -- assert it's attached to PRD-006's own row specifically.
+    expect(screen.getAllByText('sin caso de negocio').length).toBeGreaterThan(0);
+  });
+
+  it('a legacy FR without a BC keeps its own row and names what it is missing (WO-451, SDD-025)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    expect(await screen.findByText('FR-001')).toBeTruthy();
+    expect(screen.getAllByText('sin caso de negocio').length).toBeGreaterThan(0);
   });
 
   it('renders the real metrics as KPIs', async () => {
