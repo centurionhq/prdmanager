@@ -33,7 +33,7 @@ function fakeIssue(overrides: Partial<DriftIssueDto> = {}): DriftIssueDto {
     id: 'a1b2c3',
     featureIds: ['FR-002'],
     blueprintId: 'SDD-012',
-    station: 'ejecucion',
+    station: 'construccion',
     detectedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   };

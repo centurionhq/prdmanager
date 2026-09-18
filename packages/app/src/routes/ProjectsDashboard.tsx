@@ -36,12 +36,13 @@ import { filterItems, searchItems, sortItems, type SortState } from '../lib/filt
 import { useOrgShellContext } from './OrgShell.js';
 
 const STATION_LABELS: Record<Station, string> = {
-  ingesta: 'Ingesta',
-  definicion: 'Definición',
-  diseno: 'Diseño',
+  entrada: 'Entrada',
+  caso_negocio: 'Caso de negocio',
+  producto: 'Producto',
+  diseno_tecnico: 'Diseño técnico',
   planificacion: 'Planificación',
-  ejecucion: 'Ejecución',
-  cierre: 'Cierre',
+  construccion: 'Construcción',
+  entregado: 'Entregado',
 };
 
 type ProjectFilter = 'active' | 'archived' | 'all';
