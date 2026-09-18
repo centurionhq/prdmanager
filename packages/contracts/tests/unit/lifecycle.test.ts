@@ -6,8 +6,8 @@ import { describe, expect, test } from 'vitest';
 import { featureLineSchema, lineBoardSchema, projectOverviewSchema, STATIONS } from '../../src/lifecycle.js';
 
 describe('STATIONS', () => {
-  test('is the six-station pipeline in order', () => {
-    expect(STATIONS).toEqual(['ingesta', 'definicion', 'diseno', 'planificacion', 'ejecucion', 'cierre']);
+  test('is the seven-station pipeline in order (SDD-024/PRD-011 §4.3)', () => {
+    expect(STATIONS).toEqual(['entrada', 'caso_negocio', 'producto', 'diseno_tecnico', 'planificacion', 'construccion', 'entregado']);
   });
 });
 
@@ -17,7 +17,7 @@ describe('featureLineSchema', () => {
     kind: 'PRD',
     title: 'Graph Engine',
     status: 'approved',
-    station: 'diseno',
+    station: 'diseno_tecnico',
     progress: { done: 1, total: 3, stopped: 0 },
   };
 
@@ -26,8 +26,8 @@ describe('featureLineSchema', () => {
   });
 
   test('accepts an optional andonStation', () => {
-    const parsed = featureLineSchema.parse({ ...valid, andonStation: 'ejecucion' });
-    expect(parsed.andonStation).toBe('ejecucion');
+    const parsed = featureLineSchema.parse({ ...valid, andonStation: 'construccion' });
+    expect(parsed.andonStation).toBe('construccion');
   });
 
   test('rejects an invalid station', () => {
@@ -50,7 +50,7 @@ describe('lineBoardSchema', () => {
     kind: 'PRD',
     title: 'Graph Engine',
     status: 'approved',
-    station: 'diseno',
+    station: 'diseno_tecnico',
     progress: { done: 0, total: 0, stopped: 0 },
   };
 
@@ -60,8 +60,8 @@ describe('lineBoardSchema', () => {
   });
 
   test('accepts a board with an andon pointing at a feature/station pair', () => {
-    const parsed = lineBoardSchema.parse({ features: [feature], andon: { featureId: 'PRD-001', station: 'diseno' } });
-    expect(parsed.andon).toEqual({ featureId: 'PRD-001', station: 'diseno' });
+    const parsed = lineBoardSchema.parse({ features: [feature], andon: { featureId: 'PRD-001', station: 'diseno_tecnico' } });
+    expect(parsed.andon).toEqual({ featureId: 'PRD-001', station: 'diseno_tecnico' });
   });
 
   test('rejects an andon with an invalid station', () => {
@@ -78,7 +78,7 @@ describe('projectOverviewSchema', () => {
     settings: {},
     archivedAt: null,
     docCount: 12,
-    furthestStation: 'ejecucion',
+    furthestStation: 'construccion',
     andonStation: null,
     driftErrors: 0,
     driftWarnings: 2,
@@ -92,7 +92,7 @@ describe('projectOverviewSchema', () => {
     const parsed = projectOverviewSchema.parse(valid);
     expect(parsed.settings.default_branch).toBe('main');
     expect(parsed.docCount).toBe(12);
-    expect(parsed.furthestStation).toBe('ejecucion');
+    expect(parsed.furthestStation).toBe('construccion');
   });
 
   test('accepts a null andonStation and lastActivityAt', () => {

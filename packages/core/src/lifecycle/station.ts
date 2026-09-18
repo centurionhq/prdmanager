@@ -1,11 +1,13 @@
 import type { ParsedDoc } from '../domain/schema.js';
 
 /**
- * The Centurion Factory line board's six-station pipeline (SDD-012 "Centurion Factory conectado al
- * backend SaaS", WO-328), hand-synced with `@prdm/contracts`' own `STATIONS` (same "no cross-package
- * dependency" convention already used for `DocumentKind`/`GovernedReason` elsewhere in this codebase).
+ * The Centurion Factory line board's seven-station pipeline (originally SDD-012 "Centurion Factory
+ * conectado al backend SaaS", WO-328; renamed and expanded by SDD-024/PRD-011 §4.3 so every station name
+ * is understandable without reading this file), hand-synced with `@prdm/contracts`' own `STATIONS` (same
+ * "no cross-package dependency" convention already used for `DocumentKind`/`GovernedReason` elsewhere in
+ * this codebase).
  */
-export const STATIONS = ['ingesta', 'definicion', 'diseno', 'planificacion', 'ejecucion', 'cierre'] as const;
+export const STATIONS = ['entrada', 'caso_negocio', 'producto', 'diseno_tecnico', 'planificacion', 'construccion', 'entregado'] as const;
 export type Station = (typeof STATIONS)[number];
 
 export interface FeatureLineProgress {
@@ -16,7 +18,7 @@ export interface FeatureLineProgress {
 
 export interface FeatureLine {
   id: string;
-  kind: 'MRD' | 'PRD' | 'FR';
+  kind: 'MRD' | 'PRD' | 'FR' | 'BC';
   title: string;
   status: string;
   station: Station;
@@ -33,7 +35,7 @@ export interface LineBoard {
   andon: { featureId: string; station: Station } | null;
 }
 
-type FeatureDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'MRD' | 'PRD' | 'FR' }> };
+type FeatureDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'MRD' | 'PRD' | 'FR' | 'BC' }> };
 type WorkOrderDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'WO' }> };
 
 const isFeature = (d: ParsedDoc): d is FeatureDoc => d.node.label === 'Feature';
@@ -78,33 +80,36 @@ function computeProgress(workOrders: readonly WorkOrderDoc[]): FeatureLineProgre
 }
 
 /**
- * WO-328: the first rule that applies wins, in this order (PRD-002 §3-adjacent, SDD-012's own station
- * mapping):
+ * WO-328, renamed/extended by WO-442 (SDD-024/PRD-011 §4.3): the first rule that applies wins, in this
+ * order (PRD-002 §3-adjacent, SDD-012's own station mapping):
  *
- * 1. `cierre` — closed, or every reachable work order is done/archived (and at least one exists;
+ * 1. `entregado` — closed, or every reachable work order is done/archived (and at least one exists;
  *    SDD-018: archived counts as resolved, same as done).
- * 2. `ejecucion` — some reachable work order is in_progress, out_of_sync, done or archived (not all
+ * 2. `construccion` — some reachable work order is in_progress, out_of_sync, done or archived (not all
  *    done/archived, or rule 1 would already have matched).
  * 3. `planificacion` — has reachable work orders and every one is still pending.
- * 4. `diseno` — approved, or some blueprint architects it (with no work orders yet).
- * 5. `definicion` — justified (see {@link isJustified}).
- * 6. `ingesta` — none of the above.
+ * 4. `diseno_tecnico` — approved, or some blueprint architects it (with no work orders yet).
+ * 5. `caso_negocio`/`producto` — justified (see {@link isJustified}): a `BC` sits at `caso_negocio`
+ *    ("hay un BC escrito"), any other Feature kind sits at `producto`. The stricter rule that a `PRD`
+ *    specifically needs an *approved* `BC` (not just any justification) is `checkPrdBusinessCase`'s job
+ *    (`../lifecycle/check.ts`), not the board's — this is board *placement*, not the lifecycle gate.
+ * 6. `entrada` — none of the above.
  */
 function deriveStation(doc: FeatureDoc, docs: readonly ParsedDoc[]): { station: Station; progress: FeatureLineProgress } {
   const workOrders = reachableWorkOrders(docs, doc.node.id);
   const progress = computeProgress(workOrders);
 
-  if (doc.node.status === 'closed' || (progress.total > 0 && progress.done === progress.total)) return { station: 'cierre', progress };
+  if (doc.node.status === 'closed' || (progress.total > 0 && progress.done === progress.total)) return { station: 'entregado', progress };
   if (workOrders.some((wo) => wo.frontmatter.status === 'in_progress' || wo.frontmatter.status === 'out_of_sync' || isResolved(wo))) {
-    return { station: 'ejecucion', progress };
+    return { station: 'construccion', progress };
   }
   if (progress.total > 0 && workOrders.every((wo) => wo.frontmatter.status === 'pending')) return { station: 'planificacion', progress };
-  if (doc.node.status === 'approved' || architectingBlueprints(docs, doc.node.id).length > 0) return { station: 'diseno', progress };
-  if (isJustified(doc, docs)) return { station: 'definicion', progress };
-  return { station: 'ingesta', progress };
+  if (doc.node.status === 'approved' || architectingBlueprints(docs, doc.node.id).length > 0) return { station: 'diseno_tecnico', progress };
+  if (isJustified(doc, docs)) return { station: doc.frontmatter.type === 'BC' ? 'caso_negocio' : 'producto', progress };
+  return { station: 'entrada', progress };
 }
 
-/** Pure: places every Feature (MRD/PRD/FR) on its current station. Never computes the andon signal —
+/** Pure: places every Feature (MRD/PRD/FR/BC) on its current station. Never computes the andon signal —
  * see {@link LineBoard.andon}'s own doc comment. */
 export function deriveLineBoard(docs: readonly ParsedDoc[]): LineBoard {
   const features = docs.filter(isFeature).map((doc): FeatureLine => {
