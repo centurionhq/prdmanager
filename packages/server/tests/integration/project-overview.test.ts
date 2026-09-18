@@ -108,7 +108,7 @@ describe('GET .../organizations/:orgSlug/projects/overview (WO-336)', () => {
     const firstBody = first.json() as { projects: { id: string; docCount: number; furthestStation: string; driftErrors: number }[] };
     const withFeature = firstBody.projects.find((p) => p.id === projects[0]!.id)!;
     expect(withFeature.docCount).toBe(1);
-    expect(withFeature.furthestStation).toBe('ingesta');
+    expect(withFeature.furthestStation).toBe('entrada');
     expect(withFeature.driftErrors).toBeGreaterThan(0);
     expect(scanSpy).toHaveBeenCalledTimes(20);
 

@@ -16,51 +16,51 @@ function issue(kind: DriftIssue['kind'], nodeId: string, severity: DriftIssue['s
 }
 
 describe('attributeIssue', () => {
-  test('broken_link on a Feedback attributes to ingesta and its informed features', () => {
+  test('broken_link on a Feedback attributes to entrada and its informed features', () => {
     const docs = [prd(), fb('informs: [PRD-001]')];
-    expect(attributeIssue(issue('broken_link', 'FB-001'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: null, station: 'ingesta' });
+    expect(attributeIssue(issue('broken_link', 'FB-001'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: null, station: 'entrada' });
   });
 
-  test('invalid_link_target on an Artifact attributes to ingesta and its provides_context_for features', () => {
+  test('invalid_link_target on an Artifact attributes to entrada and its provides_context_for features', () => {
     const docs = [prd(), art('provides_context_for: [PRD-001]')];
-    expect(attributeIssue(issue('invalid_link_target', 'ART-001'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: null, station: 'ingesta' });
+    expect(attributeIssue(issue('invalid_link_target', 'ART-001'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: null, station: 'entrada' });
   });
 
-  test('feature_changed attributes to definicion, featureIds = [that feature]', () => {
-    expect(attributeIssue(issue('feature_changed', 'PRD-001'), [prd()])).toEqual({ featureIds: ['PRD-001'], blueprintId: null, station: 'definicion' });
+  test('feature_changed attributes to producto, featureIds = [that feature]', () => {
+    expect(attributeIssue(issue('feature_changed', 'PRD-001'), [prd()])).toEqual({ featureIds: ['PRD-001'], blueprintId: null, station: 'producto' });
   });
 
-  test('lifecycle_violation on a feature attributes to definicion', () => {
-    expect(attributeIssue(issue('lifecycle_violation', 'PRD-001'), [prd()])).toEqual({ featureIds: ['PRD-001'], blueprintId: null, station: 'definicion' });
+  test('lifecycle_violation on a feature attributes to producto', () => {
+    expect(attributeIssue(issue('lifecycle_violation', 'PRD-001'), [prd()])).toEqual({ featureIds: ['PRD-001'], blueprintId: null, station: 'producto' });
   });
 
   test('lifecycle_violation on a non-feature (e.g. Feedback) attributes to nothing', () => {
     expect(attributeIssue(issue('lifecycle_violation', 'FB-001'), [fb()])).toEqual({ featureIds: [], blueprintId: null, station: null });
   });
 
-  test('blueprint_changed attributes to diseno with the blueprint id and its architected features', () => {
+  test('blueprint_changed attributes to diseno_tecnico with the blueprint id and its architected features', () => {
     const docs = [prd(), sdd()];
-    expect(attributeIssue(issue('blueprint_changed', 'SDD-001'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: 'SDD-001', station: 'diseno' });
+    expect(attributeIssue(issue('blueprint_changed', 'SDD-001'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: 'SDD-001', station: 'diseno_tecnico' });
   });
 
-  test('impacts_warning attributes to diseno', () => {
+  test('impacts_warning attributes to diseno_tecnico', () => {
     const docs = [prd(), sdd()];
-    expect(attributeIssue(issue('impacts_warning', 'SDD-001', 'warning'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: 'SDD-001', station: 'diseno' });
+    expect(attributeIssue(issue('impacts_warning', 'SDD-001', 'warning'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: 'SDD-001', station: 'diseno_tecnico' });
   });
 
-  test('awaiting_ci_report attributes to diseno', () => {
+  test('awaiting_ci_report attributes to diseno_tecnico', () => {
     const docs = [prd(), sdd()];
-    expect(attributeIssue(issue('awaiting_ci_report', 'SDD-001', 'warning'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: 'SDD-001', station: 'diseno' });
+    expect(attributeIssue(issue('awaiting_ci_report', 'SDD-001', 'warning'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: 'SDD-001', station: 'diseno_tecnico' });
   });
 
-  test('code_out_of_sync (nodeId is the blueprint) attributes to ejecucion', () => {
+  test('code_out_of_sync (nodeId is the blueprint) attributes to construccion', () => {
     const docs = [prd(), sdd()];
-    expect(attributeIssue(issue('code_out_of_sync', 'SDD-001'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: 'SDD-001', station: 'ejecucion' });
+    expect(attributeIssue(issue('code_out_of_sync', 'SDD-001'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: 'SDD-001', station: 'construccion' });
   });
 
-  test('work_order_out_of_sync resolves the blueprint(s) it implements and attributes to ejecucion', () => {
+  test('work_order_out_of_sync resolves the blueprint(s) it implements and attributes to construccion', () => {
     const docs = [prd(), sdd(), wo()];
-    expect(attributeIssue(issue('work_order_out_of_sync', 'WO-001'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: 'SDD-001', station: 'ejecucion' });
+    expect(attributeIssue(issue('work_order_out_of_sync', 'WO-001'), docs)).toEqual({ featureIds: ['PRD-001'], blueprintId: 'SDD-001', station: 'construccion' });
   });
 
   test('an unrecognized issue kind attributes to nothing', () => {
@@ -74,7 +74,7 @@ describe('attributeIssue', () => {
 
 describe('computeAndon', () => {
   const emptyBoard = (featureIds: string[]): LineBoard => ({
-    features: featureIds.map((id) => ({ id, kind: 'PRD', title: id, status: 'draft', station: 'ingesta', progress: { done: 0, total: 0, stopped: 0 } })),
+    features: featureIds.map((id) => ({ id, kind: 'PRD', title: id, status: 'draft', station: 'entrada', progress: { done: 0, total: 0, stopped: 0 }, children: [] })),
     andon: null,
   });
 
@@ -85,40 +85,62 @@ describe('computeAndon', () => {
   });
 
   test('warnings never contribute to the andon', () => {
-    const issues: AttributedIssueLike[] = [{ severity: 'warning', featureIds: ['PRD-001'], station: 'diseno' }];
+    const issues: AttributedIssueLike[] = [{ severity: 'warning', featureIds: ['PRD-001'], station: 'diseno_tecnico' }];
     const board = computeAndon(issues, emptyBoard(['PRD-001']));
     expect(board.andon).toBeNull();
   });
 
   test('a single error sets both the feature andonStation and the project andon', () => {
-    const issues: AttributedIssueLike[] = [{ severity: 'error', featureIds: ['PRD-001'], station: 'ejecucion' }];
+    const issues: AttributedIssueLike[] = [{ severity: 'error', featureIds: ['PRD-001'], station: 'construccion' }];
     const board = computeAndon(issues, emptyBoard(['PRD-001']));
-    expect(board.features[0]?.andonStation).toBe('ejecucion');
-    expect(board.andon).toEqual({ featureId: 'PRD-001', station: 'ejecucion' });
+    expect(board.features[0]?.andonStation).toBe('construccion');
+    expect(board.andon).toEqual({ featureId: 'PRD-001', station: 'construccion' });
   });
 
-  test('definicion beats ejecucion for the same feature (earlier station wins)', () => {
+  test('producto beats construccion for the same feature (earlier station wins)', () => {
     const issues: AttributedIssueLike[] = [
-      { severity: 'error', featureIds: ['PRD-001'], station: 'ejecucion' },
-      { severity: 'error', featureIds: ['PRD-001'], station: 'definicion' },
+      { severity: 'error', featureIds: ['PRD-001'], station: 'construccion' },
+      { severity: 'error', featureIds: ['PRD-001'], station: 'producto' },
     ];
     const board = computeAndon(issues, emptyBoard(['PRD-001']));
-    expect(board.features[0]?.andonStation).toBe('definicion');
-    expect(board.andon).toEqual({ featureId: 'PRD-001', station: 'definicion' });
+    expect(board.features[0]?.andonStation).toBe('producto');
+    expect(board.andon).toEqual({ featureId: 'PRD-001', station: 'producto' });
   });
 
   test('project andon is the earliest across every feature', () => {
     const issues: AttributedIssueLike[] = [
-      { severity: 'error', featureIds: ['PRD-001'], station: 'ejecucion' },
-      { severity: 'error', featureIds: ['PRD-002'], station: 'ingesta' },
+      { severity: 'error', featureIds: ['PRD-001'], station: 'construccion' },
+      { severity: 'error', featureIds: ['PRD-002'], station: 'entrada' },
     ];
     const board = computeAndon(issues, emptyBoard(['PRD-001', 'PRD-002']));
-    expect(board.andon).toEqual({ featureId: 'PRD-002', station: 'ingesta' });
+    expect(board.andon).toEqual({ featureId: 'PRD-002', station: 'entrada' });
   });
 
   test('an issue with no attributed station is ignored', () => {
     const issues: AttributedIssueLike[] = [{ severity: 'error', featureIds: ['PRD-001'], station: null }];
     const board = computeAndon(issues, emptyBoard(['PRD-001']));
     expect(board.andon).toBeNull();
+  });
+
+  test('WO-444: an error on a nested PRD (WO-443 row collapsing) sets andonStation on the child row, not just the project-wide andon', () => {
+    const board: LineBoard = {
+      features: [
+        {
+          id: 'BC-001',
+          kind: 'BC',
+          title: 'Business case',
+          status: 'approved',
+          station: 'producto',
+          progress: { done: 0, total: 0, stopped: 0 },
+          children: [{ id: 'PRD-001', kind: 'PRD', title: 'Product', status: 'draft', station: 'producto', progress: { done: 0, total: 0, stopped: 0 }, children: [] }],
+        },
+      ],
+      andon: null,
+    };
+    const issues: AttributedIssueLike[] = [{ severity: 'error', featureIds: ['PRD-001'], station: 'producto' }];
+    const result = computeAndon(issues, board);
+    expect(result.features[0]?.andonStation).toBeUndefined();
+    expect(result.features[0]?.children[0]?.andonStation).toBe('producto');
+    expect(result.andon).toEqual({ featureId: 'PRD-001', station: 'producto' });
   });
 });

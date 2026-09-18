@@ -50,7 +50,7 @@ async function computeProjectOverview(pool: Pool, neo4j: Neo4jGraphDatabase, org
 
   return {
     docCount: scan.docs.length,
-    furthestStation: board.features.length === 0 ? 'ingesta' : furthestStationOf(board.features.map((f) => f.station)),
+    furthestStation: board.features.length === 0 ? 'entrada' : furthestStationOf(board.features.map((f) => f.station)),
     andonStation: withAndon.andon?.station ?? null,
     driftErrors: report.issues.filter((i) => i.severity === 'error').length,
     driftWarnings: report.issues.filter((i) => i.severity === 'warning').length,
