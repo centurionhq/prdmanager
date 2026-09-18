@@ -54,7 +54,7 @@ describe('checkLifecycle — Artifact', () => {
   });
 });
 
-describe('checkLifecycle — Feature (MRD/FR unchanged by WO-439)', () => {
+describe('checkLifecycle — Feature (MRD unchanged by WO-439/SDD-025)', () => {
   test('MRD with no justification (and no root exemption, unlike FB/ART) is an error', () => {
     expect(kinds(checkLifecycle([mrd()], noGrandfathering))).toEqual([['lifecycle_violation', 'error', 'MRD-001']]);
   });
@@ -68,19 +68,14 @@ describe('checkLifecycle — Feature (MRD/FR unchanged by WO-439)', () => {
     expect(checkLifecycle(docs, noGrandfathering).filter((i) => i.nodeId === 'MRD-001')).toEqual([]);
   });
 
-  test('FR still accepts a reverse PROVIDES_CONTEXT_FOR from an existing Artifact, unlike PRD', () => {
-    const docs = [fr(), art('provides_context_for: [FR-001]')];
-    expect(checkLifecycle(docs, noGrandfathering).filter((i) => i.nodeId === 'FR-001')).toEqual([]);
-  });
-
-  test('FR still accepts any justified_by (FB/ART), no BC required', () => {
-    expect(checkLifecycle([fr('justified_by: [FB-999]')], noGrandfathering)).toEqual([]);
+  test('MRD is unaffected by SDD-025 widening the BC gate to FR: any justified_by (FB/ART) still satisfies it', () => {
+    expect(checkLifecycle([mrd('justified_by: [FB-999]')], noGrandfathering)).toEqual([]);
   });
 });
 
 const bcApproved = (id = 'BC-001'): ParsedDoc => doc(`id: ${id}\ntype: BC\ntitle: Business case\nstatus: approved`, BC_ALL_SECTIONS);
 
-describe('checkLifecycle — PRD needs an approved BC (WO-439)', () => {
+describe('checkLifecycle — PRD/FR need an approved BC (WO-439, widened to FR by WO-448/SDD-025)', () => {
   test('PRD with no justification at all: names the BC requirement specifically', () => {
     const issues = checkLifecycle([prd()], noGrandfathering);
     expect(kinds(issues)).toEqual([['lifecycle_violation', 'error', 'PRD-001']]);
@@ -119,6 +114,33 @@ describe('checkLifecycle — PRD needs an approved BC (WO-439)', () => {
   test('PRD justified_by lists several ids: only one needs to resolve to an approved BC', () => {
     const issues = checkLifecycle([prd('justified_by: [FB-999, BC-001]'), bcApproved()], noGrandfathering);
     expect(issues.filter((i) => i.nodeId === 'PRD-001')).toEqual([]);
+  });
+
+  test('FR with no justification at all: names the BC requirement specifically, same as PRD', () => {
+    const issues = checkLifecycle([fr()], noGrandfathering);
+    expect(kinds(issues)).toEqual([['lifecycle_violation', 'error', 'FR-001']]);
+    expect(issues[0]?.message).toContain('BC');
+  });
+
+  test('FR justified by an FB (not a BC) is still an error, distinct message from "no justification"', () => {
+    const issues = checkLifecycle([fr('justified_by: [FB-999]')], noGrandfathering);
+    expect(issues[0]?.message).toMatch(/justified.*not by a BC/);
+  });
+
+  test('FR justified via reverse PROVIDES_CONTEXT_FOR from an Artifact (no BC) is still an error, no longer silently exempt', () => {
+    const docs = [fr(), art('provides_context_for: [FR-001]')];
+    expect(checkLifecycle(docs, noGrandfathering).filter((i) => i.nodeId === 'FR-001')).toHaveLength(1);
+  });
+
+  test('FR justified by a BC that is not yet approved (draft) is an error naming the BC and its status', () => {
+    const draftBc = doc('id: BC-001\ntype: BC\ntitle: Business case\nstatus: draft', BC_ALL_SECTIONS);
+    const issues = checkLifecycle([fr('justified_by: [BC-001]'), draftBc], noGrandfathering);
+    expect(kinds(issues.filter((i) => i.nodeId === 'FR-001'))).toEqual([['lifecycle_violation', 'error', 'FR-001']]);
+  });
+
+  test('FR justified by an approved BC satisfies the rule', () => {
+    const issues = checkLifecycle([fr('justified_by: [BC-001]'), bcApproved()], noGrandfathering);
+    expect(issues.filter((i) => i.nodeId === 'FR-001')).toEqual([]);
   });
 });
 
@@ -231,6 +253,21 @@ describe('checkLifecycle — grandfathering', () => {
     const issues = checkLifecycle([legacyPrd], ctx);
     expect(issues[0]?.message).toMatch(/grandfathering lapsed/i);
     expect(issues[1]).toMatchObject({ kind: 'lifecycle_violation', severity: 'error', nodeId: 'PRD-001' });
+    expect(issues[1]?.message).toContain('BC');
+  });
+
+  test('WO-449: an FR with no BC, but grandfathered with its current hash (mirrors FR-001 in the real project), emits zero issues', () => {
+    const legacyFr = fr('justified_by: [ART-001]');
+    const ctx: LifecycleContext = { grandfathered: [{ id: 'FR-001', hash: legacyFr.node.contentHash }] };
+    expect(checkLifecycle([legacyFr], ctx)).toEqual([]);
+  });
+
+  test('WO-449: once the grandfathered FR\'s content changes, the exemption lapses and the BC gate applies again', () => {
+    const legacyFr = fr('justified_by: [ART-001]');
+    const ctx: LifecycleContext = { grandfathered: [{ id: 'FR-001', hash: 'stale-hash' }] };
+    const issues = checkLifecycle([legacyFr], ctx);
+    expect(issues[0]?.message).toMatch(/grandfathering lapsed/i);
+    expect(issues[1]).toMatchObject({ kind: 'lifecycle_violation', severity: 'error', nodeId: 'FR-001' });
     expect(issues[1]?.message).toContain('BC');
   });
 });

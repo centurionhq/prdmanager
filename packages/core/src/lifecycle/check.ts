@@ -69,12 +69,14 @@ function justifyingBusinessCase(doc: FeatureDoc, byId: Map<string, ParsedDoc>): 
 }
 
 /**
- * PRD-011 §4.2/SDD-023 (WO-439): narrows the justification rule for PRD only -- its justification must
- * resolve to a BC (Caso de Negocio) in "approved"/"closed" status, not any FB/ART like MRD/FR still
- * accept. Three distinguishable failures, so the message always names exactly what is missing: no
- * justification at all, justified but not by a BC, or a BC linked but not yet approved.
+ * PRD-011 §4.2/SDD-023 (WO-439), widened to `FR` by SDD-025 (WO-448) after verifying against real project
+ * data that a top-level FR with no parent PRD is just as invisible to the old gate as a PRD was --
+ * narrows the justification rule for PRD/FR: their justification must resolve to a BC (Caso de Negocio)
+ * in "approved"/"closed" status, not any FB/ART like MRD still accepts. Three distinguishable failures, so
+ * the message always names exactly what is missing: no justification at all, justified but not by a BC,
+ * or a BC linked but not yet approved.
  */
-function checkPrdBusinessCase(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>): DriftIssue[] {
+function checkFeatureBusinessCase(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>): DriftIssue[] {
   const bc = justifyingBusinessCase(doc, byId);
   if (!bc) {
     if (!hasJustification(doc, docs)) {
@@ -89,7 +91,7 @@ function checkPrdBusinessCase(doc: FeatureDoc, docs: readonly ParsedDoc[], byId:
 }
 
 function checkFeature(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>): DriftIssue[] {
-  if (doc.frontmatter.type === 'PRD') return checkPrdBusinessCase(doc, docs, byId);
+  if (doc.frontmatter.type === 'PRD' || doc.frontmatter.type === 'FR') return checkFeatureBusinessCase(doc, docs, byId);
   if (hasJustification(doc, docs)) return [];
   return [
     violation(

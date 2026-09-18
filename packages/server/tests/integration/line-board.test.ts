@@ -58,13 +58,24 @@ describe('GET .../line-board (WO-335)', () => {
     const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: `saas://project/${project.id}` });
     await store.clear();
 
-    const feedbackContent = '---\nid: FB-001\ntype: FB\ntitle: "Feedback"\nstatus: triaged\nsource: support\ninforms: ["FR-001"]\n---\n\nFeedback body.\n';
+    // WO-448/SDD-025 widened the BC gate to FR, so FR-001 needs an approved BC (not just an informing FB)
+    // for this test's "no error issues" premise to hold. FB-001 informs the BC instead of the FR directly,
+    // and the BC in turn justifies the FR via `justified_by` -- station.ts doesn't yet nest FR under its
+    // BC (that's WO-450), so both still get their own row.
+    const feedbackContent = '---\nid: FB-001\ntype: FB\ntitle: "Feedback"\nstatus: triaged\nsource: support\ninforms: ["BC-001"]\n---\n\nFeedback body.\n';
     await pg.ownerPool.query(
       `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
        VALUES ($1, $2, 'FB-001', 'FB', 'Feedback', 'docs/feedback/FB-001.md', 'generated', 'published', $3)`,
       [org.id, project.id, feedbackContent],
     );
-    const featureContent = '---\nid: FR-001\ntype: FR\ntitle: "Example feature"\njustified_by: []\n---\n\n## Solicitud\n';
+    const businessCaseContent =
+      '---\nid: BC-001\ntype: BC\ntitle: "Business case"\nstatus: approved\njustified_by: []\n---\n\n## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n';
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+       VALUES ($1, $2, 'BC-001', 'BC', 'Business case', 'docs/business-case/BC-001.md', 'generated', 'published', $3)`,
+      [org.id, project.id, businessCaseContent],
+    );
+    const featureContent = '---\nid: FR-001\ntype: FR\ntitle: "Example feature"\njustified_by: ["BC-001"]\n---\n\n## Solicitud\n';
     await pg.ownerPool.query(
       `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
        VALUES ($1, $2, 'FR-001', 'FR', 'Example feature', 'docs/fr/FR-001.md', 'collab', 'published', $3)`,
@@ -89,8 +100,11 @@ describe('GET .../line-board (WO-335)', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
+    // WO-450/SDD-025 generalized row collapsing to FR too, so FR-001 (justified_by BC-001) now nests
+    // under the BC's row instead of getting one of its own.
     expect(body.features).toHaveLength(1);
-    expect(body.features[0]).toMatchObject({ id: 'FR-001', station: 'producto' });
+    expect(body.features[0]).toMatchObject({ id: 'BC-001', station: 'caso_negocio' });
+    expect(body.features[0].children).toMatchObject([{ id: 'FR-001', station: 'producto' }]);
     expect(body.andon).toBeNull();
 
     await app.close();

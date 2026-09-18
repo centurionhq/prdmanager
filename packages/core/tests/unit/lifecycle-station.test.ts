@@ -4,6 +4,7 @@ import type { ParsedDoc } from '../../src/domain/schema.js';
 import { deriveLineBoard } from '../../src/lifecycle/station.js';
 
 const prd = (extra = ''): ParsedDoc => doc(`id: PRD-001\ntype: PRD\ntitle: Product\n${extra}`);
+const fr = (extra = ''): ParsedDoc => doc(`id: FR-001\ntype: FR\ntitle: Request\n${extra}`);
 const bc = (extra = ''): ParsedDoc => doc(`id: BC-001\ntype: BC\ntitle: Business case\n${extra}`);
 const sdd = (extra = '', architects = 'PRD-001'): ParsedDoc => doc(`id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [${architects}]\n${extra}`);
 const wo = (id: string, status: string): ParsedDoc => doc(`id: ${id}\ntype: WO\ntitle: Task ${id}\nstatus: ${status}\nimplements: [SDD-001]\n`, 'task');
@@ -198,5 +199,41 @@ describe('deriveLineBoard — colapso de filas del BC (WO-443, SDD-024/PRD-011 �
     // justified_by no resuelve a ningún doc presente -> no hay BC que lo anide, pero isJustified ya
     // cuenta un justified_by no vacío como justificación (comportamiento previo a WO-443, sin cambios).
     expect(stationOfDeep([prd('justified_by: [BC-999]')], 'PRD-001')).toBe('producto');
+  });
+});
+
+describe('deriveLineBoard — colapso de filas de FR (WO-450, SDD-025)', () => {
+  test('un FR cuyo justified_by resuelve a un BC presente no tiene fila propia: aparece anidado', () => {
+    const board = deriveLineBoard([bc('status: approved'), fr('justified_by: [BC-001]')]);
+    expect(board.features.map((f) => f.id)).toEqual(['BC-001']);
+    expect(board.features[0]?.children.map((c) => c.id)).toEqual(['FR-001']);
+  });
+
+  test('producto: el FR anidado está aprobado, sin blueprint todavía', () => {
+    expect(stationOf([bc('status: approved'), fr('justified_by: [BC-001]\nstatus: approved')], 'BC-001')).toBe('producto');
+  });
+
+  test('diseno_tecnico: un blueprint architecta al FR anidado', () => {
+    const sddArchitectsFr = doc('id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [FR-001]');
+    const docs = [bc('status: approved'), fr('justified_by: [BC-001]\nstatus: approved'), sddArchitectsFr];
+    expect(stationOf(docs, 'BC-001')).toBe('diseno_tecnico');
+  });
+
+  test('FR legacy sin BC: conserva su fila propia y su progreso de siempre', () => {
+    const board = deriveLineBoard([fr('status: approved')]);
+    expect(board.features).toEqual([{ id: 'FR-001', kind: 'FR', title: 'Request', status: 'approved', station: 'diseno_tecnico', progress: { done: 0, total: 0, stopped: 0 }, children: [] }]);
+  });
+
+  test('un PRD y un FR distintos, ambos anidados bajo el mismo BC', () => {
+    const docs = [bc('status: approved'), prd('justified_by: [BC-001]'), fr('justified_by: [BC-001]')];
+    const board = deriveLineBoard(docs);
+    expect(board.features.map((f) => f.id)).toEqual(['BC-001']);
+    expect(board.features[0]?.children.map((c) => c.id).sort()).toEqual(['FR-001', 'PRD-001']);
+  });
+
+  test('ningún documento aparece dos veces en el board cuando un FR cuelga de un BC', () => {
+    const board = deriveLineBoard([bc('status: approved'), fr('justified_by: [BC-001]')]);
+    const allIds = [...board.features.map((f) => f.id), ...board.features.flatMap((f) => f.children.map((c) => c.id))];
+    expect(new Set(allIds).size).toBe(allIds.length);
   });
 });

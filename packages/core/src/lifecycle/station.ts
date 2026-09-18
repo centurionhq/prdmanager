@@ -41,13 +41,15 @@ export interface LineBoard {
 
 type FeatureDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'MRD' | 'PRD' | 'FR' | 'BC' }> };
 /** MRD/PRD/FR share one Zod schema (`type: z.enum([...])`), so `Extract<..., { type: 'PRD' }>` alone
- * resolves to `never` -- the intersection re-narrows the `type` field within that shared shape instead. */
-type PrdDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'MRD' | 'PRD' | 'FR' }> & { type: 'PRD' } };
+ * resolves to `never` -- the intersection re-narrows the `type` field within that shared shape instead.
+ * Covers `'PRD' | 'FR'` (WO-450/SDD-025 widened row-nesting to FR, same as WO-448 widened the lifecycle
+ * gate) -- kept named `PrdDoc`/`isPrd` since a PRD is still the common case, not because FR is excluded. */
+type PrdDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'MRD' | 'PRD' | 'FR' }> & { type: 'PRD' | 'FR' } };
 type BcDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'BC' }> };
 type WorkOrderDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'WO' }> };
 
 const isFeature = (d: ParsedDoc): d is FeatureDoc => d.node.label === 'Feature';
-const isPrd = (d: ParsedDoc): d is PrdDoc => d.frontmatter.type === 'PRD';
+const isPrd = (d: ParsedDoc): d is PrdDoc => d.frontmatter.type === 'PRD' || d.frontmatter.type === 'FR';
 const isWorkOrder = (d: ParsedDoc): d is WorkOrderDoc => d.node.label === 'WorkOrder';
 
 /** Same traversal as `close.ts`'s own `architectingBlueprints`. */
@@ -75,9 +77,10 @@ function isJustified(doc: FeatureDoc, docs: readonly ParsedDoc[]): boolean {
   });
 }
 
-/** WO-443: the BC (if any) a PRD's `justified_by` resolves to -- same first-match lookup as
- * `../lifecycle/check.ts`'s own `justifyingBusinessCase`, kept local rather than imported so this
- * module's board-projection concern stays decoupled from that one's lifecycle-gate concern. */
+/** WO-443, widened to FR by WO-450: the BC (if any) a PRD/FR's `justified_by` resolves to -- same
+ * first-match lookup as `../lifecycle/check.ts`'s own `justifyingBusinessCase`, kept local rather than
+ * imported so this module's board-projection concern stays decoupled from that one's lifecycle-gate
+ * concern. */
 function justifyingBc(prd: PrdDoc, byId: ReadonlyMap<string, ParsedDoc>): BcDoc | null {
   for (const id of prd.frontmatter.justified_by ?? []) {
     const candidate = byId.get(id);
@@ -111,7 +114,7 @@ function computeProgress(workOrders: readonly WorkOrderDoc[]): FeatureLineProgre
  * 4. `diseno_tecnico` — approved, or some blueprint architects it (with no work orders yet).
  * 5. `caso_negocio`/`producto` — justified (see {@link isJustified}): a `BC` sits at `caso_negocio`
  *    ("hay un BC escrito"), any other Feature kind sits at `producto`. The stricter rule that a `PRD`
- *    specifically needs an *approved* `BC` (not just any justification) is `checkPrdBusinessCase`'s job
+ *    specifically needs an *approved* `BC` (not just any justification) is `checkFeatureBusinessCase`'s job
  *    (`../lifecycle/check.ts`), not the board's — this is board *placement*, not the lifecycle gate.
  * 6. `entrada` — none of the above.
  */
@@ -130,18 +133,19 @@ function deriveStation(doc: FeatureDoc, docs: readonly ParsedDoc[]): { station: 
 }
 
 /**
- * WO-443 (SDD-024/PRD-011 §4.4): a BC row's station/progress traverses its linked PRD(s), not just the
- * BC document itself -- `BC <- JUSTIFIED_BY <- PRD -> ARCHITECTS <- blueprint -> IMPLEMENTS <- WO`,
- * reusing `architectingBlueprints`/`workOrdersImplementing` (via `reachableWorkOrders`) exactly like
- * {@link deriveStation} does for a single document; no new graph traversal. First rule that applies wins:
+ * WO-443 (SDD-024/PRD-011 §4.4), widened to FR by WO-450 (SDD-025): a BC row's station/progress
+ * traverses its linked PRD(s)/FR(s), not just the BC document itself -- `BC <- JUSTIFIED_BY <- (PRD|FR)
+ * -> ARCHITECTS <- blueprint -> IMPLEMENTS <- WO`, reusing `architectingBlueprints`/`workOrdersImplementing`
+ * (via `reachableWorkOrders`) exactly like {@link deriveStation} does for a single document; no new graph
+ * traversal. First rule that applies wins:
  *
- * 1. `entregado` — the BC itself is closed, or every WO reachable via any linked PRD is done/archived
+ * 1. `entregado` — the BC itself is closed, or every WO reachable via any linked PRD/FR is done/archived
  *    (and at least one exists).
- * 2. `construccion` — some WO reachable via a linked PRD is in_progress, out_of_sync, done or archived.
- * 3. `planificacion` — has reachable WOs (via a linked PRD) and every one is still pending.
- * 4. `diseno_tecnico` — some linked PRD has a blueprint architecting it.
- * 5. `producto` — some linked PRD is approved ("hay un PRD colgado del BC y aprobado" -- PRD-011's own
- *    table keeps this distinct from `diseno_tecnico`, unlike a standalone PRD's {@link deriveStation}
+ * 2. `construccion` — some WO reachable via a linked PRD/FR is in_progress, out_of_sync, done or archived.
+ * 3. `planificacion` — has reachable WOs (via a linked PRD/FR) and every one is still pending.
+ * 4. `diseno_tecnico` — some linked PRD/FR has a blueprint architecting it.
+ * 5. `producto` — some linked PRD/FR is approved ("hay un PRD colgado del BC y aprobado" -- PRD-011's own
+ *    table keeps this distinct from `diseno_tecnico`, unlike a standalone PRD/FR's {@link deriveStation}
  *    where "approved" and "architected" collapse into the same station).
  * 6. `caso_negocio` — the BC itself is approved or justified (see {@link isJustified}): "hay un BC
  *    escrito". Deliberately does *not* fall through to `diseno_tecnico` just because the BC itself is
@@ -172,10 +176,11 @@ function toChildLine(prd: PrdDoc, docs: readonly ParsedDoc[]): FeatureLine {
 /** Pure: places every Feature (MRD/PRD/FR/BC) on its current station, one row per initiative. Never
  * computes the andon signal -- see {@link LineBoard.andon}'s own doc comment.
  *
- * WO-443's row collapsing (SDD-024/PRD-011 §4.4): a PRD whose `justified_by` resolves to a BC present in
- * `docs` doesn't get a row of its own -- it nests under that BC's row via {@link FeatureLine.children}. A
- * legacy PRD with no BC link keeps its own row and its own {@link deriveStation}-derived progress,
- * unchanged from before this WO. No document ever appears twice.
+ * WO-443's row collapsing (SDD-024/PRD-011 §4.4), widened to FR by WO-450 (SDD-025): a PRD or FR whose
+ * `justified_by` resolves to a BC present in `docs` doesn't get a row of its own -- it nests under that
+ * BC's row via {@link FeatureLine.children}. A legacy PRD/FR with no BC link keeps its own row and its
+ * own {@link deriveStation}-derived progress, unchanged from before this WO. No document ever appears
+ * twice.
  */
 export function deriveLineBoard(docs: readonly ParsedDoc[]): LineBoard {
   const byId = new Map(docs.map((d) => [d.node.id, d]));

@@ -7,6 +7,7 @@ import { sha256 } from '../../src/util/hash.js';
 import { doc, mrd, prd, sdd } from '@prdm/testkit';
 
 const art = () => doc('id: ART-001\ntype: ART\ntitle: Call notes\nprovides_context_for: [PRD-001]', 'notes');
+const bcApproved = () => doc('id: BC-001\ntype: BC\ntitle: Business case\nstatus: approved', '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n');
 
 /** Mirrors @prdm/testkit's `doc()` raw-file construction so tests can compute the same "raw bytes" hash `openUpdate`/`validateDraft` compare (WO-023 finding 5). */
 const rawHashOf = (frontmatter: string, body = 'body'): string => sha256(`---\n${frontmatter.trim()}\n---\n${body}\n`);
@@ -35,8 +36,10 @@ describe('validateDraft: schema', () => {
   });
 
   test('a well-formed draft has no issues', () => {
-    const record = makeRecord({ kind: 'FR', title: 'New capability', body: 'body', fields: { evolves_from: ['PRD-001'], justified_by: ['ART-001'] } });
-    const outcome = validateDraft(record, { scan: { docs: [prd(), art()], errors: [], ids: ['PRD-001', 'ART-001'] }, grandfathered: [] });
+    // WO-448/SDD-025 widened the BC gate to FR, so this FR draft must resolve to an approved BC, not a
+    // plain ART, for the "well-formed" expectation (zero issues) to hold.
+    const record = makeRecord({ kind: 'FR', title: 'New capability', body: 'body', fields: { evolves_from: ['PRD-001'], justified_by: ['BC-001'] } });
+    const outcome = validateDraft(record, { scan: { docs: [prd(), bcApproved()], errors: [], ids: ['PRD-001', 'BC-001'] }, grandfathered: [] });
     expect(outcome.issues).toEqual([]);
   });
 });

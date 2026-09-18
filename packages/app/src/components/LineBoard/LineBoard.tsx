@@ -49,10 +49,12 @@ interface SecondaryLine {
 function secondaryLine(feature: FeatureLineDto): SecondaryLine | null {
   if (feature.kind === 'BC') {
     return feature.children.length === 0
-      ? { text: 'sin PRD todavía', mono: false }
+      ? { text: 'sin PRD/FR todavía', mono: false }
       : { text: feature.children.map((child) => child.id).join(' · '), mono: true };
   }
-  if (feature.kind === 'PRD') return { text: 'sin caso de negocio', mono: false };
+  // WO-451/SDD-025: FR needs an approved BC just like PRD does (WO-448's gate), so a legacy top-level FR
+  // (WO-450 already collapsed any BC-linked one into its BC's row) gets the same annotation as a PRD.
+  if (feature.kind === 'PRD' || feature.kind === 'FR') return { text: 'sin caso de negocio', mono: false };
   return null;
 }
 
