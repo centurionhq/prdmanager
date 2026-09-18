@@ -8,6 +8,7 @@ import type {
   DocumentKind,
   DocumentSummary,
   DocumentWorkflowState,
+  ForceCloseBypassableCheckDto,
   PublishDocumentInput,
 } from '@prdm/contracts';
 import type { ClosureReadiness } from '@prdm/core';
@@ -79,6 +80,25 @@ export interface CloseFeatureResult {
  * visible everywhere immediately, never a queued patch waiting on someone opening the editor. */
 export function closeFeature(orgSlug: string, projectSlug: string, docId: string): Promise<{ result: CloseFeatureResult }> {
   return request(`${documentBase(orgSlug, projectSlug, docId)}/close`, { method: 'POST' });
+}
+
+export interface ForceCloseFeatureInput {
+  readonly reason: string;
+  readonly bypass: readonly ForceCloseBypassableCheckDto[];
+}
+
+export interface ForceCloseFeatureResult {
+  featureId: string;
+  closedAt: string;
+  closedBy: string;
+  reason: string;
+  bypassed: { name: ForceCloseBypassableCheckDto; detail: string }[];
+}
+
+/** `POST .../force-close` (SDD-018 "Cierre forzado auditado", WO-419; UI added by SDD-031/WO-463):
+ * admin-only server-side (`force_close_feature`), same immediate-write behavior as `closeFeature`. */
+export function forceCloseFeature(orgSlug: string, projectSlug: string, docId: string, input: ForceCloseFeatureInput): Promise<{ result: ForceCloseFeatureResult }> {
+  return request(`${documentBase(orgSlug, projectSlug, docId)}/force-close`, { method: 'POST', body: input });
 }
 
 /** `GET .../blame` (SDD-008 §"Autoría por línea no falsificable", WO-154/161): viewer-or-above, same as

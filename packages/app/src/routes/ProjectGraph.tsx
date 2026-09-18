@@ -9,12 +9,13 @@
  */
 import { useMemo, useState, type ReactElement } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import type { CodeRefDto, CommitDto, DriftIssueDto } from '@prdm/contracts';
-import { can } from '@prdm/contracts';
+import type { CodeRefDto, CommitDto, DriftIssueDto, ForceCloseBypassableCheckDto } from '@prdm/contracts';
+import { can, FORCE_CLOSE_BYPASSABLE_CHECKS } from '@prdm/contracts';
 import type { NodeDetail, NodeLink, NodeView, Subgraph, TreeNode } from '@prdm/core';
 import type { ClosureCheck, ClosureReadiness } from '@prdm/core';
 import {
   closeFeature,
+  forceCloseFeature,
   getClosureReadiness,
   getDriftIssues,
   getFeatureBranch,
@@ -23,6 +24,7 @@ import {
   listCodeRefs,
   listCommits,
   type CommitsPage,
+  type ForceCloseFeatureInput,
 } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { useApiMutation } from '../api/use-api-mutation.js';
@@ -355,17 +357,23 @@ function CheckRow({ check }: { readonly check: ClosureCheck }): ReactElement {
   );
 }
 
+const BYPASSABLE_CHECK_NAMES = new Set<string>(FORCE_CLOSE_BYPASSABLE_CHECKS);
+
 interface ClosureModalProps {
   readonly open: boolean;
   readonly orgSlug: string;
   readonly projectSlug: string;
   readonly featureId: string;
   readonly featureTitle: string;
+  /** SDD-031/WO-463: `can(subject, 'force_close_feature')` -- same admin-only gate the endpoint itself
+   * enforces server-side; this only controls whether the escape hatch is *offered*. */
+  readonly canForceClose: boolean;
   readonly onClose: () => void;
   readonly onClosed: () => void;
 }
 
-function ClosureModal({ open, orgSlug, projectSlug, featureId, featureTitle, onClose, onClosed }: ClosureModalProps): ReactElement {
+function ClosureModal({ open, orgSlug, projectSlug, featureId, featureTitle, canForceClose, onClose, onClosed }: ClosureModalProps): ReactElement {
+  const [forceReason, setForceReason] = useState('');
   const readinessQuery = useApiQuery<ClosureReadiness | null>(
     open ? `closure-readiness:${orgSlug}:${projectSlug}:${featureId}` : 'closure-readiness:none',
     () => (open ? getClosureReadiness(orgSlug, projectSlug, featureId) : Promise.resolve(null)),
@@ -373,14 +381,24 @@ function ClosureModal({ open, orgSlug, projectSlug, featureId, featureTitle, onC
     (data) => data === null,
   );
   const mutation = useApiMutation(() => closeFeature(orgSlug, projectSlug, featureId));
+  const forceMutation = useApiMutation((input: ForceCloseFeatureInput) => forceCloseFeature(orgSlug, projectSlug, featureId, input));
 
   async function handleConfirm(): Promise<void> {
     await mutation.mutate(undefined);
     onClosed();
   }
 
+  async function handleForceConfirm(bypass: readonly ForceCloseBypassableCheckDto[]): Promise<void> {
+    await forceMutation.mutate({ reason: forceReason, bypass });
+    onClosed();
+  }
+
   const readiness = readinessQuery.data;
   const passCount = readiness?.checks.filter((check) => check.ok).length ?? 0;
+  // Never offers to bypass `feature_exists`/`feature_approved` (absent from BYPASSABLE_CHECK_NAMES) --
+  // the server rejects those regardless, so there'd be nothing honest to offer here.
+  const bypassableFailing = (readiness?.checks.filter((check) => !check.ok && BYPASSABLE_CHECK_NAMES.has(check.name)).map((check) => check.name as ForceCloseBypassableCheckDto) ?? []);
+  const showForceClose = canForceClose && readiness !== null && readiness !== undefined && !readiness.ready && bypassableFailing.length > 0;
 
   return (
     <Modal
@@ -393,6 +411,11 @@ function ClosureModal({ open, orgSlug, projectSlug, featureId, featureTitle, onC
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
+          {showForceClose ? (
+            <Button type="button" variant="destructive" disabled={forceReason.trim().length === 0 || forceMutation.status === 'cargando'} onClick={() => void handleForceConfirm(bypassableFailing)}>
+              Forzar cierre
+            </Button>
+          ) : null}
           <Button type="button" variant="primary" disabled={!readiness?.ready || mutation.status === 'cargando'} onClick={() => void handleConfirm()}>
             Confirmar cierre
           </Button>
@@ -412,6 +435,24 @@ function ClosureModal({ open, orgSlug, projectSlug, featureId, featureTitle, onC
             ))}
           </ul>
           {mutation.status === 'error' ? <p role="alert">{errorMessage(mutation.error)}</p> : null}
+          {showForceClose ? (
+            <div className={styles.forceCloseSection}>
+              <p className={styles.forceCloseWarning}>
+                Forzar cierre va a saltear: {bypassableFailing.join(', ')}. Esta acción queda auditada.
+              </p>
+              <label htmlFor="force-close-reason" className={styles.readinessSummary}>
+                Motivo (obligatorio)
+              </label>
+              <textarea
+                id="force-close-reason"
+                className={styles.reasonInput}
+                value={forceReason}
+                onChange={(event) => setForceReason(event.target.value)}
+                rows={3}
+              />
+              {forceMutation.status === 'error' ? <p role="alert">{errorMessage(forceMutation.error)}</p> : null}
+            </div>
+          ) : null}
         </>
       ) : null}
     </Modal>
@@ -557,6 +598,7 @@ export function ProjectGraph(): ReactElement {
           projectSlug={projectSlug}
           featureId={selectedRef}
           featureTitle={detail.node.title}
+          canForceClose={can(subject, 'force_close_feature')}
           onClose={() => setClosureOpen(false)}
           onClosed={() => {
             setClosureOpen(false);
