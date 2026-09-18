@@ -17,6 +17,14 @@ describe('governanceDocumentSchema', () => {
     expect(() => governanceDocumentSchema.parse({ id: 'not-an-id', sourcePath: 'x', content: '' })).toThrow();
   });
 
+  test('SDD-026: accepts a BC id (DOC_ID_PATTERN missed it when SDD-022/WO-433 added the kind)', () => {
+    expect(governanceDocumentSchema.parse({ id: 'BC-001', sourcePath: 'docs/business-case/BC-001-x.md', content: '# hi' })).toEqual({
+      id: 'BC-001',
+      sourcePath: 'docs/business-case/BC-001-x.md',
+      content: '# hi',
+    });
+  });
+
   test('rejects an unknown key (strict object)', () => {
     expect(() => governanceDocumentSchema.parse({ id: 'PRD-001', sourcePath: 'x', content: '', extra: 1 })).toThrow();
   });
