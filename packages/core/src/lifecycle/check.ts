@@ -12,6 +12,7 @@ type BlueprintDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'],
 type WorkOrderDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'WO' }> };
 type ArtifactDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'ART' }> };
 type FeedbackDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'FB' }> };
+type BusinessCaseDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'BC' }> };
 
 const TASKS_HEADING = /^##\s+(Tareas|Tasks)\s*$/im;
 const NEXT_HEADING = /^##\s+.+$/m;
@@ -50,7 +51,7 @@ function checkArtifact(doc: ArtifactDoc): DriftIssue[] {
  * broken — that is already reported as `broken_link`/`invalid_link_target` by `linkIssues`, so it is not
  * double-counted here) or by any Feedback/Artifact that points back to it via `informs`/`provides_context_for`.
  */
-function hasJustification(doc: FeatureDoc, docs: readonly ParsedDoc[]): boolean {
+function hasJustification(doc: FeatureDoc | BusinessCaseDoc, docs: readonly ParsedDoc[]): boolean {
   if ((doc.frontmatter.justified_by ?? []).length > 0) return true;
   return docs.some((d) => {
     if (d.frontmatter.type === 'FB') return d.frontmatter.informs.includes(doc.node.id);
@@ -68,6 +69,38 @@ function checkFeature(doc: FeatureDoc, docs: readonly ParsedDoc[]): DriftIssue[]
       `${doc.node.id} has no justification: link an existing Feedback or Artifact via "justified_by" (or have one point back to it via "informs"/"provides_context_for")`,
     ),
   ];
+}
+
+/** PRD-011 §4.1/SDD-022: the four sections `templateFor('BC')` seeds -- checked the same way
+ * `checkBlueprint` checks for a `## Tareas` heading (presence of the heading line, not its content). */
+const BC_REQUIRED_SECTIONS = ['## Problema', '## Impacto esperado', '## Métrica de éxito', '## Costo estimado'] as const;
+
+function missingBcSections(body: string): string[] {
+  const lines = new Set(body.split('\n').map((line) => line.trim()));
+  return BC_REQUIRED_SECTIONS.filter((heading) => !lines.has(heading));
+}
+
+/**
+ * PRD-011 §4.2/SDD-023: a BC is justified exactly like MRD/PRD/FR (reuses `hasJustification`, not a
+ * separate rule), plus its own body-content gate -- the four required sections. Unlike a blueprint, a
+ * BC never needs `impacts_paths`: it is not a blueprint (see `businessCaseSchema`'s own doc comment).
+ */
+function checkBusinessCase(doc: BusinessCaseDoc, docs: readonly ParsedDoc[]): DriftIssue[] {
+  const issues: DriftIssue[] = [];
+  if (!hasJustification(doc, docs)) {
+    issues.push(
+      violation(
+        doc.node.id,
+        'error',
+        `${doc.node.id} has no justification: link an existing Feedback or Artifact via "justified_by" (or have one point back to it via "informs"/"provides_context_for")`,
+      ),
+    );
+  }
+  const missing = missingBcSections(doc.node.body);
+  if (missing.length > 0) {
+    issues.push(violation(doc.node.id, 'error', `${doc.node.id} is missing required section(s): ${missing.join(', ')}`));
+  }
+  return issues;
 }
 
 function checkBlueprint(doc: BlueprintDoc, byId: Map<string, ParsedDoc>): DriftIssue[] {
@@ -109,11 +142,7 @@ function checkDoc(doc: ParsedDoc, docs: readonly ParsedDoc[], byId: Map<string, 
     case 'WO':
       return checkWorkOrder(doc as WorkOrderDoc);
     case 'BC':
-      // No-op stub (PRD-011/SDD-022, WO-437): keeps this switch exhaustive now that 'BC' exists as a
-      // frontmatter type. checkBusinessCase (the four-section body check) and the PRD justification
-      // gate are SDD-023's own scope (WO-438/439) -- deliberately not implemented here, so this file
-      // stays governed by exactly one blueprint's impacts_paths at a time (FB-013).
-      return [];
+      return checkBusinessCase(doc as BusinessCaseDoc, docs);
   }
 }
 

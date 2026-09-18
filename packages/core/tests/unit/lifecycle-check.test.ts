@@ -11,6 +11,8 @@ const sdd = (extra = '', body = 'design'): ParsedDoc => doc(`id: SDD-001\ntype: 
 const wo = (extra = ''): ParsedDoc => doc(`id: WO-001\ntype: WO\ntitle: Task\nimplements: [SDD-001]\n${extra}`);
 const fb = (extra = '', status = 'new'): ParsedDoc => doc(`id: FB-001\ntype: FB\ntitle: Feedback\nstatus: ${status}\n${extra}`);
 const art = (extra = ''): ParsedDoc => doc(`id: ART-001\ntype: ART\ntitle: Note\n${extra}`);
+const BC_ALL_SECTIONS = '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n';
+const bc = (extra = '', body = BC_ALL_SECTIONS): ParsedDoc => doc(`id: BC-001\ntype: BC\ntitle: Business case\n${extra}`, body);
 
 function kinds(issues: ReturnType<typeof checkLifecycle>): [string, string, string][] {
   return issues.map((i) => [i.kind, i.severity, i.nodeId]);
@@ -68,6 +70,40 @@ describe('checkLifecycle — Feature (MRD/PRD/FR)', () => {
   test('a reverse PROVIDES_CONTEXT_FOR from an existing Artifact derives JUSTIFIED_BY', () => {
     const docs = [prd(), art('provides_context_for: [PRD-001]')];
     expect(checkLifecycle(docs, noGrandfathering).filter((i) => i.nodeId === 'PRD-001')).toEqual([]);
+  });
+});
+
+describe('checkLifecycle — BusinessCase (BC)', () => {
+  test('no justification and all four sections present is still an error (justification)', () => {
+    expect(kinds(checkLifecycle([bc()], noGrandfathering))).toEqual([['lifecycle_violation', 'error', 'BC-001']]);
+  });
+
+  test('justified_by satisfies the justification half of the rule, same as MRD/PRD/FR', () => {
+    expect(checkLifecycle([bc('justified_by: [FB-999]')], noGrandfathering)).toEqual([]);
+  });
+
+  test('a reverse INFORMS from an existing Feedback derives JUSTIFIED_BY, same as a Feature', () => {
+    const docs = [bc(), fb('informs: [BC-001]')];
+    expect(checkLifecycle(docs, noGrandfathering).filter((i) => i.nodeId === 'BC-001')).toEqual([]);
+  });
+
+  test('missing one of the four required sections is an error naming it', () => {
+    const missingCost = 'justified_by: [FB-999]';
+    const body = '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n';
+    const issues = checkLifecycle([bc(missingCost, body)], noGrandfathering);
+    expect(kinds(issues)).toEqual([['lifecycle_violation', 'error', 'BC-001']]);
+    expect(issues[0]?.message).toContain('Costo estimado');
+  });
+
+  test('missing several sections lists all of them', () => {
+    const issues = checkLifecycle([bc('justified_by: [FB-999]', '## Problema\n')], noGrandfathering);
+    expect(issues[0]?.message).toContain('Impacto esperado');
+    expect(issues[0]?.message).toContain('Métrica de éxito');
+    expect(issues[0]?.message).toContain('Costo estimado');
+  });
+
+  test('justified_by + all four sections satisfies the rule with zero issues (no impacts_paths/Tareas required: not a blueprint)', () => {
+    expect(checkLifecycle([bc('justified_by: [FB-999]')], noGrandfathering)).toEqual([]);
   });
 });
 
