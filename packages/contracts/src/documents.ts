@@ -11,7 +11,7 @@
  */
 import { z } from 'zod';
 
-export const DOCUMENT_KINDS = ['MRD', 'PRD', 'FR', 'SDD', 'ADR', 'WO', 'ART', 'FB'] as const;
+export const DOCUMENT_KINDS = ['MRD', 'PRD', 'FR', 'BC', 'SDD', 'ADR', 'WO', 'ART', 'FB'] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 
 export const TEMPLATE_DOCUMENT_KINDS = DOCUMENT_KINDS.filter((k): k is Exclude<DocumentKind, 'WO'> => k !== 'WO');

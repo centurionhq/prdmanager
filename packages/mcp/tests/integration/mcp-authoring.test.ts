@@ -67,7 +67,7 @@ describe('prdm-graph MCP authoring surface (WO-015)', () => {
     const { resources } = await client.listResources();
     expect(resources.some((r) => r.uri === 'prdm://project')).toBe(true);
     expect(resources.some((r) => r.uri === 'prdm://templates/SDD')).toBe(true);
-    expect(resources.filter((r) => r.uri.startsWith('prdm://templates/'))).toHaveLength(7);
+    expect(resources.filter((r) => r.uri.startsWith('prdm://templates/'))).toHaveLength(8);
 
     const { resourceTemplates } = await client.listResourceTemplates();
     expect(resourceTemplates.some((r) => r.uriTemplate === 'prdm://templates/{kind}')).toBe(true);

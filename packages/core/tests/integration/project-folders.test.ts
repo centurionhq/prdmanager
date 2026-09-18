@@ -14,6 +14,7 @@ const CUSTOM_FOLDERS: FolderMap = {
   MRD: 'docs/mrd',
   PRD: 'docs/prd',
   FR: 'docs/requests',
+  BC: 'docs/business-case',
   SDD: 'docs/sdd',
   ADR: 'docs/adr',
   WO: 'docs/tasks',

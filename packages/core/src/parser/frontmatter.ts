@@ -165,6 +165,10 @@ function edgesOf(fm: Frontmatter): GraphEdge[] {
       return [...to(fm.provides_context_for, 'PROVIDES_CONTEXT_FOR'), ...reverseJustifiedBy(fm.provides_context_for, fm.id)];
     case 'FB':
       return [...to(fm.informs, 'INFORMS'), ...reverseJustifiedBy(fm.informs, fm.id)];
+    case 'BC':
+      // PRD-011/SDD-022 (WO-437): a BC has no implements/evolves_from (it is not a blueprint), only the
+      // JUSTIFIED_BY edge every Feature-label kind gets from its own justified_by.
+      return to(fm.justified_by ?? [], 'JUSTIFIED_BY');
   }
 }
 
@@ -206,6 +210,16 @@ function extraProps(fm: Frontmatter): Record<string, PropValue> {
       return { source: fm.source, root: fm.root ?? false };
     case 'FB':
       return { source: fm.source, customer: fm.customer ?? null, root: fm.root ?? false };
+    case 'BC':
+      // Same shape as MRD/PRD/FR above: businessCaseSchema mirrors featureSchema's justified_by/
+      // closed_*/close_reason/closed_forced fields exactly (see its own doc comment).
+      return {
+        justified_by: fm.justified_by ?? [],
+        closed_at: fm.closed_at ?? null,
+        closed_by: fm.closed_by ?? null,
+        close_reason: fm.close_reason ?? null,
+        closed_forced: fm.closed_forced ?? false,
+      };
     default:
       return {};
   }

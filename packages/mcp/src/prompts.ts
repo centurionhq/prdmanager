@@ -35,6 +35,8 @@ function lifecycleRuleFor(kind: DraftKind): string {
       return 'Regla de ciclo de vida: este feedback necesita "informs" (o "root: true") para poder justificar una feature; si queda "status: new" sin ninguno de los dos, es solo advertencia.';
     case 'ART':
       return 'Regla de ciclo de vida: este artefacto necesita "provides_context_for" (o "root: true") para poder justificar una feature.';
+    case 'BC':
+      return 'Regla de ciclo de vida: este caso de negocio necesita justificación (ver guía de frontmatter), y su cuerpo necesita las cuatro secciones obligatorias antes de poder aprobarse.';
   }
 }
 
@@ -51,6 +53,8 @@ function frontmatterGuide(kind: DraftKind): string {
       return 'Guía de frontmatter: "informs" con los ids de las features a las que este feedback aporta contexto, o "root: true" si todavía no existe una feature relacionada.';
     case 'ART':
       return 'Guía de frontmatter: "provides_context_for" con los ids de las features a las que este artefacto aporta contexto, o "root: true" si todavía no existe una feature relacionada.';
+    case 'BC':
+      return 'Guía de frontmatter: usa "justified_by" igual que un MRD/PRD/FR; el cuerpo debe incluir las secciones "## Problema", "## Impacto esperado", "## Métrica de éxito" y "## Costo estimado".';
   }
 }
 
