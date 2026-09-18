@@ -358,6 +358,30 @@ describe('ProjectGraph (árbol de features)', () => {
     expect(link.getAttribute('href')).toBe('/o/acme/p/web/ordenes');
   });
 
+  it('shows the orders table (status, commit, date) and the governed-code table for a selected feature (WO-459)', async () => {
+    vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+    vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+    vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
+    vi.spyOn(client, 'listCodeRefs').mockResolvedValue([
+      { projectId: 'p1', orgId: 'o1', blueprintId: 'SDD-005', refKey: 'k1', path: 'src/a.ts', symbol: 'doThing', hash: null, hashAlgoVersion: 1, reportId: 'r1', headSha: 'abc1234567', updatedAt: '2026-01-01' },
+    ]);
+    const commit: CommitDto = { sha: 'abc1234567', subject: 'feat: x', author: 'me', date: '2026-01-02', refs: ['WO-100'], files: [], trust: 'baseline' };
+    vi.spyOn(client, 'listCommits').mockResolvedValue({ items: [commit], nextCursor: null });
+
+    renderPage('FR-001');
+
+    // BRANCH: WO-100 (done, resolved by the commit above) and WO-101 (pending, no matching commit).
+    const doneRow = await screen.findByRole('row', { name: /WO-100/ });
+    expect(within(doneRow).getByText('abc1234')).toBeTruthy();
+    expect(within(doneRow).getByText('2026-01-02')).toBeTruthy();
+
+    const pendingRow = screen.getByRole('row', { name: /WO-101/ });
+    expect(within(pendingRow).getAllByText('—').length).toBeGreaterThan(0);
+
+    expect(screen.getByText('src/a.ts')).toBeTruthy();
+    expect(screen.getByText('doThing')).toBeTruthy();
+  });
+
   it('shows a drift dot next to a feature with an open drift issue (WO-457)', async () => {
     vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
     vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));

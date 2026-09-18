@@ -28,6 +28,7 @@ import { useApiMutation } from '../api/use-api-mutation.js';
 import { useApiQuery } from '../api/use-api-query.js';
 import {
   Button,
+  DataTable,
   EmptyState,
   ErrorState,
   IdTag,
@@ -35,6 +36,7 @@ import {
   PageHeader,
   Skeleton,
   StatusBadge,
+  type DataTableColumn,
   type StatusBadgeFeatureStatus,
   type StatusBadgeWorkOrderStatus,
   type StatusBadgeWorkflowStatus,
@@ -302,6 +304,37 @@ function renderStatus(view: NodeView): ReactElement {
   return <span style={{ fontSize: 14, color: 'var(--apagado)' }}>{view.status}</span>;
 }
 
+interface FeatureOrderRow {
+  readonly ref: string;
+  readonly title: string;
+  readonly status: string | null;
+  readonly commit: CommitDto | null;
+}
+
+const ORDER_COLUMNS: readonly DataTableColumn<FeatureOrderRow>[] = [
+  { key: 'ref', header: 'Orden', render: (row) => <IdTag id={row.ref} /> },
+  { key: 'title', header: 'Título', render: (row) => row.title },
+  {
+    key: 'status',
+    header: 'Estado',
+    render: (row) =>
+      row.status && WORK_ORDER_STATUSES.has(row.status as StatusBadgeWorkOrderStatus) ? <StatusBadge kind="workOrder" status={row.status as StatusBadgeWorkOrderStatus} /> : (row.status ?? '—'),
+  },
+  { key: 'commit', header: 'Commit', render: (row) => (row.commit ? <span className="id">{row.commit.sha.slice(0, 7)}</span> : '—') },
+  { key: 'date', header: 'Fecha', align: 'end', render: (row) => row.commit?.date ?? '—' },
+];
+
+interface CodeRefRow {
+  readonly refKey: string;
+  readonly path: string;
+  readonly symbol: string | null;
+}
+
+const CODE_COLUMNS: readonly DataTableColumn<CodeRefRow>[] = [
+  { key: 'path', header: 'Ruta', render: (row) => <span className="id">{row.path}</span> },
+  { key: 'symbol', header: 'Símbolo', render: (row) => row.symbol ?? '—' },
+];
+
 interface TraceabilityPanelProps {
   readonly detail: NodeDetail;
   readonly branch: Subgraph | null;
@@ -330,6 +363,15 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
   const branchBlueprintIds = new Set(branchBlueprints.map((node) => node.ref));
   const relatedCodeRefs = codeRefs?.filter((ref) => (branch ? branchBlueprintIds.has(ref.blueprintId) : ref.blueprintId === view.id)) ?? [];
   const relatedCommits = commits?.items.filter((commit) => (branch ? commit.refs.some((ref) => branchBlueprintIds.has(ref)) : commit.refs.includes(view.id))) ?? [];
+
+  // WO-459: each work order's own commit is whichever commit's `refs` names that order's id directly --
+  // the trailer convention every commit in this repo already follows (`Refs: WO-xxx`).
+  const orderRows: readonly FeatureOrderRow[] = branchWorkOrders.map((node) => ({
+    ref: node.ref,
+    title: node.title,
+    status: node.status,
+    commit: commits?.items.find((commit) => commit.refs.includes(node.ref)) ?? null,
+  }));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -412,6 +454,25 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
           ) : null}
         </dl>
       </section>
+
+      {branch && orderRows.length > 0 ? (
+        <section aria-label="Órdenes de la feature">
+          <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>Órdenes recientes</h3>
+          <DataTable caption={`Órdenes de ${view.id}`} columns={ORDER_COLUMNS} rows={orderRows} getRowId={(row) => row.ref} />
+        </section>
+      ) : null}
+
+      {branch && relatedCodeRefs.length > 0 ? (
+        <section aria-label="Código gobernado">
+          <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>Código gobernado</h3>
+          <DataTable
+            caption={`Código gobernado por ${view.id}`}
+            columns={CODE_COLUMNS}
+            rows={relatedCodeRefs.map((ref) => ({ refKey: ref.refKey, path: ref.path, symbol: ref.symbol }))}
+            getRowId={(row) => row.refKey}
+          />
+        </section>
+      ) : null}
     </div>
   );
 }
