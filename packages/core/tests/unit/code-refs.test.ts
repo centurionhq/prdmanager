@@ -195,6 +195,27 @@ describe('resolveGoverned', () => {
     expect(warnings).toEqual(['impacts_paths pattern "src/nothing/**" matches no files']);
   });
 
+  test('WO-464 (SDD-032, FB-018): a static impacts_paths entry naming a directory (no "/**") hashes the real files inside it, instead of hashing to null as if it were a single missing file', async () => {
+    root = makeTmpDir();
+    writeFiles(root, { 'packages/core/tests/a.ts': ts, 'packages/core/tests/sub/b.py': py, 'packages/core/other.ts': 'x' });
+    const { refs, warnings } = await resolveGoverned(root, ['packages/core/tests'], []);
+    expect(refs).toEqual([
+      { key: 'packages/core/tests/a.ts', path: 'packages/core/tests/a.ts', symbol: null, hash: sha256(ts.replace(/\s+$/, '')) },
+      { key: 'packages/core/tests/sub/b.py', path: 'packages/core/tests/sub/b.py', symbol: null, hash: sha256(py.replace(/\s+$/, '')) },
+    ]);
+    expect(warnings).toEqual([]);
+  });
+
+  test('a static impacts_paths entry that names a real file, or a path that does not exist at all, is unaffected by the directory check', async () => {
+    root = makeTmpDir();
+    writeFiles(root, { 'src/a.ts': ts });
+    const { refs } = await resolveGoverned(root, ['src/a.ts', 'src/gone.ts'], []);
+    expect(refs).toEqual([
+      { key: 'src/a.ts', path: 'src/a.ts', symbol: null, hash: sha256(ts.replace(/\s+$/, '')) },
+      { key: 'src/gone.ts', path: 'src/gone.ts', symbol: null, hash: null },
+    ]);
+  });
+
   test('excludes files that belong to a nested project', async () => {
     root = makeTmpDir();
     writeFiles(root, { 'src/a.ts': 'a', 'src/sub/.prdm.yaml': 'version: 1', 'src/sub/b.ts': 'b' });

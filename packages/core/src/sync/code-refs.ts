@@ -1,3 +1,5 @@
+import { promises as fs } from 'node:fs';
+import { join } from 'node:path';
 import fg from 'fast-glob';
 import { findNestedProjectRoots } from '../project/discover.js';
 import { normalizeText, sha256 } from '../util/hash.js';
@@ -51,6 +53,17 @@ export interface ResolveGovernedOptions {
   cache?: SymbolCache;
 }
 
+/** WO-464 (SDD-032): a static `impacts_paths` entry that names a directory rather than a file. `false` for
+ * anything else (a real file, or a path that doesn't exist at all) -- those keep going through the
+ * existing single-file path unchanged. */
+async function isDirectory(root: string, rel: string): Promise<boolean> {
+  try {
+    return (await fs.stat(join(root, rel))).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 export async function resolveGoverned(
   root: string,
   patterns: string[],
@@ -79,9 +92,17 @@ export async function resolveGoverned(
       warnings.push(`impacts_paths pattern "${pattern}" belongs to nested project "${nested}"`);
       continue;
     }
-    const files = fg.isDynamicPattern(rel)
-      ? (await fg.glob(rel, { cwd: root, ignore: effectiveIgnore, onlyFiles: true, dot: false, followSymbolicLinks: false })).sort()
-      : [rel];
+    // WO-464 (SDD-032): a static pattern naming a directory (e.g. "packages/core/tests", no "/**") used to
+    // be treated as a single file literally named that -- `hashRef` can never read a directory as a file,
+    // so it always hashed to `null`, and a "missing" governed ref only ever resolves through a commit
+    // touching that exact path (`evaluateGoverned`, `monitor.ts`), which a directory can never be. Expand
+    // it the way any author would expect instead of leaving it a permanently unresolvable "missing".
+    const dynamic = fg.isDynamicPattern(rel);
+    const isStaticDir = !dynamic && (await isDirectory(root, rel));
+    const files =
+      dynamic || isStaticDir
+        ? (await fg.glob(isStaticDir ? `${rel}/**` : rel, { cwd: root, ignore: effectiveIgnore, onlyFiles: true, dot: false, followSymbolicLinks: false })).sort()
+        : [rel];
     if (files.length === 0) warnings.push(`impacts_paths pattern "${pattern}" matches no files`);
 
     for (const path of files) {
