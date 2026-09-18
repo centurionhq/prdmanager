@@ -20,16 +20,32 @@ export const featureLineProgressSchema = z.object({
 });
 export type FeatureLineProgress = z.infer<typeof featureLineProgressSchema>;
 
-export const featureLineSchema = z.object({
-  id: z.string(),
-  kind: z.enum(['MRD', 'PRD', 'FR', 'BC']),
-  title: z.string(),
-  status: z.string(),
-  station: stationSchema,
-  andonStation: stationSchema.optional(),
-  progress: featureLineProgressSchema,
-});
-export type FeatureLineDto = z.infer<typeof featureLineSchema>;
+/** WO-445 (SDD-024/PRD-011 §4.4): a PRD nested under its BC's row (`@prdm/core`'s `deriveLineBoard`
+ * row-collapsing, WO-443) -- self-referential, so the schema needs the explicit `z.ZodType` annotation +
+ * `z.lazy()` zod's recursive-type pattern requires. Always `[]` for a row that isn't a BC. */
+export interface FeatureLineDto {
+  id: string;
+  kind: 'MRD' | 'PRD' | 'FR' | 'BC';
+  title: string;
+  status: string;
+  station: Station;
+  andonStation?: Station;
+  progress: FeatureLineProgress;
+  children: FeatureLineDto[];
+}
+
+export const featureLineSchema: z.ZodType<FeatureLineDto> = z.lazy(() =>
+  z.object({
+    id: z.string(),
+    kind: z.enum(['MRD', 'PRD', 'FR', 'BC']),
+    title: z.string(),
+    status: z.string(),
+    station: stationSchema,
+    andonStation: stationSchema.optional(),
+    progress: featureLineProgressSchema,
+    children: z.array(featureLineSchema),
+  }),
+);
 
 export const lineBoardSchema = z.object({
   features: z.array(featureLineSchema),

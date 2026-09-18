@@ -19,6 +19,7 @@ describe('featureLineSchema', () => {
     status: 'approved',
     station: 'diseno_tecnico',
     progress: { done: 1, total: 3, stopped: 0 },
+    children: [],
   };
 
   test('accepts a valid feature line without andonStation', () => {
@@ -42,6 +43,17 @@ describe('featureLineSchema', () => {
     const { progress: _progress, ...withoutProgress } = valid;
     expect(() => featureLineSchema.parse(withoutProgress)).toThrow();
   });
+
+  test('rejects a missing children field', () => {
+    const { children: _children, ...withoutChildren } = valid;
+    expect(() => featureLineSchema.parse(withoutChildren)).toThrow();
+  });
+
+  test('WO-445: accepts a BC row with a nested PRD child', () => {
+    const bcRow = { id: 'BC-001', kind: 'BC', title: 'Business case', status: 'approved', station: 'producto', progress: { done: 0, total: 0, stopped: 0 }, children: [valid] };
+    const parsed = featureLineSchema.parse(bcRow);
+    expect(parsed.children).toEqual([valid]);
+  });
 });
 
 describe('lineBoardSchema', () => {
@@ -52,6 +64,7 @@ describe('lineBoardSchema', () => {
     status: 'approved',
     station: 'diseno_tecnico',
     progress: { done: 0, total: 0, stopped: 0 },
+    children: [],
   };
 
   test('accepts a board with no andon', () => {
