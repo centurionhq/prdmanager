@@ -15,7 +15,7 @@ describe('driftIssueDtoSchema', () => {
     id: 'a1b2c3d4e5f6a1b2',
     featureIds: ['PRD-001'],
     blueprintId: null,
-    station: 'definicion',
+    station: 'producto',
     detectedAt: '2026-09-01T00:00:00.000Z',
   };
 

@@ -49,7 +49,7 @@ describe('GET .../drift/issues and .../drift/reports/:reportId (WO-340)', () => 
     return (Array.isArray(cookie) ? cookie[0] : cookie)!.split(';')[0]!;
   }
 
-  test('GET .../drift/issues attributes a lifecycle_violation to its feature and definicion station', async () => {
+  test('GET .../drift/issues attributes a lifecycle_violation to its feature and producto station', async () => {
     const app = buildApp();
     const owner = await seedUser(env, pg.appPool, PASSWORD);
     const org = await createOrganizationFixture(pg);
@@ -74,7 +74,7 @@ describe('GET .../drift/issues and .../drift/reports/:reportId (WO-340)', () => 
     const body = res.json() as { issues: { kind: string; nodeId: string; featureIds: string[]; station: string | null; id: string }[] };
     const issue = body.issues.find((i) => i.kind === 'lifecycle_violation' && i.nodeId === 'FR-001');
     expect(issue).toBeDefined();
-    expect(issue).toMatchObject({ featureIds: ['FR-001'], station: 'definicion' });
+    expect(issue).toMatchObject({ featureIds: ['FR-001'], station: 'producto' });
     expect(issue!.id).toMatch(/^[0-9a-f]+$/);
 
     await app.close();

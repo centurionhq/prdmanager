@@ -1,0 +1,288 @@
+.band {
+  position: relative;
+  background: var(--grafito);
+  color: var(--acero);
+  margin: 0 calc(-1 * var(--space-8));
+  padding: var(--space-6) var(--space-8) calc(var(--space-6) + var(--space-1));
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  font-stretch: var(--stretch-wide);
+}
+
+.andon {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--linea-texto);
+}
+
+.andonDot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--andon);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 300px repeat(7, minmax(0, 1fr));
+}
+
+.pillarRow {
+  margin-bottom: var(--space-2);
+}
+
+.pillarCell {
+  margin-right: var(--space-2);
+  padding: 0 0 var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--linea-regla);
+  font-size: var(--text-xs);
+  color: var(--linea-apagado);
+}
+
+.pillarNegocio {
+  grid-column: 3;
+}
+
+.pillarProducto {
+  grid-column: 4;
+}
+
+.pillarTecnologia {
+  grid-column: 5 / span 3;
+}
+
+.stationHeaderRow {
+  margin-bottom: var(--space-1);
+}
+
+.iniciativaHeader {
+  grid-column: 1;
+  font-size: var(--text-sm);
+  color: var(--linea-apagado);
+  padding-bottom: var(--space-3);
+}
+
+.stationHeaderCell {
+  padding: 0 var(--space-2) var(--space-3) var(--space-3);
+  border-left: 1px solid var(--linea-regla);
+}
+
+.stationHeaderCellAndon {
+  padding: 0 var(--space-2) var(--space-3) var(--space-3);
+  background: var(--andon);
+}
+
+.stationHeaderLabel {
+  font-size: var(--text-sm);
+  color: var(--linea-texto);
+}
+
+.stationHeaderCellAndon .stationHeaderLabel {
+  color: var(--grafito);
+  font-weight: 700;
+}
+
+.stationHeaderHelp {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--linea-apagado);
+  margin-top: 3px;
+}
+
+.stationHeaderCellAndon .stationHeaderHelp {
+  color: var(--grafito);
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  height: 52px;
+  align-items: center;
+  border-top: 1px solid var(--linea-regla);
+}
+
+.rowLead {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.rowLeadLine {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.rowId {
+  flex: none;
+  color: var(--linea-apagado);
+}
+
+.rowTitle {
+  font-size: var(--text-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowSecondary {
+  font-size: 11px;
+  color: var(--linea-apagado);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cell {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-left: var(--space-3);
+}
+
+.cellAndonTint {
+  background: var(--linea-tinte-andon);
+}
+
+.cellLink {
+  text-decoration: none;
+}
+
+.cellRail {
+  flex: 1;
+  height: 2px;
+  background: var(--linea-hecho);
+}
+
+.cellMarker {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background: var(--linea-texto);
+}
+
+.cellMarkerDone {
+  background: var(--linea-hecho);
+}
+
+.cellMarkerAndon {
+  background: var(--andon);
+}
+
+.cellText {
+  font-size: var(--text-sm);
+  color: var(--linea-texto);
+}
+
+.cellTextAndon {
+  color: var(--andon);
+  font-weight: 600;
+}
+
+.mobileStation {
+  display: none;
+}
+
+.mobileProgress {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pillarRow,
+  .stationHeaderRow {
+    display: none;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
+    gap: var(--space-3);
+    height: auto;
+    padding: var(--space-3) 0;
+  }
+
+  .rowLead {
+    grid-column: 2;
+  }
+
+  .cell {
+    display: none;
+  }
+
+  .mobileStation {
+    grid-column: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mobileStationLabel {
+    font-size: var(--text-sm);
+    line-height: 1.25;
+    color: var(--linea-texto);
+  }
+
+  .mobileStationLabelAndon {
+    color: var(--andon);
+    font-weight: 700;
+  }
+
+  .mobileStationPillar {
+    font-size: 11px;
+    color: var(--linea-apagado);
+  }
+
+  .mobileProgress {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: 2px;
+  }
+
+  .mobileProgress .cellMarker {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    background: var(--linea-texto);
+  }
+
+  .mobileProgress .cellMarkerDone {
+    background: var(--linea-hecho);
+  }
+
+  .mobileProgress .cellMarkerAndon {
+    background: var(--andon);
+  }
+}

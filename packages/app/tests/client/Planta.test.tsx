@@ -20,27 +20,52 @@ const EMPTY_METRICS: SuccessMetricsDto = {
   traceability: { featuresTotal: 0, featuresTraced: 0, featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null },
 };
 
+/**
+ * WO-446 (SDD-024/PRD-011 §4.4/§4.5): one row per initiative, exercising every shape the board can show --
+ * a BC with a nested PRD (row collapsing, WO-443), a BC with no PRD yet (still visible, PRD-011 §4.4's own
+ * acceptance criterion), a legacy top-level PRD without a BC, and a plain FR row (unaffected by any of this).
+ */
 const LINE_BOARD: LineBoardDto = {
   features: [
     {
-      id: 'FR-002',
-      kind: 'FR',
+      id: 'BC-001',
+      kind: 'BC',
       title: 'Importador incremental de repos',
-      status: 'in_progress',
-      station: 'ejecucion',
-      andonStation: 'ejecucion',
+      status: 'approved',
+      station: 'construccion',
+      andonStation: 'construccion',
       progress: { done: 14, total: 22, stopped: 3 },
+      children: [{ id: 'PRD-010', kind: 'PRD', title: 'Importador', status: 'approved', station: 'diseno_tecnico', progress: { done: 0, total: 0, stopped: 0 }, children: [] }],
+    },
+    {
+      id: 'BC-002',
+      kind: 'BC',
+      title: 'Reducir el churn de cuentas',
+      status: 'approved',
+      station: 'caso_negocio',
+      progress: { done: 0, total: 0, stopped: 0 },
+      children: [],
+    },
+    {
+      id: 'PRD-006',
+      kind: 'PRD',
+      title: 'Rediseño del frontend',
+      status: 'draft',
+      station: 'diseno_tecnico',
+      progress: { done: 0, total: 0, stopped: 0 },
+      children: [],
     },
     {
       id: 'FR-001',
       kind: 'FR',
       title: 'Persistencia de borradores',
       status: 'in_progress',
-      station: 'cierre',
+      station: 'entregado',
       progress: { done: 4, total: 4, stopped: 0 },
+      children: [],
     },
   ],
-  andon: { featureId: 'FR-002', station: 'ejecucion' },
+  andon: { featureId: 'BC-001', station: 'construccion' },
 };
 
 function renderPlanta(overrides: Parameters<typeof makeProjectOverview>[0] = {}) {
@@ -69,16 +94,49 @@ describe('Planta', () => {
     clearQueryCache();
   });
 
-  it('renders the six stations and one row per feature with its progress', async () => {
+  it('renders the seven stations and one row per top-level initiative with its progress', async () => {
     vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
-    expect(await screen.findByText('FR-002')).toBeTruthy();
+    expect(await screen.findByText('BC-001')).toBeTruthy();
     expect(screen.getByText('Importador incremental de repos')).toBeTruthy();
-    expect(screen.getByText(/14\/22/)).toBeTruthy();
-    expect(screen.getByText('Ejecución')).toBeTruthy();
-    expect(screen.getByText('Cierre')).toBeTruthy();
+    // The 375px layout (`LineBoard.module.css`'s `@media (max-width: 767px)`) renders a second, CSS-only
+    // hidden copy of a row's own current station next to the desktop rail -- real browsers exclude
+    // `display: none` content from the accessibility tree, but jsdom doesn't apply external stylesheet
+    // rules at all, so both copies are present here. `getAllByText` documents that instead of fighting it.
+    expect(screen.getAllByText(/14\/22/).length).toBeGreaterThan(0);
+    for (const label of ['Entrada', 'Caso de negocio', 'Producto', 'Diseño técnico', 'Planificación', 'Construcción', 'Entregado']) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('nests a PRD under its BC row instead of giving it a row of its own (WO-443 row collapsing)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    await screen.findByText('BC-001');
+    expect(screen.getByText('PRD-010')).toBeTruthy();
+    expect(screen.queryAllByRole('link').some((link) => link.textContent?.startsWith('PRD-010'))).toBe(false);
+  });
+
+  it('a BC with no PRD yet is still visible on the line (PRD-011 §4.4)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    expect(await screen.findByText('BC-002')).toBeTruthy();
+    expect(screen.getByText('sin PRD todavía')).toBeTruthy();
+  });
+
+  it('a legacy PRD without a BC keeps its own row and names what it is missing', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    expect(await screen.findByText('PRD-006')).toBeTruthy();
+    expect(screen.getByText('sin caso de negocio')).toBeTruthy();
   });
 
   it('renders the real metrics as KPIs', async () => {
@@ -109,11 +167,12 @@ describe('Planta', () => {
     expect(await screen.findByText('arbol screen')).toBeTruthy();
   });
 
-  it('clicking the andon navigates to the drift screen filtered by that feature', async () => {
+  it('shows the andon on the BC row and clicking it navigates to the drift screen filtered by that feature', async () => {
     vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
+    expect(await screen.findByText(/línea detenida en construcción/i)).toBeTruthy();
     await userEvent.click(await screen.findByRole('link', { name: /paradas/ }));
     expect(await screen.findByText('drift screen')).toBeTruthy();
   });

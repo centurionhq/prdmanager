@@ -13,15 +13,23 @@
  *
  * `station.ts`'s `deriveStation` decides which station a feature lands on, but `pg-project-engine.ts`'s
  * `scan()` only ever surfaces *published* documents (`workflowState === 'published'`) to begin with — a
- * draft PRD is invisible to Planta/Entrada/Órdenes entirely, not merely stuck at "ingesta". Combined with
+ * draft PRD is invisible to Planta/Entrada/Órdenes entirely, not merely stuck at "entrada". Combined with
  * publish itself being blocked by an unjustified feature's own `error`-severity lifecycle violation
  * (`check.ts`'s `checkFeature`) AND a brand-new document's live frontmatter defaulting `status` to
  * `"approved"` (confirmed against the real published markdown — there is no UI field to set it to
  * anything else yet), the *first* station a real justified-and-published PRD is ever actually observed at
- * is "diseño" (`deriveStation`'s rule 4 fires on `status === 'approved'` before rule 5's justification
- * check is even reached) — never "ingesta" or "definición". The real, UI-visible transition this spec
- * checks is diseño -> planificación (once the architecting SDD's generated work order exists) ->
- * ejecución (once that work order is claimed).
+ * is "diseño técnico" (`deriveStation`'s rule 4 fires on `status === 'approved'` before rule 5's
+ * justification check is even reached) — never "entrada" or "producto". The real, UI-visible transition
+ * this spec checks is diseño técnico -> planificación (once the architecting SDD's generated work order
+ * exists) -> construcción (once that work order is claimed).
+ *
+ * WO-446/SDD-024 note (station names only, not run in this WO -- see its own commit message): renamed the
+ * station literals/labels this spec asserts on to match SDD-024's seven-station rename. Separately,
+ * SDD-023's `checkPrdBusinessCase` (merged before SDD-024) now requires a PRD's justification to resolve
+ * to an *approved BC*, not just any Feedback -- this spec still justifies its PRD with a plain FB, same as
+ * before SDD-023. Whether that still lets the PRD publish (and reach "diseño técnico") needs verifying by
+ * actually running this spec; if SDD-023 broke it, fixing it is its own WO (adding a BC-creation-and-
+ * approval step to the journey), out of scope here.
  */
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { PASSWORD, startJourney, stopJourney, type Journey } from './harness.js';
@@ -197,7 +205,7 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await waitForFieldOnServer(context, `${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${prdDocId}`, 'Justificado por', fbDocId);
   });
 
-  await test.step('Planta: publishing the now-justified PRD shows it at the real Diseño station', async () => {
+  await test.step('Planta: publishing the now-justified PRD shows it at the real Diseño técnico station', async () => {
     await switchToValidationTab(page);
     await page.getByRole('button', { name: 'Solicitar revisión' }).click();
     await expect(page.locator('p', { hasText: /in_review/ })).toBeVisible();
@@ -206,7 +214,7 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
 
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
     await expect(page.getByRole('heading', { level: 1, name: 'Planta' })).toBeVisible();
-    await expect(page.getByRole('link', { name: new RegExp(`${prdDocId} .*estación Diseño`) })).toBeVisible();
+    await expect(page.getByRole('link', { name: new RegExp(`${prdDocId} .*estación Diseño técnico`) })).toBeVisible();
   });
 
   await test.step('Entrada: submit feedback, then triage it into the PRD feature from the inbox', async () => {
@@ -297,9 +305,9 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await drawer.getByRole('button', { name: 'Cerrar' }).click();
   });
 
-  await test.step('Planta: claiming the work order moves the PRD to the real Ejecución station', async () => {
+  await test.step('Planta: claiming the work order moves the PRD to the real Construcción station', async () => {
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
-    await expect(page.getByRole('link', { name: new RegExp(`${prdDocId} .*estación Ejecución`) })).toBeVisible();
+    await expect(page.getByRole('link', { name: new RegExp(`${prdDocId} .*estación Construcción`) })).toBeVisible();
   });
 
   await test.step('Zero CSP violations fired during the whole journey', async () => {

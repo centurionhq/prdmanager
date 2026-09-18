@@ -90,7 +90,7 @@ describe('GET .../line-board (WO-335)', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.features).toHaveLength(1);
-    expect(body.features[0]).toMatchObject({ id: 'FR-001', station: 'definicion' });
+    expect(body.features[0]).toMatchObject({ id: 'FR-001', station: 'producto' });
     expect(body.andon).toBeNull();
 
     await app.close();

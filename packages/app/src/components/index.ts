@@ -53,3 +53,6 @@ export type { PublishReviewModalProps } from './PublishReviewModal/PublishReview
 
 export { DocumentStateBanner } from './DocumentStateBanner/DocumentStateBanner';
 export type { DocumentBannerVariant, DocumentStateBannerProps } from './DocumentStateBanner/DocumentStateBanner';
+
+export { LineBoard } from './LineBoard/LineBoard';
+export type { LineBoardProps } from './LineBoard/LineBoard';

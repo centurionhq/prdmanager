@@ -17,7 +17,7 @@ export function makeProjectOverview(overrides: Partial<ProjectOverviewDto> = {})
     settings: projectSettingsSchema.parse({}),
     archivedAt: null,
     docCount: 0,
-    furthestStation: 'ingesta',
+    furthestStation: 'entrada',
     andonStation: null,
     driftErrors: 0,
     driftWarnings: 0,

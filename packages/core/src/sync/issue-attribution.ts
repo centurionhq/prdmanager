@@ -1,5 +1,5 @@
 import type { ParsedDoc } from '../domain/schema.js';
-import type { LineBoard, Station } from '../lifecycle/station.js';
+import type { FeatureLine, LineBoard, Station } from '../lifecycle/station.js';
 import { STATIONS } from '../lifecycle/station.js';
 import type { DriftIssue } from './monitor.js';
 
@@ -35,26 +35,26 @@ export function attributeIssue(issue: DriftIssue, docs: readonly ParsedDoc[]): I
   const target = byId.get(issue.nodeId);
 
   if ((issue.kind === 'broken_link' || issue.kind === 'invalid_link_target') && target && (target.node.label === 'Feedback' || target.node.label === 'Artifact')) {
-    return { featureIds: featuresInformedBy(target), blueprintId: null, station: 'ingesta' };
+    return { featureIds: featuresInformedBy(target), blueprintId: null, station: 'entrada' };
   }
 
   if (issue.kind === 'feature_changed' || (issue.kind === 'lifecycle_violation' && target?.node.label === 'Feature')) {
-    return { featureIds: [issue.nodeId], blueprintId: null, station: 'definicion' };
+    return { featureIds: [issue.nodeId], blueprintId: null, station: 'producto' };
   }
 
   if (issue.kind === 'blueprint_changed' || issue.kind === 'impacts_warning' || issue.kind === 'awaiting_ci_report') {
-    return { featureIds: featuresArchitectedBy(docs, issue.nodeId), blueprintId: issue.nodeId, station: 'diseno' };
+    return { featureIds: featuresArchitectedBy(docs, issue.nodeId), blueprintId: issue.nodeId, station: 'diseno_tecnico' };
   }
 
   if (issue.kind === 'code_out_of_sync') {
-    return { featureIds: featuresArchitectedBy(docs, issue.nodeId), blueprintId: issue.nodeId, station: 'ejecucion' };
+    return { featureIds: featuresArchitectedBy(docs, issue.nodeId), blueprintId: issue.nodeId, station: 'construccion' };
   }
 
   if (issue.kind === 'work_order_out_of_sync') {
     const blueprintIds = target ? implementedBlueprints(target, byId) : [];
     const blueprintId = blueprintIds[0] ?? null;
     const featureIds = [...new Set(blueprintIds.flatMap((id) => featuresArchitectedBy(docs, id)))];
-    return { featureIds, blueprintId, station: 'ejecucion' };
+    return { featureIds, blueprintId, station: 'construccion' };
   }
 
   return { featureIds: [], blueprintId: null, station: null };
@@ -77,6 +77,12 @@ function earlierStation(a: Station, b: Station): Station {
  * signal (WO-329, SDD-012) — per feature, the earliest station with at least one unresolved
  * error-severity issue attributed to it, and the project-wide andon as the earliest across every
  * feature. Never mutates `board`; returns a new one with `andonStation`/`andon` filled in.
+ *
+ * WO-444/SDD-024: a nested PRD (WO-443's row collapsing) has no row of its own in `board.features`, so
+ * `andonStation` is annotated recursively into {@link FeatureLine.children} too -- otherwise an issue
+ * attributed to a PRD nested under a BC would silently stop lighting up the andon anywhere on the board.
+ * The project-wide `andon` itself already worked correctly for nested ids before this WO: it's derived
+ * straight from `issues`, never from `board`'s shape.
  */
 export function computeAndon(issues: readonly AttributedIssueLike[], board: LineBoard): LineBoard {
   const earliestByFeature = new Map<string, Station>();
@@ -88,10 +94,12 @@ export function computeAndon(issues: readonly AttributedIssueLike[], board: Line
     }
   }
 
-  const features = board.features.map((feature) => {
-    const andonStation = earliestByFeature.get(feature.id);
-    return andonStation === undefined ? feature : { ...feature, andonStation };
-  });
+  const withAndon = (line: FeatureLine): FeatureLine => {
+    const children = line.children.map(withAndon);
+    const andonStation = earliestByFeature.get(line.id);
+    return andonStation === undefined ? { ...line, children } : { ...line, andonStation, children };
+  };
+  const features = board.features.map(withAndon);
 
   let andon: LineBoard['andon'] = null;
   for (const [featureId, station] of earliestByFeature) {
