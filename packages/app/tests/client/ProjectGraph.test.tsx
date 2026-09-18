@@ -382,6 +382,43 @@ describe('ProjectGraph (árbol de features)', () => {
     expect(screen.getByText('doThing')).toBeTruthy();
   });
 
+  it('shows a real EmptyState (not a blank "Trazabilidad" heading) for a non-feature document reached by url (WO-460)', async () => {
+    vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+    vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => {
+      if (ref === 'WO-999') {
+        return Promise.resolve({
+          node: { id: 'WO-999', label: 'WorkOrder', kind: 'WO', title: 'Orden suelta', status: 'pending', body: '', tags: [], source_path: '', created_at: null },
+          links: [],
+        });
+      }
+      return Promise.resolve(nodeDetailFor(ref));
+    });
+
+    // The tree is features-only (WO-457), so WO-999 has no row -- reached only by typing it into the url,
+    // exactly PRD-013 §4.3's "documento que no es feature" case.
+    renderPage('WO-999');
+
+    expect(await screen.findByText('Orden suelta')).toBeTruthy();
+    expect(screen.getByText('Todavía no hay trazabilidad')).toBeTruthy();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it('shows every counter as an explicit zero for a feature with real (empty) branch/code/commit data, never the EmptyState (WO-460)', async () => {
+    vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+    vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+    vi.spyOn(client, 'getFeatureBranch').mockResolvedValue({ nodes: [], edges: [] });
+    vi.spyOn(client, 'listCodeRefs').mockResolvedValue([]);
+    vi.spyOn(client, 'listCommits').mockResolvedValue({ items: [], nextCursor: null });
+
+    renderPage(); // MRD-001, the default root -- a real Feature, just one with nothing linked yet.
+
+    await screen.findByRole('heading', { level: 2 });
+    expect(screen.queryByText('Todavía no hay trazabilidad')).toBeNull();
+    expect(screen.getByText('0 de 0 hechas')).toBeTruthy();
+    expect(await screen.findByText('0 referencias')).toBeTruthy();
+    expect(screen.getByText('0 commits')).toBeTruthy();
+  });
+
   it('shows a drift dot next to a feature with an open drift issue (WO-457)', async () => {
     vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
     vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));

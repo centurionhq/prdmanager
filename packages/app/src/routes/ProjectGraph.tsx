@@ -373,6 +373,14 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
     commit: commits?.items.find((commit) => commit.refs.includes(node.ref)) ?? null,
   }));
 
+  // WO-460: every block above is conditional on having something to show -- a document with none of
+  // these (no lineage, not a feature/blueprint so no branch/code/commits) used to leave the "Trazabilidad"
+  // heading with nothing under it. This also covers a non-feature document reached directly by url: the
+  // tree is features-only since WO-457, so a WorkOrder/Artifact/Feedback id typed into the url still gets
+  // a real header (`renderStatus` already handles every label) but would otherwise fall through to the
+  // same blank section.
+  const hasTraceabilityContent = origin.length > 0 || children.length > 0 || blueprintsIn.length > 0 || workOrdersIn.length > 0 || branch !== null || codeRefs !== null || commits !== null;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
@@ -402,6 +410,7 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
 
       <section aria-label="Trazabilidad">
         <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>Trazabilidad</h3>
+        {hasTraceabilityContent ? (
         <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, margin: 0 }}>
           {origin.length > 0 ? (
             <div>
@@ -453,6 +462,12 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
             </div>
           ) : null}
         </dl>
+        ) : (
+          <EmptyState
+            title="Todavía no hay trazabilidad"
+            body="Este documento no tiene blueprints, órdenes ni commits vinculados todavía. A medida que el trabajo avance -- un SDD que lo architecte, una orden que se genere -- va a aparecer acá."
+          />
+        )}
       </section>
 
       {branch && orderRows.length > 0 ? (
