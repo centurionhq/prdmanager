@@ -9,6 +9,7 @@
 import { type ReactElement } from 'react';
 import { Link } from 'react-router';
 import { STATIONS, type FeatureLineDto, type LineBoardDto, type Station } from '@prdm/contracts';
+import { Tooltip } from '../Tooltip/Tooltip';
 import styles from './LineBoard.module.css';
 
 interface StationMeta {
@@ -17,14 +18,17 @@ interface StationMeta {
   readonly pillar: 'Negocio' | 'Producto' | 'Tecnología' | null;
 }
 
+/** WO-455 (SDD-027): `help` names the document that lives in the step, not the condition that lights the
+ * station up ("Idea o feedback sin evaluar", not "Llegó sin evaluar"), and it is shown in a `Tooltip`
+ * instead of inline under the title -- see this component's own doc comment. */
 const STATION_META: Record<Station, StationMeta> = {
-  entrada: { label: 'Entrada', help: 'Llegó sin evaluar', pillar: null },
-  caso_negocio: { label: 'Caso de negocio', help: '¿Por qué conviene?', pillar: 'Negocio' },
-  producto: { label: 'Producto', help: '¿Qué construimos?', pillar: 'Producto' },
-  diseno_tecnico: { label: 'Diseño técnico', help: '¿Cómo lo hacemos?', pillar: 'Tecnología' },
-  planificacion: { label: 'Planificación', help: 'Sin arrancar', pillar: 'Tecnología' },
-  construccion: { label: 'Construcción', help: 'En curso', pillar: 'Tecnología' },
-  entregado: { label: 'Entregado', help: 'Cerrado', pillar: null },
+  entrada: { label: 'Entrada', help: 'Idea o feedback sin evaluar', pillar: null },
+  caso_negocio: { label: 'Caso de negocio', help: 'El BC: por qué conviene hacerlo', pillar: 'Negocio' },
+  producto: { label: 'Producto', help: 'El PRD o FR: qué construimos', pillar: 'Producto' },
+  diseno_tecnico: { label: 'Diseño técnico', help: 'El SDD o ADR: cómo lo hacemos', pillar: 'Tecnología' },
+  planificacion: { label: 'Planificación', help: 'Órdenes de trabajo generadas, sin arrancar', pillar: 'Tecnología' },
+  construccion: { label: 'Construcción', help: 'Órdenes de trabajo en curso', pillar: 'Tecnología' },
+  entregado: { label: 'Entregado', help: 'Cerrado, o todas las órdenes resueltas', pillar: null },
 };
 
 function stationIndex(station: Station): number {
@@ -174,12 +178,19 @@ export function LineBoard({ orgSlug, projectSlug, lineBoard }: LineBoardProps): 
         <span className={`${styles.pillarCell} ${styles.pillarTecnologia}`}>Tecnología</span>
       </div>
 
-      <div className={`${styles.grid} ${styles.stationHeaderRow}`} aria-hidden="true">
+      {/* WO-455: no longer `aria-hidden`. Each station title is now a focusable Tooltip trigger, and a
+          focusable node inside an `aria-hidden` subtree is exactly the combination screen readers choke
+          on — so the header becomes real content, which also gives assistive tech the pipeline's own
+          explanation up front. */}
+      <div className={`${styles.grid} ${styles.stationHeaderRow}`}>
         <span className={styles.iniciativaHeader}>Iniciativa</span>
         {STATIONS.map((station, index) => (
           <span key={station} className={index === andonStationIndex ? styles.stationHeaderCellAndon : styles.stationHeaderCell}>
-            <span className={styles.stationHeaderLabel}>{STATION_META[station].label}</span>
-            <span className={styles.stationHeaderHelp}>{STATION_META[station].help}</span>
+            {/* The andon column's own background is `--andon` (light), so its trigger keeps the default
+                dark dotted underline; every other column sits on the dark band. */}
+            <Tooltip text={STATION_META[station].help} tone={index === andonStationIndex ? 'light' : 'onDark'}>
+              <span className={styles.stationHeaderLabel}>{STATION_META[station].label}</span>
+            </Tooltip>
           </span>
         ))}
       </div>

@@ -98,17 +98,6 @@
   font-weight: 700;
 }
 
-.stationHeaderHelp {
-  font-size: 11px;
-  line-height: 1.3;
-  color: var(--linea-apagado);
-  margin-top: 3px;
-}
-
-.stationHeaderCellAndon .stationHeaderHelp {
-  color: var(--grafito);
-}
-
 .rows {
   list-style: none;
   margin: 0;

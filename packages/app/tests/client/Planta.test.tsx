@@ -111,6 +111,26 @@ describe('Planta', () => {
     }
   });
 
+  it('the station header shows only its title, with the explanation behind a tooltip (WO-455, SDD-027)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    await screen.findByText('BC-001');
+
+    // The old inline phrasing (which rendered glued to the title) is gone entirely.
+    expect(screen.queryByText('Llegó sin evaluar')).toBeNull();
+
+    // ...and the new explanation is still reachable by assistive tech, via the title's own
+    // aria-describedby, even though it is only shown visually on hover/focus.
+    const title = screen.getByText('Entrada');
+    const describedBy = title.closest('[aria-describedby]')?.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    const plate = document.getElementById(describedBy!);
+    expect(plate?.getAttribute('role')).toBe('tooltip');
+    expect(plate?.textContent).toBe('Idea o feedback sin evaluar');
+  });
+
   it('nests a PRD under its BC row instead of giving it a row of its own (WO-443 row collapsing)', async () => {
     vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
