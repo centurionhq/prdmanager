@@ -1,0 +1,50 @@
+.tree {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding-left: calc(8px + var(--depth, 0) * 20px);
+  border-radius: var(--radius-plate);
+  cursor: pointer;
+}
+
+.rowClosed:not(.rowSelected) {
+  opacity: 0.6;
+}
+
+.rowSelected {
+  background: var(--superficie);
+  outline: 2px solid var(--cianotipo);
+  outline-offset: -2px;
+}
+
+.rowId {
+  color: var(--apagado);
+}
+
+.rowTitle {
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drift {
+  flex: none;
+  margin-left: auto;
+  padding-left: var(--space-3);
+  display: flex;
+  align-items: center;
+}
+
+.driftDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--andon);
+}

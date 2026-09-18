@@ -1,0 +1,146 @@
+.layout {
+  display: grid;
+  grid-template-columns: 420px minmax(0, 1fr);
+  gap: var(--space-8);
+  border-top: 1px solid var(--regla);
+  padding-top: var(--space-4);
+}
+
+.treeColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.treeHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.treeSearch {
+  margin-bottom: var(--space-2);
+}
+
+.treeCount {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.panelHeaderMain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.panelIdRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 700;
+}
+
+.panelLineage {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.statusFallback {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.traceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.traceLabel {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.traceValue {
+  margin: 0;
+}
+
+.traceValueNum {
+  margin: 0;
+  font-weight: 600;
+}
+
+.traceValueCode {
+  margin: 0;
+  font-weight: 600;
+  color: var(--senal-texto);
+}
+
+.ordersLink {
+  font-size: var(--text-sm);
+  color: var(--cianotipo);
+}
+
+.checkList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.checkRow {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--regla-fila);
+}
+
+.checkIcon {
+  flex: none;
+  color: var(--senal);
+}
+
+.checkIconFail {
+  color: var(--paro);
+}
+
+.checkDetail {
+  font-size: var(--text-sm);
+  color: var(--texto-secundario);
+}
+
+.checkDetailFail {
+  color: var(--paro);
+}
+
+.readinessSummary {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
