@@ -5,12 +5,23 @@ import { deriveLineBoard } from '../../src/lifecycle/station.js';
 
 const prd = (extra = ''): ParsedDoc => doc(`id: PRD-001\ntype: PRD\ntitle: Product\n${extra}`);
 const bc = (extra = ''): ParsedDoc => doc(`id: BC-001\ntype: BC\ntitle: Business case\n${extra}`);
-const sdd = (extra = ''): ParsedDoc => doc(`id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\n${extra}`);
+const sdd = (extra = '', architects = 'PRD-001'): ParsedDoc => doc(`id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [${architects}]\n${extra}`);
 const wo = (id: string, status: string): ParsedDoc => doc(`id: ${id}\ntype: WO\ntitle: Task ${id}\nstatus: ${status}\nimplements: [SDD-001]\n`, 'task');
 const fb = (extra = ''): ParsedDoc => doc(`id: FB-001\ntype: FB\ntitle: Feedback\n${extra}`);
 
 function stationOf(docs: ParsedDoc[], id = 'PRD-001'): string | undefined {
   return deriveLineBoard(docs).features.find((f) => f.id === id)?.station;
+}
+
+/** Same as {@link stationOf}, but also looks inside a BC row's `children` (WO-443's row collapsing means
+ * a nested PRD doesn't have a top-level row of its own). */
+function stationOfDeep(docs: ParsedDoc[], id: string): string | undefined {
+  for (const feature of deriveLineBoard(docs).features) {
+    if (feature.id === id) return feature.station;
+    const child = feature.children.find((c) => c.id === id);
+    if (child) return child.station;
+  }
+  return undefined;
 }
 
 describe('deriveLineBoard — station rules', () => {
@@ -109,19 +120,83 @@ describe('deriveLineBoard — estación caso_negocio (BC, WO-442)', () => {
     expect(stationOf([bc(), art], 'BC-001')).toBe('caso_negocio');
   });
 
-  test('diseno_tecnico: an approved BC still resolves like any other justified/approved Feature', () => {
-    expect(stationOf([bc('status: approved')], 'BC-001')).toBe('diseno_tecnico');
+  test('caso_negocio: an approved BC with no PRD is still parked at Caso de negocio (PRD-011 §4.4)', () => {
+    expect(stationOf([bc('status: approved')], 'BC-001')).toBe('caso_negocio');
   });
 
   test('entregado: a closed BC', () => {
     expect(stationOf([bc('status: closed')], 'BC-001')).toBe('entregado');
   });
+});
 
-  test('a BC is included in the board alongside its PRD, each on its own station for now (row nesting is WO-443)', () => {
+describe('deriveLineBoard — colapso de filas del BC (WO-443, SDD-024/PRD-011 §4.4)', () => {
+  test('BC sin PRD: una sola fila, sin children', () => {
+    const board = deriveLineBoard([bc('status: approved')]);
+    expect(board.features).toEqual([{ id: 'BC-001', kind: 'BC', title: 'Business case', status: 'approved', station: 'caso_negocio', progress: { done: 0, total: 0, stopped: 0 }, children: [] }]);
+  });
+
+  test('un PRD cuyo justified_by resuelve a un BC presente no tiene fila propia: aparece anidado', () => {
     const board = deriveLineBoard([bc('status: approved'), prd('justified_by: [BC-001]')]);
-    expect(board.features.map((f) => ({ id: f.id, kind: f.kind, station: f.station }))).toEqual([
-      { id: 'BC-001', kind: 'BC', station: 'diseno_tecnico' },
-      { id: 'PRD-001', kind: 'PRD', station: 'producto' },
-    ]);
+    expect(board.features.map((f) => f.id)).toEqual(['BC-001']);
+    expect(board.features[0]?.children.map((c) => c.id)).toEqual(['PRD-001']);
+  });
+
+  test('producto: el PRD anidado está aprobado, sin blueprint todavía', () => {
+    expect(stationOf([bc('status: approved'), prd('justified_by: [BC-001]\nstatus: approved')], 'BC-001')).toBe('producto');
+  });
+
+  test('diseno_tecnico: un blueprint architecta al PRD anidado', () => {
+    const docs = [bc('status: approved'), prd('justified_by: [BC-001]\nstatus: approved'), sdd()];
+    expect(stationOf(docs, 'BC-001')).toBe('diseno_tecnico');
+  });
+
+  test('planificacion: hay WOs generadas para el PRD anidado, todas pendientes', () => {
+    const docs = [bc('status: approved'), prd('justified_by: [BC-001]\nstatus: approved'), sdd(), wo('WO-001', 'pending')];
+    expect(stationOf(docs, 'BC-001')).toBe('planificacion');
+  });
+
+  test('construccion: una WO del PRD anidado está in_progress', () => {
+    const docs = [bc('status: approved'), prd('justified_by: [BC-001]\nstatus: approved'), sdd(), wo('WO-001', 'in_progress')];
+    expect(stationOf(docs, 'BC-001')).toBe('construccion');
+  });
+
+  test('entregado: todas las WOs del PRD anidado están done', () => {
+    const docs = [bc('status: approved'), prd('justified_by: [BC-001]\nstatus: approved'), sdd(), wo('WO-001', 'done')];
+    expect(stationOf(docs, 'BC-001')).toBe('entregado');
+  });
+
+  test('entregado: el propio BC está cerrado, sin importar el estado del PRD', () => {
+    const docs = [bc('status: closed'), prd('justified_by: [BC-001]')];
+    expect(stationOf(docs, 'BC-001')).toBe('entregado');
+  });
+
+  test('el PRD anidado conserva su propia estación intrínseca dentro de children', () => {
+    const board = deriveLineBoard([bc('status: approved'), prd('justified_by: [BC-001]\nstatus: approved')]);
+    expect(board.features[0]?.children).toEqual([{ id: 'PRD-001', kind: 'PRD', title: 'Product', status: 'approved', station: 'diseno_tecnico', progress: { done: 0, total: 0, stopped: 0 }, children: [] }]);
+  });
+
+  test('PRD legacy sin BC: conserva su fila propia y su progreso de siempre', () => {
+    const board = deriveLineBoard([prd('status: approved')]);
+    expect(board.features).toEqual([{ id: 'PRD-001', kind: 'PRD', title: 'Product', status: 'approved', station: 'diseno_tecnico', progress: { done: 0, total: 0, stopped: 0 }, children: [] }]);
+  });
+
+  test('un PRD legacy y una iniciativa con BC conviven, cada una en su propia fila de nivel superior', () => {
+    const bc2 = doc('id: BC-002\ntype: BC\ntitle: Other business case\nstatus: approved');
+    const prd2 = doc('id: PRD-002\ntype: PRD\ntitle: Other\njustified_by: [BC-002]');
+    const board = deriveLineBoard([prd('status: approved'), bc2, prd2]);
+    expect(board.features.map((f) => f.id)).toEqual(['PRD-001', 'BC-002']);
+    expect(board.features[1]?.children.map((c) => c.id)).toEqual(['PRD-002']);
+  });
+
+  test('ningún documento aparece dos veces en el board', () => {
+    const board = deriveLineBoard([bc('status: approved'), prd('justified_by: [BC-001]')]);
+    const allIds = [...board.features.map((f) => f.id), ...board.features.flatMap((f) => f.children.map((c) => c.id))];
+    expect(new Set(allIds).size).toBe(allIds.length);
+  });
+
+  test('un PRD con justified_by apuntando a un id que no existe en docs conserva su fila propia', () => {
+    // justified_by no resuelve a ningún doc presente -> no hay BC que lo anide, pero isJustified ya
+    // cuenta un justified_by no vacío como justificación (comportamiento previo a WO-443, sin cambios).
+    expect(stationOfDeep([prd('justified_by: [BC-999]')], 'PRD-001')).toBe('producto');
   });
 });
