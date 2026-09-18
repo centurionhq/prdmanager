@@ -79,10 +79,18 @@ describe('PgProjectEngine server-managed collab-field writes (WO-250)', () => {
     await seedDocument(
       orgId,
       projectId,
+      'BC-001',
+      'BC',
+      'docs/business-case/BC-001.md',
+      '---\nid: BC-001\ntype: BC\ntitle: "Business case"\nstatus: approved\njustified_by: ["ART-001"]\n---\n\n## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n',
+    );
+    await seedDocument(
+      orgId,
+      projectId,
       'PRD-001',
       'PRD',
       'docs/prd/PRD-001.md',
-      '---\nid: PRD-001\ntype: PRD\ntitle: "Example feature"\nstatus: approved\njustified_by: ["ART-001"]\n---\n\n## Resumen\n',
+      '---\nid: PRD-001\ntype: PRD\ntitle: "Example feature"\nstatus: approved\njustified_by: ["BC-001"]\n---\n\n## Resumen\n',
     );
     const blueprintContent = '---\nid: SDD-001\ntype: SDD\ntitle: "Example design"\nstatus: active\narchitects: ["PRD-001"]\nimpacts_paths: ["src/a.ts"]\n---\n\n## Tareas\n\n- [x] Do it\n';
     await seedDocument(orgId, projectId, 'SDD-001', 'SDD', 'docs/sdd/SDD-001.md', blueprintContent);

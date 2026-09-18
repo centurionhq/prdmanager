@@ -58,7 +58,7 @@ describe('prdm CLI: work orders, feedback, artifacts', () => {
   test('index migrates the schema and indexes the fixture repo', async () => {
     const { code, stdout } = await run(['index']);
     expect(code).toBe(0);
-    expect(stdout.join('\n')).toContain('documents: 5');
+    expect(stdout.join('\n')).toContain('documents: 6');
   });
 
   test('wo generate creates work orders from a blueprint checklist', async () => {

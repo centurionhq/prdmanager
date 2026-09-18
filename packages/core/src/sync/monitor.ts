@@ -81,7 +81,11 @@ export const EXPECTED_TARGET: Readonly<Record<DocRelType, readonly NodeLabel[]>>
   IMPLEMENTS: ['Blueprint'],
   PROVIDES_CONTEXT_FOR: ['Feature'],
   INFORMS: ['Feature'],
-  JUSTIFIED_BY: ['Feedback', 'Artifact'],
+  // PRD-011/SDD-022/023: 'Feature' added so justified_by can point at a BC (also label Feature) --
+  // e.g. a PRD justified by its BC. Which Feature *kind* is valid for which justifier kind (a PRD needs
+  // specifically a BC, not any Feature) is checkFeature's job (packages/core/src/lifecycle/check.ts),
+  // not this generic edge-shape check.
+  JUSTIFIED_BY: ['Feedback', 'Artifact', 'Feature'],
 };
 
 type WorkOrderDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'WO' }> };

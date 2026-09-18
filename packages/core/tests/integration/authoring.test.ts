@@ -82,8 +82,8 @@ describe('AuthoringService: create -> commit', () => {
   });
 
   test('two concurrent create-drafts of the same kind commit to distinct ids', async () => {
-    const a = await authoring.draft({ kind: 'PRD', title: 'Concurrent Feature A', body: 'body a', fields: { justified_by: ['ART-001'] } });
-    const b = await authoring.draft({ kind: 'PRD', title: 'Concurrent Feature B', body: 'body b', fields: { justified_by: ['ART-001'] } });
+    const a = await authoring.draft({ kind: 'PRD', title: 'Concurrent Feature A', body: 'body a', fields: { justified_by: ['BC-001'] } });
+    const b = await authoring.draft({ kind: 'PRD', title: 'Concurrent Feature B', body: 'body b', fields: { justified_by: ['BC-001'] } });
 
     const [resultA, resultB] = await Promise.all([authoring.commit(a.draftId, 0), authoring.commit(b.draftId, 0)]);
     expect(resultA.id).not.toBe(resultB.id);

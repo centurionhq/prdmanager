@@ -27,8 +27,10 @@ let engine: Engine;
 const FILES: Record<string, string> = {
   'prdm.config.json': JSON.stringify({ ignore: [] }),
   'docs/mrd/MRD-001.md': '---\nid: MRD-001\ntype: MRD\ntitle: "Market"\nstatus: approved\n---\ncontext\n',
-  'docs/prd/PRD-001.md': '---\nid: PRD-001\ntype: PRD\ntitle: "Product"\nstatus: approved\nimplements: ["MRD-001"]\n---\nproduct\n',
-  'docs/feedback/FB-001.md': '---\nid: FB-001\ntype: FB\ntitle: "Feedback"\nsource: email\nstatus: triaged\ninforms: ["MRD-001", "PRD-001"]\n---\nfeedback\n',
+  'docs/business-case/BC-001.md':
+    '---\nid: BC-001\ntype: BC\ntitle: "Business case"\nstatus: approved\njustified_by: ["FB-001"]\n---\n## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n',
+  'docs/prd/PRD-001.md': '---\nid: PRD-001\ntype: PRD\ntitle: "Product"\nstatus: approved\nimplements: ["MRD-001"]\njustified_by: ["BC-001"]\n---\nproduct\n',
+  'docs/feedback/FB-001.md': '---\nid: FB-001\ntype: FB\ntitle: "Feedback"\nsource: email\nstatus: triaged\ninforms: ["MRD-001", "PRD-001", "BC-001"]\n---\nfeedback\n',
   'docs/blueprints/SDD-001.md': '---\nid: SDD-001\ntype: SDD\ntitle: "Design"\narchitects: ["PRD-001"]\nimpacts_paths: ["src/foo.ts"]\n---\ndesign\n\n## Tareas\n- [x] hecho\n',
   'docs/work-orders/WO-001.md': '---\nid: WO-001\ntype: WO\ntitle: "Task"\nstatus: in_progress\nimplements: ["SDD-001"]\nsource_task: "t1"\n---\nobjetivo\n',
   'src/foo.ts': 'export const foo = 1;\n',
@@ -99,7 +101,8 @@ describe('work_orders_done excludes archived work orders (WO-414, SDD-018)', () 
     const mixRoot = makeTmpDir('prdm-close-archived-');
     const mixFiles: Record<string, string> = {
       'prdm.config.json': JSON.stringify({ ignore: [] }),
-      'docs/prd/PRD-500.md': '---\nid: PRD-500\ntype: PRD\ntitle: "Mixed"\nstatus: approved\njustified_by: ["FB-500"]\n---\nproduct\n',
+      'docs/business-case/BC-500.md': '---\nid: BC-500\ntype: BC\ntitle: "BC 500"\nstatus: approved\njustified_by: ["FB-500"]\n---\n## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n',
+      'docs/prd/PRD-500.md': '---\nid: PRD-500\ntype: PRD\ntitle: "Mixed"\nstatus: approved\njustified_by: ["BC-500"]\n---\nproduct\n',
       'docs/feedback/FB-500.md': '---\nid: FB-500\ntype: FB\ntitle: "Feedback"\nsource: email\nstatus: triaged\ninforms: ["PRD-500"]\n---\nfeedback\n',
       'docs/blueprints/SDD-500.md': '---\nid: SDD-500\ntype: SDD\ntitle: "Design"\narchitects: ["PRD-500"]\nimpacts_paths: ["src/mixed.ts"]\n---\ndesign\n\n## Tareas\n- [x] hecho\n- [x] archivado\n',
       'docs/work-orders/WO-500.md': '---\nid: WO-500\ntype: WO\ntitle: "Done task"\nstatus: done\nimplements: ["SDD-500"]\nsource_task: "t500"\n---\nobjetivo\n',
@@ -143,7 +146,8 @@ describe('WO-023 finding 9: closureReadiness is read-only; closeFeature re-check
     const raceRoot = makeTmpDir('prdm-close-race-');
     const files: Record<string, string> = {
       'prdm.config.json': JSON.stringify({ ignore: [] }),
-      'docs/prd/PRD-777.md': '---\nid: PRD-777\ntype: PRD\ntitle: "Racy"\nstatus: approved\njustified_by: ["FB-777"]\n---\nproduct\n',
+      'docs/business-case/BC-777.md': '---\nid: BC-777\ntype: BC\ntitle: "BC 777"\nstatus: approved\njustified_by: ["FB-777"]\n---\n## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n',
+      'docs/prd/PRD-777.md': '---\nid: PRD-777\ntype: PRD\ntitle: "Racy"\nstatus: approved\njustified_by: ["BC-777"]\n---\nproduct\n',
       'docs/feedback/FB-777.md': '---\nid: FB-777\ntype: FB\ntitle: "Feedback"\nsource: email\nstatus: triaged\ninforms: ["PRD-777"]\n---\nfeedback\n',
       'docs/blueprints/SDD-777.md': '---\nid: SDD-777\ntype: SDD\ntitle: "Design"\narchitects: ["PRD-777"]\nimpacts_paths: ["src/bar.ts"]\n---\ndesign\n\n## Tareas\n- [x] hecho\n',
       'docs/work-orders/WO-777.md': '---\nid: WO-777\ntype: WO\ntitle: "Task"\nstatus: done\nimplements: ["SDD-777"]\nsource_task: "t777"\n---\nobjetivo\n',
@@ -207,25 +211,29 @@ describe('forceCloseFeature (WO-417, SDD-018)', () => {
     'prdm.config.json': JSON.stringify({ ignore: [] }),
 
     // PRD-601: approved + justified, blueprint has no work order at all -> only blueprints_have_work_orders fails.
-    'docs/prd/PRD-601.md': '---\nid: PRD-601\ntype: PRD\ntitle: "No WOs"\nstatus: approved\njustified_by: ["FB-601"]\n---\nproduct\n',
+    'docs/business-case/BC-601.md': '---\nid: BC-601\ntype: BC\ntitle: "BC 601"\nstatus: approved\njustified_by: ["FB-601"]\n---\n## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n',
+'docs/prd/PRD-601.md': '---\nid: PRD-601\ntype: PRD\ntitle: "No WOs"\nstatus: approved\njustified_by: ["BC-601"]\n---\nproduct\n',
     'docs/feedback/FB-601.md': '---\nid: FB-601\ntype: FB\ntitle: "Feedback"\nsource: email\nstatus: triaged\ninforms: ["PRD-601"]\n---\nfeedback\n',
     'docs/blueprints/SDD-601.md': '---\nid: SDD-601\ntype: SDD\ntitle: "Design"\narchitects: ["PRD-601"]\nimpacts_paths: ["src/601.ts"]\n---\ndesign\n\n## Tareas\n- [ ] pendiente\n',
     'src/601.ts': 'export const x = 601;\n',
 
     // PRD-602: approved + justified, blueprint's only work order is still pending -> only work_orders_done fails.
-    'docs/prd/PRD-602.md': '---\nid: PRD-602\ntype: PRD\ntitle: "Pending WO"\nstatus: approved\njustified_by: ["FB-602"]\n---\nproduct\n',
+    'docs/business-case/BC-602.md': '---\nid: BC-602\ntype: BC\ntitle: "BC 602"\nstatus: approved\njustified_by: ["FB-602"]\n---\n## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n',
+'docs/prd/PRD-602.md': '---\nid: PRD-602\ntype: PRD\ntitle: "Pending WO"\nstatus: approved\njustified_by: ["BC-602"]\n---\nproduct\n',
     'docs/feedback/FB-602.md': '---\nid: FB-602\ntype: FB\ntitle: "Feedback"\nsource: email\nstatus: triaged\ninforms: ["PRD-602"]\n---\nfeedback\n',
     'docs/blueprints/SDD-602.md': '---\nid: SDD-602\ntype: SDD\ntitle: "Design"\narchitects: ["PRD-602"]\nimpacts_paths: ["src/602.ts"]\n---\ndesign\n\n## Tareas\n- [x] hecho\n',
     'docs/work-orders/WO-602.md': '---\nid: WO-602\ntype: WO\ntitle: "Pending"\nstatus: pending\nimplements: ["SDD-602"]\nsource_task: "t602"\n---\nobjetivo\n',
     'src/602.ts': 'export const x = 602;\n',
 
     // PRD-603: draft (not approved) -- feature_approved can never be bypassed, whatever `bypass` claims.
-    'docs/prd/PRD-603.md': '---\nid: PRD-603\ntype: PRD\ntitle: "Draft"\nstatus: draft\njustified_by: ["FB-603"]\n---\nproduct\n',
+    'docs/business-case/BC-603.md': '---\nid: BC-603\ntype: BC\ntitle: "BC 603"\nstatus: approved\njustified_by: ["FB-603"]\n---\n## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n',
+'docs/prd/PRD-603.md': '---\nid: PRD-603\ntype: PRD\ntitle: "Draft"\nstatus: draft\njustified_by: ["BC-603"]\n---\nproduct\n',
     'docs/feedback/FB-603.md': '---\nid: FB-603\ntype: FB\ntitle: "Feedback"\nsource: email\nstatus: triaged\ninforms: ["PRD-603"]\n---\nfeedback\n',
 
     // PRD-604: approved + justified, blueprint has no work order (same shape as PRD-601, kept separate
     // so the "wrong check bypassed" test doesn't depend on PRD-601's own already-closed state).
-    'docs/prd/PRD-604.md': '---\nid: PRD-604\ntype: PRD\ntitle: "No WOs 2"\nstatus: approved\njustified_by: ["FB-604"]\n---\nproduct\n',
+    'docs/business-case/BC-604.md': '---\nid: BC-604\ntype: BC\ntitle: "BC 604"\nstatus: approved\njustified_by: ["FB-604"]\n---\n## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n',
+'docs/prd/PRD-604.md': '---\nid: PRD-604\ntype: PRD\ntitle: "No WOs 2"\nstatus: approved\njustified_by: ["BC-604"]\n---\nproduct\n',
     'docs/feedback/FB-604.md': '---\nid: FB-604\ntype: FB\ntitle: "Feedback"\nsource: email\nstatus: triaged\ninforms: ["PRD-604"]\n---\nfeedback\n',
     'docs/blueprints/SDD-604.md': '---\nid: SDD-604\ntype: SDD\ntitle: "Design"\narchitects: ["PRD-604"]\nimpacts_paths: ["src/604.ts"]\n---\ndesign\n\n## Tareas\n- [ ] pendiente\n',
     'src/604.ts': 'export const x = 604;\n',

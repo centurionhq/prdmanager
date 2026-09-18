@@ -142,6 +142,27 @@ describe('prdm-graph MCP authoring surface (WO-015)', () => {
     expect(textOf(result)).not.toMatch(/\n\s*at /);
   });
 
+  let bcId: string;
+
+  test('draft_artifact BC justified by the committed FB, approved, commits (PRD-011/SDD-022/023): needed before any PRD can be justified', async () => {
+    const draft = json(
+      await client.callTool({
+        name: 'draft_artifact',
+        arguments: {
+          kind: 'BC',
+          title: 'Reducir la tasa de fallos de login',
+          body: '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n',
+          fields: { justified_by: [fbId], status: 'approved' },
+        },
+      }),
+    );
+    expect(draft.validation.ok).toBe(true);
+
+    const committed = json(await client.callTool({ name: 'commit_artifact', arguments: { draft_id: draft.draftId, expected_revision: draft.revision } }));
+    bcId = committed.id;
+    expect(bcId).toMatch(/^BC-\d{3,9}$/);
+  });
+
   let prdDraftId: string;
   let prdRevision: number;
   let prdId: string;
@@ -168,7 +189,7 @@ describe('prdm-graph MCP authoring surface (WO-015)', () => {
     expect(json(searched).results).toEqual([]);
   });
 
-  test('fixing justified_by with the committed FB id lets the PRD draft commit', async () => {
+  test('fixing justified_by with the committed BC id lets the PRD draft commit (a PRD needs a BC specifically, WO-439)', async () => {
     const fixed = json(
       await client.callTool({
         name: 'draft_artifact',
@@ -176,7 +197,7 @@ describe('prdm-graph MCP authoring surface (WO-015)', () => {
           kind: 'PRD',
           title: 'Autenticación resiliente',
           body: 'Reducir la tasa de fallos de login.',
-          fields: { justified_by: [fbId] },
+          fields: { justified_by: [bcId] },
           draft_id: prdDraftId,
           expected_revision: prdRevision,
         },
