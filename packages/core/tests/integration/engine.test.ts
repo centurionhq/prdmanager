@@ -56,7 +56,7 @@ describe('Engine + Neo4jGraphStore', () => {
     expect(report.issues.filter((i) => i.kind !== 'lifecycle_violation')).toEqual([
       { kind: 'deprecated_field', severity: 'warning', nodeId: 'SDD-001', message: expect.stringContaining('impacts_paths') },
     ]);
-    expect(report.documents).toBe(5);
+    expect(report.documents).toBe(6);
     expect(report.baselineWritten).toBe(true);
 
     const sdd = await store.getNode('SDD-001');
@@ -144,7 +144,11 @@ describe('Engine + Neo4jGraphStore', () => {
     writeFiles(root, { 'docs/feedback/FB-001.md': '---\nid: FB-001\ntype: FB\ntitle: x\nsource: email\ninforms: [PRD-404]\n---\nx\n' });
     const report = await engine.refresh();
     expect(await store.getNode('ART-001')).toBeNull();
-    expect(report.issues.filter((i) => !['deprecated_field', 'lifecycle_violation'].includes(i.kind)).map((i) => [i.kind, i.nodeId])).toEqual([['broken_link', 'FB-001']]);
+    // BC-001 (fixture.ts, PRD-011/SDD-022) is justified_by ART-001 too, so removing it breaks that link as well.
+    expect(report.issues.filter((i) => !['deprecated_field', 'lifecycle_violation'].includes(i.kind)).map((i) => [i.kind, i.nodeId])).toEqual([
+      ['broken_link', 'BC-001'],
+      ['broken_link', 'FB-001'],
+    ]);
     expect(report.hasBlockingIssues).toBe(true);
   });
 
@@ -152,7 +156,9 @@ describe('Engine + Neo4jGraphStore', () => {
     const metrics = await store.metricsRaw();
     expect(metrics.governedTotal).toBe(1);
     expect(metrics.governedSynced).toBe(1);
-    expect(metrics.featuresTotal).toBe(2);
+    // featuresTotal includes BC-001 (fixture.ts, PRD-011/SDD-022 -- BC reuses the Feature label), which no
+    // blueprint architects, so featuresTraced (only MRD-001/PRD-001) stays unchanged.
+    expect(metrics.featuresTotal).toBe(3);
     expect(metrics.featuresTraced).toBe(2);
     expect(metrics.commitsTotal).toBe(2);
     expect(metrics.commitsTraced).toBe(2);

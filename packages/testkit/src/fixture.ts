@@ -12,7 +12,9 @@ import { commitAll, gitInit, makeTmpDir, writeFiles } from './tmp.js';
 export const FIXTURE_FILES: Record<string, string> = {
   'prdm.config.json': JSON.stringify({ ignore: [] }),
   'docs/mrd/MRD-001.md': '---\nid: MRD-001\ntype: MRD\ntitle: "Mercado de asistentes de código"\nstatus: approved\n---\nLos equipos necesitan contexto de producto para agentes de IA.\n',
-  'PRD-001.md': '---\nid: PRD-001\ntype: PRD\ntitle: "Graph Engine"\nstatus: approved\nimplements: ["MRD-001"]\ntags: ["graph", "mcp"]\n---\nMotor de grafos con detección de desincronización y work orders vía MCP.\n',
+  'docs/business-case/BC-001.md':
+    '---\nid: BC-001\ntype: BC\ntitle: "Caso de negocio del Graph Engine"\nstatus: approved\njustified_by: ["ART-001"]\n---\n## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n',
+  'PRD-001.md': '---\nid: PRD-001\ntype: PRD\ntitle: "Graph Engine"\nstatus: approved\nimplements: ["MRD-001"]\njustified_by: ["BC-001"]\ntags: ["graph", "mcp"]\n---\nMotor de grafos con detección de desincronización y work orders vía MCP.\n',
   'docs/blueprints/SDD-001.md':
     '---\nid: SDD-001\ntype: SDD\ntitle: "Arquitectura del Sync Monitor"\narchitects: ["PRD-001"]\ngoverns: ["src/sync/**"]\n---\nEl monitor compara hashes contra el baseline.\n\n## Tareas\n- [ ] Implementar hashing de código\n- [x] Leer commits de git\n',
   'docs/work-orders/WO-001.md':

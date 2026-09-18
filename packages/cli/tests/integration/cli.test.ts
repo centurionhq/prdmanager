@@ -95,7 +95,7 @@ describe('prdm CLI', () => {
   test('index refreshes the graph', async () => {
     const { code, stdout } = await run(['index']);
     expect(code).toBe(0);
-    expect(stdout.join('\n')).toContain('documents: 5');
+    expect(stdout.join('\n')).toContain('documents: 6');
   });
 
   test('db status reports connectivity, schema version and registered projects', async () => {
@@ -296,7 +296,7 @@ describe('prdm CLI', () => {
   test('db reset --yes clears and rebuilds the graph', async () => {
     const { code, stdout } = await run(['db', 'reset', '--yes']);
     expect(code).toBe(0);
-    expect(stdout.join('\n')).toContain('documents: 5');
+    expect(stdout.join('\n')).toContain('documents: 6');
     expect(await store.getNode('PRD-001')).not.toBeNull();
   });
 });

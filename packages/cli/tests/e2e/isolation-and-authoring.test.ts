@@ -54,6 +54,7 @@ let projectIdD = '';
 let mcpA: McpSession | undefined;
 
 let fbId = '';
+let bcId = '';
 let prdId = '';
 let sddId = '';
 let docsSha = '';
@@ -168,7 +169,28 @@ describe('2. conversational authoring on A via MCP stdio', () => {
     expect(fbId).toBe('FB-001');
   });
 
-  test('drafts and commits PRD-001 justified_by FB-001, pre-approved', async () => {
+  test('drafts and commits BC-001 justified_by FB-001, approved (PRD-011/SDD-022/023: a PRD needs a BC)', async () => {
+    const draft = toolResult(
+      await mcpA!.client.callTool({
+        name: 'draft_artifact',
+        arguments: {
+          kind: 'BC',
+          title: 'Caso de negocio Alpha',
+          body: '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n',
+          fields: { justified_by: [fbId], status: 'approved' },
+        },
+      }),
+    ).data as unknown as DraftView;
+    expect(draft.validation.ok).toBe(true);
+
+    const commit = toolResult(
+      await mcpA!.client.callTool({ name: 'commit_artifact', arguments: { draft_id: draft.draftId, expected_revision: draft.revision } }),
+    ).data as unknown as CommitResult;
+    bcId = commit.id;
+    expect(bcId).toBe('BC-001');
+  });
+
+  test('drafts and commits PRD-001 justified_by BC-001, pre-approved', async () => {
     const draft = toolResult(
       await mcpA!.client.callTool({
         name: 'draft_artifact',
@@ -176,7 +198,7 @@ describe('2. conversational authoring on A via MCP stdio', () => {
           kind: 'PRD',
           title: 'Graph Engine Alpha',
           body: 'Producto alpha-only-marker: motor de grafos con deteccion de desincronizacion.',
-          fields: { justified_by: [fbId], status: 'approved' },
+          fields: { justified_by: [bcId], status: 'approved' },
         },
       }),
     ).data as unknown as DraftView;
@@ -336,13 +358,30 @@ describe('5. isolation with project B', () => {
         'Contenido exclusivo beta-only-marker.',
         '',
       ].join('\n'),
+      'docs/business-case/BC-001-beta.md': [
+        '---',
+        'id: BC-001',
+        'type: BC',
+        'title: "Caso de negocio Beta"',
+        'status: approved',
+        'justified_by: ["FB-001"]',
+        '---',
+        '## Problema',
+        '',
+        '## Impacto esperado',
+        '',
+        '## Métrica de éxito',
+        '',
+        '## Costo estimado',
+        '',
+      ].join('\n'),
       'docs/prd/PRD-001-beta.md': [
         '---',
         'id: PRD-001',
         'type: PRD',
         'title: "Graph Engine Beta"',
         'status: approved',
-        'justified_by: ["FB-001"]',
+        'justified_by: ["BC-001"]',
         '---',
         'Producto beta-only-marker con contenido exclusivo de Beta.',
         '',
@@ -463,10 +502,23 @@ describe('7. FR-001: draft persistence survives a killed MCP server', () => {
       ).data as unknown as DraftView;
       const fbCommit = toolResult(await mcp.client.callTool({ name: 'commit_artifact', arguments: { draft_id: fb.draftId, expected_revision: fb.revision } })).data as unknown as CommitResult;
 
+      const bc = toolResult(
+        await mcp.client.callTool({
+          name: 'draft_artifact',
+          arguments: {
+            kind: 'BC',
+            title: 'Caso de negocio D',
+            body: '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n',
+            fields: { justified_by: [fbCommit.id], status: 'approved' },
+          },
+        }),
+      ).data as unknown as DraftView;
+      const bcCommit = toolResult(await mcp.client.callTool({ name: 'commit_artifact', arguments: { draft_id: bc.draftId, expected_revision: bc.revision } })).data as unknown as CommitResult;
+
       const prd = toolResult(
         await mcp.client.callTool({
           name: 'draft_artifact',
-          arguments: { kind: 'PRD', title: 'Producto D', body: 'cuerpo del producto', fields: { justified_by: [fbCommit.id], status: 'approved' } },
+          arguments: { kind: 'PRD', title: 'Producto D', body: 'cuerpo del producto', fields: { justified_by: [bcCommit.id], status: 'approved' } },
         }),
       ).data as unknown as DraftView;
       const prdCommit = toolResult(await mcp.client.callTool({ name: 'commit_artifact', arguments: { draft_id: prd.draftId, expected_revision: prd.revision } })).data as unknown as CommitResult;

@@ -60,7 +60,36 @@ function hasJustification(doc: FeatureDoc | BusinessCaseDoc, docs: readonly Pars
   });
 }
 
-function checkFeature(doc: FeatureDoc, docs: readonly ParsedDoc[]): DriftIssue[] {
+function justifyingBusinessCase(doc: FeatureDoc, byId: Map<string, ParsedDoc>): BusinessCaseDoc | null {
+  for (const id of doc.frontmatter.justified_by ?? []) {
+    const candidate = byId.get(id);
+    if (candidate?.frontmatter.type === 'BC') return candidate as BusinessCaseDoc;
+  }
+  return null;
+}
+
+/**
+ * PRD-011 §4.2/SDD-023 (WO-439): narrows the justification rule for PRD only -- its justification must
+ * resolve to a BC (Caso de Negocio) in "approved"/"closed" status, not any FB/ART like MRD/FR still
+ * accept. Three distinguishable failures, so the message always names exactly what is missing: no
+ * justification at all, justified but not by a BC, or a BC linked but not yet approved.
+ */
+function checkPrdBusinessCase(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>): DriftIssue[] {
+  const bc = justifyingBusinessCase(doc, byId);
+  if (!bc) {
+    if (!hasJustification(doc, docs)) {
+      return [violation(doc.node.id, 'error', `${doc.node.id} needs a "justified_by" link to an approved (or closed) BC (Caso de Negocio) before it can generate work orders`)];
+    }
+    return [violation(doc.node.id, 'error', `${doc.node.id} is justified, but not by a BC (Caso de Negocio): link one via "justified_by"`)];
+  }
+  if (bc.node.status !== 'approved' && bc.node.status !== 'closed') {
+    return [violation(doc.node.id, 'error', `${doc.node.id}'s business case ${bc.node.id} is not yet "approved"/"closed" (currently "${bc.node.status}")`)];
+  }
+  return [];
+}
+
+function checkFeature(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>): DriftIssue[] {
+  if (doc.frontmatter.type === 'PRD') return checkPrdBusinessCase(doc, docs, byId);
   if (hasJustification(doc, docs)) return [];
   return [
     violation(
@@ -135,7 +164,7 @@ function checkDoc(doc: ParsedDoc, docs: readonly ParsedDoc[], byId: Map<string, 
     case 'MRD':
     case 'PRD':
     case 'FR':
-      return checkFeature(doc as FeatureDoc, docs);
+      return checkFeature(doc as FeatureDoc, docs, byId);
     case 'SDD':
     case 'ADR':
       return checkBlueprint(doc as BlueprintDoc, byId);

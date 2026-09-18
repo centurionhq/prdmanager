@@ -73,8 +73,8 @@ describe('multi-project isolation (SDD-002 "Grafo multi-proyecto")', () => {
 
     const metricsA = await storeA.metricsRaw();
     const metricsB = await storeB.metricsRaw();
-    expect(metricsA.featuresTotal).toBe(2);
-    expect(metricsB.featuresTotal).toBe(2);
+    expect(metricsA.featuresTotal).toBe(3);
+    expect(metricsB.featuresTotal).toBe(3);
   });
 
   test('the same id can exist unique per project (composite constraint), and mutating B never touches A', async () => {

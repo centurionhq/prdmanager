@@ -61,7 +61,14 @@ describe('/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId
        VALUES ($1, $2, 'ART-001', 'ART', 'Customer call', 'docs/artifacts/ART-001.md', 'collab', 'published', $3)`,
       [orgId, projectId, artifactContent],
     );
-    const featureContent = '---\nid: PRD-001\ntype: PRD\ntitle: "Example feature"\nstatus: approved\njustified_by: ["ART-001"]\n---\n\n## Resumen\n';
+    const businessCaseContent =
+      '---\nid: BC-001\ntype: BC\ntitle: "Business case"\nstatus: approved\njustified_by: ["ART-001"]\n---\n\n## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n';
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+       VALUES ($1, $2, 'BC-001', 'BC', 'Business case', 'docs/business-case/BC-001.md', 'collab', 'published', $3)`,
+      [orgId, projectId, businessCaseContent],
+    );
+    const featureContent = '---\nid: PRD-001\ntype: PRD\ntitle: "Example feature"\nstatus: approved\njustified_by: ["BC-001"]\n---\n\n## Resumen\n';
     await pg.ownerPool.query(
       `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
        VALUES ($1, $2, 'PRD-001', 'PRD', 'Example feature', 'docs/prd/PRD-001.md', 'collab', 'published', $3)`,

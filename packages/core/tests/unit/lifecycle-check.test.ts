@@ -7,6 +7,7 @@ const noGrandfathering: LifecycleContext = { grandfathered: [] };
 
 const mrd = (extra = ''): ParsedDoc => doc(`id: MRD-001\ntype: MRD\ntitle: Market\n${extra}`);
 const prd = (extra = ''): ParsedDoc => doc(`id: PRD-001\ntype: PRD\ntitle: Product\nimplements: [MRD-001]\n${extra}`);
+const fr = (extra = ''): ParsedDoc => doc(`id: FR-001\ntype: FR\ntitle: Request\n${extra}`);
 const sdd = (extra = '', body = 'design'): ParsedDoc => doc(`id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\n${extra}`, body);
 const wo = (extra = ''): ParsedDoc => doc(`id: WO-001\ntype: WO\ntitle: Task\nimplements: [SDD-001]\n${extra}`);
 const fb = (extra = '', status = 'new'): ParsedDoc => doc(`id: FB-001\ntype: FB\ntitle: Feedback\nstatus: ${status}\n${extra}`);
@@ -53,7 +54,7 @@ describe('checkLifecycle — Artifact', () => {
   });
 });
 
-describe('checkLifecycle — Feature (MRD/PRD/FR)', () => {
+describe('checkLifecycle — Feature (MRD/FR unchanged by WO-439)', () => {
   test('MRD with no justification (and no root exemption, unlike FB/ART) is an error', () => {
     expect(kinds(checkLifecycle([mrd()], noGrandfathering))).toEqual([['lifecycle_violation', 'error', 'MRD-001']]);
   });
@@ -67,9 +68,57 @@ describe('checkLifecycle — Feature (MRD/PRD/FR)', () => {
     expect(checkLifecycle(docs, noGrandfathering).filter((i) => i.nodeId === 'MRD-001')).toEqual([]);
   });
 
-  test('a reverse PROVIDES_CONTEXT_FOR from an existing Artifact derives JUSTIFIED_BY', () => {
+  test('FR still accepts a reverse PROVIDES_CONTEXT_FOR from an existing Artifact, unlike PRD', () => {
+    const docs = [fr(), art('provides_context_for: [FR-001]')];
+    expect(checkLifecycle(docs, noGrandfathering).filter((i) => i.nodeId === 'FR-001')).toEqual([]);
+  });
+
+  test('FR still accepts any justified_by (FB/ART), no BC required', () => {
+    expect(checkLifecycle([fr('justified_by: [FB-999]')], noGrandfathering)).toEqual([]);
+  });
+});
+
+const bcApproved = (id = 'BC-001'): ParsedDoc => doc(`id: ${id}\ntype: BC\ntitle: Business case\nstatus: approved`, BC_ALL_SECTIONS);
+
+describe('checkLifecycle — PRD needs an approved BC (WO-439)', () => {
+  test('PRD with no justification at all: names the BC requirement specifically', () => {
+    const issues = checkLifecycle([prd()], noGrandfathering);
+    expect(kinds(issues)).toEqual([['lifecycle_violation', 'error', 'PRD-001']]);
+    expect(issues[0]?.message).toContain('BC');
+  });
+
+  test('PRD justified by an FB (not a BC) is still an error, distinct message from "no justification"', () => {
+    const issues = checkLifecycle([prd('justified_by: [FB-999]')], noGrandfathering);
+    expect(kinds(issues)).toEqual([['lifecycle_violation', 'error', 'PRD-001']]);
+    expect(issues[0]?.message).toMatch(/justified.*not by a BC/);
+  });
+
+  test('PRD justified via reverse PROVIDES_CONTEXT_FOR from an Artifact (no BC) is still an error, not silently exempt like FR', () => {
     const docs = [prd(), art('provides_context_for: [PRD-001]')];
-    expect(checkLifecycle(docs, noGrandfathering).filter((i) => i.nodeId === 'PRD-001')).toEqual([]);
+    expect(checkLifecycle(docs, noGrandfathering).filter((i) => i.nodeId === 'PRD-001')).toHaveLength(1);
+  });
+
+  test('PRD justified by a BC that is not yet approved (draft) is an error naming the BC and its status', () => {
+    const draftBc = doc('id: BC-001\ntype: BC\ntitle: Business case\nstatus: draft', BC_ALL_SECTIONS);
+    const issues = checkLifecycle([prd('justified_by: [BC-001]'), draftBc], noGrandfathering);
+    expect(kinds(issues.filter((i) => i.nodeId === 'PRD-001'))).toEqual([['lifecycle_violation', 'error', 'PRD-001']]);
+    expect(issues.find((i) => i.nodeId === 'PRD-001')?.message).toContain('BC-001');
+  });
+
+  test('PRD justified by an approved BC satisfies the rule', () => {
+    const issues = checkLifecycle([prd('justified_by: [BC-001]'), bcApproved()], noGrandfathering);
+    expect(issues.filter((i) => i.nodeId === 'PRD-001')).toEqual([]);
+  });
+
+  test('PRD justified by a closed BC also satisfies the rule', () => {
+    const closedBc = doc('id: BC-001\ntype: BC\ntitle: Business case\nstatus: closed', BC_ALL_SECTIONS);
+    const issues = checkLifecycle([prd('justified_by: [BC-001]'), closedBc], noGrandfathering);
+    expect(issues.filter((i) => i.nodeId === 'PRD-001')).toEqual([]);
+  });
+
+  test('PRD justified_by lists several ids: only one needs to resolve to an approved BC', () => {
+    const issues = checkLifecycle([prd('justified_by: [FB-999, BC-001]'), bcApproved()], noGrandfathering);
+    expect(issues.filter((i) => i.nodeId === 'PRD-001')).toEqual([]);
   });
 });
 
