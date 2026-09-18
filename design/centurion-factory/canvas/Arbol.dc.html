@@ -62,7 +62,7 @@
 
       <div style="display: flex; flex-direction: column; gap: 12px; padding: 16px 24px 0 0; border-right: 1px solid #C9CFCD; min-width: 0;">
         <div style="display: flex; align-items: baseline; justify-content: space-between; font-size: 14px;">
-          <span style="color: #565D63;"><span class="num">10</span> features, <span class="num">4</span> cerradas</span>
+          <span style="color: #565D63;"><span class="num">12</span> features, <span class="num">4</span> cerradas</span>
           <a style="font-size: 14px;">Contraer todo</a>
         </div>
 
@@ -106,7 +106,7 @@
             <span style="margin-left: 10px; font-size: 14px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Parser de símbolos con Tree-sitter</span>
           </div>
 
-          <div aria-selected="true" style="position: relative; z-index: 1; display: flex; align-items: center; height: 36px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; outline: 2px solid #1F4FA0; outline-offset: 2px; min-width: 0;">
+          <div aria-selected="{{ isConDatos }}" style="{{ prd004Style }}">
             <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
             <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
             <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
@@ -154,6 +154,21 @@
             <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">FR-003</span>
             <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Avisos de drift por rama</span>
           </div>
+
+          <!-- WO-456/SDD-028: un BC con su PRD anidado -- misma regla de anidado que la Planta (WO-443/450):
+               un PRD/FR cuyo justified_by resuelve a un BC presente se muestra debajo de ese BC, nunca como raíz. -->
+          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
+            <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">BC-002</span>
+            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Reducir el churn de cuentas</span>
+          </div>
+
+          <div aria-selected="{{ isSinDatos }}" style="{{ nuevoRowStyle }}">
+            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
+            <span style="flex: none; width: 20px; height: 20px;"></span>
+            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">PRD-014</span>
+            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Panel de salud de cuenta</span>
+          </div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid #DDE1DF; font-size: 12px; color: #565D63;">
@@ -163,6 +178,30 @@
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 32px; padding: 16px 0 0 32px; min-width: 0;">
+
+      <!-- WO-456/SDD-028: segundo estado del panel -- un documento sin trazabilidad todavía (PRD-014,
+           recién colgado de BC-002). Ver Componentes.dc.html "Estado vacío": ícono outline + título +
+           cuerpo, misma plaqueta que EmptyState.tsx. -->
+      <sc-if value="{{ isSinDatos }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;">
+          <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span class="id" style="color: #565D63;">PRD-014</span>
+              <span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #565D63;"><span style="width: 8px; height: 8px; border: 1.5px solid #565D63;"></span>Borrador</span>
+            </div>
+            <h2 style="margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; font-stretch: 112%; letter-spacing: -0.01em;">Panel de salud de cuenta</h2>
+            <div style="font-size: 14px; color: #565D63;">Hija de <span class="id">BC-002</span></div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 16px; padding: 24px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; max-width: 460px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h6"></path></svg>
+          <span style="font-size: 16px; font-weight: 600;">Todavía no hay trazabilidad</span>
+          <p style="margin: 0; font-size: 14px; line-height: 20px; color: #33383D;">Este documento no tiene blueprints, órdenes ni commits vinculados todavía. A medida que el trabajo avance -- un SDD que lo architecte, una orden que se genere -- va a aparecer acá.</p>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isConDatos }}" hint-placeholder-val="{{ true }}">
         <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;">
           <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
             <div style="display: flex; align-items: center; gap: 10px;">
@@ -227,6 +266,7 @@
             <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">WO-058</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Función pura to-elements de Subgraph a elementos de Cytoscape, y sus tests</div><div style="padding: 8px 0 8px 16px; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Hecha</span></div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">e4a61c9</div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">18/08/2026</div>
           </div>
         </div>
+      </sc-if>
       </div>
     </section>
   </main>
@@ -286,5 +326,26 @@
   </div>
 </div>
 </x-dc>
+<script data-dc-script data-props='{"estado":{"editor":"enum","default":"con_datos","options":["con_datos","sin_datos"],"section":"Panel de detalle"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const estado = this.props.estado ?? 'con_datos';
+    const isConDatos = estado === 'con_datos';
+    const isSinDatos = estado === 'sin_datos';
+    const selectedStyle = 'position: relative; z-index: 1; display: flex; align-items: center; height: 36px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; outline: 2px solid #1F4FA0; outline-offset: 2px; min-width: 0;';
+    const unselectedStyle = 'display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;';
+    return {
+      isConDatos,
+      isSinDatos,
+      // WO-456/SDD-028: el panel de detalle tiene dos estados -- PRD-004 (cerrada, con trazabilidad
+      // completa) es el default; PRD-014 (recién colgada de BC-002, sin blueprints/órdenes/commits
+      // todavía) muestra el estado vacío que packages/app/src/components/EmptyState/EmptyState.tsx ya
+      // define. El árbol resalta la fila que corresponde a cada estado.
+      prd004Style: isConDatos ? selectedStyle : unselectedStyle,
+      nuevoRowStyle: isSinDatos ? selectedStyle : unselectedStyle
+    };
+  }
+}
+</script>
 </body>
 </html>
