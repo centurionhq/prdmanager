@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-export const DOC_KINDS = ['MRD', 'PRD', 'FR', 'SDD', 'ADR', 'WO', 'ART', 'FB'] as const;
+/**
+ * `BC` (Caso de Negocio, PRD-011/SDD-022): reuses the `Feature` label rather than a new graph label --
+ * see `businessCaseSchema`'s own doc comment for why. Its own `justified_by` produces the same
+ * `JUSTIFIED_BY` edge every other Feature already gets, chaining `FB`/`ART` -> `BC` -> `PRD`.
+ */
+export const DOC_KINDS = ['MRD', 'PRD', 'FR', 'BC', 'SDD', 'ADR', 'WO', 'ART', 'FB'] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
 export const NODE_LABELS = ['Feature', 'Blueprint', 'WorkOrder', 'Artifact', 'Feedback'] as const;
@@ -10,6 +15,7 @@ export const LABEL_BY_KIND: Readonly<Record<DocKind, NodeLabel>> = {
   MRD: 'Feature',
   PRD: 'Feature',
   FR: 'Feature',
+  BC: 'Feature',
   SDD: 'Blueprint',
   ADR: 'Blueprint',
   WO: 'WorkOrder',
@@ -68,7 +74,7 @@ function normalizeFrontmatterAliases(raw: unknown): unknown {
   return data;
 }
 
-export const ID_PATTERN = /^(MRD|PRD|FR|SDD|ADR|WO|ART|FB)-\d{3,9}$/;
+export const ID_PATTERN = /^(MRD|PRD|FR|BC|SDD|ADR|WO|ART|FB)-\d{3,9}$/;
 export const ACTOR_PATTERN = /^(agent|dev):[A-Za-z0-9._-]{1,64}$/;
 export const SHA_PATTERN = /^[0-9a-f]{7,40}$/;
 /** No control characters or newlines (prompt-fence breakout guard, MCP prompts embed titles verbatim). */
@@ -105,6 +111,28 @@ export const featureSchema = base.extend({
    * added without defaults so their absence never changes an existing document's content hash. Written
    * by `forceCloseFeature`, never by an author (see `FORBIDDEN_STATIC_FIELDS`).
    */
+  close_reason: z.string().max(2000).optional(),
+  closed_forced: z.boolean().optional(),
+});
+
+/**
+ * `BC` (Caso de Negocio, PRD-011 §4.1/SDD-022): reuses the `Feature` label (`LABEL_BY_KIND.BC`) rather
+ * than a new `NodeLabel` -- a label change would touch `docs/model/graph-model.json`, the Neo4j
+ * constraints, `search_nodes`'s label filter and every by-label render, for no benefit the chain
+ * `FB`/`ART` -> `BC` -> `PRD` doesn't already get from the existing `justified_by`/`JUSTIFIED_BY` edge.
+ * Its own schema (not a `featureSchema` variant) because a BC's required content lives in its body's
+ * four sections (`checkBusinessCase`, SDD-023), never in `implements`/`evolves_from` -- fields a BC has
+ * no use for and that `checkFeature`'s justification rule doesn't apply to.
+ *
+ * `closed_at`/`closed_by`/`close_reason`/`closed_forced` mirror `featureSchema`'s own hash-neutral
+ * fields exactly: reusing the `Feature` label makes a BC eligible for `closeFeature`/`forceCloseFeature`
+ * (both gate on `node.label === 'Feature'`, not on `DocKind`), so it needs the same fields those write.
+ */
+export const businessCaseSchema = base.extend({
+  type: z.literal('BC'),
+  justified_by: z.array(docId).optional(),
+  closed_at: optionalTimestamp,
+  closed_by: z.string().regex(ACTOR_PATTERN, 'closed_by must look like agent:name or dev:name').optional(),
   close_reason: z.string().max(2000).optional(),
   closed_forced: z.boolean().optional(),
 });
@@ -155,7 +183,7 @@ export const feedbackSchema = base.extend({
 
 export const frontmatterSchema = z.preprocess(
   normalizeFrontmatterAliases,
-  z.discriminatedUnion('type', [featureSchema, blueprintSchema, workOrderSchema, artifactSchema, feedbackSchema]),
+  z.discriminatedUnion('type', [featureSchema, businessCaseSchema, blueprintSchema, workOrderSchema, artifactSchema, feedbackSchema]),
 );
 export type Frontmatter = z.infer<typeof frontmatterSchema>;
 

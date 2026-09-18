@@ -33,7 +33,7 @@ import { apiTokens } from './tokens.js';
 import { projects } from './projects.js';
 
 /** Mirrors `@prdm/core`'s `DOC_KINDS` (`packages/core/src/domain/schema.ts`); kept in sync by hand since `packages/db` has no dependency on `@prdm/core`. */
-export const documentKind = pgEnum('document_kind', ['MRD', 'PRD', 'FR', 'SDD', 'ADR', 'WO', 'ART', 'FB']);
+export const documentKind = pgEnum('document_kind', ['MRD', 'PRD', 'FR', 'BC', 'SDD', 'ADR', 'WO', 'ART', 'FB']);
 
 /** `collab`: authored in the editor; `generated`: written only by engine operations (WOs, MCP feedback/FR/ART); `import`: brought in from the pre-SaaS local flow. */
 export const documentOrigin = pgEnum('document_origin', ['collab', 'generated', 'import']);

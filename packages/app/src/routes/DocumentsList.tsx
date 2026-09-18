@@ -41,6 +41,7 @@ const KIND_LABEL: Record<DocumentKind, string> = {
   MRD: 'Mercado',
   PRD: 'Producto',
   FR: 'Feature request',
+  BC: 'Caso de negocio',
   SDD: 'Blueprint',
   ADR: 'Decisión',
   WO: 'Orden de trabajo',

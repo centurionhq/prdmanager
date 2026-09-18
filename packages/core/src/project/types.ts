@@ -9,6 +9,7 @@ export const DEFAULT_FOLDERS: FolderMap = {
   MRD: 'docs/mrd',
   PRD: 'docs/prd',
   FR: 'docs/fr',
+  BC: 'docs/business-case',
   SDD: 'docs/sdd',
   ADR: 'docs/adr',
   WO: 'docs/work-orders',

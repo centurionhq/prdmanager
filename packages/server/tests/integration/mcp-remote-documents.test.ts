@@ -122,6 +122,24 @@ describe('remote create_document / update_document / publish_document (SDD-020)'
     await app.close();
   });
 
+  test('create_document accepts kind: BC (PRD-011/SDD-022, WO-436), saved under docs/business-case', async () => {
+    const { app, baseUrl } = await startApp();
+    const { project, editorSecret } = await setupProject(app);
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClient(`${baseUrl}/mcp/${project.graphProjectId}`, editorSecret));
+
+    const result = await client.callTool({ name: 'create_document', arguments: { kind: 'BC', title: 'Reducir el churn de cuentas nuevas' } });
+    expect(result.isError).toBeFalsy();
+    const body = toolBody<{ document: { docId: string; workflowState: string; kind: string; sourcePath: string } }>(result);
+    expect(body.document.kind).toBe('BC');
+    expect(body.document.docId).toMatch(/^BC-\d+$/);
+    expect(body.document.sourcePath).toContain('docs/business-case/');
+
+    await client.close();
+    await app.close();
+  });
+
   test('create_document with fields/body seeds content beyond the bare template', async () => {
     const { app, baseUrl } = await startApp();
     const { project, ownerSecret } = await setupProject(app);

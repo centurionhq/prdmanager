@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 const DEFAULTS: Omit<ProjectFileSettings, 'project'> = {
   docsDir: 'docs',
-  folders: { MRD: 'docs/mrd', PRD: 'docs/prd', FR: 'docs/fr', SDD: 'docs/sdd', ADR: 'docs/adr', WO: 'docs/work-orders', ART: 'docs/artifacts', FB: 'docs/feedback' },
+  folders: { MRD: 'docs/mrd', PRD: 'docs/prd', FR: 'docs/fr', BC: 'docs/business-case', SDD: 'docs/sdd', ADR: 'docs/adr', WO: 'docs/work-orders', ART: 'docs/artifacts', FB: 'docs/feedback' },
   ignore: [],
   git: { maxCommits: 500, enforceRefs: true, enforceRefsSince: null },
   triage: { autoLinkMinScore: 0.5, autoLinkMargin: 1.05, maxCandidates: 5, minMatchedTerms: 2 },

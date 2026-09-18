@@ -54,6 +54,24 @@ tags: []
 ## Contexto
 `;
 
+const BC_TEMPLATE = `---
+id: BC-?
+type: BC
+title: ""
+status: draft
+justified_by: []
+tags: []
+---
+
+## Problema
+
+## Impacto esperado
+
+## Métrica de éxito
+
+## Costo estimado
+`;
+
 const SDD_TEMPLATE = `---
 id: SDD-?
 type: SDD
@@ -127,6 +145,7 @@ export const TEMPLATES: Readonly<Record<TemplateKind, string>> = {
   MRD: MRD_TEMPLATE,
   PRD: PRD_TEMPLATE,
   FR: FR_TEMPLATE,
+  BC: BC_TEMPLATE,
   SDD: SDD_TEMPLATE,
   ADR: ADR_TEMPLATE,
   FB: FB_TEMPLATE,

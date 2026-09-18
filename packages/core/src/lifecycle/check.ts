@@ -108,6 +108,12 @@ function checkDoc(doc: ParsedDoc, docs: readonly ParsedDoc[], byId: Map<string, 
       return checkBlueprint(doc as BlueprintDoc, byId);
     case 'WO':
       return checkWorkOrder(doc as WorkOrderDoc);
+    case 'BC':
+      // No-op stub (PRD-011/SDD-022, WO-437): keeps this switch exhaustive now that 'BC' exists as a
+      // frontmatter type. checkBusinessCase (the four-section body check) and the PRD justification
+      // gate are SDD-023's own scope (WO-438/439) -- deliberately not implemented here, so this file
+      // stays governed by exactly one blueprint's impacts_paths at a time (FB-013).
+      return [];
   }
 }
 

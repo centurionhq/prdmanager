@@ -22,6 +22,7 @@ const LIFECYCLE_RULES: Readonly<Record<DocKind, string>> = {
   MRD: 'needs a "justified_by" link to an existing Feedback/Artifact (or one of those linking back via informs/provides_context_for)',
   PRD: 'needs a "justified_by" link to an existing Feedback/Artifact (or one of those linking back via informs/provides_context_for)',
   FR: 'needs a "justified_by" link to an existing Feedback/Artifact (or one of those linking back via informs/provides_context_for)',
+  BC: 'needs a "justified_by" link like MRD/PRD/FR, plus its body needs the four required sections before it can be approved',
   SDD: 'needs non-empty "impacts_paths" and a "## Tareas"/"## Tasks" checklist with at least one item before work orders can be generated',
   ADR: 'needs non-empty "impacts_paths" and a "## Tareas"/"## Tasks" checklist with at least one item before work orders can be generated',
   WO: 'generated only by generate_work_orders from a blueprint checklist; never drafted or committed directly',
