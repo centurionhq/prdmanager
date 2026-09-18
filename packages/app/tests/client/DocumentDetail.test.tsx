@@ -242,6 +242,33 @@ describe('DocumentDetail', () => {
     expect(screen.getByText('Todo el cuerpo sigue acá.')).toBeTruthy();
   });
 
+  it('shows the frontmatter relations as data once the raw YAML is gone (WO-467, SDD-034)', async () => {
+    const doc = baseDoc({ workflowState: 'published', kind: 'FB', origin: 'generated', publishedRaw: '---\nid: "FB-018"\n---\n\nCuerpo.' });
+    const withLinks = { ...doc, latestVersion: doc.latestVersion ? { ...doc.latestVersion, frontmatter: { id: 'FB-018', justified_by: ['BC-002'], informs: ['PRD-008'] } } : null };
+    renderPage(withLinks, 'admin');
+    await screen.findByRole('heading', { name: 'Feature A' });
+
+    expect(await screen.findByText('justified_by')).toBeTruthy();
+    expect(screen.getByText('BC-002')).toBeTruthy();
+    expect(screen.getByText('informs')).toBeTruthy();
+    expect(screen.getByText('PRD-008')).toBeTruthy();
+  });
+
+  it('shows an explicit empty state for a document with no body, not a blank card (WO-467, SDD-034)', async () => {
+    renderPage(baseDoc({ workflowState: 'published', kind: 'WO', origin: 'generated', publishedRaw: '---\nid: "WO-999"\n---\n' }), 'admin');
+    await screen.findByRole('heading', { name: 'Feature A' });
+
+    expect(await screen.findByText(/todavía no tiene contenido/i)).toBeTruthy();
+  });
+
+  it('shows a retryable error state when the document fails to load (WO-467, SDD-034)', async () => {
+    vi.spyOn(client, 'getDocument').mockRejectedValueOnce(new Error('documento caído'));
+    renderPage(baseDoc({ workflowState: 'published', origin: 'generated' }), 'admin');
+
+    expect(await screen.findByText(/no pudimos cargar el documento/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /reintentar/i })).toBeTruthy();
+  });
+
   it('a collab-origin document renders the live CollabEditor instead of the static body view', async () => {
     renderPage(baseDoc({ origin: 'collab' }), 'editor');
     await screen.findByRole('heading', { name: 'Feature A' });

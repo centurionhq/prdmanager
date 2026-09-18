@@ -7,7 +7,6 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { Link, useParams } from 'react-router';
 import { can, type DocumentDetail as DocumentDetailDto } from '@prdm/contracts';
-import { LoadingState } from '@prdm/ui';
 import { archiveDocument, generateWorkOrders, getDocument, publishDocument, requestDocumentReview } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { CloseFeatureAction } from './CloseFeatureAction.js';
@@ -15,7 +14,7 @@ import { CollabEditor } from '../components/CollabEditor.js';
 import { DocumentPanelTabs } from './DocumentPanelTabs.js';
 import { FrontmatterForm } from '../components/FrontmatterForm.js';
 import { MarkdownPreview } from '../components/MarkdownPreview.js';
-import { Button, DocumentStateBanner, IdTag, PublishReviewModal, StatusBadge } from '../components/index.js';
+import { Button, DocumentStateBanner, EmptyState, ErrorState, IdTag, PublishReviewModal, Skeleton, StatusBadge } from '../components/index.js';
 import { CollabDocumentProvider } from '../collab/collab-document-context.js';
 import { formatCollabDocumentName } from '../collab/document-name.js';
 import { FormError } from '../components/FormError.js';
@@ -27,6 +26,26 @@ import styles from './DocumentDetail.module.css';
 const FEATURE_KINDS = new Set(['MRD', 'PRD', 'FR']);
 
 type WorkOrdersOutcome = { generated: boolean; created: number; error?: string };
+
+/** WO-467: the frontmatter relations worth showing while reading. `id`/`kind`/`workflowState` are
+ * already in the header; these are the only fields that otherwise exist nowhere on the screen once the
+ * raw YAML stops being printed. */
+const READING_LINK_RELS = ['justified_by', 'informs', 'evolves_from', 'implements', 'architects'] as const;
+
+interface FrontmatterLink {
+  readonly rel: string;
+  readonly id: string;
+}
+
+function readingLinks(frontmatter: Record<string, unknown> | undefined): FrontmatterLink[] {
+  if (!frontmatter) return [];
+  return READING_LINK_RELS.flatMap((rel) => {
+    const value = frontmatter[rel];
+    if (typeof value === 'string') return [{ rel, id: value }];
+    if (!Array.isArray(value)) return [];
+    return value.filter((id): id is string => typeof id === 'string').map((id) => ({ rel, id }));
+  });
+}
 
 /**
  * WO-466 (SDD-034/PRD-015): the body of a non-`collab` document, with its leading `---` frontmatter
@@ -72,8 +91,11 @@ export function DocumentDetail(): ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug, project, docId]);
 
-  if (error) return <FormError message={error} />;
-  if (!doc || !docId) return <LoadingState label="Cargando documento…" />;
+  // WO-467 (SDD-034/PRD-015): both states happen before `doc` exists, so before we know its origin --
+  // they necessarily cover the collab branch too. `ErrorState` is what makes the failure recoverable
+  // (`FormError` had no retry at all) and `Skeleton` replaces `@prdm/ui`'s Stark-HUD `LoadingState`.
+  if (error) return <ErrorState title="No pudimos cargar el documento" body={error} onRetry={() => void reload()} />;
+  if (!doc || !docId) return <Skeleton rows={8} />;
 
   const id = docId;
   const latestVersion = doc.latestVersion;
@@ -144,6 +166,7 @@ export function DocumentDetail(): ReactElement {
   const isBlueprint = doc.kind === 'SDD' || doc.kind === 'ADR';
   const content = doc.publishedRaw ?? latestVersion?.renderedMarkdown ?? '';
   const body = documentBody(content);
+  const frontmatterLinks = readingLinks(latestVersion?.frontmatter);
   const isApprovedFeature = FEATURE_KINDS.has(doc.kind) && doc.workflowState === 'published' && latestVersion?.frontmatter.status === 'approved';
   const canCloseFeature = isApprovedFeature && can(subject, 'close_feature');
 
@@ -241,9 +264,23 @@ export function DocumentDetail(): ReactElement {
       ) : (
         <>
           <DocumentStateBanner variant={doc.workflowState === 'archived' ? 'archivado' : 'generado'} />
-          <article className={styles.readingBody}>
-            <MarkdownPreview body={body} />
-          </article>
+          {frontmatterLinks.length > 0 && (
+            <ul className={styles.readingLinks}>
+              {frontmatterLinks.map((link) => (
+                <li key={`${link.rel}:${link.id}`} className={styles.readingLink}>
+                  <span className={styles.readingLinkRel}>{link.rel}</span>
+                  <IdTag id={link.id} />
+                </li>
+              ))}
+            </ul>
+          )}
+          {body.trim() === '' ? (
+            <EmptyState title="Este documento todavía no tiene contenido" body="Se creó sin cuerpo. Cuando el motor o un autor le escriba algo, va a aparecer acá." />
+          ) : (
+            <article className={styles.readingBody}>
+              <MarkdownPreview body={body} />
+            </article>
+          )}
         </>
       )}
     </div>
