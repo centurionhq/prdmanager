@@ -198,16 +198,16 @@ describe('getDriftReportDetail', () => {
 });
 
 describe('listCommits', () => {
-  it('GETs commits with no params', async () => {
-    const page = { items: [], nextCursor: null };
-    const spy = spyOnRequest().mockResolvedValue(page);
+  it('GETs commits and unwraps the server\'s { commits, nextCursor } envelope into { items, nextCursor } (FB-016, SDD-030)', async () => {
+    const commits = [{ sha: 'abc1234', subject: 'feat: x', author: 'me', date: '2026-01-01', refs: [], files: [], trust: 'baseline' }];
+    const spy = spyOnRequest().mockResolvedValue({ commits, nextCursor: null });
 
-    await expect(listCommits('acme', 'factory')).resolves.toEqual(page);
+    await expect(listCommits('acme', 'factory')).resolves.toEqual({ items: commits, nextCursor: null });
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/commits');
   });
 
   it('GETs commits with limit and cursor as query params', async () => {
-    const spy = spyOnRequest().mockResolvedValue({ items: [], nextCursor: null });
+    const spy = spyOnRequest().mockResolvedValue({ commits: [], nextCursor: null });
 
     await listCommits('acme', 'factory', { limit: 20, cursor: 'abc' });
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/commits?limit=20&cursor=abc');
@@ -215,11 +215,11 @@ describe('listCommits', () => {
 });
 
 describe('listCodeRefs', () => {
-  it('GETs code refs and unwraps { codeRefs }', async () => {
-    const codeRefs = [{ refKey: 'WO-001:src/x.ts' }];
-    const spy = spyOnRequest().mockResolvedValue({ codeRefs });
+  it('GETs code refs and unwraps the server\'s { refs } envelope (FB-016, SDD-030)', async () => {
+    const refs = [{ refKey: 'WO-001:src/x.ts' }];
+    const spy = spyOnRequest().mockResolvedValue({ refs });
 
-    await expect(listCodeRefs('acme', 'factory')).resolves.toEqual(codeRefs);
+    await expect(listCodeRefs('acme', 'factory')).resolves.toEqual(refs);
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/code-refs');
   });
 });
