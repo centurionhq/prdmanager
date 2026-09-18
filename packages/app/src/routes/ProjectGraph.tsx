@@ -8,13 +8,14 @@
  */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import type { CodeRefDto, CommitDto } from '@prdm/contracts';
+import type { CodeRefDto, CommitDto, DriftIssueDto } from '@prdm/contracts';
 import { can } from '@prdm/contracts';
 import type { NodeDetail, NodeLink, NodeView, Subgraph, TreeNode } from '@prdm/core';
 import type { ClosureCheck, ClosureReadiness } from '@prdm/core';
 import {
   closeFeature,
   getClosureReadiness,
+  getDriftIssues,
   getFeatureBranch,
   getNode,
   getTree,
@@ -118,20 +119,105 @@ function relatedRefs(links: readonly NodeLink[], type: string, direction: 'in' |
   return links.filter((link) => link.type === type && link.direction === direction);
 }
 
+/** The first ref, anywhere in the raw forest, where a node sits under a `BC` via a `JUSTIFIED_BY` edge --
+ * "first" mirrors station.ts's `justifyingBc` picking the first `justified_by` id that resolves to a
+ * present BC. `buildForest` (server) renders every ref once per incoming edge it has: fully under
+ * whichever parent's traversal reaches it first, and again as an empty `repeated` stub under any other
+ * parent. So a PRD justified by a BC but reached first through its MRD's `EVOLVES_FROM` still leaves a
+ * `via: 'JUSTIFIED_BY'` stub under that BC -- this signal is read from data `getTree` already returns, no
+ * extra request and no re-deriving `station.ts`'s rule from frontmatter (SDD-029's own decision). */
+function findBcParentRefs(rawForest: readonly TreeNode[]): ReadonlyMap<string, string> {
+  const bcParentRefOf = new Map<string, string>();
+  function walk(nodes: readonly TreeNode[], parent: TreeNode | undefined): void {
+    for (const node of nodes) {
+      if (node.via === 'JUSTIFIED_BY' && parent?.kind === 'BC' && !bcParentRefOf.has(node.ref)) {
+        bcParentRefOf.set(node.ref, parent.ref);
+      }
+      walk(node.children, node);
+    }
+  }
+  walk(rawForest, undefined);
+  return bcParentRefOf;
+}
+
+/** The fully-rendered (non-`repeated`) occurrence of every ref anywhere in the raw forest -- the one with
+ * its real children, as opposed to the empty stubs `buildForest` leaves under every other parent. */
+function findFullNodes(rawForest: readonly TreeNode[]): ReadonlyMap<string, TreeNode> {
+  const fullNodes = new Map<string, TreeNode>();
+  function walk(nodes: readonly TreeNode[]): void {
+    for (const node of nodes) {
+      if (!node.repeated) fullNodes.set(node.ref, node);
+      walk(node.children);
+    }
+  }
+  walk(rawForest);
+  return fullNodes;
+}
+
+/** WO-457 (SDD-029): the raw `getTree` forest mixes features with blueprints, work orders, commits and
+ * code paths, and renders a PRD/FR under its `EVOLVES_FROM` parent even when it has a justifying BC. This
+ * rebuilds a features-only forest, with each PRD/FR nested under the first BC its `JUSTIFIED_BY` edge
+ * resolves to (falling back to its natural place when it has none), dropping every non-`Feature` node
+ * (promoting its `Feature` descendants, if any, to its position) and every duplicate `repeated` stub. */
+function buildFeatureForest(rawForest: readonly TreeNode[]): readonly TreeNode[] {
+  const bcParentRefOf = findBcParentRefs(rawForest);
+  const fullNodes = findFullNodes(rawForest);
+
+  function rebuildChildren(node: TreeNode): TreeNode[] {
+    const full = fullNodes.get(node.ref) ?? node;
+    return full.children.flatMap((child) => renderAt(child, full));
+  }
+
+  function renderAt(child: TreeNode, parent: TreeNode): TreeNode[] {
+    const isBcHome = child.via === 'JUSTIFIED_BY' && parent.kind === 'BC' && bcParentRefOf.get(child.ref) === parent.ref;
+    if (!isBcHome && bcParentRefOf.has(child.ref)) return []; // nests under its BC elsewhere instead
+    if (!isBcHome && child.repeated) return []; // duplicate stub, the real rendering is elsewhere
+    const full = fullNodes.get(child.ref) ?? child;
+    if (full.label !== 'Feature') return rebuildChildren(full); // drop it, promote its feature descendants
+    return [{ ...full, children: rebuildChildren(full) }];
+  }
+
+  const root: TreeNode = { ref: '', label: '', kind: null, title: '', status: null, via: null, edgeStatus: null, reviewNeeded: false, repeated: false, children: [...rawForest] };
+  return rebuildChildren(root);
+}
+
+/** Total features and how many are closed, over the whole forest regardless of what's expanded. */
+function countFeatures(nodes: readonly TreeNode[]): { readonly total: number; readonly closed: number } {
+  return nodes.reduce(
+    (acc, node) => {
+      const fromChildren = countFeatures(node.children);
+      return { total: acc.total + 1 + fromChildren.total, closed: acc.closed + (node.status === 'closed' ? 1 : 0) + fromChildren.closed };
+    },
+    { total: 0, closed: 0 },
+  );
+}
+
 // --- FeatureTree: the left ARIA tree ---
 
 interface FeatureTreeProps {
   readonly forest: readonly TreeNode[];
   readonly selectedRef: string;
+  readonly driftRefs: ReadonlySet<string>;
+  /** Bumping this collapses every expandable row -- WO-457's "Contraer todo". */
+  readonly collapseSignal: number;
   readonly onSelect: (ref: string) => void;
 }
 
-function FeatureTree({ forest, selectedRef, onSelect }: FeatureTreeProps): ReactElement {
+function FeatureTree({ forest, selectedRef, driftRefs, collapseSignal, onSelect }: FeatureTreeProps): ReactElement {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set(collectExpandableRefs(forest)));
   const [focusedRef, setFocusedRef] = useState(selectedRef);
   const treeRef = useRef<HTMLDivElement>(null);
+  const isFirstCollapseSignal = useRef(true);
 
   useEffect(() => setFocusedRef(selectedRef), [selectedRef]);
+
+  useEffect(() => {
+    if (isFirstCollapseSignal.current) {
+      isFirstCollapseSignal.current = false;
+      return;
+    }
+    setExpanded(new Set());
+  }, [collapseSignal]);
 
   useEffect(() => {
     treeRef.current?.querySelector<HTMLDivElement>(`[data-ref="${CSS.escape(focusedRef)}"]`)?.focus();
@@ -189,6 +275,11 @@ function FeatureTree({ forest, selectedRef, onSelect }: FeatureTreeProps): React
               {row.node.ref}
             </span>
             <span style={{ fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.node.title}</span>
+            {driftRefs.has(row.node.ref) ? (
+              <span title="Drift activo" style={{ flex: 'none', marginLeft: 'auto', paddingLeft: 12, display: 'flex', alignItems: 'center' }}>
+                <span style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--andon)' }} />
+              </span>
+            ) : null}
           </div>
         );
       })}
@@ -395,6 +486,7 @@ export function ProjectGraph(): ReactElement {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const [closureOpen, setClosureOpen] = useState(false);
+  const [collapseSignal, setCollapseSignal] = useState(0);
   useDocumentTitle('Árbol de features');
 
   const treeQuery = useApiQuery(
@@ -403,8 +495,16 @@ export function ProjectGraph(): ReactElement {
     [orgSlug, projectSlug],
     (forest) => forest.length === 0,
   );
-  const forest = treeQuery.data ?? [];
+  const forest = useMemo(() => buildFeatureForest(treeQuery.data ?? []), [treeQuery.data]);
   const selectedRef = id ?? forest[0]?.ref;
+
+  const driftQuery = useApiQuery<readonly DriftIssueDto[]>(
+    `drift-issues:${orgSlug}:${projectSlug}`,
+    () => getDriftIssues(orgSlug, projectSlug),
+    [orgSlug, projectSlug],
+    (issues) => issues.length === 0,
+  );
+  const driftRefs = useMemo(() => new Set((driftQuery.data ?? []).flatMap((issue) => issue.featureIds)), [driftQuery.data]);
 
   const nodeQuery = useApiQuery<NodeDetail | null>(
     selectedRef ? `node:${orgSlug}:${projectSlug}:${selectedRef}` : 'node:none',
@@ -463,12 +563,29 @@ export function ProjectGraph(): ReactElement {
   }
 
   const canClose = isFeature && detail !== null && detail !== undefined && detail.node.status !== 'closed' && can(subject, 'close_feature');
+  const { total: totalFeatures, closed: closedFeatures } = countFeatures(forest);
 
   return (
     <div>
       <PageHeader title="Árbol de features" subtitle="De la visión de mercado a cada feature request" />
       <div style={{ display: 'grid', gridTemplateColumns: '420px minmax(0, 1fr)', gap: 32, borderTop: '1px solid var(--regla)', paddingTop: 16 }}>
-        <FeatureTree forest={forest} selectedRef={selectedRef} onSelect={(ref) => navigate(`/o/${orgSlug}/p/${projectSlug}/arbol/${ref}`)} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 14, color: 'var(--apagado)' }}>
+              <span className="num">{totalFeatures}</span> features, <span className="num">{closedFeatures}</span> cerradas
+            </span>
+            <Button type="button" variant="ghost" onClick={() => setCollapseSignal((value) => value + 1)}>
+              Contraer todo
+            </Button>
+          </div>
+          <FeatureTree
+            forest={forest}
+            selectedRef={selectedRef}
+            driftRefs={driftRefs}
+            collapseSignal={collapseSignal}
+            onSelect={(ref) => navigate(`/o/${orgSlug}/p/${projectSlug}/arbol/${ref}`)}
+          />
+        </div>
         <div>
           {nodeQuery.status === 'cargando' ? <Skeleton rows={6} /> : null}
           {nodeQuery.status === 'error' ? <ErrorState title="No pudimos cargar el nodo" body={errorMessage(nodeQuery.error)} onRetry={nodeQuery.retry} /> : null}
