@@ -100,9 +100,11 @@ describe('GET .../line-board (WO-335)', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.features).toHaveLength(2);
-    expect(body.features.find((f: { id: string }) => f.id === 'BC-001')).toMatchObject({ id: 'BC-001', station: 'caso_negocio' });
-    expect(body.features.find((f: { id: string }) => f.id === 'FR-001')).toMatchObject({ id: 'FR-001', station: 'producto' });
+    // WO-450/SDD-025 generalized row collapsing to FR too, so FR-001 (justified_by BC-001) now nests
+    // under the BC's row instead of getting one of its own.
+    expect(body.features).toHaveLength(1);
+    expect(body.features[0]).toMatchObject({ id: 'BC-001', station: 'caso_negocio' });
+    expect(body.features[0].children).toMatchObject([{ id: 'FR-001', station: 'producto' }]);
     expect(body.andon).toBeNull();
 
     await app.close();
