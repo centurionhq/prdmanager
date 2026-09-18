@@ -65,9 +65,12 @@
       </div>
     </header>
 
-    <section style="flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr) 320px; gap: 20px;">
+    <section style="{{ layoutStyle }}">
 
-      <!-- Frontmatter -->
+      <!-- Frontmatter: solo en edición. Un documento no editable (import/generated) no tiene
+           formulario de frontmatter, igual que en la app real (DocumentDetail lo monta dentro de
+           la rama collab). -->
+      <sc-if value="{{ isEdicion }}" hint-placeholder-val="{{ true }}">
       <div style="display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow: hidden;">
         <h2 style="margin: 0; font-size: 16px; font-weight: 700; line-height: 24px;">Frontmatter</h2>
         <label style="display: flex; flex-direction: column; gap: 6px;">
@@ -112,16 +115,81 @@
           <span>Versión 7 · autores Julia Paz y Ana Ríos</span>
         </div>
       </div>
+      </sc-if>
 
       <!-- Editor -->
       <div style="display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
-        <div style="height: 44px; flex: none; display: flex; align-items: stretch; justify-content: space-between; padding: 0 8px; border-bottom: 1px solid #C9CFCD; font-size: 14px;">
-          <div role="tablist" aria-label="Modo del editor" style="display: flex; align-items: stretch;">
-            <div role="tab" aria-selected="{{ isPreview }}" onClick="{{ onPreview }}" style="{{ previewTabStyle }}">Vista previa</div>
-            <div role="tab" aria-selected="{{ isMarkdown }}" onClick="{{ onMarkdown }}" style="{{ markdownTabStyle }}">Markdown</div>
+        <sc-if value="{{ isEdicion }}" hint-placeholder-val="{{ true }}">
+          <div style="height: 44px; flex: none; display: flex; align-items: stretch; justify-content: space-between; padding: 0 8px; border-bottom: 1px solid #C9CFCD; font-size: 14px;">
+            <div role="tablist" aria-label="Modo del editor" style="display: flex; align-items: stretch;">
+              <div role="tab" aria-selected="{{ isPreview }}" onClick="{{ onPreview }}" style="{{ previewTabStyle }}">Vista previa</div>
+              <div role="tab" aria-selected="{{ isMarkdown }}" onClick="{{ onMarkdown }}" style="{{ markdownTabStyle }}">Markdown</div>
+            </div>
+            <span style="display: flex; align-items: center; font-size: 12px; color: #565D63;">Autoría por bloque</span>
           </div>
-          <span style="display: flex; align-items: center; font-size: 12px; color: #565D63;">Autoría por bloque</span>
-        </div>
+        </sc-if>
+
+        <!-- WO-465/SDD-033: documento no editable (import/generated). Sin pestañas y sin toolbar:
+             el cuerpo se lee renderizado, y el banner dice por qué no se puede editar. -->
+        <sc-if value="{{ isLectura }}" hint-placeholder-val="{{ false }}">
+          <div style="flex: none; display: flex; align-items: flex-start; gap: 10px; margin: 16px 24px 0; padding: 12px 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px;"><path d="M12 2 3 7v6c0 5 3.8 8.5 9 9 5.2-.5 9-4 9-9V7z"></path></svg>
+            <span style="font-size: 14px; line-height: 20px; color: #33383D;">Este documento lo escribió el motor (feedback o work order). Es de solo lectura: solo cambia con operaciones del engine.</span>
+          </div>
+
+          <div style="flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 24px 0;">
+            <sc-for list="{{ enlaces }}" as="enlace" hint-placeholder-count="2">
+              <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+                <span style="font-size: 12px; color: #565D63;">{{ enlace.rel }}</span>
+                <span class="id" style="font-size: 12px; color: #1F4FA0;">{{ enlace.id }}</span>
+              </span>
+            </sc-for>
+          </div>
+
+          <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 16px 24px;">
+            <sc-for list="{{ lecturaBlocks }}" as="block" hint-placeholder-count="14">
+              <div style="display: flex; align-items: flex-start;">
+                <sc-if value="{{ block.isBullet }}" hint-placeholder-val="{{ false }}">
+                  <span style="flex: none; width: 18px; padding-top: 1px; color: #565D63;">•</span>
+                </sc-if>
+                <sc-if value="{{ block.isTask }}" hint-placeholder-val="{{ false }}">
+                  <span style="flex: none; width: 18px; padding-top: 4px;"><span style="display: block; width: 12px; height: 12px; border: 1px solid #C9CFCD; border-radius: 2px; background: #FBFCFB;"></span></span>
+                </sc-if>
+                <span style="{{ block.textStyle }}">{{ block.text }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isCargando }}" hint-placeholder-val="{{ false }}">
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 24px;">
+            <span style="height: 28px; width: 60%; background: #DDE1DF; border-radius: 2px;"></span>
+            <span style="height: 16px; width: 100%; background: #DDE1DF; border-radius: 2px;"></span>
+            <span style="height: 16px; width: 92%; background: #DDE1DF; border-radius: 2px;"></span>
+            <span style="height: 16px; width: 74%; background: #DDE1DF; border-radius: 2px;"></span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isVacio }}" hint-placeholder-val="{{ false }}">
+          <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 16px; max-width: 420px; padding: 24px; text-align: center; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+              <span style="font-size: 16px; font-weight: 600; color: #17191C;">Este documento todavía no tiene contenido</span>
+              <span style="font-size: 14px; line-height: 20px; color: #33383D;">Se creó sin cuerpo. Cuando el motor o un autor le escriba algo, va a aparecer acá.</span>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}">
+          <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 16px; max-width: 420px; padding: 24px; text-align: center; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8322A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6M12 16.5v.5"></path></svg>
+              <span style="font-size: 16px; font-weight: 600; color: #17191C;">No pudimos cargar el documento</span>
+              <span style="font-size: 14px; line-height: 20px; color: #33383D;">La conexión con el servidor falló. Reintentá; si vuelve a pasar, el documento sigue accesible por el MCP.</span>
+              <span style="height: 40px; display: inline-flex; align-items: center; padding: 0 16px; background: #17191C; color: #FFFFFF; border-radius: 2px; font-size: 14px; font-weight: 600;">Reintentar</span>
+            </div>
+          </div>
+        </sc-if>
 
         <sc-if value="{{ isPreview }}" hint-placeholder-val="{{ true }}">
           <div role="toolbar" aria-label="Formato" style="height: 48px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 8px; border-bottom: 1px solid #DDE1DF;">
@@ -263,7 +331,7 @@
   </main>
 </div>
 </x-dc>
-<script data-dc-script data-props='{}'>
+<script data-dc-script data-props='{"vista":{"editor":"enum","default":"edicion","options":["edicion","lectura","lectura_vacio","lectura_error","lectura_cargando"],"section":"Estado del documento"}}'>
 class Component extends DCLogic {
   constructor(props) {
     super(props);
@@ -273,7 +341,18 @@ class Component extends DCLogic {
   renderVals() {
     const decision = this.state.decision;
     const isAccepted = decision === 'accepted';
-    const isPreview = this.state.mode === 'preview';
+
+    // WO-465 (SDD-033/PRD-015): un documento `import`/`generated` (cada FB, cada WO y toda la
+    // gobernanza importada) no es editable y hoy se vuelca como markdown crudo. "edicion" es el
+    // documento collab de siempre; los demas estados son los de esa otra rama.
+    const vista = this.props.vista ?? 'edicion';
+    const isEdicion = vista === 'edicion';
+    const isLectura = vista === 'lectura';
+    const isVacio = vista === 'lectura_vacio';
+    const isError = vista === 'lectura_error';
+    const isCargando = vista === 'lectura_cargando';
+
+    const isPreview = isEdicion && this.state.mode === 'preview';
     const blockType = this.state.blockType;
     const bold = this.state.bold;
 
@@ -376,9 +455,36 @@ class Component extends DCLogic {
     const tabBase = 'display: flex; align-items: center; padding: 0 12px; cursor: pointer; margin-bottom: -1px;';
     const toolBase = 'width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 2px; cursor: pointer;';
 
+    // El cuerpo en lectura son los mismos bloques renderizados, sin la columna de autoria ni la
+    // seleccion del editor: lo que importa mostrar es que el markdown se ve como documento.
+    const lecturaBlocks = blocks.map((b) => ({
+      textStyle: typeText[b.type],
+      text: b.text,
+      isBullet: b.type === 'li',
+      isTask: b.type === 'task'
+    }));
+
+    // PRD-015 §4.2: del frontmatter, los enlaces son lo unico que hoy no aparece en ninguna otra
+    // parte de la pantalla (id, tipo y estado ya estan en el encabezado).
+    const enlaces = [
+      { rel: 'justified_by', id: 'BC-002' },
+      { rel: 'informs', id: 'PRD-008' }
+    ];
+
     return {
+      // Sin la columna de Frontmatter, el documento en lectura ocupa el ancho que le queda.
+      layoutStyle: isEdicion
+        ? 'flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr) 320px; gap: 20px;'
+        : 'flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px;',
+      isEdicion: isEdicion,
+      isLectura: isLectura,
+      isVacio: isVacio,
+      isError: isError,
+      isCargando: isCargando,
+      lecturaBlocks: lecturaBlocks,
+      enlaces: enlaces,
       isPreview: isPreview,
-      isMarkdown: !isPreview,
+      isMarkdown: isEdicion && !isPreview,
       previewTabStyle: tabBase + (isPreview ? ' font-weight: 600; color: #17191C; border-bottom: 2px solid #17191C;' : ' color: #33383D; border-bottom: 2px solid transparent;'),
       markdownTabStyle: tabBase + (!isPreview ? ' font-weight: 600; color: #17191C; border-bottom: 2px solid #17191C;' : ' color: #33383D; border-bottom: 2px solid transparent;'),
       onPreview: () => this.setState({ mode: 'preview' }),
