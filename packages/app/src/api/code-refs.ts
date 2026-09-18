@@ -7,7 +7,7 @@ import type { CodeRefDto } from '@prdm/contracts';
 import { request } from './request.js';
 
 export function listCodeRefs(orgSlug: string, projectSlug: string): Promise<CodeRefDto[]> {
-  return request<{ codeRefs: CodeRefDto[] }>(
+  return request<{ refs: CodeRefDto[] }>(
     `/api/app/organizations/${encodeURIComponent(orgSlug)}/projects/${encodeURIComponent(projectSlug)}/code-refs`,
-  ).then((r) => r.codeRefs);
+  ).then((r) => r.refs);
 }

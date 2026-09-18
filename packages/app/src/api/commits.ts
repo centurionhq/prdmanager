@@ -18,7 +18,7 @@ export interface CommitsPage {
 
 export function listCommits(orgSlug: string, projectSlug: string, params: ListCommitsParams = {}): Promise<CommitsPage> {
   const query = buildQuery({ limit: params.limit?.toString(), cursor: params.cursor ?? undefined });
-  return request<CommitsPage>(
+  return request<{ commits: CommitDto[]; nextCursor: string | null }>(
     `/api/app/organizations/${encodeURIComponent(orgSlug)}/projects/${encodeURIComponent(projectSlug)}/commits${query}`,
-  );
+  ).then((r) => ({ items: r.commits, nextCursor: r.nextCursor }));
 }
