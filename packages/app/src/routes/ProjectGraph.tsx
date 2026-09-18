@@ -4,9 +4,10 @@
  * selected node (`getNode`, and `getFeatureBranch`/`listCodeRefs`/`listCommits` for richer counts) and the
  * "Cerrar feature" confirmation modal (`getClosureReadiness`/`closeFeature`). See canvas/Arbol.dc.html.
  * Deliberately drops `@prdm/ui`'s `GraphCanvas`/`TreeView`/`NodeDetailPanel` (Stark HUD tokens, not this
- * design's) — every style here comes from `src/styles/tokens.css` instead.
+ * design's) — every style here comes from `src/styles/tokens.css` instead (WO-461: via this route's own
+ * CSS module, plus `FeatureTree`'s, now that the tree itself is a design-system component).
  */
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { CodeRefDto, CommitDto, DriftIssueDto } from '@prdm/contracts';
 import { can } from '@prdm/contracts';
@@ -31,9 +32,11 @@ import {
   DataTable,
   EmptyState,
   ErrorState,
+  FeatureTree,
   IdTag,
   Modal,
   PageHeader,
+  SearchField,
   Skeleton,
   StatusBadge,
   type DataTableColumn,
@@ -42,80 +45,14 @@ import {
   type StatusBadgeWorkflowStatus,
 } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
+import styles from './ProjectGraph.module.css';
 import { useProjectShellContext } from './ProjectShell.js';
 
-const MOVE_KEYS = new Set(['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End']);
 const FEATURE_STATUSES = new Set<StatusBadgeFeatureStatus>(['draft', 'proposed', 'approved', 'closed']);
 const WORK_ORDER_STATUSES = new Set<StatusBadgeWorkOrderStatus>(['pending', 'in_progress', 'out_of_sync', 'done']);
 const WORKFLOW_STATUSES = new Set<StatusBadgeWorkflowStatus>(['draft', 'in_review', 'published', 'archived']);
 
 // --- Pure tree helpers (no React), operating directly on @prdm/core's already-nested TreeNode ---
-
-interface VisibleRow {
-  readonly node: TreeNode;
-  readonly depth: number;
-  readonly hasChildren: boolean;
-  readonly setSize: number;
-  readonly posInSet: number;
-}
-
-function flattenVisible(nodes: readonly TreeNode[], expanded: ReadonlySet<string>, depth = 0): readonly VisibleRow[] {
-  return nodes.flatMap((node, index) => {
-    const row: VisibleRow = { node, depth, hasChildren: node.children.length > 0, setSize: nodes.length, posInSet: index + 1 };
-    const isExpanded = node.children.length === 0 || expanded.has(node.ref);
-    return isExpanded ? [row, ...flattenVisible(node.children, expanded, depth + 1)] : [row];
-  });
-}
-
-function collectExpandableRefs(nodes: readonly TreeNode[]): readonly string[] {
-  return nodes.flatMap((node) => (node.children.length > 0 ? [node.ref, ...collectExpandableRefs(node.children)] : []));
-}
-
-function buildParentIndex(nodes: readonly TreeNode[], parentRef: string | undefined, index: Map<string, string | undefined>): void {
-  for (const node of nodes) {
-    index.set(node.ref, parentRef);
-    buildParentIndex(node.children, node.ref, index);
-  }
-}
-
-interface TreeKeyboardMove {
-  readonly nextFocusedRef: string;
-  readonly nextExpanded?: ReadonlySet<string>;
-}
-
-function applyTreeKeyboardMove(key: string, focusedRef: string, forest: readonly TreeNode[], expanded: ReadonlySet<string>): TreeKeyboardMove | undefined {
-  const rows = flattenVisible(forest, expanded);
-  const refs = rows.map((row) => row.node.ref);
-  const index = refs.indexOf(focusedRef);
-  if (index === -1) return undefined;
-
-  if (key === 'ArrowDown') return refs[index + 1] ? { nextFocusedRef: refs[index + 1]! } : undefined;
-  if (key === 'ArrowUp') return refs[index - 1] ? { nextFocusedRef: refs[index - 1]! } : undefined;
-  if (key === 'Home') return refs[0] ? { nextFocusedRef: refs[0]! } : undefined;
-  if (key === 'End') return refs[refs.length - 1] ? { nextFocusedRef: refs[refs.length - 1]! } : undefined;
-
-  if (key === 'ArrowRight') {
-    const row = rows[index];
-    if (!row?.hasChildren) return undefined;
-    if (!expanded.has(focusedRef)) return { nextFocusedRef: focusedRef, nextExpanded: new Set([...expanded, focusedRef]) };
-    const firstChildRef = row.node.children[0]?.ref;
-    return firstChildRef ? { nextFocusedRef: firstChildRef } : undefined;
-  }
-
-  if (key === 'ArrowLeft') {
-    if (expanded.has(focusedRef)) {
-      const next = new Set(expanded);
-      next.delete(focusedRef);
-      return { nextFocusedRef: focusedRef, nextExpanded: next };
-    }
-    const parents = new Map<string, string | undefined>();
-    buildParentIndex(forest, undefined, parents);
-    const parentRef = parents.get(focusedRef);
-    return parentRef ? { nextFocusedRef: parentRef } : undefined;
-  }
-
-  return undefined;
-}
 
 function relatedRefs(links: readonly NodeLink[], type: string, direction: 'in' | 'out'): readonly NodeLink[] {
   return links.filter((link) => link.type === type && link.direction === direction);
@@ -183,7 +120,8 @@ function buildFeatureForest(rawForest: readonly TreeNode[]): readonly TreeNode[]
   return rebuildChildren(root);
 }
 
-/** Total features and how many are closed, over the whole forest regardless of what's expanded. */
+/** Total features and how many are closed, over the whole forest regardless of what's expanded or filtered
+ * out by the search box -- the header count always describes the real tree, not the current search. */
 function countFeatures(nodes: readonly TreeNode[]): { readonly total: number; readonly closed: number } {
   return nodes.reduce(
     (acc, node) => {
@@ -194,99 +132,15 @@ function countFeatures(nodes: readonly TreeNode[]): { readonly total: number; re
   );
 }
 
-// --- FeatureTree: the left ARIA tree ---
-
-interface FeatureTreeProps {
-  readonly forest: readonly TreeNode[];
-  readonly selectedRef: string;
-  readonly driftRefs: ReadonlySet<string>;
-  /** Bumping this collapses every expandable row -- WO-457's "Contraer todo". */
-  readonly collapseSignal: number;
-  readonly onSelect: (ref: string) => void;
-}
-
-function FeatureTree({ forest, selectedRef, driftRefs, collapseSignal, onSelect }: FeatureTreeProps): ReactElement {
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set(collectExpandableRefs(forest)));
-  const [focusedRef, setFocusedRef] = useState(selectedRef);
-  const treeRef = useRef<HTMLDivElement>(null);
-  const isFirstCollapseSignal = useRef(true);
-
-  useEffect(() => setFocusedRef(selectedRef), [selectedRef]);
-
-  useEffect(() => {
-    if (isFirstCollapseSignal.current) {
-      isFirstCollapseSignal.current = false;
-      return;
-    }
-    setExpanded(new Set());
-  }, [collapseSignal]);
-
-  useEffect(() => {
-    treeRef.current?.querySelector<HTMLDivElement>(`[data-ref="${CSS.escape(focusedRef)}"]`)?.focus();
-  }, [focusedRef]);
-
-  const rows = useMemo(() => flattenVisible(forest, expanded), [forest, expanded]);
-
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      onSelect(focusedRef);
-      return;
-    }
-    if (!MOVE_KEYS.has(event.key)) return;
-    event.preventDefault();
-    const result = applyTreeKeyboardMove(event.key, focusedRef, forest, expanded);
-    if (!result) return;
-    if (result.nextExpanded) setExpanded(result.nextExpanded);
-    setFocusedRef(result.nextFocusedRef);
-  }
-
-  return (
-    <div ref={treeRef} role="tree" aria-label="Árbol de features" onKeyDown={handleKeyDown} style={{ display: 'flex', flexDirection: 'column' }}>
-      {rows.map((row) => {
-        const isSelected = row.node.ref === selectedRef;
-        const isClosed = row.node.status === 'closed';
-        return (
-          <div
-            key={row.node.ref}
-            data-ref={row.node.ref}
-            role="treeitem"
-            tabIndex={row.node.ref === focusedRef ? 0 : -1}
-            aria-selected={isSelected}
-            aria-expanded={row.hasChildren ? expanded.has(row.node.ref) : undefined}
-            aria-level={row.depth + 1}
-            aria-setsize={row.setSize}
-            aria-posinset={row.posInSet}
-            onClick={() => onSelect(row.node.ref)}
-            onFocus={() => setFocusedRef(row.node.ref)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              height: 36,
-              paddingLeft: 8 + row.depth * 20,
-              borderRadius: 2,
-              cursor: 'pointer',
-              opacity: isClosed && !isSelected ? 0.6 : 1,
-              background: isSelected ? 'var(--superficie)' : undefined,
-              outline: isSelected ? '2px solid var(--cianotipo)' : undefined,
-              outlineOffset: isSelected ? -2 : undefined,
-            }}
-          >
-            <span className="id" style={{ color: 'var(--apagado)' }}>
-              {row.node.ref}
-            </span>
-            <span style={{ fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.node.title}</span>
-            {driftRefs.has(row.node.ref) ? (
-              <span title="Drift activo" style={{ flex: 'none', marginLeft: 'auto', paddingLeft: 12, display: 'flex', alignItems: 'center' }}>
-                <span style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--andon)' }} />
-              </span>
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
+/** WO-461: the header's "Buscar por id o título" -- keeps a node if it (or any descendant) matches, so a
+ * match's ancestors stay visible for context instead of the match showing up disconnected from its tree. */
+function filterForestByQuery(nodes: readonly TreeNode[], query: string): TreeNode[] {
+  if (!query) return [...nodes];
+  return nodes.flatMap((node) => {
+    const children = filterForestByQuery(node.children, query);
+    const matches = node.ref.toLowerCase().includes(query) || node.title.toLowerCase().includes(query);
+    return matches || children.length > 0 ? [{ ...node, children }] : [];
+  });
 }
 
 // --- TraceabilityPanel: the right-hand detail for the selected node ---
@@ -301,7 +155,7 @@ function renderStatus(view: NodeView): ReactElement {
   if (WORKFLOW_STATUSES.has(view.status as StatusBadgeWorkflowStatus)) {
     return <StatusBadge kind="workflow" status={view.status as StatusBadgeWorkflowStatus} />;
   }
-  return <span style={{ fontSize: 14, color: 'var(--apagado)' }}>{view.status}</span>;
+  return <span className={styles.statusFallback}>{view.status}</span>;
 }
 
 interface FeatureOrderRow {
@@ -382,21 +236,21 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
   const hasTraceabilityContent = origin.length > 0 || children.length > 0 || blueprintsIn.length > 0 || workOrdersIn.length > 0 || branch !== null || codeRefs !== null || commits !== null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div className={styles.panel}>
+      <header className={styles.panelHeader}>
+        <div className={styles.panelHeaderMain}>
+          <div className={styles.panelIdRow}>
             <IdTag id={view.id} />
             {renderStatus(view)}
           </div>
-          <h2 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>{view.title}</h2>
+          <h2 className={styles.panelTitle}>{view.title}</h2>
           {parent ? (
-            <p style={{ margin: 0, fontSize: 14, color: 'var(--apagado)' }}>
+            <p className={styles.panelLineage}>
               Hija de <IdTag id={parent.ref} />
             </p>
           ) : null}
           {architects ? (
-            <p style={{ margin: 0, fontSize: 14, color: 'var(--apagado)' }}>
+            <p className={styles.panelLineage}>
               Arquitecta a <IdTag id={architects.ref} />
             </p>
           ) : null}
@@ -409,59 +263,55 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
       </header>
 
       <section aria-label="Trazabilidad">
-        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>Trazabilidad</h3>
+        <h3 className={styles.sectionTitle}>Trazabilidad</h3>
         {hasTraceabilityContent ? (
-        <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, margin: 0 }}>
-          {origin.length > 0 ? (
-            <div>
-              <dt style={{ fontSize: 14, color: 'var(--apagado)' }}>Origen</dt>
-              <dd style={{ margin: 0 }}>{origin.map((link) => link.ref).join(', ')}</dd>
-            </div>
-          ) : null}
-          {children.length > 0 ? (
-            <div>
-              <dt style={{ fontSize: 14, color: 'var(--apagado)' }}>Features hijas</dt>
-              <dd style={{ margin: 0 }}>{children.map((link) => link.ref).join(', ')}</dd>
-            </div>
-          ) : null}
-          {blueprintsIn.length > 0 || branch ? (
-            <div>
-              <dt style={{ fontSize: 14, color: 'var(--apagado)' }}>Blueprints</dt>
-              <dd className="num" style={{ margin: 0, fontWeight: 600 }}>
-                {branch ? branchBlueprints.length : blueprintsIn.length}
-              </dd>
-            </div>
-          ) : null}
-          {workOrdersIn.length > 0 || branch ? (
-            <div>
-              <dt style={{ fontSize: 14, color: 'var(--apagado)' }}>Órdenes</dt>
-              <dd className="num" style={{ margin: 0, fontWeight: 600 }}>
-                {branch ? `${doneWorkOrders} de ${branchWorkOrders.length} hechas` : workOrdersIn.length}
-              </dd>
-              {branch && branchWorkOrders.length > 0 ? (
-                <Link to={ordersHref} style={{ fontSize: 14, color: 'var(--cianotipo)' }}>
-                  Ver las {branchWorkOrders.length} órdenes
-                </Link>
-              ) : null}
-            </div>
-          ) : null}
-          {codeRefs ? (
-            <div>
-              <dt style={{ fontSize: 14, color: 'var(--apagado)' }}>Código</dt>
-              <dd className="num" style={{ margin: 0, fontWeight: 600, color: 'var(--senal-texto)' }}>
-                {relatedCodeRefs.length} {relatedCodeRefs.length === 1 ? 'referencia' : 'referencias'}
-              </dd>
-            </div>
-          ) : null}
-          {commits ? (
-            <div>
-              <dt style={{ fontSize: 14, color: 'var(--apagado)' }}>Commits</dt>
-              <dd className="num" style={{ margin: 0, fontWeight: 600 }}>
-                {relatedCommits.length} {relatedCommits.length === 1 ? 'commit' : 'commits'}
-              </dd>
-            </div>
-          ) : null}
-        </dl>
+          <dl className={styles.traceGrid}>
+            {origin.length > 0 ? (
+              <div>
+                <dt className={styles.traceLabel}>Origen</dt>
+                <dd className={styles.traceValue}>{origin.map((link) => link.ref).join(', ')}</dd>
+              </div>
+            ) : null}
+            {children.length > 0 ? (
+              <div>
+                <dt className={styles.traceLabel}>Features hijas</dt>
+                <dd className={styles.traceValue}>{children.map((link) => link.ref).join(', ')}</dd>
+              </div>
+            ) : null}
+            {blueprintsIn.length > 0 || branch ? (
+              <div>
+                <dt className={styles.traceLabel}>Blueprints</dt>
+                <dd className={`num ${styles.traceValueNum}`}>{branch ? branchBlueprints.length : blueprintsIn.length}</dd>
+              </div>
+            ) : null}
+            {workOrdersIn.length > 0 || branch ? (
+              <div>
+                <dt className={styles.traceLabel}>Órdenes</dt>
+                <dd className={`num ${styles.traceValueNum}`}>{branch ? `${doneWorkOrders} de ${branchWorkOrders.length} hechas` : workOrdersIn.length}</dd>
+                {branch && branchWorkOrders.length > 0 ? (
+                  <Link to={ordersHref} className={styles.ordersLink}>
+                    Ver las {branchWorkOrders.length} órdenes
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
+            {codeRefs ? (
+              <div>
+                <dt className={styles.traceLabel}>Código</dt>
+                <dd className={`num ${styles.traceValueCode}`}>
+                  {relatedCodeRefs.length} {relatedCodeRefs.length === 1 ? 'referencia' : 'referencias'}
+                </dd>
+              </div>
+            ) : null}
+            {commits ? (
+              <div>
+                <dt className={styles.traceLabel}>Commits</dt>
+                <dd className={`num ${styles.traceValueNum}`}>
+                  {relatedCommits.length} {relatedCommits.length === 1 ? 'commit' : 'commits'}
+                </dd>
+              </div>
+            ) : null}
+          </dl>
         ) : (
           <EmptyState
             title="Todavía no hay trazabilidad"
@@ -472,14 +322,14 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
 
       {branch && orderRows.length > 0 ? (
         <section aria-label="Órdenes de la feature">
-          <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>Órdenes recientes</h3>
+          <h3 className={styles.sectionTitle}>Órdenes recientes</h3>
           <DataTable caption={`Órdenes de ${view.id}`} columns={ORDER_COLUMNS} rows={orderRows} getRowId={(row) => row.ref} />
         </section>
       ) : null}
 
       {branch && relatedCodeRefs.length > 0 ? (
         <section aria-label="Código gobernado">
-          <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>Código gobernado</h3>
+          <h3 className={styles.sectionTitle}>Código gobernado</h3>
           <DataTable
             caption={`Código gobernado por ${view.id}`}
             columns={CODE_COLUMNS}
@@ -496,11 +346,11 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
 
 function CheckRow({ check }: { readonly check: ClosureCheck }): ReactElement {
   return (
-    <li style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--regla-fila)' }}>
-      <span aria-hidden="true" style={{ flex: 'none', color: check.ok ? 'var(--senal)' : 'var(--paro)' }}>
+    <li className={styles.checkRow}>
+      <span aria-hidden="true" className={check.ok ? styles.checkIcon : `${styles.checkIcon} ${styles.checkIconFail}`}>
         {check.ok ? '✓' : '✗'}
       </span>
-      <span style={{ fontSize: 14, color: check.ok ? 'var(--texto-secundario)' : 'var(--paro)' }}>{check.detail}</span>
+      <span className={check.ok ? styles.checkDetail : `${styles.checkDetail} ${styles.checkDetailFail}`}>{check.detail}</span>
     </li>
   );
 }
@@ -533,7 +383,11 @@ function ClosureModal({ open, orgSlug, projectSlug, featureId, featureTitle, onC
   const passCount = readiness?.checks.filter((check) => check.ok).length ?? 0;
 
   return (
-    <Modal open={open} title="Cerrar feature" description={`${featureId} ${featureTitle}`} onClose={onClose}
+    <Modal
+      open={open}
+      title="Cerrar feature"
+      description={`${featureId} ${featureTitle}`}
+      onClose={onClose}
       footer={
         <>
           <Button type="button" variant="secondary" onClick={onClose}>
@@ -549,10 +403,10 @@ function ClosureModal({ open, orgSlug, projectSlug, featureId, featureTitle, onC
       {readinessQuery.status === 'error' ? <ErrorState title="No pudimos revisar los checks de cierre" body={errorMessage(readinessQuery.error)} onRetry={readinessQuery.retry} /> : null}
       {readiness ? (
         <>
-          <p style={{ fontSize: 14, color: 'var(--apagado)' }}>
+          <p className={styles.readinessSummary}>
             {passCount} de {readiness.checks.length} checks pasan
           </p>
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          <ul className={styles.checkList}>
             {readiness.checks.map((check) => (
               <CheckRow key={check.name} check={check} />
             ))}
@@ -572,6 +426,7 @@ export function ProjectGraph(): ReactElement {
   const navigate = useNavigate();
   const [closureOpen, setClosureOpen] = useState(false);
   const [collapseSignal, setCollapseSignal] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
   useDocumentTitle('Árbol de features');
 
   const treeQuery = useApiQuery(
@@ -581,6 +436,7 @@ export function ProjectGraph(): ReactElement {
     (forest) => forest.length === 0,
   );
   const forest = useMemo(() => buildFeatureForest(treeQuery.data ?? []), [treeQuery.data]);
+  const visibleForest = useMemo(() => filterForestByQuery(forest, searchQuery.trim().toLowerCase()), [forest, searchQuery]);
   const selectedRef = id ?? forest[0]?.ref;
 
   const driftQuery = useApiQuery<readonly DriftIssueDto[]>(
@@ -656,10 +512,13 @@ export function ProjectGraph(): ReactElement {
   return (
     <div>
       <PageHeader title="Árbol de features" subtitle="De la visión de mercado a cada feature request" />
-      <div style={{ display: 'grid', gridTemplateColumns: '420px minmax(0, 1fr)', gap: 32, borderTop: '1px solid var(--regla)', paddingTop: 16 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 14, color: 'var(--apagado)' }}>
+      <div className={styles.layout}>
+        <div className={styles.treeColumn}>
+          <div className={styles.treeSearch}>
+            <SearchField label="Buscar por id o título" value={searchQuery} onChange={setSearchQuery} placeholder="Buscar por id o título" />
+          </div>
+          <div className={styles.treeHeaderRow}>
+            <span className={styles.treeCount}>
               <span className="num">{totalFeatures}</span> features, <span className="num">{closedFeatures}</span> cerradas
             </span>
             <Button type="button" variant="ghost" onClick={() => setCollapseSignal((value) => value + 1)}>
@@ -667,7 +526,7 @@ export function ProjectGraph(): ReactElement {
             </Button>
           </div>
           <FeatureTree
-            forest={forest}
+            forest={visibleForest}
             selectedRef={selectedRef}
             driftRefs={driftRefs}
             collapseSignal={collapseSignal}

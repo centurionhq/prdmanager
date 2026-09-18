@@ -59,3 +59,6 @@ export type { LineBoardProps } from './LineBoard/LineBoard';
 
 export { Tooltip } from './Tooltip/Tooltip';
 export type { TooltipProps } from './Tooltip/Tooltip';
+
+export { FeatureTree } from './FeatureTree/FeatureTree';
+export type { FeatureTreeProps } from './FeatureTree/FeatureTree';

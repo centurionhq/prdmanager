@@ -419,6 +419,26 @@ describe('ProjectGraph (árbol de features)', () => {
     expect(screen.getByText('0 commits')).toBeTruthy();
   });
 
+  it('the "Buscar por id o título" field filters the tree, keeping a match\'s ancestors and the header total unchanged (WO-461)', async () => {
+    vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+    vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+    vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
+
+    renderPage();
+
+    await screen.findByRole('treeitem', { name: /FR-002/ });
+    expect(screen.getByRole('treeitem', { name: /FR-001/ })).toBeTruthy();
+
+    await userEvent.type(screen.getByLabelText('Buscar por id o título'), 'FR-001');
+
+    // FR-002 no longer matches and drops out, but MRD-001 (FR-001's ancestor) stays for context.
+    expect(screen.queryByRole('treeitem', { name: /FR-002/ })).toBeNull();
+    expect(screen.getByRole('treeitem', { name: /FR-001/ })).toBeTruthy();
+    expect(screen.getByRole('treeitem', { name: /MRD-001/ })).toBeTruthy();
+    // The "3 features, 1 cerradas" header count still describes the whole tree, not the filtered view.
+    expect(screen.getByText((_, element) => element?.tagName === 'SPAN' && element.textContent === '3 features, 1 cerradas')).toBeTruthy();
+  });
+
   it('shows a drift dot next to a feature with an open drift issue (WO-457)', async () => {
     vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
     vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
