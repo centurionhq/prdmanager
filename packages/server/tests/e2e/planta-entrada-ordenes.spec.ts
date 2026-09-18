@@ -25,7 +25,7 @@
  *
  * WO-446/SDD-024 note (station names only, not run in this WO -- see its own commit message): renamed the
  * station literals/labels this spec asserts on to match SDD-024's seven-station rename. Separately,
- * SDD-023's `checkPrdBusinessCase` (merged before SDD-024) now requires a PRD's justification to resolve
+ * SDD-023's `checkFeatureBusinessCase` (merged before SDD-024) now requires a PRD's justification to resolve
  * to an *approved BC*, not just any Feedback -- this spec still justifies its PRD with a plain FB, same as
  * before SDD-023. Whether that still lets the PRD publish (and reach "diseño técnico") needs verifying by
  * actually running this spec; if SDD-023 broke it, fixing it is its own WO (adding a BC-creation-and-

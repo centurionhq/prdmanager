@@ -111,7 +111,7 @@ function computeProgress(workOrders: readonly WorkOrderDoc[]): FeatureLineProgre
  * 4. `diseno_tecnico` — approved, or some blueprint architects it (with no work orders yet).
  * 5. `caso_negocio`/`producto` — justified (see {@link isJustified}): a `BC` sits at `caso_negocio`
  *    ("hay un BC escrito"), any other Feature kind sits at `producto`. The stricter rule that a `PRD`
- *    specifically needs an *approved* `BC` (not just any justification) is `checkPrdBusinessCase`'s job
+ *    specifically needs an *approved* `BC` (not just any justification) is `checkFeatureBusinessCase`'s job
  *    (`../lifecycle/check.ts`), not the board's — this is board *placement*, not the lifecycle gate.
  * 6. `entrada` — none of the above.
  */
