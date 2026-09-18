@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { DOC_KINDS } from '../../src/domain/schema.js';
 import { TEMPLATES, isTemplateKind, templateFor, type TemplateKind } from '../../src/templates/index.js';
 
-const AUTHORABLE_KINDS: TemplateKind[] = ['MRD', 'PRD', 'FR', 'SDD', 'ADR', 'FB', 'ART'];
+const AUTHORABLE_KINDS: TemplateKind[] = ['MRD', 'PRD', 'FR', 'BC', 'SDD', 'ADR', 'FB', 'ART'];
 
 describe('templateFor', () => {
   test.each(AUTHORABLE_KINDS)('returns a skeleton with frontmatter and id placeholder for %s', (kind) => {
@@ -32,9 +32,16 @@ describe('templateFor', () => {
     expect(src).toContain('root: true');
   });
 
-  test('MRD, PRD and FR templates carry justified_by', () => {
-    for (const kind of ['MRD', 'PRD', 'FR'] as const) {
+  test('MRD, PRD, FR and BC templates carry justified_by', () => {
+    for (const kind of ['MRD', 'PRD', 'FR', 'BC'] as const) {
       expect(templateFor(kind)).toContain('justified_by: []');
+    }
+  });
+
+  test('BC template has the four sections checkBusinessCase (SDD-023) will require', () => {
+    const src = templateFor('BC');
+    for (const heading of ['## Problema', '## Impacto esperado', '## Métrica de éxito', '## Costo estimado']) {
+      expect(src).toContain(heading);
     }
   });
 
