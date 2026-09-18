@@ -218,4 +218,19 @@ describe('checkLifecycle — grandfathering', () => {
     const ctx: LifecycleContext = { grandfathered: [{ id: 'MRD-404', hash: 'x' }] };
     expect(kinds(checkLifecycle([mrd()], ctx))).toEqual([['lifecycle_violation', 'error', 'MRD-001']]);
   });
+
+  test('WO-440: a PRD with no BC, but grandfathered with its current hash, emits zero issues', () => {
+    const legacyPrd = prd('justified_by: [ART-001]');
+    const ctx: LifecycleContext = { grandfathered: [{ id: 'PRD-001', hash: legacyPrd.node.contentHash }] };
+    expect(checkLifecycle([legacyPrd], ctx)).toEqual([]);
+  });
+
+  test('WO-440: once the grandfathered PRD\'s content changes, the exemption lapses and the BC gate applies again', () => {
+    const legacyPrd = prd('justified_by: [ART-001]');
+    const ctx: LifecycleContext = { grandfathered: [{ id: 'PRD-001', hash: 'stale-hash' }] };
+    const issues = checkLifecycle([legacyPrd], ctx);
+    expect(issues[0]?.message).toMatch(/grandfathering lapsed/i);
+    expect(issues[1]).toMatchObject({ kind: 'lifecycle_violation', severity: 'error', nodeId: 'PRD-001' });
+    expect(issues[1]?.message).toContain('BC');
+  });
 });
