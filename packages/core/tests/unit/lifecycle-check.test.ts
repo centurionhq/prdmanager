@@ -255,4 +255,19 @@ describe('checkLifecycle — grandfathering', () => {
     expect(issues[1]).toMatchObject({ kind: 'lifecycle_violation', severity: 'error', nodeId: 'PRD-001' });
     expect(issues[1]?.message).toContain('BC');
   });
+
+  test('WO-449: an FR with no BC, but grandfathered with its current hash (mirrors FR-001 in the real project), emits zero issues', () => {
+    const legacyFr = fr('justified_by: [ART-001]');
+    const ctx: LifecycleContext = { grandfathered: [{ id: 'FR-001', hash: legacyFr.node.contentHash }] };
+    expect(checkLifecycle([legacyFr], ctx)).toEqual([]);
+  });
+
+  test('WO-449: once the grandfathered FR\'s content changes, the exemption lapses and the BC gate applies again', () => {
+    const legacyFr = fr('justified_by: [ART-001]');
+    const ctx: LifecycleContext = { grandfathered: [{ id: 'FR-001', hash: 'stale-hash' }] };
+    const issues = checkLifecycle([legacyFr], ctx);
+    expect(issues[0]?.message).toMatch(/grandfathering lapsed/i);
+    expect(issues[1]).toMatchObject({ kind: 'lifecycle_violation', severity: 'error', nodeId: 'FR-001' });
+    expect(issues[1]?.message).toContain('BC');
+  });
 });
