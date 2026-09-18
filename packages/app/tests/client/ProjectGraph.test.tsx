@@ -336,6 +336,28 @@ describe('ProjectGraph (árbol de features)', () => {
     expect(screen.getByRole('treeitem', { name: /MRD-001/ })).toHaveProperty('ariaExpanded', 'false');
   });
 
+  it('shows code refs and commits for a selected FEATURE, narrowed to its own blueprints from getFeatureBranch, and a link to its orders (WO-458)', async () => {
+    vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+    vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+    vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
+    vi.spyOn(client, 'listCodeRefs').mockResolvedValue([
+      { projectId: 'p1', orgId: 'o1', blueprintId: 'SDD-005', refKey: 'k1', path: 'src/a.ts', symbol: null, hash: null, hashAlgoVersion: 1, reportId: 'r1', headSha: 'abc1234', updatedAt: '2026-01-01' },
+      { projectId: 'p1', orgId: 'o1', blueprintId: 'SDD-999', refKey: 'k2', path: 'src/unrelated.ts', symbol: null, hash: null, hashAlgoVersion: 1, reportId: 'r1', headSha: 'abc1234', updatedAt: '2026-01-01' },
+    ]);
+    const commit: CommitDto = { sha: 'abc1234', subject: 'feat: x', author: 'me', date: '2026-01-01', refs: ['SDD-005'], files: [], trust: 'baseline' };
+    vi.spyOn(client, 'listCommits').mockResolvedValue({ items: [commit], nextCursor: null });
+
+    renderPage('FR-001');
+
+    // BRANCH has SDD-005 (its only blueprint), so only the ref/commit attributed to SDD-005 counts --
+    // the one attributed to the unrelated SDD-999 is excluded even though listCodeRefs is project-wide.
+    expect(await screen.findByText(/1 referencia\b/)).toBeTruthy();
+    expect(screen.getByText(/1 commit\b/)).toBeTruthy();
+
+    const link = screen.getByRole('link', { name: /ver las 2 órdenes/i });
+    expect(link.getAttribute('href')).toBe('/o/acme/p/web/ordenes');
+  });
+
   it('shows a drift dot next to a feature with an open drift issue (WO-457)', async () => {
     vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
     vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));

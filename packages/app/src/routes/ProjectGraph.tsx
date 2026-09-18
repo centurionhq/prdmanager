@@ -7,7 +7,7 @@
  * design's) — every style here comes from `src/styles/tokens.css` instead.
  */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import type { CodeRefDto, CommitDto, DriftIssueDto } from '@prdm/contracts';
 import { can } from '@prdm/contracts';
 import type { NodeDetail, NodeLink, NodeView, Subgraph, TreeNode } from '@prdm/core';
@@ -308,10 +308,11 @@ interface TraceabilityPanelProps {
   readonly codeRefs: readonly CodeRefDto[] | null;
   readonly commits: CommitsPage | null;
   readonly canClose: boolean;
+  readonly ordersHref: string;
   readonly onOpenClosure: () => void;
 }
 
-function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, onOpenClosure }: TraceabilityPanelProps): ReactElement {
+function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, ordersHref, onOpenClosure }: TraceabilityPanelProps): ReactElement {
   const { node: view, links } = detail;
   const parent = relatedRefs(links, 'EVOLVES_FROM', 'out')[0];
   const children = relatedRefs(links, 'EVOLVES_FROM', 'in');
@@ -324,8 +325,11 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, onOpen
   const branchBlueprints = branch?.nodes.filter((node) => node.label === 'Blueprint') ?? [];
   const doneWorkOrders = branchWorkOrders.filter((node) => node.status === 'done').length;
 
-  const relatedCodeRefs = codeRefs?.filter((ref) => ref.blueprintId === view.id) ?? [];
-  const relatedCommits = commits?.items.filter((commit) => commit.refs.includes(view.id)) ?? [];
+  // For a Feature, `codeRefs`/`commits` are project-wide -- narrow them to the feature's own blueprints
+  // (from `branch`, already fetched). For a Blueprint (no `branch`), `view.id` is that blueprint's own id.
+  const branchBlueprintIds = new Set(branchBlueprints.map((node) => node.ref));
+  const relatedCodeRefs = codeRefs?.filter((ref) => (branch ? branchBlueprintIds.has(ref.blueprintId) : ref.blueprintId === view.id)) ?? [];
+  const relatedCommits = commits?.items.filter((commit) => (branch ? commit.refs.some((ref) => branchBlueprintIds.has(ref)) : commit.refs.includes(view.id))) ?? [];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -383,6 +387,11 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, onOpen
               <dd className="num" style={{ margin: 0, fontWeight: 600 }}>
                 {branch ? `${doneWorkOrders} de ${branchWorkOrders.length} hechas` : workOrdersIn.length}
               </dd>
+              {branch && branchWorkOrders.length > 0 ? (
+                <Link to={ordersHref} style={{ fontSize: 14, color: 'var(--cianotipo)' }}>
+                  Ver las {branchWorkOrders.length} órdenes
+                </Link>
+              ) : null}
             </div>
           ) : null}
           {codeRefs ? (
@@ -522,16 +531,19 @@ export function ProjectGraph(): ReactElement {
     [orgSlug, projectSlug, selectedRef, isFeature],
     (data) => data === null,
   );
+  // WO-458: a Feature's own code refs/commits aren't fetched by id -- they're these same project-wide
+  // lists, narrowed in `TraceabilityPanel` to the feature's blueprints (from `branch`).
+  const wantsCodeAndCommits = isBlueprint || isFeature;
   const codeRefsQuery = useApiQuery<readonly CodeRefDto[] | null>(
-    isBlueprint ? `code-refs:${orgSlug}:${projectSlug}` : 'code-refs:none',
-    () => (isBlueprint ? listCodeRefs(orgSlug, projectSlug) : Promise.resolve(null)),
-    [orgSlug, projectSlug, isBlueprint],
+    wantsCodeAndCommits ? `code-refs:${orgSlug}:${projectSlug}` : 'code-refs:none',
+    () => (wantsCodeAndCommits ? listCodeRefs(orgSlug, projectSlug) : Promise.resolve(null)),
+    [orgSlug, projectSlug, wantsCodeAndCommits],
     (data) => !data || data.length === 0,
   );
   const commitsQuery = useApiQuery<CommitsPage | null>(
-    isBlueprint ? `commits:${orgSlug}:${projectSlug}` : 'commits:none',
-    () => (isBlueprint ? listCommits(orgSlug, projectSlug) : Promise.resolve(null)),
-    [orgSlug, projectSlug, isBlueprint],
+    wantsCodeAndCommits ? `commits:${orgSlug}:${projectSlug}` : 'commits:none',
+    () => (wantsCodeAndCommits ? listCommits(orgSlug, projectSlug) : Promise.resolve(null)),
+    [orgSlug, projectSlug, wantsCodeAndCommits],
     (data) => !data || data.items.length === 0,
   );
 
@@ -592,6 +604,7 @@ export function ProjectGraph(): ReactElement {
           {detail ? (
             <TraceabilityPanel
               detail={detail}
+              ordersHref={`/o/${orgSlug}/p/${projectSlug}/ordenes`}
               branch={branchQuery.data ?? null}
               codeRefs={codeRefsQuery.data ?? null}
               commits={commitsQuery.data ?? null}
