@@ -17,7 +17,12 @@
 import { z } from 'zod';
 import { projectSettingsSchema } from './project-settings.js';
 
-const DOC_ID_PATTERN = /^(MRD|PRD|FR|SDD|ADR|WO|ART|FB)-\d{3,9}$/;
+// SDD-026 (BUG): a hand-duplicated copy of `packages/core/src/domain/schema.ts`'s `ID_PATTERN` (same
+// "no cross-package dependency" convention as elsewhere) -- SDD-022/WO-433 added `BC` there but missed
+// this copy, since this file wasn't in that SDD's own `impacts_paths`. Dormant until the first `BC`
+// document was ever actually published (verifying PRD-011/SDD-024 live), which then broke `prdm sync
+// --check` in CI with "invalid governance response".
+const DOC_ID_PATTERN = /^(MRD|PRD|FR|BC|SDD|ADR|WO|ART|FB)-\d{3,9}$/;
 
 export const MAX_GOVERNANCE_DOCUMENTS = 5000;
 /** Operational cap on a single published document's rendered size (bytes, measured as UTF-16 code
