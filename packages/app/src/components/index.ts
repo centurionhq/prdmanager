@@ -56,3 +56,6 @@ export type { DocumentBannerVariant, DocumentStateBannerProps } from './Document
 
 export { LineBoard } from './LineBoard/LineBoard';
 export type { LineBoardProps } from './LineBoard/LineBoard';
+
+export { Tooltip } from './Tooltip/Tooltip';
+export type { TooltipProps } from './Tooltip/Tooltip';
