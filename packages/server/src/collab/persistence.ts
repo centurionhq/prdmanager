@@ -8,6 +8,19 @@
  * this test suite has to wait out) persists the encoded state and records the `doc_updates.seq` it now
  * represents.
  *
+ * WO-447 (SDD-008 bug fix): `working_state` is null for every document up to its very first live collab
+ * session — `createDraft` (`documents-repository.ts`) only ever writes `document_versions` version 1,
+ * never touches Yjs state at all (see `reconstruct-ydoc.ts`'s own `hasLiveHistory` doc comment, which
+ * already documented this gap as "until a client's first collab connection seeds the working copy"
+ * without that seeding ever having been implemented anywhere). Without it, a freshly created document's
+ * first editor session opened onto a genuinely empty `Y.Doc`, so Vista previa/Markdown showed nothing
+ * despite the template body being fully present server-side. `seedFromMarkdown` now fills that gap:
+ * when `working_state` is still null AND no `doc_updates` row exists either (a truly untouched draft,
+ * never any real collab/agent write queued for it), it parses the document's latest `document_versions`
+ * row (whatever `createDraft`/`saveVersion` most recently wrote) and applies it as the Y.Doc's initial
+ * content — the very next `onStoreDocument` debounce then persists it to `working_state` for good, so
+ * this only ever runs once per document.
+ *
  * Deliberately does not write to `doc_updates` itself (WO-149's `onChange` hook owns that) — this
  * extension only ever *reads* it, so `documents.snapshotSeq` staying `0` (no rows yet) is just the
  * "nothing to replay" case, exercised by every test until WO-149 lands.
@@ -15,8 +28,9 @@
 import { and, desc, eq, gt } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import * as Y from 'yjs';
+import { parseDocument } from '@prdm/core';
 import { resolveDocumentById, schema, withTenantTx, type PgDatabase } from '@prdm/db';
-import { assertValidRoot, FRONTMATTER_ROOT, InvalidDocumentRootError, type FrontmatterValue } from '@prdm/collab';
+import { assertValidRoot, BODY_ROOT, FRONTMATTER_ROOT, InvalidDocumentRootError, type FrontmatterValue } from '@prdm/collab';
 import { parseDocumentName } from './document-name.js';
 import { createDocSizeTracker, type DocSizeTracker } from './doc-size-tracker.js';
 import { defaultLiveYDocCache, type LiveYDocCache } from './reconstruct-ydoc.js';
@@ -52,6 +66,7 @@ export interface CollabPersistenceDeps {
 export const PENDING_PATCH_ORIGIN = 'system:engine';
 const REPLAY_ORIGIN = 'system:replay';
 const SNAPSHOT_LOAD_ORIGIN = 'system:load';
+const SEED_ORIGIN = 'system:seed';
 
 /** Applies WO-139's shallow field-merge patch onto `fm`, skipping (never throwing on) any key whose
  * value isn't a valid frontmatter value — `pending_editable_patch` is `EngineOps.updateDocument`'s
@@ -74,7 +89,39 @@ function applyPendingPatch(document: Y.Doc, patch: Record<string, unknown>): voi
   }, PENDING_PATCH_ORIGIN);
 }
 
-async function replayTail(tx: PgDatabase, document: Y.Doc, documentId: string, snapshotSeq: number): Promise<void> {
+/**
+ * WO-447: fills the two Y.Doc roots (`@prdm/collab`'s `fm`/`body`, SDD-008 §"Representación del
+ * documento") from `document_versions`' latest `renderedMarkdown` — mirrors `applyPendingPatch`'s
+ * skip-invalid-field behavior (a value `assertValidRoot` rejects, e.g. `blueprint_hashes`'s object shape,
+ * is silently dropped rather than blocking the whole load) since a template/generated document's
+ * frontmatter can include fields the collab schema's `fm` root never accepts. A `renderedMarkdown` that
+ * fails to parse (never expected for `createDraft`/`saveVersion`-produced content, but the Y.Doc must
+ * never fail to load over it) leaves the document empty exactly as before this fix, rather than throwing.
+ */
+function seedFromMarkdown(document: Y.Doc, renderedMarkdown: string, sourcePath: string): void {
+  const parsed = parseDocument(renderedMarkdown, sourcePath);
+  if (!parsed?.ok) return;
+
+  document.transact(() => {
+    const fm = document.getMap<FrontmatterValue>(FRONTMATTER_ROOT);
+    for (const [key, value] of Object.entries(parsed.doc.frontmatter)) {
+      try {
+        assertValidRoot(FRONTMATTER_ROOT, key, value);
+      } catch (err) {
+        if (err instanceof InvalidDocumentRootError) continue;
+        throw err;
+      }
+      fm.set(key, value as FrontmatterValue);
+    }
+    document.getText(BODY_ROOT).insert(0, parsed.doc.node.body);
+  }, SEED_ORIGIN);
+}
+
+/** Returns whether any row was actually replayed — WO-447's seed step must never run once real
+ * `doc_updates` content exists for a document, even while `working_state` is still null (e.g. a row
+ * written directly by an agent-proposal/restore flow that never went through a live Hocuspocus session's
+ * own debounced `onStoreDocument`, exactly `documents-agent-proposals.test.ts`'s `seedLiveBody`). */
+async function replayTail(tx: PgDatabase, document: Y.Doc, documentId: string, snapshotSeq: number): Promise<boolean> {
   const rows = await tx
     .select({ update: schema.docUpdates.update })
     .from(schema.docUpdates)
@@ -83,6 +130,7 @@ async function replayTail(tx: PgDatabase, document: Y.Doc, documentId: string, s
   for (const row of rows) {
     Y.applyUpdate(document, row.update, REPLAY_ORIGIN);
   }
+  return rows.length > 0;
 }
 
 export function createCollabPersistenceExtension(deps: CollabPersistenceDeps): CollabPersistenceExtension {
@@ -108,7 +156,17 @@ export function createCollabPersistenceExtension(deps: CollabPersistenceDeps): C
           Y.applyUpdate(document, row.workingState, SNAPSHOT_LOAD_ORIGIN);
         }
 
-        await replayTail(tx, document, row.id, row.snapshotSeq);
+        const replayed = await replayTail(tx, document, row.id, row.snapshotSeq);
+
+        if (!row.workingState && !replayed) {
+          const [latestVersion] = await tx
+            .select({ renderedMarkdown: schema.documentVersions.renderedMarkdown })
+            .from(schema.documentVersions)
+            .where(eq(schema.documentVersions.documentId, row.id))
+            .orderBy(desc(schema.documentVersions.versionNo))
+            .limit(1);
+          if (latestVersion) seedFromMarkdown(document, latestVersion.renderedMarkdown, row.sourcePath);
+        }
 
         if (row.pendingEditablePatch && typeof row.pendingEditablePatch === 'object' && !Array.isArray(row.pendingEditablePatch)) {
           applyPendingPatch(document, row.pendingEditablePatch as Record<string, unknown>);

@@ -35,6 +35,16 @@ async function createCollabDocumentFixture(
   return { id, orgId: overrides.orgId, projectId: overrides.projectId };
 }
 
+/** WO-447: mirrors `createDraft`'s own version-1 insert (`documents-repository.ts`) — the only place a
+ * freshly created document's real content lives before its first live collab session. */
+async function insertDocumentVersion(pg: PgTestDb, orgId: string, documentId: string, versionNo: number, renderedMarkdown: string): Promise<void> {
+  await pg.ownerPool.query(
+    `INSERT INTO document_versions (org_id, document_id, version_no, reason, rendered_markdown, content_hash)
+     VALUES ($1, $2, $3, 'manual', $4, 'test-hash')`,
+    [orgId, documentId, versionNo, renderedMarkdown],
+  );
+}
+
 interface Harness {
   app: FastifyInstance;
   hocuspocus: Hocuspocus;
@@ -119,6 +129,34 @@ describe('collab persistence (SDD-008, WO-145)', () => {
     providers.push(provider);
     await onceSynced(provider);
     expect(provider.document.getText('body').toString()).toBe('');
+  });
+
+  test('onLoadDocument seeds fm/body from the latest document_versions row when working_state is null (WO-447)', async () => {
+    const doc = await createCollabDocumentFixture(pg, { orgId: org.id, projectId: project.id });
+    const renderedMarkdown = '---\nid: "PRD-001"\ntype: "PRD"\ntitle: "Test doc"\nstatus: "draft"\ntags: ["from-template"]\n---\n\n## Resumen\n\nContenido de la plantilla.\n';
+    await insertDocumentVersion(pg, org.id, doc.id, 1, renderedMarkdown);
+
+    harness = await startHarness(pg.appPool);
+    const provider = makeProvider(harness.url, `${project.id}:${doc.id}`);
+    providers.push(provider);
+    await onceSynced(provider);
+
+    expect(provider.document.getText('body').toString()).toBe('## Resumen\n\nContenido de la plantilla.');
+    expect(provider.document.getMap('fm').get('title')).toBe('Test doc');
+    expect(provider.document.getMap('fm').get('tags')).toEqual(['from-template']);
+  });
+
+  test('onLoadDocument seeds from the highest version_no, not just version 1 (WO-447)', async () => {
+    const doc = await createCollabDocumentFixture(pg, { orgId: org.id, projectId: project.id });
+    await insertDocumentVersion(pg, org.id, doc.id, 1, '---\nid: "PRD-001"\ntype: "PRD"\ntitle: "Test doc"\nstatus: "draft"\n---\n\nv1 body\n');
+    await insertDocumentVersion(pg, org.id, doc.id, 2, '---\nid: "PRD-001"\ntype: "PRD"\ntitle: "Test doc"\nstatus: "draft"\n---\n\nv2 body\n');
+
+    harness = await startHarness(pg.appPool);
+    const provider = makeProvider(harness.url, `${project.id}:${doc.id}`);
+    providers.push(provider);
+    await onceSynced(provider);
+
+    expect(provider.document.getText('body').toString()).toBe('v2 body');
   });
 
   test('onLoadDocument applies WO-139 pending_editable_patch as a system:engine transaction and clears it', async () => {
