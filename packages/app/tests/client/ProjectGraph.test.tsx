@@ -162,8 +162,8 @@ function nodeDetailForMixed(ref: string): NodeDetail {
   return { node: { id: ref, label: 'Feature', kind: ref.split('-')[0] ?? '', title: ref, status: 'approved', body: '', tags: [], source_path: '', created_at: null }, links: [] };
 }
 
-function renderPage(id?: string) {
-  const context = makeProjectShellContext('owner', 'admin');
+function renderPage(id?: string, subject: Parameters<typeof makeProjectShellContext> = ['owner', 'admin']) {
+  const context = makeProjectShellContext(...subject);
   const router = createMemoryRouter(
     [
       {
@@ -276,6 +276,51 @@ describe('ProjectGraph (árbol de features)', () => {
 
     expect(await screen.findByText('Hay drift')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Confirmar cierre' })).toHaveProperty('disabled', true);
+  });
+
+  it('an admin sees "Forzar cierre" when a bypassable check fails, and it only bypasses that check (SDD-031, WO-463)', async () => {
+    vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+    vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+    vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
+    vi.spyOn(client, 'getClosureReadiness').mockResolvedValue(NOT_READY);
+    const forceClose = vi.spyOn(client, 'forceCloseFeature').mockResolvedValue({ result: { featureId: 'FR-001', closedAt: '2026-01-01', closedBy: 'me', reason: 'porque sí', bypassed: [] } });
+
+    renderPage('FR-001');
+    await userEvent.click(await screen.findByRole('button', { name: 'Cerrar feature' }));
+
+    const forceButton = await screen.findByRole('button', { name: 'Forzar cierre' });
+    expect(screen.getByText(/va a saltear: project_clean/)).toBeTruthy();
+    expect(forceButton).toHaveProperty('disabled', true);
+
+    await userEvent.type(screen.getByLabelText('Motivo (obligatorio)'), 'Drift preexistente, no relacionado');
+    expect(forceButton).toHaveProperty('disabled', false);
+    await userEvent.click(forceButton);
+
+    await waitFor(() => expect(forceClose).toHaveBeenCalledWith('acme', 'web', 'FR-001', { reason: 'Drift preexistente, no relacionado', bypass: ['project_clean'] }));
+  });
+
+  it('a non-admin never even sees the "Cerrar feature" trigger (close_feature and force_close_feature are both admin-only)', async () => {
+    vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+    vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+    vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
+
+    renderPage('FR-001', ['member', 'viewer']);
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2 }).textContent).toContain('Persistencia de borradores'));
+    expect(screen.queryByRole('button', { name: 'Cerrar feature' })).toBeNull();
+  });
+
+  it('hides "Forzar cierre" for an admin once every check already passes (nothing to bypass)', async () => {
+    vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+    vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+    vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
+    vi.spyOn(client, 'getClosureReadiness').mockResolvedValue(READY);
+
+    renderPage('FR-001');
+    await userEvent.click(await screen.findByRole('button', { name: 'Cerrar feature' }));
+
+    await screen.findByRole('button', { name: 'Confirmar cierre' });
+    expect(screen.queryByRole('button', { name: 'Forzar cierre' })).toBeNull();
   });
 
   it('shows an error state when the tree fails to load', async () => {
