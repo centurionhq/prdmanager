@@ -5,7 +5,7 @@ import type { FieldValue } from '../parser/frontmatter-edit.js';
 /** Work orders are generated from a blueprint's task checklist (F-04), never authored by hand. */
 export type DraftKind = Exclude<DocKind, 'WO'>;
 
-export const DRAFT_KINDS: readonly DraftKind[] = ['MRD', 'PRD', 'FR', 'SDD', 'ADR', 'ART', 'FB'];
+export const DRAFT_KINDS: readonly DraftKind[] = ['MRD', 'PRD', 'FR', 'BC', 'SDD', 'ADR', 'ART', 'FB'];
 
 export interface DraftContent {
   kind: DraftKind;

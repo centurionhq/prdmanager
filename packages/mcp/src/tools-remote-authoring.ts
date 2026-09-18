@@ -39,7 +39,7 @@ import { jsonResult, READ_ONLY, safeTool, WRITE_ONCE } from './shared.js';
 /** Mirrors `@prdm/core`'s `DRAFT_KINDS` minus `WO` (never drafted, local or remote) -- kept as a literal
  * tuple here rather than importing `DRAFT_KINDS` itself so this file's own zod enum stays a compile-time
  * literal union, matching every other tool's `inputSchema` in this package. */
-const AUTHORABLE_KINDS = ['MRD', 'PRD', 'FR', 'SDD', 'ADR', 'ART', 'FB'] as const;
+const AUTHORABLE_KINDS = ['MRD', 'PRD', 'FR', 'BC', 'SDD', 'ADR', 'ART', 'FB'] as const;
 
 /** WO-425 (SDD-018's fixed `REMOTE_WRITE_TOOL_NAMES` precedent): the single source of truth for every
  * write tool this file registers, imported by `packages/server/src/api/mcp-remote.ts` into its own
