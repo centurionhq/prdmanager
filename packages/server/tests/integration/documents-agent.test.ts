@@ -7,7 +7,8 @@ import { createMemberFixture, createOrganizationFixture, createProjectFixture, m
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
 import { createFakeLlmClient, type FakeLlmClient } from '../../src/agent/fake-llm-client.js';
-import type { LlmClient } from '../../src/agent/llm-client.js';
+import { toolCallSequenceIssues } from '../../src/agent/agent-loop.js';
+import type { LlmClient, LlmMessage } from '../../src/agent/llm-client.js';
 import { FakeMailer } from '../../src/mailer.js';
 import { mutationHeaders } from '../helpers/csrf.js';
 import { buildTestServerEnv } from '../helpers/test-env.js';
@@ -107,6 +108,104 @@ describe('.../documents/:docId/agent/messages (WO-172)', () => {
     expect(await countRows('agent_conversations', 'org_id = $1', [org.id])).toBe(1);
     expect(await countRows('agent_messages', "role = 'user' AND content = $1", ['hi there'])).toBe(1);
     expect(await countRows('agent_messages', "role = 'assistant' AND content = $1", ['Hello, how can I help?'])).toBe(1);
+
+    await app.close();
+  });
+
+  test('WO-470 (SDD-035/PRD-016): a turn whose model call blows up still persists what it produced, instead of orphaning the user message', async () => {
+    // An empty script: the very first streamChat throws FakeLlmScriptExhaustedError from inside the loop.
+    // That used to escape, leaving `newMessages` empty and the user's message sitting in the transcript
+    // with no reply, no error and nothing to retry -- and poisoning every later turn's replayed history.
+    const llmClient = createFakeLlmClient([]);
+    const app = buildApp(llmClient);
+    const { org, project, docId, editorACookie } = await setupOrgProjectAndDocument(app);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: sseUrl(org, project, docId),
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), editorACookie),
+      payload: { message: 'write the intro' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.payload).toContain('event: error');
+    expect(res.payload).toContain(JSON.stringify({ type: 'done', finishReason: 'error' }));
+
+    // The user's message is still there, and the conversation is closed rather than left mid-turn.
+    expect(await countRows('agent_messages', "role = 'user' AND content = $1", ['write the intro'])).toBe(1);
+    expect(await countRows('agent_messages', "role = 'assistant' AND tool_calls IS NOT NULL", [])).toBe(0);
+
+    await app.close();
+  });
+
+  test('WO-470: a turn interrupted partway through its tool calls persists the assistant turn with every tool call answered', async () => {
+    const llmClient = createFakeLlmClient([
+      [
+        { type: 'tool_call', toolCall: { id: 'call_1', name: 'read_document', argumentsJson: '{}' } },
+        { type: 'done', finishReason: 'tool_calls' },
+      ],
+    ]);
+    const app = buildApp(llmClient);
+    const { org, project, docId, editorACookie } = await setupOrgProjectAndDocument(app);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: sseUrl(org, project, docId),
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), editorACookie),
+      payload: { message: 'read it' },
+    });
+
+    expect(res.statusCode).toBe(200);
+
+    // Whatever the turn managed, the invariant holds: no assistant tool_call is left without a result,
+    // because that is the sequence the provider rejects when this transcript is replayed next turn.
+    const requested = await countRows('agent_messages', "role = 'assistant' AND tool_calls IS NOT NULL", []);
+    const answered = await countRows('agent_messages', "role = 'tool'", []);
+    expect(answered).toBeGreaterThanOrEqual(requested);
+
+    await app.close();
+  });
+
+  test('WO-471 (SDD-035/PRD-016): a conversation persisted by one turn and read back for the next satisfies the tool-call sequence invariant', async () => {
+    // The full round trip -- persist a turn, read it back, map it to LlmMessages -- because that read is
+    // where the ordering bug lived. A write-side assertion could never have caught it.
+    const llmClient = createFakeLlmClient([
+      [{ type: 'tool_call', toolCall: { id: 'call_1', name: 'read_document', argumentsJson: '{}' } }, { type: 'done', finishReason: 'tool_calls' }],
+      [{ type: 'token', text: 'It is a draft PRD.' }, { type: 'done', finishReason: 'stop' }],
+    ]);
+    const app = buildApp(llmClient);
+    const { org, project, docId, editorACookie } = await setupOrgProjectAndDocument(app);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: sseUrl(org, project, docId),
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), editorACookie),
+      payload: { message: 'what is this?' },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const conversation = await app.inject({
+      method: 'GET',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${docId}/agent/conversation`,
+      headers: { cookie: editorACookie, ...AUTH_HOST() },
+    });
+    expect(conversation.statusCode).toBe(200);
+    const { messages } = conversation.json() as { messages: { role: string; content: string; toolCalls: unknown; toolCallId: string | null; toolName: string | null }[] };
+
+    const replayed: LlmMessage[] = messages.map((m) => ({
+      role: m.role as LlmMessage['role'],
+      content: m.content,
+      ...(m.toolCalls ? { toolCalls: m.toolCalls as LlmMessage['toolCalls'] } : {}),
+      ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
+      ...(m.toolName ? { name: m.toolName } : {}),
+    }));
+
+    expect(toolCallSequenceIssues(replayed)).toEqual([]);
+    // And the order really is the causal one: the assistant that asked, then its result.
+    const assistantIndex = replayed.findIndex((m) => m.role === 'assistant' && (m.toolCalls?.length ?? 0) > 0);
+    const resultIndex = replayed.findIndex((m) => m.role === 'tool');
+    expect(assistantIndex).toBeGreaterThanOrEqual(0);
+    expect(resultIndex).toBeGreaterThan(assistantIndex);
 
     await app.close();
   });

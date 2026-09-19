@@ -84,6 +84,15 @@ export const agentMessages = pgTable(
     /** Only set on an `assistant` message — which model actually produced it (SDD-009: "agent_messages
      * (rol, contenido, tool calls, tokens, modelo)"). */
     model: text('model'),
+    /** WO-468 (SDD-035/PRD-016): the transcript's real order, because `created_at` cannot carry it.
+     * `defaultNow()` is the *transaction* timestamp and `appendMany` writes a whole turn in one batched
+     * INSERT, so every message a turn produced lands on the identical `created_at` (verified: the 8
+     * messages of one real turn all read `2026-09-19T00:10:42.282Z`). Ordering by a column with ties is
+     * ordering by nothing — and `documents-agent.ts` replays that same ordering back to the model, so a
+     * `tool` result could precede the `assistant` that requested it. Monotonic per conversation, assigned
+     * server-side inside the insert's own transaction. `created_at` stays: it answers "when", not "in
+     * what order". */
+    seq: integer('seq').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [
@@ -94,6 +103,7 @@ export const agentMessages = pgTable(
     }),
     index('agent_messages_org_id_idx').on(table.orgId),
     index('agent_messages_conversation_id_idx').on(table.conversationId),
+    unique('agent_messages_conversation_seq_uq').on(table.conversationId, table.seq),
     check('agent_messages_content_length', sql`char_length(${table.content}) <= ${AGENT_MESSAGE_CONTENT_MAX_LENGTH}`),
   ],
 );

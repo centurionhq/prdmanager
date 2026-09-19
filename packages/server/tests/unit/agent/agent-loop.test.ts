@@ -4,7 +4,7 @@
  * per-turn token budget, and bounded resent history.
  */
 import { describe, expect, test } from 'vitest';
-import { boundMessagesForResend, DEFAULT_MAX_ITERATIONS, runAgentLoop, type AgentLoopEvent } from '../../../src/agent/agent-loop.js';
+import { boundMessagesForResend, DEFAULT_MAX_ITERATIONS, runAgentLoop, toolCallSequenceIssues, type AgentLoopEvent } from '../../../src/agent/agent-loop.js';
 import { createFakeLlmClient, type FakeLlmScript } from '../../../src/agent/fake-llm-client.js';
 import type { AgentTool, AgentToolContext } from '../../../src/agent/tools/index.js';
 import type { LlmMessage } from '../../../src/agent/llm-client.js';
@@ -145,6 +145,125 @@ describe('runAgentLoop (WO-171, SDD-009 §Diseño)', () => {
     expect(events.some((e) => e.type === 'error')).toBe(true);
     expect(result).toMatchObject({ finishReason: 'stop' });
     expect(llmClient.calls).toHaveLength(1);
+  });
+});
+
+describe('WO-470 (SDD-035/PRD-016): a turn that ends badly still returns what it produced', () => {
+  test('the loop reports a thrown failure as finishReason "error" instead of throwing the transcript away', async () => {
+    const script: FakeLlmScript = [
+      [{ type: 'tool_call', toolCall: { id: 'call_1', name: 'echo', argumentsJson: '{"value":"hi"}' } }, { type: 'done', finishReason: 'tool_calls' }],
+    ];
+    const boom = echoTool(() => Promise.reject(new Error('tool blew up')));
+    const llmClient = createFakeLlmClient(script);
+
+    // The script has one turn, so the second iteration's streamChat throws FakeLlmScriptExhaustedError
+    // from inside the loop -- previously that escaped and the caller persisted nothing at all.
+    const { events, result } = await collect(runAgentLoop({ llmClient, tools: [boom], toolCtx: FAKE_CTX, messages: baseMessages }));
+
+    expect(result).toMatchObject({ finishReason: 'error' });
+    expect(events.filter((e) => e.type === 'error')).toHaveLength(1);
+    const { newMessages } = result as { newMessages: { role: string; content: string }[] };
+    expect(newMessages.length).toBeGreaterThan(0);
+    expect(newMessages[0]?.role).toBe('assistant');
+  });
+
+  test('an abort partway through an assistant turn\u2019s tool calls still leaves every tool_call answered', async () => {
+    const controller = new AbortController();
+    // One assistant turn requesting two tools: aborting once the first result is in lands the loop on the
+    // abort check *inside* the tool loop, with call_2 requested and unanswered. That is precisely where a
+    // client disconnect falls, and the sequence a provider rejects on the next turn.
+    const script: FakeLlmScript = [
+      [
+        { type: 'tool_call', toolCall: { id: 'call_1', name: 'echo', argumentsJson: '{"value":"one"}' } },
+        { type: 'tool_call', toolCall: { id: 'call_2', name: 'echo', argumentsJson: '{"value":"two"}' } },
+        { type: 'done', finishReason: 'tool_calls' },
+      ],
+    ];
+    const llmClient = createFakeLlmClient(script);
+
+    const loop = runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages, signal: controller.signal });
+    const events: AgentLoopEvent[] = [];
+    let next = await loop.next();
+    while (!next.done) {
+      events.push(next.value);
+      if (next.value.type === 'tool_result') controller.abort();
+      next = await loop.next();
+    }
+    const result = next.value as { finishReason: string; newMessages: { role: string; toolCalls?: { id: string }[]; toolCallId?: string; content: string }[] };
+
+    expect(result.finishReason).toBe('aborted');
+
+    // The invariant that matters: this transcript is replayed to the provider next turn, and an
+    // assistant with an unanswered tool_call is rejected there.
+    const requested = result.newMessages.flatMap((m) => (m.role === 'assistant' ? (m.toolCalls ?? []) : [])).map((c) => c.id);
+    const answered = result.newMessages.filter((m) => m.role === 'tool').map((m) => m.toolCallId);
+    expect(requested).toEqual(['call_1', 'call_2']);
+    expect(answered).toEqual(['call_1', 'call_2']);
+    expect(result.newMessages.at(-1)?.content).toContain('interrupted');
+  });
+
+  test('a turn that answered every tool call is left exactly as it was', async () => {
+    const script: FakeLlmScript = [
+      [{ type: 'tool_call', toolCall: { id: 'call_1', name: 'echo', argumentsJson: '{"value":"hi"}' } }, { type: 'done', finishReason: 'tool_calls' }],
+      [{ type: 'token', text: 'done' }, { type: 'done', finishReason: 'stop' }],
+    ];
+    const llmClient = createFakeLlmClient(script);
+    const { result } = await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages }));
+    const { newMessages } = result as { newMessages: { role: string; content: string }[] };
+
+    expect(newMessages.filter((m) => m.role === 'tool')).toHaveLength(1);
+    expect(newMessages.some((m) => m.content.includes('interrupted'))).toBe(false);
+  });
+});
+
+describe('toolCallSequenceIssues (WO-471, SDD-035/PRD-016)', () => {
+  const assistantCalling = (id: string): LlmMessage => ({ role: 'assistant', content: '', toolCalls: [{ id, name: 'echo', argumentsJson: '{}' }] });
+  const toolResult = (id: string): LlmMessage => ({ role: 'tool', content: '{}', toolCallId: id, name: 'echo' });
+
+  test('a well-formed turn has no issues', () => {
+    expect(
+      toolCallSequenceIssues([
+        { role: 'system', content: 's' },
+        { role: 'user', content: 'u' },
+        assistantCalling('call_1'),
+        toolResult('call_1'),
+        { role: 'assistant', content: 'the answer' },
+      ]),
+    ).toEqual([]);
+  });
+
+  test('catches the exact shape the created_at ordering bug produced: a tool result read back before its assistant', () => {
+    const issues = toolCallSequenceIssues([{ role: 'user', content: 'u' }, toolResult('call_1'), assistantCalling('call_1')]);
+    expect(issues).toEqual(['tool result call_1 appears before the assistant message that requested it', 'tool call call_1 was requested but never answered']);
+  });
+
+  test('catches a tool call left unanswered, which is what an interrupted turn used to persist', () => {
+    expect(toolCallSequenceIssues([assistantCalling('call_1')])).toEqual(['tool call call_1 was requested but never answered']);
+  });
+
+  test('catches a duplicated result and a result with no toolCallId', () => {
+    expect(toolCallSequenceIssues([assistantCalling('call_1'), toolResult('call_1'), toolResult('call_1')])).toEqual(['tool call call_1 has more than one result']);
+    expect(toolCallSequenceIssues([{ role: 'tool', content: '{}' }])).toEqual(['a tool message carries no toolCallId']);
+  });
+
+  test('what runAgentLoop returns always satisfies the invariant, including when it is cut short', async () => {
+    const script: FakeLlmScript = [
+      [
+        { type: 'tool_call', toolCall: { id: 'call_1', name: 'echo', argumentsJson: '{"value":"one"}' } },
+        { type: 'tool_call', toolCall: { id: 'call_2', name: 'echo', argumentsJson: '{"value":"two"}' } },
+        { type: 'done', finishReason: 'tool_calls' },
+      ],
+    ];
+    const controller = new AbortController();
+    const loop = runAgentLoop({ llmClient: createFakeLlmClient(script), tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages, signal: controller.signal });
+    let next = await loop.next();
+    while (!next.done) {
+      if (next.value.type === 'tool_result') controller.abort();
+      next = await loop.next();
+    }
+    const { newMessages } = next.value as { newMessages: LlmMessage[] };
+
+    expect(toolCallSequenceIssues([...baseMessages, ...newMessages])).toEqual([]);
   });
 });
 

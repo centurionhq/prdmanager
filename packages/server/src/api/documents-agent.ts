@@ -26,7 +26,7 @@ import type { Hocuspocus } from '@hocuspocus/server';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
-import { DEFAULT_MAX_TOKENS_PER_TURN, runAgentLoop, type AgentLoopEvent, type AgentTranscriptMessage } from '../agent/agent-loop.js';
+import { DEFAULT_MAX_TOKENS_PER_TURN, runAgentLoop, toolCallSequenceIssues, type AgentLoopEvent, type AgentTranscriptMessage } from '../agent/agent-loop.js';
 import { reconcileAgentTokens, reserveAgentTokens, todayUsageDate } from '../agent/agent-quota.js';
 import { buildAgentSystemPrompt } from '../agent/system-prompt.js';
 import type { LlmClient, LlmMessage, LlmToolCall } from '../agent/llm-client.js';
@@ -116,9 +116,19 @@ function toLlmMessage(row: AgentMessageRecord): LlmMessage {
 }
 
 /** Structurally typed against just the `write` method every real and Fastify-injected `reply.raw` has —
- * avoids importing Node's own `ServerResponse` type just for this one call site. */
-function sendSseEvent(raw: { write: (chunk: string) => void }, event: AgentLoopEvent): void {
-  raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+ * avoids importing Node's own `ServerResponse` type just for this one call site.
+ *
+ * WO-470 (SDD-035/PRD-016): writing to a socket the client already closed throws, and that throw used to
+ * escape past the loop and cost the caller the turn's whole transcript. A disconnected reader is the
+ * expected end of an SSE stream, not an error: the events simply have nowhere to go, while the turn's
+ * output still has somewhere to be persisted. */
+function sendSseEvent(raw: { write: (chunk: string) => void; writableEnded?: boolean; destroyed?: boolean }, event: AgentLoopEvent): void {
+  if (raw.writableEnded === true || raw.destroyed === true) return;
+  try {
+    raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+  } catch {
+    // The reader went away mid-turn. Persistence below is what still matters.
+  }
 }
 
 /** Node's default `server.requestTimeout` is 5 minutes — verified against the real DeepSeek API (never
@@ -222,6 +232,14 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
           { role: 'user', content: parsed.data.message },
         ];
 
+        // WO-471 (SDD-035/PRD-016): the replayed history is where the ordering bug actually hurt -- a
+        // `tool` message ahead of the `assistant` that requested it is rejected by the provider, and it
+        // was produced by the *read*, not the write, so no amount of care at persistence time would have
+        // caught it. Logged rather than thrown: refusing to answer would turn a recoverable history
+        // defect into an outage, and this is the signal that says a conversation went bad and where.
+        const sequenceIssues = toolCallSequenceIssues(messages);
+        if (sequenceIssues.length > 0) req.log.warn({ conversationId: conversation.id, issues: sequenceIssues }, 'replayed agent history violates the tool-call sequence invariant');
+
         const toolCtx: AgentToolContext = {
           pool,
           neo4j: requireNeo4j(neo4j),
@@ -255,9 +273,13 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
           'x-accel-buffering': 'no',
         });
 
+        // WO-470 (SDD-035/PRD-016): the loop no longer throws -- it returns what it produced plus a
+        // `finishReason`, so an aborted or failed turn persists its partial transcript instead of
+        // vanishing. This `catch` is now only for something going wrong *outside* the loop's own
+        // handling, and it still keeps whatever was already collected.
+        const loop = runAgentLoop({ llmClient, tools: ALL_AGENT_TOOLS, toolCtx, messages, model, maxTokensPerTurn: reservationTokens, signal: controller.signal });
         let newMessages: AgentTranscriptMessage[] = [];
         try {
-          const loop = runAgentLoop({ llmClient, tools: ALL_AGENT_TOOLS, toolCtx, messages, model, maxTokensPerTurn: reservationTokens, signal: controller.signal });
           let step = await loop.next();
           while (!step.done) {
             sendSseEvent(reply.raw, step.value);

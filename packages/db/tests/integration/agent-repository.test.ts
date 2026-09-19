@@ -87,6 +87,70 @@ describe('agent repositories (SDD-009, WO-168)', () => {
     expect(messages[2]?.toolCallId).toBe('call_1');
   });
 
+  test('WO-469 (SDD-035/PRD-016): a whole turn written by one appendMany reads back in the order the loop produced it, even though every row shares one createdAt', async () => {
+    const org = await createOrganizationFixture(pg);
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    const documentId = await insertDocumentFixture(pg.ownerPool, { orgId: org.id, projectId: project.id });
+    const owner = await createUserFixture(pg);
+    const db = createTenantDb(pg.appPool).forOrg(org.id);
+    const conversation = await db.agent.conversations.create({ documentId, ownerId: owner.id });
+
+    await db.agent.messages.append({ conversationId: conversation.id, role: 'user', content: 'what is this document about?' });
+
+    // The exact shape of a real turn: the assistant's preamble, the call it made, its result, and so on,
+    // ending in the prose answer. This is what got scrambled in production -- the final summary read back
+    // *before* the tool results that produced it, and the preamble read back last.
+    const turn = [
+      { role: 'assistant' as const, content: "I'll read the document first.", toolCalls: [{ id: 'call_1', name: 'read_document', argumentsJson: '{}' }] },
+      { role: 'tool' as const, content: '{"body":"..."}', toolCallId: 'call_1', toolName: 'read_document' },
+      { role: 'assistant' as const, content: '', toolCalls: [{ id: 'call_2', name: 'search_project', argumentsJson: '{"q":"arbol"}' }] },
+      { role: 'tool' as const, content: '{"nodes":[]}', toolCallId: 'call_2', toolName: 'search_project' },
+      { role: 'assistant' as const, content: 'It is PRD-013, and it is closed.' },
+    ];
+    await db.agent.messages.appendMany(turn.map((message) => ({ conversationId: conversation.id, ...message })));
+
+    const messages = await db.agent.messages.listForConversation(conversation.id);
+    expect(messages.map((m) => m.content)).toEqual([
+      'what is this document about?',
+      "I'll read the document first.",
+      '{"body":"..."}',
+      '',
+      '{"nodes":[]}',
+      'It is PRD-013, and it is closed.',
+    ]);
+    // Contiguous from 1, so "the most recent `limit`" really is a suffix of the transcript.
+    expect(messages.map((m) => m.seq)).toEqual([1, 2, 3, 4, 5, 6]);
+
+    // The reason `seq` has to exist at all: ordering by `createdAt` is ordering by a constant here.
+    const turnTimestamps = new Set(messages.slice(1).map((m) => m.createdAt.toISOString()));
+    expect(turnTimestamps.size).toBe(1);
+
+    // A later turn keeps counting rather than restarting or colliding.
+    await db.agent.messages.append({ conversationId: conversation.id, role: 'user', content: 'summarise it' });
+    const afterSecondTurn = await db.agent.messages.listForConversation(conversation.id);
+    expect(afterSecondTurn.at(-1)?.seq).toBe(7);
+    expect(afterSecondTurn.at(-1)?.content).toBe('summarise it');
+  });
+
+  test('WO-469: seq is per conversation, so two conversations both start at 1 without colliding', async () => {
+    const org = await createOrganizationFixture(pg);
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    const documentId = await insertDocumentFixture(pg.ownerPool, { orgId: org.id, projectId: project.id });
+    const owner = await createUserFixture(pg);
+    const other = await createUserFixture(pg);
+    const db = createTenantDb(pg.appPool).forOrg(org.id);
+
+    const first = await db.agent.conversations.create({ documentId, ownerId: owner.id });
+    const second = await db.agent.conversations.create({ documentId, ownerId: other.id });
+
+    await db.agent.messages.append({ conversationId: first.id, role: 'user', content: 'a' });
+    await db.agent.messages.append({ conversationId: second.id, role: 'user', content: 'b' });
+    await db.agent.messages.append({ conversationId: first.id, role: 'user', content: 'c' });
+
+    expect((await db.agent.messages.listForConversation(first.id)).map((m) => m.seq)).toEqual([1, 2]);
+    expect((await db.agent.messages.listForConversation(second.id)).map((m) => m.seq)).toEqual([1]);
+  });
+
   test('findForDocumentAndOwner only ever finds the caller’s own conversation for that document', async () => {
     const org = await createOrganizationFixture(pg);
     const project = await createProjectFixture(pg, { orgId: org.id });
