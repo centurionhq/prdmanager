@@ -223,6 +223,50 @@ describe('propose_edit tool (SDD-009 §Diseño, WO-173)', () => {
     expect(result.editCount).toBe(1);
   });
 
+  test('WO-537/WO-539 (SDD-050/FB-028): tags set as a real array is accepted and stored as an array', async () => {
+    const { org, documentId, ctx } = await setup('body text');
+    const result = (await proposeEditTool.execute(ctx, {
+      summary: 'tag it',
+      edits: [{ expectedText: 'body text', replacement: 'body text!' }],
+      fields: { set: { tags: ['agente', 'ux'] } },
+    })) as { proposalId: string };
+
+    const proposal = await createTenantDb(pg.appPool).forOrg(org.id).agent.proposals.findById(result.proposalId);
+    expect(proposal?.fieldsSet).toEqual({ tags: ['agente', 'ux'] });
+  });
+
+  test('WO-538/WO-539: rejects tags sent as a comma-separated string, with an actionable error', async () => {
+    const { ctx } = await setup('body text');
+    await expect(
+      proposeEditTool.execute(ctx, {
+        summary: 'tag it wrong',
+        edits: [{ expectedText: 'body text', replacement: 'body text!' }],
+        fields: { set: { tags: 'agente, ux' } },
+      }),
+    ).rejects.toMatchObject({ code: 'field_type_mismatch', message: expect.stringContaining('tags') });
+  });
+
+  test('WO-538: rejects implements (an id-list field, not just tags) sent as a string, the same way', async () => {
+    const { ctx } = await setup('body text');
+    await expect(
+      proposeEditTool.execute(ctx, {
+        summary: 'x',
+        edits: [{ expectedText: 'body text', replacement: 'y' }],
+        fields: { set: { implements: 'SDD-001' } },
+      }),
+    ).rejects.toMatchObject({ code: 'field_type_mismatch' });
+  });
+
+  test('WO-539: a scalar field (title) as a string is unaffected by the new list-field check', async () => {
+    const { ctx } = await setup('body text');
+    const result = (await proposeEditTool.execute(ctx, {
+      summary: 'rename',
+      edits: [{ expectedText: 'body text', replacement: 'body text!' }],
+      fields: { set: { title: 'New title' } },
+    })) as { editCount: number };
+    expect(result.editCount).toBe(1);
+  });
+
   test('denies a caller without use_agent permission', async () => {
     const { ctx } = await setup('body text');
     await expect(

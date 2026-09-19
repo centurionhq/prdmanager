@@ -33,8 +33,18 @@ const editSchema = z.object({
   replacement: z.string().max(20_000),
 });
 
+/**
+ * WO-537 (SDD-050/FB-028): matches `@prdm/collab`'s `FrontmatterValue` exactly (`FrontmatterPrimitive |
+ * string[]`) — the shape the `Y.Map` this eventually writes to already accepts. It used to be
+ * `z.string()` only, which meant the agent had no way to express an array at all: `tags`,
+ * `implements`, `architects`, and every other list-shaped field it tried to set got a raw string
+ * written where the rest of the system expects `string[]`, caught nowhere until a human opened the
+ * frontmatter form and saw "Invalid input: expected array, received string".
+ */
+const fieldValueSchema = z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]);
+
 const fieldsSchema = z.object({
-  set: z.record(z.string(), z.string()).optional(),
+  set: z.record(z.string(), fieldValueSchema).optional(),
   unset: z.array(z.string()).optional(),
 });
 
@@ -103,6 +113,13 @@ const KNOWN_FRONTMATTER_KEYS = new Set([
   'review_needed',
 ]);
 
+/** WO-538 (SDD-050/FB-028): the subset of `KNOWN_FRONTMATTER_KEYS` that is really `string[]` under the
+ * hood — every `id-list`/`string-list` field in `frontmatter-fields.ts` (the seven relationship fields
+ * plus `tags`), and `impacts_paths`, which is Blueprint-only and so isn't in `KNOWN_FRONTMATTER_KEYS`
+ * itself. Everything else known (`title`, `status`, `type`, `id`, `created_at`, `review_needed`) is a
+ * scalar. */
+const KNOWN_LIST_FIELDS = new Set(['tags', 'implements', 'evolves_from', 'justified_by', 'informs', 'architects', 'provides_context_for', 'impacts_paths']);
+
 /** WO-527: is this `expectedText` really a frontmatter line rather than body text? Keyed on a known
  * field name, not on any `word:` prefix — plenty of legitimate body lines start that way ("Nota: ...")
  * and pointing those at `fields` would be worse than the plain not-found they get today. */
@@ -134,6 +151,19 @@ export const proposeEditTool: AgentTool<z.infer<typeof inputSchema>> = {
     const projection = projectDoc(ydoc);
 
     if (input.fields) {
+      // WO-538 (SDD-050/FB-028): checked before anything else touches `fields.set` — a known list field
+      // sent as a plain string used to be applied as-is, silently writing a value the rest of the system
+      // expects as `string[]`. Observed in a real session: `tags` accepted, and the mismatch only ever
+      // surfaced later in the frontmatter form, never to the agent that caused it.
+      for (const [key, value] of Object.entries(input.fields.set ?? {})) {
+        if (KNOWN_LIST_FIELDS.has(key) && typeof value === 'string') {
+          throw new AgentToolError(
+            'field_type_mismatch',
+            `"${key}" is a list field: it must be a JSON array of strings (e.g. ["SDD-001", "SDD-002"]), not a single comma-separated string. Split "${value}" into its own array yourself and send that.`,
+          );
+        }
+      }
+
       try {
         assertValidFieldKeys({ ...(input.fields.set ?? {}), ...Object.fromEntries((input.fields.unset ?? []).map((key) => [key, ''])) });
       } catch (error: unknown) {

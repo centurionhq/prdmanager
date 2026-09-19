@@ -51,7 +51,8 @@ export interface AgentProposalDto {
   status: 'pending' | 'accepted' | 'rejected' | 'stale';
   summary: string;
   edits: AgentProposalEditDto[];
-  fieldsSet: Record<string, string> | null;
+  /** WO-537 (SDD-050): a field's value may be a list (`tags`, `implements`, ...), not only a string. */
+  fieldsSet: Record<string, string | number | boolean | string[]> | null;
   fieldsUnset: string[] | null;
   requestedBy: string;
   respondedBy: string | null;

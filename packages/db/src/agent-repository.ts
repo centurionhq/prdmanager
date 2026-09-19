@@ -46,7 +46,9 @@ export interface CreateProposalInput {
   summary: string;
   /** WO-173 defines the precise shape; stored as-is here (see the schema's own doc comment). */
   edits: unknown;
-  fieldsSet?: Record<string, string> | null;
+  /** WO-537 (SDD-050): a field's value may be a list (`tags`, `implements`, ...), not only a string —
+   * this stores whatever `propose_edit` already validated, as-is, into the opaque `jsonb` column below. */
+  fieldsSet?: Record<string, string | number | boolean | string[]> | null;
   fieldsUnset?: string[] | null;
   requestedBy: string;
 }
