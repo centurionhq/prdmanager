@@ -227,7 +227,23 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
         await tenantDb.agent.messages.append({ conversationId: conversation.id, role: 'user', content: parsed.data.message });
 
         const messages: LlmMessage[] = [
-          { role: 'system', content: buildAgentSystemPrompt() },
+          {
+            role: 'system',
+            // WO-474 (SDD-036/PRD-016): every field here is already in hand -- no extra query. The
+            // split between plain metadata and fenced user text is `buildAgentSystemPrompt`'s contract,
+            // not this call site's: see its module doc comment.
+            content: buildAgentSystemPrompt({
+              docId: existing.document.docId,
+              kind: existing.document.kind,
+              workflowState: existing.document.workflowState,
+              projectSlug: project.slug,
+              orgSlug: org.slug,
+              today: usageDate,
+              documentTitle: existing.document.title,
+              projectName: project.name,
+              userHandle: session.user.name,
+            }),
+          },
           ...priorMessages.map(toLlmMessage),
           { role: 'user', content: parsed.data.message },
         ];
