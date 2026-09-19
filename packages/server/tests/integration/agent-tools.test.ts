@@ -10,6 +10,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { AgentToolError, AgentToolPermissionError, buildToolDefinitions, executeAgentTool, READ_ONLY_AGENT_TOOLS, type AgentToolContext } from '../../src/agent/tools/index.js';
 import { getFeatureBranchTool } from '../../src/agent/tools/get-feature-branch.js';
 import { getNodeTool } from '../../src/agent/tools/get-node.js';
+import { buildProductForest, getProductTreeTool } from '../../src/agent/tools/get-product-tree.js';
+import { getProjectStatusTool } from '../../src/agent/tools/get-project-status.js';
 import { getTemplateTool } from '../../src/agent/tools/get-template.js';
 import { readDocumentTool } from '../../src/agent/tools/read-document.js';
 import { searchProjectTool } from '../../src/agent/tools/search-project.js';
@@ -83,13 +85,126 @@ describe('agent tools (SDD-009 §Herramientas, WO-169)', () => {
     };
   }
 
-  test('buildToolDefinitions advertises all six tools with a JSON Schema for each', () => {
+  test('buildToolDefinitions advertises every read-only tool with a JSON Schema for each', () => {
     const definitions = buildToolDefinitions(READ_ONLY_AGENT_TOOLS);
-    expect(definitions.map((d) => d.name)).toEqual(['read_document', 'search_project', 'get_node', 'get_feature_branch', 'get_template', 'validate_document']);
+    expect(definitions.map((d) => d.name)).toEqual([
+      // WO-478 (SDD-037): the orientation pair leads, because it is what a conversation opens with.
+      'get_project_status',
+      'get_product_tree',
+      'read_document',
+      'search_project',
+      'get_node',
+      'get_feature_branch',
+      'get_template',
+      'validate_document',
+    ]);
     for (const definition of definitions) {
       expect(definition.parameters.type).toBe('object');
       expect(definition.parameters).not.toHaveProperty('$schema');
     }
+  });
+
+  test('WO-476 (SDD-037/PRD-016): get_project_status answers "how is the project going?" with no id from the user', async () => {
+    const base = await setupPublishedProject();
+    const result = (await getProjectStatusTool.execute(contextFor(base, true), {})) as {
+      project: string;
+      documentsByKind: Record<string, number>;
+      workOrders: { total: number; byStatus: Record<string, number> };
+      recentBlueprints: { id: string }[];
+    };
+
+    // The whole point: no argument was passed, and it still knows which project it is in.
+    expect(result.project).toBe(base.project.slug);
+    expect(result.documentsByKind.PRD).toBe(1);
+    expect(result.workOrders.total).toBe(0);
+    expect(result.recentBlueprints).toEqual([]);
+  });
+
+  test('WO-476: get_project_status denies a caller without view permission', async () => {
+    const base = await setupPublishedProject();
+    await expect(getProjectStatusTool.execute(contextFor(base, false), {})).rejects.toBeInstanceOf(AgentToolPermissionError);
+  });
+
+  test('WO-477 (SDD-037/PRD-016): get_product_tree answers "what does the product do?" with no id from the user', async () => {
+    const base = await setupPublishedProject();
+    const result = (await getProductTreeTool.execute(contextFor(base, true), {})) as {
+      project: string;
+      features: { id: string; kind: string | null; title: string; children: unknown[] }[];
+      totalFeatures: number;
+      truncated: boolean;
+    };
+
+    expect(result.project).toBe(base.project.slug);
+    expect(result.features).toHaveLength(1);
+    expect(result.features[0]).toMatchObject({ id: 'PRD-001', kind: 'PRD', title: 'Example feature' });
+    expect(result).toMatchObject({ totalFeatures: 1, truncated: false });
+  });
+
+  test('WO-477: get_product_tree denies a caller without view permission', async () => {
+    const base = await setupPublishedProject();
+    await expect(getProductTreeTool.execute(contextFor(base, false), {})).rejects.toBeInstanceOf(AgentToolPermissionError);
+  });
+
+  test('WO-477: a PRD nests under the BC that justifies it, not under its EVOLVES_FROM parent', () => {
+    // The nesting rule the Árbol screen already uses (SDD-029): JUSTIFIED_BY into a BC wins.
+    const forest = buildProductForest({
+      nodes: [
+        { ref: 'MRD-001', label: 'Feature', kind: 'MRD', title: 'The market', status: 'approved' },
+        { ref: 'BC-001', label: 'Feature', kind: 'BC', title: 'The case', status: 'approved' },
+        { ref: 'PRD-001', label: 'Feature', kind: 'PRD', title: 'The feature', status: 'approved' },
+        { ref: 'SDD-001', label: 'Blueprint', kind: 'SDD', title: 'The design', status: 'published' },
+      ],
+      edges: [
+        { from: 'BC-001', to: 'MRD-001', type: 'EVOLVES_FROM', status: null, reviewNeeded: false },
+        { from: 'PRD-001', to: 'MRD-001', type: 'EVOLVES_FROM', status: null, reviewNeeded: false },
+        { from: 'PRD-001', to: 'BC-001', type: 'JUSTIFIED_BY', status: null, reviewNeeded: false },
+        { from: 'SDD-001', to: 'PRD-001', type: 'ARCHITECTS', status: null, reviewNeeded: false },
+      ],
+    });
+
+    expect(forest.features).toHaveLength(1);
+    expect(forest.features[0]?.id).toBe('MRD-001');
+    expect(forest.features[0]?.children.map((c) => c.id)).toEqual(['BC-001']);
+    expect(forest.features[0]?.children[0]?.children.map((c) => c.id)).toEqual(['PRD-001']);
+    // Blueprints belong to get_project_status; mixing them in is the confusion this pair removes.
+    expect(JSON.stringify(forest)).not.toContain('SDD-001');
+    expect(forest.totalFeatures).toBe(3);
+  });
+
+  test('WO-477: a cycle in EVOLVES_FROM does not hang the walk', () => {
+    const forest = buildProductForest({
+      nodes: [
+        { ref: 'PRD-001', label: 'Feature', kind: 'PRD', title: 'A', status: null },
+        { ref: 'PRD-002', label: 'Feature', kind: 'PRD', title: 'B', status: null },
+      ],
+      edges: [
+        { from: 'PRD-001', to: 'PRD-002', type: 'EVOLVES_FROM', status: null, reviewNeeded: false },
+        { from: 'PRD-002', to: 'PRD-001', type: 'EVOLVES_FROM', status: null, reviewNeeded: false },
+      ],
+    });
+    // Every node has a parent, so the cycle yields no roots rather than looping forever.
+    expect(forest.features).toEqual([]);
+    expect(forest.totalFeatures).toBe(2);
+  });
+
+  test('WO-477: a project far larger than the output budget returns well-formed JSON that says it was truncated', () => {
+    // 1000 features in one flat generation. Truncating at the ~20 KB dispatcher cap would cut the JSON
+    // mid-feature and leave the model parsing garbage with no idea anything was missing.
+    const nodes = Array.from({ length: 1000 }, (_, i) => ({
+      ref: `PRD-${String(i).padStart(4, '0')}`,
+      label: 'Feature',
+      kind: 'PRD',
+      title: `Feature number ${i} with a reasonably long title to take up room`,
+      status: 'approved',
+    }));
+    const forest = buildProductForest({ nodes, edges: [] });
+
+    expect(forest.truncated).toBe(true);
+    expect(forest.totalFeatures).toBe(1000);
+    expect(forest.features.length).toBeLessThan(1000);
+    expect(Buffer.byteLength(JSON.stringify(forest), 'utf8')).toBeLessThan(20 * 1024);
+    // Still valid JSON describing whole features, never a half-written one.
+    expect(() => JSON.parse(JSON.stringify(forest))).not.toThrow();
   });
 
   test('read_document returns line-numbered body and frontmatter fields for the live working copy', async () => {
