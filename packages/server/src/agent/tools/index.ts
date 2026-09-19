@@ -8,6 +8,8 @@ import type { LlmToolDefinition } from '../llm-client.js';
 import { AgentToolError, truncateToolOutput, type AgentToolContext } from './context.js';
 import { getFeatureBranchTool } from './get-feature-branch.js';
 import { getNodeTool } from './get-node.js';
+import { getProductTreeTool } from './get-product-tree.js';
+import { getProjectStatusTool } from './get-project-status.js';
 import { getTemplateTool } from './get-template.js';
 import { proposeEditTool } from './propose-edit.js';
 import { readDocumentTool } from './read-document.js';
@@ -18,9 +20,19 @@ import { validateDocumentTool } from './validate-document.js';
 export type { AgentTool } from './tool.js';
 export { AgentToolError, AgentToolPermissionError, type AgentToolContext } from './context.js';
 
-/** WO-169's six read-only tools, in the order SDD-009 §Herramientas lists them. A conversation's actual
- * available toolset (WO-171) appends `propose_edit` (WO-173) on top of this list. */
+/** WO-169's six read-only tools, in the order SDD-009 §Herramientas lists them, plus WO-478 (SDD-037)'s
+ * two orientation tools. A conversation's actual available toolset (WO-171) appends `propose_edit`
+ * (WO-173) on top of this list.
+ *
+ * The orientation pair goes first because it is what a conversation *opens* with: every other read-only
+ * tool except `search_project` needs an id the user never types, so before SDD-037 the agent had nothing
+ * it could call to answer "how is the project going?" or "what does the product do?" and spent its first
+ * tool call working out what it was even looking at. They are two tools rather than one with a `scope`
+ * argument precisely so the model chooses between two descriptions that spell out the project/product
+ * distinction, instead of having to guess an enum value. */
 export const READ_ONLY_AGENT_TOOLS: readonly AgentTool[] = [
+  getProjectStatusTool,
+  getProductTreeTool,
   readDocumentTool,
   searchProjectTool,
   getNodeTool,
