@@ -23,13 +23,50 @@ import { buildFencedToolResultMessage } from './fence.js';
 import type { LlmClient, LlmMessage, LlmToolCall } from './llm-client.js';
 
 export const DEFAULT_MAX_ITERATIONS = 8;
-export const DEFAULT_MAX_TOKENS_PER_TURN = 8_000;
+
+/**
+ * WO-486 (SDD-039/PRD-020): the turn's ceiling on *total* tokens (prompt + completion), and what the
+ * quota reserves.
+ *
+ * Was 8_000, which measurement showed allowed only 2–3 of the 8 iterations this module declares: each
+ * iteration resends the whole bounded history, so the same prompt text is charged again every time
+ * (measured on a real turn: iteration 1 = 4_840 prompt + 44 completion, iteration 2 = 5_343 + 1_244,
+ * cumulative 11_471 against a 8_000 ceiling). A turn that needed several tools ran out *before* writing
+ * its answer, which is what a user saw as three empty bubbles and no reply.
+ *
+ * Sized so the declared iteration cap is real rather than decorative. It stays a genuine ceiling, and
+ * the quota still reconciles down to actual usage the moment the turn ends, so the effect on a day's
+ * capacity is what was really spent, not what was reserved.
+ */
+export const DEFAULT_MAX_TOKENS_PER_TURN = 32_000;
+
+/**
+ * WO-486: the provider's own `max_tokens`, i.e. a cap on *generation* only.
+ *
+ * Deliberately a separate constant and deliberately fixed. It used to be the turn's remaining budget,
+ * which meant the agent's room to write shrank as its own conversation grew — and on a late iteration it
+ * became small enough to truncate a 12_880-character `propose_edit` argument mid-JSON, which the tool
+ * dispatcher then rejected as `invalid_arguments`. Large enough to write a whole document body in one
+ * call, because that is exactly the call that was being cut in half.
+ */
+export const DEFAULT_MAX_COMPLETION_TOKENS_PER_CALL = 8_000;
+
+/**
+ * WO-488: once fewer than this many tokens of the turn's budget remain, the loop stops offering tools and
+ * spends what is left on one final, tool-free answer. Covers a last prompt (the full resent history,
+ * ~5–6k measured) plus room to actually say something.
+ */
+export const FINAL_ANSWER_HEADROOM_TOKENS = 10_000;
+
+/** WO-488: generation cap for that final, tool-free call. Prose, not a document body. */
+export const FINAL_ANSWER_MAX_COMPLETION_TOKENS = 2_000;
+
 export const DEFAULT_MAX_HISTORY_MESSAGES = 40;
 
 /** WO-470 (SDD-035): `'error'` is how the loop reports that it fell over. It used to *throw*, which threw
  * away every message the turn had already produced along with it — the caller could only persist what the
  * generator returned, and a generator that throws returns nothing. */
-export type AgentLoopFinishReason = 'stop' | 'max_iterations' | 'token_budget_exceeded' | 'aborted' | 'error';
+export type AgentLoopFinishReason = 'stop' | 'max_iterations' | 'token_budget_exceeded' | 'aborted' | 'error' | 'truncated';
 
 export type AgentLoopEvent =
   | { type: 'message_start' }
@@ -60,7 +97,11 @@ export interface RunAgentLoopInput {
    * already be the last entry (the caller, WO-172, appends it before calling this). */
   messages: readonly LlmMessage[];
   maxIterations?: number;
+  /** Ceiling on the turn's *total* (prompt + completion) tokens — see {@link DEFAULT_MAX_TOKENS_PER_TURN}. */
   maxTokensPerTurn?: number;
+  /** WO-486: the provider's `max_tokens`, a *generation*-only cap, independent of the turn's budget and
+   * of how large the history has grown. See {@link DEFAULT_MAX_COMPLETION_TOKENS_PER_CALL}. */
+  maxCompletionTokensPerCall?: number;
   maxHistoryMessages?: number;
   signal?: AbortSignal;
 }
@@ -171,6 +212,7 @@ async function* runIterations(input: RunAgentLoopInput, newMessages: AgentTransc
     messages: initialMessages,
     maxIterations = DEFAULT_MAX_ITERATIONS,
     maxTokensPerTurn = DEFAULT_MAX_TOKENS_PER_TURN,
+    maxCompletionTokensPerCall = DEFAULT_MAX_COMPLETION_TOKENS_PER_CALL,
     maxHistoryMessages = DEFAULT_MAX_HISTORY_MESSAGES,
     model,
     signal,
@@ -183,8 +225,12 @@ async function* runIterations(input: RunAgentLoopInput, newMessages: AgentTransc
   for (let iteration = 0; iteration < maxIterations; iteration += 1) {
     if (isAborted(signal)) return 'aborted';
 
-    const remainingTokens = maxTokensPerTurn - tokensUsedThisTurn;
-    if (remainingTokens <= 0) return 'token_budget_exceeded';
+    // WO-488: when what is left can no longer fund another tool-using iteration, spend it on one final
+    // tool-free answer instead of stopping mid-work. Cutting out here is what produced a turn of three
+    // empty assistant bubbles and no reply.
+    if (maxTokensPerTurn - tokensUsedThisTurn < FINAL_ANSWER_HEADROOM_TOKENS) {
+      return yield* finalAnswer(input, history, newMessages);
+    }
 
     let assistantText = '';
     const toolCalls: LlmToolCall[] = [];
@@ -193,7 +239,8 @@ async function* runIterations(input: RunAgentLoopInput, newMessages: AgentTransc
     let iterationUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
 
     const resendMessages = boundMessagesForResend(history, maxHistoryMessages);
-    for await (const event of llmClient.streamChat({ messages: resendMessages, tools: toolDefinitions, maxTokens: remainingTokens, signal })) {
+    // WO-486: a fixed generation cap, never the turn's remaining budget. See the constant's own comment.
+    for await (const event of llmClient.streamChat({ messages: resendMessages, tools: toolDefinitions, maxTokens: maxCompletionTokensPerCall, signal })) {
       if (event.type === 'token') {
         assistantText += event.text;
         yield event;
@@ -225,6 +272,10 @@ async function* runIterations(input: RunAgentLoopInput, newMessages: AgentTransc
     history.push(assistantMessage);
     newMessages.push(assistantMessage);
 
+    // WO-489: `'length'` means the provider cut the model off mid-sentence (or mid-tool-argument).
+    // Collapsing it into `'stop'` reported a truncated answer as a complete one, and gave the panel no
+    // way to say so.
+    if (toolCalls.length === 0 && modelFinishReason === 'length') return 'truncated';
     if (toolCalls.length === 0 || modelFinishReason !== 'tool_calls') return 'stop';
 
     for (const toolCall of toolCalls) {
@@ -242,4 +293,61 @@ async function* runIterations(input: RunAgentLoopInput, newMessages: AgentTransc
   }
 
   return 'max_iterations';
+}
+
+/**
+ * WO-488 (SDD-039/PRD-020): the turn's last word. Called when the budget can no longer fund a
+ * tool-using iteration — one more model call with **no tools offered**, so the model has nothing to do
+ * but answer with what it already gathered.
+ *
+ * Offering no tools is the whole mechanism: a model that can still call something generally will, and
+ * that is exactly how a turn burned its last iteration on a tool call and ended with no prose. Its
+ * output is appended to `newMessages` like any other assistant turn, so it persists and seals normally.
+ *
+ * Deliberately tolerant: if this last call itself errors or is aborted, the turn ends with the reason
+ * that applies rather than throwing away everything the turn had already produced.
+ */
+async function* finalAnswer(
+  input: RunAgentLoopInput,
+  history: readonly LlmMessage[],
+  newMessages: AgentTranscriptMessage[],
+): AsyncGenerator<AgentLoopEvent, AgentLoopFinishReason> {
+  const { llmClient, maxHistoryMessages = DEFAULT_MAX_HISTORY_MESSAGES, model, signal } = input;
+
+  let assistantText = '';
+  let iterationUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
+  let modelFinishReason: string | undefined;
+  let sawError = false;
+
+  const resendMessages = boundMessagesForResend(history, maxHistoryMessages);
+  for await (const event of llmClient.streamChat({ messages: resendMessages, tools: [], maxTokens: FINAL_ANSWER_MAX_COMPLETION_TOKENS, signal })) {
+    if (event.type === 'token') {
+      assistantText += event.text;
+      yield event;
+    } else if (event.type === 'usage') {
+      iterationUsage = { promptTokens: event.promptTokens, completionTokens: event.completionTokens, totalTokens: event.totalTokens };
+      yield event;
+    } else if (event.type === 'error') {
+      sawError = true;
+      yield event;
+    } else if (event.type === 'done') {
+      modelFinishReason = event.finishReason;
+    }
+    // A `tool_call` here would mean the provider ignored an empty tool list: nothing to execute, and
+    // deliberately not forwarded, so the panel never shows an activity that never ran.
+  }
+
+  if (assistantText.length > 0) {
+    newMessages.push({
+      role: 'assistant',
+      content: assistantText,
+      ...(model ? { model } : {}),
+      ...(iterationUsage ? { usage: iterationUsage } : {}),
+    });
+  }
+
+  if (sawError) return 'error';
+  if (modelFinishReason === 'aborted' || isAborted(signal)) return 'aborted';
+  if (modelFinishReason === 'length') return 'truncated';
+  return 'token_budget_exceeded';
 }

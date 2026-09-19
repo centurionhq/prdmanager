@@ -4,7 +4,15 @@
  * per-turn token budget, and bounded resent history.
  */
 import { describe, expect, test } from 'vitest';
-import { boundMessagesForResend, DEFAULT_MAX_ITERATIONS, runAgentLoop, toolCallSequenceIssues, type AgentLoopEvent } from '../../../src/agent/agent-loop.js';
+import {
+  boundMessagesForResend,
+  DEFAULT_MAX_COMPLETION_TOKENS_PER_CALL,
+  DEFAULT_MAX_ITERATIONS,
+  FINAL_ANSWER_HEADROOM_TOKENS,
+  runAgentLoop,
+  toolCallSequenceIssues,
+  type AgentLoopEvent,
+} from '../../../src/agent/agent-loop.js';
 import { createFakeLlmClient, type FakeLlmScript } from '../../../src/agent/fake-llm-client.js';
 import type { AgentTool, AgentToolContext } from '../../../src/agent/tools/index.js';
 import type { LlmMessage } from '../../../src/agent/llm-client.js';
@@ -213,6 +221,84 @@ describe('WO-470 (SDD-035/PRD-016): a turn that ends badly still returns what it
 
     expect(newMessages.filter((m) => m.role === 'tool')).toHaveLength(1);
     expect(newMessages.some((m) => m.content.includes('interrupted'))).toBe(false);
+  });
+});
+
+describe('the turn budget (WO-486..WO-489, SDD-039/PRD-020)', () => {
+  test('WO-486: the generation cap is fixed and does not shrink as the history grows', async () => {
+    const script: FakeLlmScript = [
+      [
+        { type: 'tool_call', toolCall: { id: 'call_1', name: 'echo', argumentsJson: '{"value":"one"}' } },
+        { type: 'usage', promptTokens: 4800, completionTokens: 50, totalTokens: 4850 },
+        { type: 'done', finishReason: 'tool_calls' },
+      ],
+      [
+        { type: 'token', text: 'done' },
+        { type: 'usage', promptTokens: 5300, completionTokens: 1200, totalTokens: 6500 },
+        { type: 'done', finishReason: 'stop' },
+      ],
+    ];
+    const llmClient = createFakeLlmClient(script);
+    await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages }));
+
+    // The second call is the one that used to be starved: under the old code `max_tokens` was
+    // `8000 - 4850 = 3150`, which is what truncated a long tool argument mid-JSON.
+    expect(llmClient.calls).toHaveLength(2);
+    expect(llmClient.calls.map((c) => c.maxTokens)).toEqual([DEFAULT_MAX_COMPLETION_TOKENS_PER_CALL, DEFAULT_MAX_COMPLETION_TOKENS_PER_CALL]);
+  });
+
+  test('WO-488: a turn that runs out of budget mid-work still ends with prose, from a final call offered no tools', async () => {
+    const script: FakeLlmScript = [
+      // One tool-using iteration that eats almost the whole turn budget.
+      [
+        { type: 'tool_call', toolCall: { id: 'call_1', name: 'echo', argumentsJson: '{"value":"one"}' } },
+        { type: 'usage', promptTokens: 20_000, completionTokens: 100, totalTokens: 20_100 },
+        { type: 'done', finishReason: 'tool_calls' },
+      ],
+      // The final, tool-free call.
+      [{ type: 'token', text: 'Esto es lo que averigüé.' }, { type: 'done', finishReason: 'stop' }],
+    ];
+    const llmClient = createFakeLlmClient(script);
+    const { result } = await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages, maxTokensPerTurn: 24_000 }));
+    const { newMessages, finishReason } = result as { newMessages: { role: string; content: string }[]; finishReason: string };
+
+    expect(finishReason).toBe('token_budget_exceeded');
+    // The point of the whole WO: the turn does not end on three empty bubbles.
+    expect(newMessages.at(-1)).toMatchObject({ role: 'assistant', content: 'Esto es lo que averigüé.' });
+
+    // And that last call really was offered nothing to call.
+    expect(llmClient.calls).toHaveLength(2);
+    expect(llmClient.calls[1]?.tools).toEqual([]);
+  });
+
+  test('WO-488: the final answer is skipped when the turn ends normally with budget to spare', async () => {
+    const script: FakeLlmScript = [[{ type: 'token', text: 'listo' }, { type: 'done', finishReason: 'stop' }]];
+    const llmClient = createFakeLlmClient(script);
+    const { result } = await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages }));
+
+    expect((result as { finishReason: string }).finishReason).toBe('stop');
+    expect(llmClient.calls).toHaveLength(1);
+  });
+
+  test('WO-488: a turn whose budget is exhausted from the start goes straight to the final answer', async () => {
+    const script: FakeLlmScript = [[{ type: 'token', text: 'no me alcanzó el presupuesto' }, { type: 'done', finishReason: 'stop' }]];
+    const llmClient = createFakeLlmClient(script);
+    const { result } = await collect(
+      runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages, maxTokensPerTurn: FINAL_ANSWER_HEADROOM_TOKENS - 1 }),
+    );
+
+    expect(llmClient.calls).toHaveLength(1);
+    expect(llmClient.calls[0]?.tools).toEqual([]);
+    expect((result as { finishReason: string }).finishReason).toBe('token_budget_exceeded');
+  });
+
+  test('WO-489: a response the provider cut off is reported as truncated, not as a clean stop', async () => {
+    const script: FakeLlmScript = [[{ type: 'token', text: 'una respuesta a medio escr' }, { type: 'done', finishReason: 'length' }]];
+    const llmClient = createFakeLlmClient(script);
+    const { events, result } = await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages }));
+
+    expect((result as { finishReason: string }).finishReason).toBe('truncated');
+    expect(events.filter((e) => e.type === 'done')).toEqual([{ type: 'done', finishReason: 'truncated' }]);
   });
 });
 
