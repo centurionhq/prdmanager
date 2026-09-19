@@ -162,6 +162,11 @@ export function createDeepSeekClient(options: DeepSeekClientOptions): LlmClient 
           yield { type: 'done', finishReason: 'aborted' };
           return;
         }
+        // WO-507 (SDD-042/FB-023): the client keeps the fixed message -- never leak SDK/request detail
+        // to a browser. But swallowing it entirely left operators blind: diagnosing FB-023's 400 meant
+        // replaying the request from outside the process, because nothing anywhere recorded why the
+        // call failed. `logger` is the redacting wrapper built in `main.ts`.
+        logger?.error?.('deepseek streamChat failed', error);
         yield { type: 'error', code: 'llm_error', message: FIXED_ERROR_MESSAGE };
       }
     },

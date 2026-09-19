@@ -371,6 +371,53 @@ describe('boundMessagesForResend (WO-171, SDD-009 "historial reenviado acotado")
     expect(bounded[1]).toEqual({ role: 'user', content: 'message 41' });
   });
 
+  test('WO-504 (SDD-042/FB-023): the cut never lands on a tool message, so a long conversation stays valid', () => {
+    // The exact shape that broke a real 42-message conversation permanently: every later turn cut the
+    // same way, and the provider rejected every one of them with
+    // "Messages with role 'tool' must be a response to a preceding message with 'tool_calls'".
+    const turn = (n: number): LlmMessage[] => [
+      { role: 'user', content: `pregunta ${n}` },
+      { role: 'assistant', content: '', toolCalls: [{ id: `c${n}`, name: 'read_document', argumentsJson: '{}' }] },
+      { role: 'tool', content: '{}', toolCallId: `c${n}`, name: 'read_document' },
+      { role: 'assistant', content: `respuesta ${n}` },
+    ];
+    const messages: LlmMessage[] = [{ role: 'system', content: 'system instructions' }, ...Array.from({ length: 15 }, (_, i) => turn(i)).flat()];
+
+    // Sweep every budget: whatever the cut would have landed on, the result must be sendable.
+    for (let max = 2; max <= messages.length; max += 1) {
+      const bounded = boundMessagesForResend(messages, max);
+      expect(bounded[0]).toEqual({ role: 'system', content: 'system instructions' });
+      expect(bounded[1]?.role).not.toBe('tool');
+      expect(toolCallSequenceIssues(bounded)).toEqual([]);
+    }
+  });
+
+  test('WO-504: aligning moves the cut backwards, so it never drops a turn that fits', () => {
+    const messages: LlmMessage[] = [
+      { role: 'system', content: 's' },
+      { role: 'user', content: 'u1' },
+      { role: 'assistant', content: '', toolCalls: [{ id: 'c1', name: 'echo', argumentsJson: '{}' }] },
+      { role: 'tool', content: '{}', toolCallId: 'c1', name: 'echo' },
+      { role: 'assistant', content: 'a1' },
+    ];
+    // A budget of 3 would have sliced at the `tool`; aligning backwards reaches the assistant that owns it.
+    const bounded = boundMessagesForResend(messages, 3);
+    expect(bounded.map((m) => m.role)).toEqual(['system', 'assistant', 'tool', 'assistant']);
+    expect(bounded.length).toBeGreaterThan(3);
+    expect(toolCallSequenceIssues(bounded)).toEqual([]);
+  });
+
+  test('WO-504: with no system message the alignment still holds', () => {
+    const messages: LlmMessage[] = [
+      { role: 'user', content: 'u' },
+      { role: 'assistant', content: '', toolCalls: [{ id: 'c1', name: 'echo', argumentsJson: '{}' }] },
+      { role: 'tool', content: '{}', toolCallId: 'c1', name: 'echo' },
+    ];
+    const bounded = boundMessagesForResend(messages, 1);
+    expect(bounded[0]?.role).not.toBe('tool');
+    expect(toolCallSequenceIssues(bounded)).toEqual([]);
+  });
+
   test('without a leading system message, simply keeps the most recent entries', () => {
     const messages: LlmMessage[] = Array.from({ length: 20 }, (_, i) => ({ role: 'user' as const, content: `m${i}` }));
     const bounded = boundMessagesForResend(messages, 5);

@@ -123,16 +123,41 @@ export interface RunAgentLoopResult {
   finishReason: AgentLoopFinishReason;
 }
 
-/** SDD-009 "historial reenviado acotado": the system message (if present, always first) is always kept —
+/**
+ * SDD-009 "historial reenviado acotado": the system message (if present, always first) is always kept —
  * losing the agent's own instructions is never an acceptable way to shrink a turn — plus only the most
- * recent `maxMessages - 1` entries. A turn with a short history is returned unchanged. */
+ * recent entries. A turn with a short history is returned unchanged.
+ *
+ * WO-504 (SDD-042/FB-023): the cut is aligned to turn boundaries. It used to slice at exactly
+ * `maxMessages`, which says nothing about whether the resulting list is *valid*: a `tool` message
+ * answers an `assistant` that carries the matching `tool_calls`, so a cut landing between them leaves an
+ * orphan the provider rejects outright —
+ * `Messages with role 'tool' must be a response to a preceding message with 'tool_calls'`.
+ *
+ * That turned every conversation past `maxMessages` into a permanently broken one: each later turn cut
+ * the same way and failed the same way, surfacing only as the client's fixed "temporarily unavailable".
+ * Reproduced on a real 42-message conversation before this fix.
+ *
+ * The cut moves *backwards* to the first message that stands on its own. Backwards, not forwards,
+ * because forwards would drop a whole turn that fits perfectly well; backwards includes one or two
+ * messages more than the budget and is always valid. The overshoot is a couple of messages, never a turn.
+ */
 export function boundMessagesForResend(messages: readonly LlmMessage[], maxMessages: number): LlmMessage[] {
   if (messages.length <= maxMessages) return [...messages];
   const hasLeadingSystemMessage = messages[0]?.role === 'system';
-  if (!hasLeadingSystemMessage) return messages.slice(messages.length - maxMessages);
+  if (!hasLeadingSystemMessage) return messages.slice(alignedStart(messages, messages.length - maxMessages));
   const [system, ...rest] = messages;
   const tailBudget = maxMessages - 1;
-  return [system!, ...rest.slice(rest.length - tailBudget)];
+  return [system!, ...rest.slice(alignedStart(rest, rest.length - tailBudget))];
+}
+
+/** The first index at or before `start` whose message does not depend on an earlier one. A `tool` always
+ * does (it answers a specific `tool_call`); a `user` or `assistant` never does. Returns 0 rather than
+ * scanning past the beginning. */
+function alignedStart(messages: readonly LlmMessage[], start: number): number {
+  let index = Math.max(0, start);
+  while (index > 0 && messages[index]?.role === 'tool') index -= 1;
+  return index;
 }
 
 function isAborted(signal: AbortSignal | undefined): boolean {

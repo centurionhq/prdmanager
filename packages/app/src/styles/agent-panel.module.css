@@ -346,7 +346,8 @@
 }
 
 .activityDone::before,
-.activityFailed::before {
+.activityFailed::before,
+.activityUnknown::before {
   content: '';
   display: inline-block;
   width: 6px;
@@ -366,4 +367,10 @@
 
 .activityFailed {
   color: var(--paro);
+}
+
+/* Recorded before `tool_ok` existed: hollow, because we genuinely do not know how it went. */
+.activityUnknown::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--apagado);
 }

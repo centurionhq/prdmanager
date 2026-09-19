@@ -26,7 +26,7 @@ import type { Hocuspocus } from '@hocuspocus/server';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
-import { DEFAULT_MAX_TOKENS_PER_TURN, runAgentLoop, toolCallSequenceIssues, type AgentLoopEvent, type AgentLoopFinishReason, type AgentTranscriptMessage } from '../agent/agent-loop.js';
+import { boundMessagesForResend, DEFAULT_MAX_HISTORY_MESSAGES, DEFAULT_MAX_TOKENS_PER_TURN, runAgentLoop, toolCallSequenceIssues, type AgentLoopEvent, type AgentLoopFinishReason, type AgentTranscriptMessage } from '../agent/agent-loop.js';
 import { reconcileAgentTokens, reserveAgentTokens, todayUsageDate } from '../agent/agent-quota.js';
 import { buildAgentSystemPrompt } from '../agent/system-prompt.js';
 import type { LlmClient, LlmMessage, LlmToolCall } from '../agent/llm-client.js';
@@ -181,7 +181,8 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
       if (!conversation) return { conversationId: null, messages: [], proposals: [] };
 
       const [messages, proposals] = await Promise.all([
-        tenantDb.agent.messages.listForConversation(conversation.id),
+        // WO-506: `null` = the whole transcript. The panel shows everything the user ever said here.
+        tenantDb.agent.messages.listForConversation(conversation.id, null),
         tenantDb.agent.proposals.listForConversation(conversation.id),
       ]);
       return { conversationId: conversation.id, messages: messages.map(toMessageSummary), proposals: proposals.map(toProposalSummary) };
@@ -271,7 +272,10 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
         // was produced by the *read*, not the write, so no amount of care at persistence time would have
         // caught it. Logged rather than thrown: refusing to answer would turn a recoverable history
         // defect into an outage, and this is the signal that says a conversation went bad and where.
-        const sequenceIssues = toolCallSequenceIssues(messages);
+        // WO-505 (SDD-042): checked on the *bounded* list, which is what actually reaches the provider.
+        // Running it on the full history is what let FB-023 through: the full list was valid and the
+        // slice sent to DeepSeek was not.
+        const sequenceIssues = toolCallSequenceIssues(boundMessagesForResend(messages, DEFAULT_MAX_HISTORY_MESSAGES));
         if (sequenceIssues.length > 0) req.log.warn({ conversationId: conversation.id, issues: sequenceIssues }, 'replayed agent history violates the tool-call sequence invariant');
 
         const toolCtx: AgentToolContext = {

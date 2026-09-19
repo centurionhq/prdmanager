@@ -87,9 +87,6 @@ export function finishNotice(reason: AgentFinishReason | null | undefined): stri
   return reason ? (FINISH_NOTICE[reason] ?? null) : null;
 }
 
-/** WO-499: the error code a failed tool returned, dug out of the fenced `{"error":{...}}` payload. Only
- * ever used to *label* a failure the server already flagged via `ok: false` — never to decide whether
- * something failed, which is exactly the parsing-as-contract trap `tool_ok` exists to avoid. */
 /** WO-497: the phrase for whatever the turn is doing right now — the newest unfinished call, or a plain
  * "thinking" before any tool has been asked for. Before the first token that is all there is to say, and
  * saying it is the difference between "working" and "frozen". */
@@ -107,6 +104,16 @@ export function formatElapsed(ms: number): string {
   return `${Math.floor(seconds / 60)} min ${seconds % 60} s`;
 }
 
+/** Three states, not two: succeeded, failed, and not recorded. */
+export function activityClass(toolOk: boolean | null, styles: Record<string, string>): string | undefined {
+  if (toolOk === true) return styles.activityDone;
+  if (toolOk === false) return styles.activityFailed;
+  return styles.activityUnknown;
+}
+
+/** WO-499: the error code a failed tool returned, dug out of the fenced `{"error":{...}}` payload. Only
+ * ever used to *label* a failure the server already flagged via `ok: false` — never to decide whether
+ * something failed, which is exactly the parsing-as-contract trap `tool_ok` exists to avoid. */
 export function toolErrorCode(resultJson: string): string | undefined {
   try {
     const parsed: unknown = JSON.parse(resultJson);
@@ -307,7 +314,11 @@ export function AgentPanel({ subject }: AgentPanelProps): ReactElement {
   // tool-calling turn, not something the agent said. Rendering it produced one empty bordered bubble per
   // iteration -- the "hay mensajes que no salen" the user reported was partly these appearing instead.
   const visibleMessages = messages.filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content.trim() !== '');
-  const persistedActivity = messages.filter((m) => m.role === 'tool');
+  // WO-500: only the most recent turn's activity. Taking every `tool` message in the conversation made
+  // the trace grow without bound -- on a 44-message thread it filled the panel and pushed the answer the
+  // user was actually reading off-screen. A turn starts at the last thing the user said.
+  const lastUserIndex = messages.map((m) => m.role).lastIndexOf('user');
+  const persistedActivity = messages.slice(lastUserIndex + 1).filter((m) => m.role === 'tool');
   const persistedFinish = finishNotice(messages.at(-1)?.finishReason);
   const streamingNotice = finishNotice(streaming?.finishReason);
   const pendingProposals = proposals.filter((p) => p.status === 'pending');
@@ -343,10 +354,20 @@ export function AgentPanel({ subject }: AgentPanelProps): ReactElement {
         {!streaming && persistedActivity.length > 0 && (
           <li className={styles.activityTrace}>
             {persistedActivity.map((message) => (
-              <span key={message.id} className={message.toolOk === false ? styles.activityFailed : styles.activityDone}>
+              // `toolOk` is `null` for anything written before WO-492 added the column: that is "unknown",
+              // not "fine". Painting it as success made three `propose_edit` calls that had actually
+              // failed read as green — the exact opposite of what this trace exists to show.
+              <span key={message.id} className={activityClass(message.toolOk, styles)}>
                 {activityLabel(message.toolName ?? 'herramienta')}
               </span>
             ))}
+          </li>
+        )}
+
+        {/* WO-498: the user's own message, on screen from the instant they send it. */}
+        {pendingUserMessage !== null && (
+          <li className={styles.userBubble}>
+            <p className={styles.bubbleContent}>{pendingUserMessage}</p>
           </li>
         )}
 
@@ -377,13 +398,6 @@ export function AgentPanel({ subject }: AgentPanelProps): ReactElement {
                 <span className={styles.caret} aria-hidden="true" />
               </p>
             )}
-          </li>
-        )}
-
-        {/* WO-498: the user's own message, on screen from the instant they send it. */}
-        {pendingUserMessage !== null && (
-          <li className={styles.userBubble}>
-            <p className={styles.bubbleContent}>{pendingUserMessage}</p>
           </li>
         )}
 
