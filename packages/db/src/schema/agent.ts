@@ -17,7 +17,7 @@
  * cross-tenant total without breaking the exact tenant isolation RLS exists to enforce. It holds nothing
  * but a token/request count per day, no document content or identifiers.
  */
-import { check, foreignKey, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, unique, uuid, date } from 'drizzle-orm/pg-core';
+import { boolean, check, foreignKey, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, unique, uuid, date } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { organization, user } from './auth.js';
 import { documents } from './documents.js';
@@ -93,6 +93,21 @@ export const agentMessages = pgTable(
      * server-side inside the insert's own transaction. `created_at` stays: it answers "when", not "in
      * what order". */
     seq: integer('seq').notNull(),
+    /** WO-492 (SDD-040/PRD-020): whether this tool call succeeded. Only ever set on a `role: 'tool'`
+     * message; `null` everywhere else.
+     *
+     * The result payload already lives in `content`, but for a failure that payload is a fenced
+     * `{"error":{...}}` — a convention of the tool dispatcher, not a contract. Deriving "did this fail"
+     * by parsing it would break the day a tool legitimately returns an `error` key, so the bit is stored
+     * explicitly. Written in the same INSERT as the message because this table is append-only for the
+     * application (`prdm_app` holds SELECT/INSERT and deliberately no UPDATE), so there is no later
+     * moment at which to mark it. */
+    toolOk: boolean('tool_ok'),
+    /** WO-493 (SDD-040/PRD-020): how the turn this message belongs to ended, stamped on the turn's last
+     * message and `null` on every other. Without it a turn cut short by the token budget reads back
+     * exactly like one that finished cleanly, so a reload could never show "this turn ran out" or offer
+     * to retry it. Same append-only reason as `toolOk` for writing it at INSERT time. */
+    finishReason: text('finish_reason'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [

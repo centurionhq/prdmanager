@@ -75,6 +75,11 @@ export type AgentLoopEvent =
   | { type: 'tool_result'; toolCall: LlmToolCall; resultJson: string; ok: boolean }
   | { type: 'usage'; promptTokens: number; completionTokens: number; totalTokens: number }
   | { type: 'done'; finishReason: AgentLoopFinishReason }
+  /** WO-491 (SDD-040/PRD-020): emitted by the endpoint, not by this loop -- keeping a stream alive is a
+   * property of the transport, not of the reasoning. Carries `elapsedMs` because a bare keepalive can
+   * mask a real hang: a model that never answers would look "working" forever, and the elapsed time is
+   * what lets an abnormal wait be recognised as one. */
+  | { type: 'heartbeat'; elapsedMs: number }
   | { type: 'error'; code: string; message: string };
 
 /** A message as returned in `RunAgentLoopResult.newMessages` — a superset of `LlmMessage` with
@@ -84,6 +89,11 @@ export type AgentLoopEvent =
 export interface AgentTranscriptMessage extends LlmMessage {
   model?: string;
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+  /** WO-492 (SDD-040/PRD-020): only on a `role: 'tool'` message — whether that tool call succeeded.
+   * Carried here so the caller can persist it in the same INSERT as the message; `executeAgentTool`
+   * never rejects, so without this bit a failure is indistinguishable from a success once the wire
+   * event is gone. */
+  toolOk?: boolean;
 }
 
 export interface RunAgentLoopInput {
@@ -144,7 +154,14 @@ export function sealUnansweredToolCalls(newMessages: AgentTranscriptMessage[]): 
   const answered = new Set(newMessages.filter((message) => message.role === 'tool' && message.toolCallId).map((message) => message.toolCallId));
   const unanswered = newMessages.flatMap((message) => (message.role === 'assistant' ? (message.toolCalls ?? []) : [])).filter((call) => !answered.has(call.id));
   if (unanswered.length === 0) return newMessages;
-  return [...newMessages, ...unanswered.map((call) => buildFencedToolResultMessage(call, JSON.stringify({ error: 'interrupted', message: 'the turn ended before this tool call ran' })))];
+  return [
+    ...newMessages,
+    ...unanswered.map((call) => ({
+      ...buildFencedToolResultMessage(call, JSON.stringify({ error: 'interrupted', message: 'the turn ended before this tool call ran' })),
+      // A call that never ran did not succeed: it must read back as a failure, not as a blank.
+      toolOk: false,
+    })),
+  ];
 }
 
 /**
@@ -288,7 +305,7 @@ async function* runIterations(input: RunAgentLoopInput, newMessages: AgentTransc
 
       const toolResultMessage = buildFencedToolResultMessage(toolCall, result.resultJson);
       history.push(toolResultMessage);
-      newMessages.push(toolResultMessage);
+      newMessages.push({ ...toolResultMessage, toolOk: result.ok });
     }
   }
 

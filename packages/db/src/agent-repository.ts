@@ -34,6 +34,10 @@ export interface AppendMessageInput {
   completionTokens?: number | null;
   totalTokens?: number | null;
   model?: string | null;
+  /** WO-492 (SDD-040): only meaningful on a `role: 'tool'` message — whether that tool call succeeded. */
+  toolOk?: boolean | null;
+  /** WO-493 (SDD-040): only set on the last message of a turn — how that turn ended. */
+  finishReason?: string | null;
 }
 
 export interface CreateProposalInput {
@@ -144,6 +148,8 @@ function toAgentMessageValues(orgId: string, input: AppendMessageInput, seq: num
     completionTokens: input.completionTokens ?? null,
     totalTokens: input.totalTokens ?? null,
     model: input.model ?? null,
+    toolOk: input.toolOk ?? null,
+    finishReason: input.finishReason ?? null,
   };
 }
 
