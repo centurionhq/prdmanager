@@ -27,6 +27,10 @@ export type AgentSseEvent =
   | { type: 'tool_call'; toolCall: AgentToolCallDto }
   | { type: 'tool_result'; toolCall: AgentToolCallDto; resultJson: string; ok: boolean }
   | { type: 'usage'; promptTokens: number; completionTokens: number; totalTokens: number }
+  /** WO-524: the model is reasoning. Volume only — the product decision is to show activity, never the
+   * chain of thought — but knowing it is happening is what keeps "Pensando" honest during a long think
+   * instead of leaving the turn looking stalled. */
+  | { type: 'reasoning'; chars: number }
   | { type: 'done'; finishReason: AgentFinishReason }
   /** WO-491: the server saying "still here" while the model thinks, with how long the turn has been
    * running. The elapsed time is the server's, never a client-side stopwatch that would keep counting

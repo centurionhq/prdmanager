@@ -37,8 +37,17 @@ export const DEFAULT_MAX_ITERATIONS = 8;
  * Sized so the declared iteration cap is real rather than decorative. It stays a genuine ceiling, and
  * the quota still reconciles down to actual usage the moment the turn ends, so the effect on a day's
  * capacity is what was really spent, not what was reserved.
+ *
+ * WO-512 (SDD-044/FB-024): raised again, from 32_000, after measuring a real turn that read two
+ * `get_feature_branch` results of ~20 KB each (the tool-output cap) plus a 7 KB `get_node` — roughly
+ * 12k tokens of context — and ran out *after reading well*, without getting to write its answer.
+ *
+ * The instinct was to shrink what the tools return. That was rejected on product grounds: it trades
+ * quality for speed, and the agent would answer faster and worse. So the ceiling is derived from the
+ * worst case instead — an iteration that resends a history holding a couple of capped tool results
+ * costs on the order of 20k tokens, and the loop declares {@link DEFAULT_MAX_ITERATIONS} of them.
  */
-export const DEFAULT_MAX_TOKENS_PER_TURN = 32_000;
+export const DEFAULT_MAX_TOKENS_PER_TURN = 160_000;
 
 /**
  * WO-486: the provider's own `max_tokens`, i.e. a cap on *generation* only.
@@ -53,15 +62,73 @@ export const DEFAULT_MAX_COMPLETION_TOKENS_PER_CALL = 8_000;
 
 /**
  * WO-488: once fewer than this many tokens of the turn's budget remain, the loop stops offering tools and
- * spends what is left on one final, tool-free answer. Covers a last prompt (the full resent history,
- * ~5–6k measured) plus room to actually say something.
+ * spends what is left on one final, tool-free answer.
+ *
+ * WO-513 (SDD-044): sized for the *worst* last prompt, not a light one. At 10_000 it assumed a resent
+ * history of ~5–6k tokens; a history carrying capped tool results is several times that, so the loop
+ * decided too late and walked into an iteration it could not pay for. Covers a worst-case prompt plus
+ * enough room to actually say something.
  */
-export const FINAL_ANSWER_HEADROOM_TOKENS = 10_000;
+export const FINAL_ANSWER_HEADROOM_TOKENS = 40_000;
 
-/** WO-488: generation cap for that final, tool-free call. Prose, not a document body. */
-export const FINAL_ANSWER_MAX_COMPLETION_TOKENS = 2_000;
+/**
+ * WO-488: generation cap for that final, tool-free call.
+ *
+ * WO-523 (SDD-046): raised from 2_000 once it was verified that this account's model reasons inside the
+ * completion budget — `reasoning_content` consumes `max_tokens` while emitting nothing readable. At
+ * 2_000 the model spent the lot thinking and returned `finish_reason: length` with an empty answer, so
+ * the turn that this whole mechanism exists to rescue ended silent anyway. Sized so there is room to
+ * think *and* to speak.
+ */
+export const FINAL_ANSWER_MAX_COMPLETION_TOKENS = 16_000;
+
+/** WO-509 (SDD-043/FB-024): what the final call actually asks for. See `finalAnswer` for why the
+ * instruction has to be explicit rather than implied by an empty tool list. */
+export const FINAL_ANSWER_INSTRUCTION =
+  'No quedan herramientas disponibles en este turno: no intentes llamar ninguna, en ninguna forma. Respondé ahora, con lo que ya averiguaste, y decí explícitamente qué quedó sin verificar.';
 
 export const DEFAULT_MAX_HISTORY_MESSAGES = 40;
+
+/**
+ * WO-521 (SDD-046/FB-025): the resend window, measured in tokens rather than messages.
+ *
+ * Counting messages bounds nothing: measured on a real turn, 40 messages were anywhere from 4k to 60k
+ * tokens depending on what the tools returned, and the prompt grew 2k → 4k → 22k → 31k → 35k → 40k as
+ * results piled up and were resent whole each iteration. 75_000 is the product owner's number.
+ */
+export const DEFAULT_MAX_HISTORY_TOKENS = 75_000;
+
+/** WO-521: bytes per token, deliberately pessimistic. A real tokenizer would be a heavy dependency for
+ * a decision that only needs the right order of magnitude, and erring low means the window comes out
+ * smaller than the budget rather than larger — the safe direction. */
+const ESTIMATED_BYTES_PER_TOKEN = 3;
+
+/** WO-521: rough token cost of a message, counting the content plus the tool-call arguments that ride
+ * along on an assistant turn. */
+export function estimateTokens(message: LlmMessage): number {
+  const toolCallBytes = (message.toolCalls ?? []).reduce((sum, call) => sum + call.name.length + call.argumentsJson.length, 0);
+  return Math.ceil((message.content.length + toolCallBytes) / ESTIMATED_BYTES_PER_TOKEN);
+}
+
+/**
+ * WO-522 (SDD-046): a single message standing in for everything that fell outside the window.
+ *
+ * Dropping the overflow outright is cheaper and costs the agent what it already found out — the very
+ * memory PRD-016 was about. Summarising it with a model call would buy a better summary at the price of
+ * an extra call and more latency exactly when budget is scarce, so this is built from what the
+ * transcript already records: what was asked, and which tools ran with what outcome.
+ */
+export function compactedSummary(dropped: readonly LlmMessage[]): LlmMessage | null {
+  if (dropped.length === 0) return null;
+  const asked = dropped.filter((m) => m.role === 'user').map((m) => m.content.trim()).filter((c) => c.length > 0);
+  const toolNames = [...new Set(dropped.filter((m) => m.role === 'tool').map((m) => m.name ?? 'herramienta'))];
+  const lines = [
+    `[Resumen de ${dropped.length} mensajes anteriores de esta conversación, recortados por tamaño. La conversación completa sigue visible para el usuario.]`,
+    ...(asked.length > 0 ? [`Lo que se pidió antes: ${asked.map((a) => `"${a.slice(0, 200)}"`).join(' | ')}`] : []),
+    ...(toolNames.length > 0 ? [`Herramientas ya usadas: ${toolNames.join(', ')}. No hace falta repetirlas salvo que necesites datos nuevos.`] : []),
+  ];
+  return { role: 'user', content: lines.join('\n') };
+}
 
 /** WO-470 (SDD-035): `'error'` is how the loop reports that it fell over. It used to *throw*, which threw
  * away every message the turn had already produced along with it — the caller could only persist what the
@@ -74,6 +141,9 @@ export type AgentLoopEvent =
   | { type: 'tool_call'; toolCall: LlmToolCall }
   | { type: 'tool_result'; toolCall: LlmToolCall; resultJson: string; ok: boolean }
   | { type: 'usage'; promptTokens: number; completionTokens: number; totalTokens: number }
+  /** WO-524 (SDD-046): forwarded so the panel can keep saying "Pensando" honestly during a long
+   * think, instead of showing a turn that looks stalled. Volume only, never the reasoning text. */
+  | { type: 'reasoning'; chars: number }
   | { type: 'done'; finishReason: AgentLoopFinishReason }
   /** WO-491 (SDD-040/PRD-020): emitted by the endpoint, not by this loop -- keeping a stream alive is a
    * property of the transport, not of the reasoning. Carries `elapsedMs` because a bare keepalive can
@@ -142,13 +212,33 @@ export interface RunAgentLoopResult {
  * because forwards would drop a whole turn that fits perfectly well; backwards includes one or two
  * messages more than the budget and is always valid. The overshoot is a couple of messages, never a turn.
  */
-export function boundMessagesForResend(messages: readonly LlmMessage[], maxMessages: number): LlmMessage[] {
-  if (messages.length <= maxMessages) return [...messages];
+export function boundMessagesForResend(messages: readonly LlmMessage[], maxMessages: number, maxTokens: number = DEFAULT_MAX_HISTORY_TOKENS): LlmMessage[] {
   const hasLeadingSystemMessage = messages[0]?.role === 'system';
-  if (!hasLeadingSystemMessage) return messages.slice(alignedStart(messages, messages.length - maxMessages));
-  const [system, ...rest] = messages;
-  const tailBudget = maxMessages - 1;
-  return [system!, ...rest.slice(alignedStart(rest, rest.length - tailBudget))];
+  const system = hasLeadingSystemMessage ? messages[0]! : null;
+  const rest = hasLeadingSystemMessage ? messages.slice(1) : [...messages];
+
+  // WO-521: two independent caps. The message count keeps a long chat of short turns bounded; the token
+  // budget is what actually protects the call, because one tool result can outweigh thirty messages.
+  // The system message occupies one of the `maxMessages` slots, as it always did.
+  const tailBudget = system ? maxMessages - 1 : maxMessages;
+  let start = rest.length > tailBudget ? alignedStart(rest, rest.length - tailBudget) : 0;
+
+  let budget = maxTokens - (system ? estimateTokens(system) : 0);
+  let tokensFromStart = rest.slice(start).reduce((sum, message) => sum + estimateTokens(message), 0);
+  while (start < rest.length && tokensFromStart > budget) {
+    tokensFromStart -= estimateTokens(rest[start]!);
+    start += 1;
+  }
+  // Re-align after trimming by size: the size cut is just as capable of landing mid-turn as the count
+  // cut was, and an orphaned `tool` is rejected outright by the provider (FB-023).
+  start = alignedStart(rest, start);
+
+  if (start === 0) return system ? [system, ...rest] : [...rest];
+
+  // WO-522: what fell outside is summarised rather than silently lost.
+  const summary = compactedSummary(rest.slice(0, start));
+  const kept = rest.slice(start);
+  return [...(system ? [system] : []), ...(summary ? [summary] : []), ...kept];
 }
 
 /** The first index at or before `start` whose message does not depend on an earlier one. A `tool` always
@@ -289,6 +379,8 @@ async function* runIterations(input: RunAgentLoopInput, newMessages: AgentTransc
       } else if (event.type === 'tool_call') {
         toolCalls.push(event.toolCall);
         yield event;
+      } else if (event.type === 'reasoning') {
+        yield event;
       } else if (event.type === 'usage') {
         tokensUsedThisTurn += event.totalTokens;
         iterationUsage = { promptTokens: event.promptTokens, completionTokens: event.completionTokens, totalTokens: event.totalTokens };
@@ -361,10 +453,22 @@ async function* finalAnswer(
   let modelFinishReason: string | undefined;
   let sawError = false;
 
-  const resendMessages = boundMessagesForResend(history, maxHistoryMessages);
+  // WO-509 (SDD-043/FB-024): say it, do not just do it. Removing the tools silently left the model to
+  // infer why, and what it inferred was "ask for the tool some other way": it wrote DeepSeek's own
+  // invocation markup into `content`, which then rendered as text in the panel. An explicit instruction
+  // is the difference between a model that answers and one that keeps trying to call something.
+  //
+  // Sent as a message of this turn, never by touching the system prompt: this is a condition of *this*
+  // call, and the system prompt is deliberately stable across the whole conversation.
+  const resendMessages = [
+    ...boundMessagesForResend(history, maxHistoryMessages),
+    { role: 'user' as const, content: FINAL_ANSWER_INSTRUCTION },
+  ];
   for await (const event of llmClient.streamChat({ messages: resendMessages, tools: [], maxTokens: FINAL_ANSWER_MAX_COMPLETION_TOKENS, signal })) {
     if (event.type === 'token') {
       assistantText += event.text;
+      yield event;
+    } else if (event.type === 'reasoning') {
       yield event;
     } else if (event.type === 'usage') {
       iterationUsage = { promptTokens: event.promptTokens, completionTokens: event.completionTokens, totalTokens: event.totalTokens };

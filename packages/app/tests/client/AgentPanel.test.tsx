@@ -44,27 +44,27 @@ function fakeConversation(overrides: Partial<AgentConversationDto> = {}): AgentC
 
 describe('applyStreamingEvent (pure, timing-independent — proves the "reveal token by token" behavior)', () => {
   it('appends each token event to the accumulated text, in order', () => {
-    const empty = { text: '', activity: [], elapsedMs: 0 };
+    const empty = { text: '', activity: [], reasoningChars: 0, elapsedMs: 0 };
     const afterFirst = applyStreamingEvent(empty, { type: 'token', text: 'hello ' });
     const afterSecond = applyStreamingEvent(afterFirst, { type: 'token', text: 'there' });
-    expect(afterFirst).toEqual({ text: 'hello ', activity: [], elapsedMs: 0 });
-    expect(afterSecond).toEqual({ text: 'hello there', activity: [], elapsedMs: 0 });
+    expect(afterFirst).toEqual({ text: 'hello ', activity: [], reasoningChars: 0, elapsedMs: 0 });
+    expect(afterSecond).toEqual({ text: 'hello there', activity: [], reasoningChars: 0, elapsedMs: 0 });
   });
 
   it('appends tool_call events without touching the accumulated text', () => {
-    const withText = { text: 'checking...', activity: [], elapsedMs: 0 };
+    const withText = { text: 'checking...', activity: [], reasoningChars: 0, elapsedMs: 0 };
     const result = applyStreamingEvent(withText, { type: 'tool_call', toolCall: { id: 'call_1', name: 'read_document', argumentsJson: '{}' } });
-    expect(result).toEqual({ text: 'checking...', activity: [{ id: 'call_1', name: 'read_document' }], elapsedMs: 0 });
+    expect(result).toEqual({ text: 'checking...', activity: [{ id: 'call_1', name: 'read_document' }], reasoningChars: 0, elapsedMs: 0 });
   });
 
   it('leaves the turn unchanged only for usage and message_start — everything else is now visible', () => {
-    const turn = { text: 'so far', activity: [], elapsedMs: 0 };
+    const turn = { text: 'so far', activity: [], reasoningChars: 0, elapsedMs: 0 };
     expect(applyStreamingEvent(turn, { type: 'usage', promptTokens: 1, completionTokens: 1, totalTokens: 2 })).toBe(turn);
     expect(applyStreamingEvent(turn, { type: 'message_start' })).toBe(turn);
   });
 
   it('WO-499: settles a tool_call with its outcome, keeping the error code when it failed', () => {
-    const called = applyStreamingEvent({ text: '', activity: [], elapsedMs: 0 }, { type: 'tool_call', toolCall: { id: 'call_1', name: 'propose_edit', argumentsJson: '{}' } });
+    const called = applyStreamingEvent({ text: '', activity: [], reasoningChars: 0, elapsedMs: 0 }, { type: 'tool_call', toolCall: { id: 'call_1', name: 'propose_edit', argumentsJson: '{}' } });
     const settled = applyStreamingEvent(called, {
       type: 'tool_result',
       toolCall: { id: 'call_1', name: 'propose_edit', argumentsJson: '{}' },
@@ -77,20 +77,20 @@ describe('applyStreamingEvent (pure, timing-independent — proves the "reveal t
   });
 
   it('WO-499: a successful tool_result settles without an error code', () => {
-    const called = applyStreamingEvent({ text: '', activity: [], elapsedMs: 0 }, { type: 'tool_call', toolCall: { id: 'c1', name: 'read_document', argumentsJson: '{}' } });
+    const called = applyStreamingEvent({ text: '', activity: [], reasoningChars: 0, elapsedMs: 0 }, { type: 'tool_call', toolCall: { id: 'c1', name: 'read_document', argumentsJson: '{}' } });
     const settled = applyStreamingEvent(called, { type: 'tool_result', toolCall: { id: 'c1', name: 'read_document', argumentsJson: '{}' }, resultJson: '{"body":"x"}', ok: true });
     expect(settled.activity).toEqual([{ id: 'c1', name: 'read_document', ok: true }]);
   });
 
   it('WO-491: the heartbeat carries the elapsed time, which is the server\u2019s and not a local stopwatch', () => {
-    const beat = applyStreamingEvent({ text: '', activity: [], elapsedMs: 0 }, { type: 'heartbeat', elapsedMs: 42_000 });
+    const beat = applyStreamingEvent({ text: '', activity: [], reasoningChars: 0, elapsedMs: 0 }, { type: 'heartbeat', elapsedMs: 42_000 });
     expect(beat.elapsedMs).toBe(42_000);
     expect(formatElapsed(beat.elapsedMs)).toBe('42 s');
     expect(formatElapsed(95_000)).toBe('1 min 35 s');
   });
 
   it('WO-499: done records the finish reason, which used to be dropped so a cut turn looked successful', () => {
-    const done = applyStreamingEvent({ text: 'so far', activity: [], elapsedMs: 0 }, { type: 'done', finishReason: 'token_budget_exceeded' });
+    const done = applyStreamingEvent({ text: 'so far', activity: [], reasoningChars: 0, elapsedMs: 0 }, { type: 'done', finishReason: 'token_budget_exceeded' });
     expect(done.finishReason).toBe('token_budget_exceeded');
     expect(finishNotice('token_budget_exceeded')).toMatch(/presupuesto/i);
     // A normal ending says nothing: there is no news in "it worked".
@@ -104,8 +104,10 @@ describe('applyStreamingEvent (pure, timing-independent — proves the "reveal t
   });
 
   it('WO-497: before any tool or token, the turn still has something honest to say', () => {
-    expect(currentActivity({ text: '', activity: [], elapsedMs: 0 })).toBe('Pensando');
-    expect(currentActivity({ text: 'escribiendo', activity: [], elapsedMs: 0 })).toBe('Escribiendo la respuesta');
+    // WO-522: nothing back yet is not the same as thinking.
+    expect(currentActivity({ text: '', activity: [], reasoningChars: 0, elapsedMs: 0 })).toBe('Esperando al modelo');
+    expect(currentActivity({ text: '', activity: [], reasoningChars: 120, elapsedMs: 0 })).toBe('Pensando');
+    expect(currentActivity({ text: 'escribiendo', activity: [], reasoningChars: 0, elapsedMs: 0 })).toBe('Escribiendo la respuesta');
     // The newest still-running call wins over one that already settled.
     expect(
       currentActivity({
@@ -114,6 +116,7 @@ describe('applyStreamingEvent (pure, timing-independent — proves the "reveal t
           { id: 'a', name: 'read_document', ok: true },
           { id: 'b', name: 'propose_edit' },
         ],
+        reasoningChars: 0,
         elapsedMs: 0,
       }),
     ).toBe('Proponiendo un cambio');

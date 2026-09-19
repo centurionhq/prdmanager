@@ -47,13 +47,16 @@ export interface ToolActivity {
 export interface StreamingTurn {
   text: string;
   activity: ToolActivity[];
+  /** WO-524: characters of reasoning the model has streamed. Never rendered as text; it only tells the
+   * panel that a quiet turn is thinking rather than stuck. */
+  reasoningChars: number;
   /** Milliseconds the *server* says this turn has been running (WO-491's heartbeat). Never a
    * client-side stopwatch: that would keep counting against a server that had already gone away. */
   elapsedMs: number;
   finishReason?: AgentFinishReason;
 }
 
-const EMPTY_TURN: StreamingTurn = { text: '', activity: [], elapsedMs: 0 };
+const EMPTY_TURN: StreamingTurn = { text: '', activity: [], reasoningChars: 0, elapsedMs: 0 };
 
 /** WO-497: what the agent is doing, in words a person reading a PRD would use. `read_document` tells
  * nobody anything. An unmapped tool falls back to its own name rather than to silence — a future tool
@@ -93,7 +96,12 @@ export function finishNotice(reason: AgentFinishReason | null | undefined): stri
 export function currentActivity(turn: StreamingTurn): string {
   const running = [...turn.activity].reverse().find((a) => a.ok === undefined);
   if (running) return activityLabel(running.name);
-  return turn.text === '' ? 'Pensando' : 'Escribiendo la respuesta';
+  if (turn.text !== '') return 'Escribiendo la respuesta';
+  // WO-524: a real distinction, not a cosmetic one. Reasoning tokens arriving means the model is
+  // working through the problem; none at all means the request is still in flight and nothing has come
+  // back yet. Both are quiet stretches, and telling them apart is the difference between a panel that
+  // looks stalled and one that is honest about what is happening.
+  return turn.reasoningChars > 0 ? 'Pensando' : 'Esperando al modelo';
 }
 
 /** Seconds under a minute, then minutes — enough precision to notice an abnormal wait without turning
@@ -138,6 +146,7 @@ export function applyStreamingEvent(prev: StreamingTurn, event: AgentSseEvent): 
   if (event.type === 'token') return { ...prev, text: prev.text + event.text };
   if (event.type === 'tool_call') return { ...prev, activity: [...prev.activity, { id: event.toolCall.id, name: event.toolCall.name }] };
   if (event.type === 'heartbeat') return { ...prev, elapsedMs: event.elapsedMs };
+  if (event.type === 'reasoning') return { ...prev, reasoningChars: prev.reasoningChars + event.chars };
   if (event.type === 'done') return { ...prev, finishReason: event.finishReason };
   if (event.type === 'tool_result') {
     const settled: ToolActivity = {

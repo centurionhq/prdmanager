@@ -207,6 +207,44 @@ describe('agent tools (SDD-009 §Herramientas, WO-169)', () => {
     expect(() => JSON.parse(JSON.stringify(forest))).not.toThrow();
   });
 
+  test('WO-516/WO-517 (SDD-045/FB-025): walking the graph brings no document bodies, and the body is one explicit argument away', async () => {
+    const base = await setupPublishedProject();
+    const ctx = contextFor(base, true);
+
+    const structural = (await getNodeTool.execute(ctx, { id: 'PRD-001' })) as { found: boolean; node?: Record<string, unknown> } & Record<string, unknown>;
+    const flat = structural.node ?? structural;
+
+    expect(structural.found).toBe(true);
+    // The measured problem: `body` was 86 % of a 12 KB result, twelve times over in one turn.
+    expect(flat).not.toHaveProperty('body');
+    // Identity and links still come back -- this is a narrowing of payload, not of capability.
+    expect(JSON.stringify(structural)).toContain('PRD-001');
+
+    // And internal bookkeeping the model can do nothing with is gone.
+    for (const internal of ['project_id', 'content_hash', 'tags_text']) {
+      expect(flat).not.toHaveProperty(internal);
+    }
+
+    const withBody = (await getNodeTool.execute(ctx, { id: 'PRD-001', includeBody: true })) as { node?: Record<string, unknown> } & Record<string, unknown>;
+    expect(withBody.node ?? withBody).toHaveProperty('body');
+  });
+
+  test('WO-517: a feature branch is structure only, and stays small per node', async () => {
+    const base = await setupPublishedProject();
+    const branch = (await getFeatureBranchTool.execute(contextFor(base, true), { featureId: 'PRD-001' })) as { found: boolean; nodes: Record<string, unknown>[] };
+
+    expect(branch.found).toBe(true);
+    for (const node of branch.nodes) {
+      expect(node).not.toHaveProperty('body');
+      expect(node).not.toHaveProperty('project_id');
+    }
+
+    // Four of these accounted for 79_662 bytes of one real turn. Structure alone is hundreds of bytes
+    // per node, not thousands.
+    const bytesPerNode = branch.nodes.length === 0 ? 0 : JSON.stringify(branch.nodes).length / branch.nodes.length;
+    expect(bytesPerNode).toBeLessThan(1_000);
+  });
+
   test('read_document returns line-numbered body and frontmatter fields for the live working copy', async () => {
     const base = await setupPublishedProject();
     const result = (await readDocumentTool.execute(contextFor(base, true), {})) as { body: string };
