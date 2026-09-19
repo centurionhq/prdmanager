@@ -6,10 +6,10 @@
  * all). Later WOs in this phase (169 tools, 171 loop, 172 endpoint, 173 propose_edit, 174 accept/reject,
  * 175 quotas) build their own logic on top of this thin CRUD layer rather than duplicating query shapes.
  */
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, max } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { agentConversations, agentMessages, agentProposals, llmGlobalUsage, llmUsage } from './schema/agent.js';
-import { connect } from './pool.js';
+import { connect, type PgDatabase } from './pool.js';
 import { withTenantTx } from './tenant.js';
 
 export type AgentConversationRecord = typeof agentConversations.$inferSelect;
@@ -65,11 +65,16 @@ export interface AgentMessagesRepository {
    * once the turn finishes, rather than a sequential `for` loop of individually-awaited inserts. Returns
    * `[]` for an empty `inputs` without issuing any query. */
   appendMany(inputs: readonly AppendMessageInput[]): Promise<AgentMessageRecord[]>;
-  /** Ascending by `createdAt` (oldest first), capped to the most recent `limit` messages (default
+  /** Ascending by `seq` (oldest first), capped to the most recent `limit` messages (default
    * {@link DEFAULT_MESSAGE_HISTORY_LIMIT}) — WO-254: the agent loop only ever resends the last
    * `DEFAULT_MAX_HISTORY_MESSAGES` (40, `agent-loop.ts`) to the model, and the chat panel only ever
    * renders recent history on mount, so fetching a conversation's entire unbounded transcript from
-   * Postgres on every turn and every page load was pure waste that grows with conversation length. */
+   * Postgres on every turn and every page load was pure waste that grows with conversation length.
+   *
+   * WO-469 (SDD-035): ordered by `seq`, never by `createdAt`. A whole turn shares one `createdAt` (it is
+   * written in a single batched insert, and `defaultNow()` is the transaction clock), so ordering by it
+   * left the order *within* a turn up to Postgres. That surfaced as a scrambled transcript, and, because
+   * `documents-agent.ts` replays this exact list back to the model, as a scrambled history too. */
   listForConversation(conversationId: string, limit?: number): Promise<AgentMessageRecord[]>;
 }
 
@@ -112,11 +117,23 @@ export interface AgentRepositories {
   llmUsage: LlmUsageRepository;
 }
 
+/** WO-469 (SDD-035): the next free position in a conversation, read inside the caller's own transaction.
+ * `max + 1` rather than a sequence because `seq` is per conversation, not global, and because a gap left
+ * by a rolled-back turn would make a global sequence's numbers non-contiguous for no benefit. */
+async function nextSeq(tx: PgDatabase, conversationId: string): Promise<number> {
+  const [row] = await tx
+    .select({ max: max(agentMessages.seq) })
+    .from(agentMessages)
+    .where(eq(agentMessages.conversationId, conversationId));
+  return (row?.max ?? 0) + 1;
+}
+
 /** Shared by `append` and `appendMany` so the two never drift on which `AppendMessageInput` fields map to
  * which column/default. */
-function toAgentMessageValues(orgId: string, input: AppendMessageInput) {
+function toAgentMessageValues(orgId: string, input: AppendMessageInput, seq: number) {
   return {
     orgId,
+    seq,
     conversationId: input.conversationId,
     role: input.role,
     content: input.content,
@@ -156,13 +173,24 @@ export function buildAgentRepositories(pool: Pool, orgId: string): AgentReposito
     messages: {
       append: (input) =>
         withTenantTx(pool, orgId, async (tx) => {
-          const [row] = await tx.insert(agentMessages).values(toAgentMessageValues(orgId, input)).returning();
+          const seq = await nextSeq(tx, input.conversationId);
+          const [row] = await tx.insert(agentMessages).values(toAgentMessageValues(orgId, input, seq)).returning();
           if (!row) throw new Error(`failed to append agent message to conversation ${input.conversationId}`);
           return row;
         }),
       appendMany: (inputs) => {
         if (inputs.length === 0) return Promise.resolve([]);
-        return withTenantTx(pool, orgId, (tx) => tx.insert(agentMessages).values(inputs.map((input) => toAgentMessageValues(orgId, input))).returning());
+        return withTenantTx(pool, orgId, async (tx) => {
+          // WO-469: `inputs` is one turn, in the order the loop produced it, and it stays that way --
+          // this is the whole point of `seq`. Read once and count up, inside the same transaction as the
+          // insert, so a concurrent turn on the same conversation either serializes behind this one or
+          // trips `agent_messages_conversation_seq_uq` rather than silently duplicating a position.
+          const first = await nextSeq(tx, inputs[0]!.conversationId);
+          return tx
+            .insert(agentMessages)
+            .values(inputs.map((input, index) => toAgentMessageValues(orgId, input, first + index)))
+            .returning();
+        });
       },
       listForConversation: (conversationId, limit = DEFAULT_MESSAGE_HISTORY_LIMIT) =>
         withTenantTx(pool, orgId, async (tx) => {
@@ -170,7 +198,7 @@ export function buildAgentRepositories(pool: Pool, orgId: string): AgentReposito
             .select()
             .from(agentMessages)
             .where(eq(agentMessages.conversationId, conversationId))
-            .orderBy(desc(agentMessages.createdAt))
+            .orderBy(desc(agentMessages.seq))
             .limit(limit);
           return rows.reverse();
         }),
