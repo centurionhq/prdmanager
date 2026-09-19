@@ -76,10 +76,40 @@ function rangesOverlap(a: CharRange, b: CharRange): boolean {
   return a.from < b.to && b.from < a.to;
 }
 
+/** The frontmatter keys this project's documents actually use. Matching on the key *name* rather than on
+ * the field being present matters: the case where the agent most needs the hint is a document whose
+ * working copy is still empty, where no field exists to match against yet. */
+const KNOWN_FRONTMATTER_KEYS = new Set([
+  'id',
+  'type',
+  'title',
+  'status',
+  'tags',
+  'created_at',
+  'implements',
+  'evolves_from',
+  'justified_by',
+  'informs',
+  'architects',
+  'provides_context_for',
+  'impacts_paths',
+  'review_needed',
+]);
+
+/** WO-527: is this `expectedText` really a frontmatter line rather than body text? Keyed on a known
+ * field name, not on any `word:` prefix — plenty of legitimate body lines start that way ("Nota: ...")
+ * and pointing those at `fields` would be worse than the plain not-found they get today. */
+function isFrontmatterLine(expectedText: string, currentFields: Record<string, unknown>): boolean {
+  const match = /^\s*([A-Za-z_][\w-]*)\s*:/.exec(expectedText);
+  if (!match) return false;
+  const key = match[1]!;
+  return KNOWN_FRONTMATTER_KEYS.has(key) || Object.prototype.hasOwnProperty.call(currentFields, key);
+}
+
 export const proposeEditTool: AgentTool<z.infer<typeof inputSchema>> = {
   name: 'propose_edit',
   description:
-    'Proposes one or more precise text replacements and/or frontmatter field changes for a human to review. Each edit must quote expectedText exactly as it currently appears in the document (see read_document); this never modifies the document itself.',
+    'Proposes one or more precise text replacements and/or frontmatter field changes for a human to review. Two separate paths: "edits" replaces text in the document BODY, and each edit must quote expectedText exactly as it appears there (see read_document); "fields" changes frontmatter (title, tags, justified_by, ...) — frontmatter is never matched by expectedText. This never modifies the document itself.',
   inputSchema,
   async execute(ctx: AgentToolContext, input) {
     const subject = await ctx.loadSubject();
@@ -117,9 +147,20 @@ export const proposeEditTool: AgentTool<z.infer<typeof inputSchema>> = {
       const occurrence = edit.occurrence ?? 0;
       const range = findOccurrenceRange(projection.body, edit.expectedText, occurrence);
       if (!range) {
+        // WO-527 (SDD-047/FB-026): observed in a real session — the agent tried to edit `title: ""`,
+        // i.e. the frontmatter, and got a bare "not found in the body". The confusion is reasonable:
+        // this tool *does* change fields, through `fields`, and nothing said so. A dead end became a
+        // usable next step.
+        //
+        // Body and frontmatter deliberately stay separate paths: the body is a `Y.Text` with relative
+        // anchors and the frontmatter is a map of fields, and matching `expectedText` against both
+        // would break the anchoring that lets a proposal survive concurrent edits.
+        const looksLikeFrontmatter = isFrontmatterLine(edit.expectedText, projection.fields as Record<string, unknown>);
         throw new AgentToolError(
           'text_not_found',
-          `expectedText ${JSON.stringify(edit.expectedText)} (occurrence ${occurrence}) was not found in the current document body`,
+          looksLikeFrontmatter
+            ? `expectedText ${JSON.stringify(edit.expectedText)} looks like a frontmatter field, and edits only match the document body. Change fields through the "fields" argument instead (e.g. fields.set).`
+            : `expectedText ${JSON.stringify(edit.expectedText)} (occurrence ${occurrence}) was not found in the current document body`,
         );
       }
       if (claimedRanges.some((existing) => rangesOverlap(existing, range))) {
