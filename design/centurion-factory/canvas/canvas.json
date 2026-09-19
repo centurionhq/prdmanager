@@ -298,6 +298,15 @@
       "w": 1440,
       "h": 780,
       "page": "page-4"
+    },
+    {
+      "file": "AgentePanel.dc.html",
+      "title": "Agente · panel (espera, actividad, fallo, turno cortado, detenido)",
+      "x": 4800,
+      "y": 2240,
+      "w": 560,
+      "h": 960,
+      "page": "page-4"
     }
   ],
   "annotations": [

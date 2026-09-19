@@ -78,6 +78,11 @@ function toMessageSummary(message: AgentMessageRecord) {
     toolCallId: message.toolCallId,
     toolName: message.toolName,
     model: message.model,
+    // WO-492/WO-493 (SDD-040): persisting these was only half the job — "survives a reload" means the
+    // panel can read them back, so they belong in the DTO too. `toolOk` is set only on a tool message,
+    // `finishReason` only on a turn's last one.
+    toolOk: message.toolOk,
+    finishReason: message.finishReason,
     createdAt: message.createdAt.toISOString(),
   };
 }

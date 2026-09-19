@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as Y from 'yjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AgentPanel, applyStreamingEvent } from '../../src/components/AgentPanel.js';
+import { activityLabel, AgentPanel, applyStreamingEvent, currentActivity, finishNotice, formatElapsed } from '../../src/components/AgentPanel.js';
 import * as collabContext from '../../src/collab/collab-document-context.js';
 import * as agentApi from '../../src/api/agent.js';
 import type { AgentConversationDto, AgentProposalDto, AgentSseEvent } from '../../src/api/agent.js';
@@ -44,24 +44,79 @@ function fakeConversation(overrides: Partial<AgentConversationDto> = {}): AgentC
 
 describe('applyStreamingEvent (pure, timing-independent — proves the "reveal token by token" behavior)', () => {
   it('appends each token event to the accumulated text, in order', () => {
-    const empty = { text: '', toolCalls: [] };
+    const empty = { text: '', activity: [], elapsedMs: 0 };
     const afterFirst = applyStreamingEvent(empty, { type: 'token', text: 'hello ' });
     const afterSecond = applyStreamingEvent(afterFirst, { type: 'token', text: 'there' });
-    expect(afterFirst).toEqual({ text: 'hello ', toolCalls: [] });
-    expect(afterSecond).toEqual({ text: 'hello there', toolCalls: [] });
+    expect(afterFirst).toEqual({ text: 'hello ', activity: [], elapsedMs: 0 });
+    expect(afterSecond).toEqual({ text: 'hello there', activity: [], elapsedMs: 0 });
   });
 
   it('appends tool_call events without touching the accumulated text', () => {
-    const withText = { text: 'checking...', toolCalls: [] };
+    const withText = { text: 'checking...', activity: [], elapsedMs: 0 };
     const result = applyStreamingEvent(withText, { type: 'tool_call', toolCall: { id: 'call_1', name: 'read_document', argumentsJson: '{}' } });
-    expect(result).toEqual({ text: 'checking...', toolCalls: [{ id: 'call_1', name: 'read_document', argumentsJson: '{}' }] });
+    expect(result).toEqual({ text: 'checking...', activity: [{ id: 'call_1', name: 'read_document' }], elapsedMs: 0 });
   });
 
-  it('leaves the turn unchanged for events with no visible effect (usage, tool_result, message_start, done)', () => {
-    const turn = { text: 'so far', toolCalls: [] };
+  it('leaves the turn unchanged only for usage and message_start — everything else is now visible', () => {
+    const turn = { text: 'so far', activity: [], elapsedMs: 0 };
     expect(applyStreamingEvent(turn, { type: 'usage', promptTokens: 1, completionTokens: 1, totalTokens: 2 })).toBe(turn);
     expect(applyStreamingEvent(turn, { type: 'message_start' })).toBe(turn);
-    expect(applyStreamingEvent(turn, { type: 'done', finishReason: 'stop' })).toBe(turn);
+  });
+
+  it('WO-499: settles a tool_call with its outcome, keeping the error code when it failed', () => {
+    const called = applyStreamingEvent({ text: '', activity: [], elapsedMs: 0 }, { type: 'tool_call', toolCall: { id: 'call_1', name: 'propose_edit', argumentsJson: '{}' } });
+    const settled = applyStreamingEvent(called, {
+      type: 'tool_result',
+      toolCall: { id: 'call_1', name: 'propose_edit', argumentsJson: '{}' },
+      resultJson: JSON.stringify({ error: { code: 'text_not_found', message: 'nope' } }),
+      ok: false,
+    });
+
+    // One entry, not two: the result settles the call it belongs to.
+    expect(settled.activity).toEqual([{ id: 'call_1', name: 'propose_edit', ok: false, errorCode: 'text_not_found' }]);
+  });
+
+  it('WO-499: a successful tool_result settles without an error code', () => {
+    const called = applyStreamingEvent({ text: '', activity: [], elapsedMs: 0 }, { type: 'tool_call', toolCall: { id: 'c1', name: 'read_document', argumentsJson: '{}' } });
+    const settled = applyStreamingEvent(called, { type: 'tool_result', toolCall: { id: 'c1', name: 'read_document', argumentsJson: '{}' }, resultJson: '{"body":"x"}', ok: true });
+    expect(settled.activity).toEqual([{ id: 'c1', name: 'read_document', ok: true }]);
+  });
+
+  it('WO-491: the heartbeat carries the elapsed time, which is the server\u2019s and not a local stopwatch', () => {
+    const beat = applyStreamingEvent({ text: '', activity: [], elapsedMs: 0 }, { type: 'heartbeat', elapsedMs: 42_000 });
+    expect(beat.elapsedMs).toBe(42_000);
+    expect(formatElapsed(beat.elapsedMs)).toBe('42 s');
+    expect(formatElapsed(95_000)).toBe('1 min 35 s');
+  });
+
+  it('WO-499: done records the finish reason, which used to be dropped so a cut turn looked successful', () => {
+    const done = applyStreamingEvent({ text: 'so far', activity: [], elapsedMs: 0 }, { type: 'done', finishReason: 'token_budget_exceeded' });
+    expect(done.finishReason).toBe('token_budget_exceeded');
+    expect(finishNotice('token_budget_exceeded')).toMatch(/presupuesto/i);
+    // A normal ending says nothing: there is no news in "it worked".
+    expect(finishNotice('stop')).toBeNull();
+  });
+
+  it('WO-497: activity is described for a person, and an unmapped tool falls back to its own name', () => {
+    expect(activityLabel('read_document')).toBe('Leyendo el documento');
+    expect(activityLabel('get_product_tree')).toBe('Mirando el árbol del producto');
+    expect(activityLabel('some_future_tool')).toBe('some_future_tool');
+  });
+
+  it('WO-497: before any tool or token, the turn still has something honest to say', () => {
+    expect(currentActivity({ text: '', activity: [], elapsedMs: 0 })).toBe('Pensando');
+    expect(currentActivity({ text: 'escribiendo', activity: [], elapsedMs: 0 })).toBe('Escribiendo la respuesta');
+    // The newest still-running call wins over one that already settled.
+    expect(
+      currentActivity({
+        text: '',
+        activity: [
+          { id: 'a', name: 'read_document', ok: true },
+          { id: 'b', name: 'propose_edit' },
+        ],
+        elapsedMs: 0,
+      }),
+    ).toBe('Proponiendo un cambio');
   });
 });
 
@@ -70,14 +125,124 @@ describe('AgentPanel', () => {
     vi.restoreAllMocks();
   });
 
+  function msg(over: Partial<agentApi.AgentMessageDto> & { id: string; role: agentApi.AgentMessageDto['role']; content: string }): agentApi.AgentMessageDto {
+    return { toolCalls: null, toolCallId: null, toolName: null, model: null, toolOk: null, finishReason: null, createdAt: '2026-01-01T00:00:00.000Z', ...over };
+  }
+
+  it('WO-500 (F5 of PRD-016): an assistant message with no content produces no bubble at all', async () => {
+    mockContext();
+    vi.spyOn(agentApi, 'getAgentConversation').mockResolvedValue(
+      fakeConversation({
+        conversationId: 'conv-1',
+        messages: [
+          msg({ id: 'm1', role: 'user', content: 'resumime esto' }),
+          // What a tool-calling iteration persists: no prose, only tool_calls. One of these per
+          // iteration is what the user saw as stacked empty "Agente" bubbles.
+          msg({ id: 'm2', role: 'assistant', content: '', toolCalls: [{ id: 'c1', name: 'read_document', argumentsJson: '{}' }] }),
+          msg({ id: 'm3', role: 'tool', content: 'fenced payload', toolName: 'read_document', toolCallId: 'c1', toolOk: true }),
+          msg({ id: 'm4', role: 'assistant', content: 'Es un PRD en borrador.' }),
+        ],
+      }),
+    );
+
+    render(<AgentPanel subject={{ orgRole: 'member', projectRole: 'editor' }} />);
+    await screen.findByText('Es un PRD en borrador.');
+
+    // Exactly one "Agente" badge: the message that actually said something.
+    expect(screen.getAllByText('Agente')).toHaveLength(1);
+    // And the tool payload is never dumped into the thread.
+    expect(screen.queryByText('fenced payload')).toBeNull();
+  });
+
+  it('WO-500: a finished turn keeps a compact trace of what it did, marking what failed', async () => {
+    mockContext();
+    vi.spyOn(agentApi, 'getAgentConversation').mockResolvedValue(
+      fakeConversation({
+        conversationId: 'conv-1',
+        messages: [
+          msg({ id: 'm1', role: 'user', content: 'armá el PRD' }),
+          msg({ id: 'm2', role: 'tool', content: '{}', toolName: 'read_document', toolCallId: 'c1', toolOk: true }),
+          msg({ id: 'm3', role: 'tool', content: '{}', toolName: 'propose_edit', toolCallId: 'c2', toolOk: false }),
+          msg({ id: 'm4', role: 'assistant', content: 'No pude aplicarlo.', finishReason: 'stop' }),
+        ],
+      }),
+    );
+
+    render(<AgentPanel subject={{ orgRole: 'member', projectRole: 'editor' }} />);
+    await screen.findByText('No pude aplicarlo.');
+
+    expect(screen.getByText('Leyendo el documento')).toBeTruthy();
+    expect(screen.getByText('Proponiendo un cambio')).toBeTruthy();
+  });
+
+  it('WO-499: a turn that ran out of budget says so after a reload, instead of looking like a success', async () => {
+    mockContext();
+    vi.spyOn(agentApi, 'getAgentConversation').mockResolvedValue(
+      fakeConversation({
+        conversationId: 'conv-1',
+        messages: [
+          msg({ id: 'm1', role: 'user', content: 'armá el PRD' }),
+          msg({ id: 'm2', role: 'assistant', content: 'Lo que averigüé por ahora.', finishReason: 'token_budget_exceeded' }),
+        ],
+      }),
+    );
+
+    render(<AgentPanel subject={{ orgRole: 'member', projectRole: 'editor' }} />);
+
+    const notice = await screen.findByRole('alert');
+    expect(notice.textContent).toMatch(/presupuesto/i);
+  });
+
+  it('WO-498: the user\u2019s own message is on screen immediately, not only once the turn finishes', async () => {
+    mockContext();
+    vi.spyOn(agentApi, 'getAgentConversation').mockResolvedValue(fakeConversation({ conversationId: 'conv-1' }));
+    // A turn that never resolves: the whole point is what is visible *during* it.
+    vi.spyOn(agentApi, 'sendAgentMessage').mockImplementation(() => new Promise<void>(() => {}));
+
+    render(<AgentPanel subject={{ orgRole: 'member', projectRole: 'editor' }} />);
+    await screen.findByText('Sin conversación todavía.');
+
+    await userEvent.type(screen.getByLabelText('Mensaje para el agente'), 'armá el PRD');
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    // Before this WO the textarea was cleared and nothing was added: the text existed nowhere.
+    expect(await screen.findByText('armá el PRD')).toBeTruthy();
+  });
+
+  it('WO-497/WO-499: while a turn runs, the activity and any tool failure are both visible', async () => {
+    mockContext();
+    vi.spyOn(agentApi, 'getAgentConversation').mockResolvedValue(fakeConversation({ conversationId: 'conv-1' }));
+    vi.spyOn(agentApi, 'sendAgentMessage').mockImplementation(async (_o, _p, _d, _m, onEvent) => {
+      const call = { id: 'c1', name: 'propose_edit', argumentsJson: '{}' };
+      onEvent({ type: 'message_start' });
+      onEvent({ type: 'heartbeat', elapsedMs: 12_000 });
+      onEvent({ type: 'tool_call', toolCall: call });
+      onEvent({ type: 'tool_result', toolCall: call, resultJson: JSON.stringify({ error: { code: 'text_not_found', message: 'x' } }), ok: false });
+      await new Promise<void>(() => {});
+    });
+
+    render(<AgentPanel subject={{ orgRole: 'member', projectRole: 'editor' }} />);
+    await screen.findByText('Sin conversación todavía.');
+
+    await userEvent.type(screen.getByLabelText('Mensaje para el agente'), 'proponé algo');
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    // The elapsed time comes from the server's heartbeat, so a silent think is visibly a think.
+    expect(await screen.findByText('12 s')).toBeTruthy();
+    // And the failure -- dropped entirely before this WO -- is stated with its code.
+    const failure = await screen.findByRole('alert');
+    expect(failure.textContent).toMatch(/No se pudo completar/);
+    expect(failure.textContent).toMatch(/text_not_found/);
+  });
+
   it('shows the prior conversation with a visible Agente badge on assistant messages', async () => {
     mockContext();
     vi.spyOn(agentApi, 'getAgentConversation').mockResolvedValue(
       fakeConversation({
         conversationId: 'conv-1',
         messages: [
-          { id: 'm1', role: 'user', content: 'hola', toolCalls: null, toolCallId: null, toolName: null, model: null, createdAt: '2026-01-01T00:00:00.000Z' },
-          { id: 'm2', role: 'assistant', content: 'hola, ¿en qué ayudo?', toolCalls: null, toolCallId: null, toolName: null, model: 'deepseek-v4-flash', createdAt: '2026-01-01T00:00:01.000Z' },
+          { id: 'm1', role: 'user', content: 'hola', toolCalls: null, toolCallId: null, toolName: null, model: null, toolOk: null, finishReason: null, createdAt: '2026-01-01T00:00:00.000Z' },
+          { id: 'm2', role: 'assistant', content: 'hola, ¿en qué ayudo?', toolCalls: null, toolCallId: null, toolName: null, model: 'deepseek-v4-flash', toolOk: null, finishReason: null, createdAt: '2026-01-01T00:00:01.000Z' },
         ],
       }),
     );
@@ -107,8 +272,8 @@ describe('AgentPanel', () => {
         fakeConversation({
           conversationId: 'conv-1',
           messages: [
-            { id: 'm1', role: 'user', content: 'hi', toolCalls: null, toolCallId: null, toolName: null, model: null, createdAt: '2026-01-01T00:00:00.000Z' },
-            { id: 'm2', role: 'assistant', content: 'hello there', toolCalls: null, toolCallId: null, toolName: null, model: null, createdAt: '2026-01-01T00:00:01.000Z' },
+            { id: 'm1', role: 'user', content: 'hi', toolCalls: null, toolCallId: null, toolName: null, model: null, toolOk: null, finishReason: null, createdAt: '2026-01-01T00:00:00.000Z' },
+            { id: 'm2', role: 'assistant', content: 'hello there', toolCalls: null, toolCallId: null, toolName: null, model: null, toolOk: null, finishReason: null, createdAt: '2026-01-01T00:00:01.000Z' },
           ],
         }),
       );

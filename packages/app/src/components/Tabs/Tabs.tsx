@@ -14,6 +14,16 @@ export interface TabDef {
   readonly id: string;
   readonly label: ReactNode;
   readonly panel: ReactNode;
+  /**
+   * WO-501 (SDD-041/PRD-020): keep this tab's panel mounted while another tab is shown, instead of the
+   * default unmount-on-switch.
+   *
+   * Opt-in, so no existing tab changes behaviour. The agent panel needs it because unmounting runs its
+   * effect cleanup, which aborts the in-flight turn: a user who clicked "Comentarios" mid-answer killed
+   * the turn and was told nothing. The panel stays in the DOM but inside a `hidden` container, so it is
+   * out of the accessibility tree and out of tab order exactly as before.
+   */
+  readonly keepMounted?: boolean;
 }
 
 export interface TabsClassNames {
@@ -59,7 +69,7 @@ export function Tabs({ ariaLabel, tabs, activeId, onChange, idPrefix, classNames
           hidden={tab.id !== activeId}
           className={classNames?.panel ?? styles.panel}
         >
-          {tab.id === activeId ? tab.panel : null}
+          {tab.id === activeId || tab.keepMounted === true ? tab.panel : null}
         </div>
       ))}
     </div>

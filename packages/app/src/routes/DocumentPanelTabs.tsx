@@ -45,7 +45,8 @@ export function DocumentPanelTabs({
         activeId={activeId}
         onChange={setActiveId}
         tabs={[
-          { id: 'agente', label: 'Agente', panel: <AgentPanel subject={subject} /> },
+          // WO-501: kept mounted so switching tabs mid-turn no longer aborts the agent's answer.
+          { id: 'agente', label: 'Agente', panel: <AgentPanel subject={subject} />, keepMounted: true },
           { id: 'comentarios', label: 'Comentarios', panel: <CommentsPanel subject={subject} /> },
           { id: 'versiones', label: 'Versiones', panel: <VersionsPanel subject={subject} /> },
           {

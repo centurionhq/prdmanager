@@ -238,3 +238,132 @@
   color: var(--senal-texto);
   font-size: var(--text-sm);
 }
+
+/* ---------------------------------------------------------------------------------------------- */
+/* WO-497..WO-501 (SDD-041/PRD-020): the turn made visible.                                         */
+/* ---------------------------------------------------------------------------------------------- */
+
+/* What the agent is doing right now. A quiet plate, not a banner: it is the normal state of a working
+   turn, not a problem. */
+.activity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--relleno);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-xs);
+  color: var(--texto-secundario);
+}
+
+.activityText {
+  font-weight: 600;
+}
+
+/* The only motion added. A continuous state mark while the turn really is in progress -- never an
+   entrance animation (SDD-011's "one orchestrated motion moment" is the Planta reveal), and pinned
+   solid under reduced motion the same way `.caret` already is. */
+.activityDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cianotipo);
+  animation: agent-activity-pulse 1400ms ease-in-out infinite;
+}
+
+@keyframes agent-activity-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activityDot {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* Pushed to the right so it reads as metadata about the activity, not as part of it. */
+.elapsed {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--apagado);
+}
+
+/* A failed tool, shown next to the work that failed rather than as a detached red line at the top. */
+.toolFailure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--diff-quitado);
+  border-left: 3px solid var(--paro);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-sm);
+  color: var(--grafito);
+}
+
+/* The machine-readable detail, available without shouting. */
+.toolFailureCode {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+/* How a turn ended, when that is worth saying at all. */
+.turnNotice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--superficie);
+  border: var(--rule) solid var(--regla);
+  border-radius: var(--radius-plate);
+}
+
+.turnNoticeText {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 20px;
+  color: var(--texto-secundario);
+}
+
+/* What a finished turn did, in one compact row -- never the tool result payload itself. */
+.activityTrace {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.activityDone::before,
+.activityFailed::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: var(--space-1);
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.activityDone::before {
+  background: var(--senal);
+}
+
+.activityFailed::before {
+  background: var(--paro);
+}
+
+.activityFailed {
+  color: var(--paro);
+}
