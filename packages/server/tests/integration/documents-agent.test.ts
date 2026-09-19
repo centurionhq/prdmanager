@@ -111,6 +111,60 @@ describe('.../documents/:docId/agent/messages (WO-172)', () => {
     await app.close();
   });
 
+  test('WO-470 (SDD-035/PRD-016): a turn whose model call blows up still persists what it produced, instead of orphaning the user message', async () => {
+    // An empty script: the very first streamChat throws FakeLlmScriptExhaustedError from inside the loop.
+    // That used to escape, leaving `newMessages` empty and the user's message sitting in the transcript
+    // with no reply, no error and nothing to retry -- and poisoning every later turn's replayed history.
+    const llmClient = createFakeLlmClient([]);
+    const app = buildApp(llmClient);
+    const { org, project, docId, editorACookie } = await setupOrgProjectAndDocument(app);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: sseUrl(org, project, docId),
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), editorACookie),
+      payload: { message: 'write the intro' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.payload).toContain('event: error');
+    expect(res.payload).toContain(JSON.stringify({ type: 'done', finishReason: 'error' }));
+
+    // The user's message is still there, and the conversation is closed rather than left mid-turn.
+    expect(await countRows('agent_messages', "role = 'user' AND content = $1", ['write the intro'])).toBe(1);
+    expect(await countRows('agent_messages', "role = 'assistant' AND tool_calls IS NOT NULL", [])).toBe(0);
+
+    await app.close();
+  });
+
+  test('WO-470: a turn interrupted partway through its tool calls persists the assistant turn with every tool call answered', async () => {
+    const llmClient = createFakeLlmClient([
+      [
+        { type: 'tool_call', toolCall: { id: 'call_1', name: 'read_document', argumentsJson: '{}' } },
+        { type: 'done', finishReason: 'tool_calls' },
+      ],
+    ]);
+    const app = buildApp(llmClient);
+    const { org, project, docId, editorACookie } = await setupOrgProjectAndDocument(app);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: sseUrl(org, project, docId),
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), editorACookie),
+      payload: { message: 'read it' },
+    });
+
+    expect(res.statusCode).toBe(200);
+
+    // Whatever the turn managed, the invariant holds: no assistant tool_call is left without a result,
+    // because that is the sequence the provider rejects when this transcript is replayed next turn.
+    const requested = await countRows('agent_messages', "role = 'assistant' AND tool_calls IS NOT NULL", []);
+    const answered = await countRows('agent_messages', "role = 'tool'", []);
+    expect(answered).toBeGreaterThanOrEqual(requested);
+
+    await app.close();
+  });
+
   test('a viewer (no use_agent permission) gets 403 and nothing is persisted', async () => {
     const llmClient = createFakeLlmClient([]);
     const app = buildApp(llmClient);

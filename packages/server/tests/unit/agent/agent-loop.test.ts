@@ -148,6 +148,74 @@ describe('runAgentLoop (WO-171, SDD-009 §Diseño)', () => {
   });
 });
 
+describe('WO-470 (SDD-035/PRD-016): a turn that ends badly still returns what it produced', () => {
+  test('the loop reports a thrown failure as finishReason "error" instead of throwing the transcript away', async () => {
+    const script: FakeLlmScript = [
+      [{ type: 'tool_call', toolCall: { id: 'call_1', name: 'echo', argumentsJson: '{"value":"hi"}' } }, { type: 'done', finishReason: 'tool_calls' }],
+    ];
+    const boom = echoTool(() => Promise.reject(new Error('tool blew up')));
+    const llmClient = createFakeLlmClient(script);
+
+    // The script has one turn, so the second iteration's streamChat throws FakeLlmScriptExhaustedError
+    // from inside the loop -- previously that escaped and the caller persisted nothing at all.
+    const { events, result } = await collect(runAgentLoop({ llmClient, tools: [boom], toolCtx: FAKE_CTX, messages: baseMessages }));
+
+    expect(result).toMatchObject({ finishReason: 'error' });
+    expect(events.filter((e) => e.type === 'error')).toHaveLength(1);
+    const { newMessages } = result as { newMessages: { role: string; content: string }[] };
+    expect(newMessages.length).toBeGreaterThan(0);
+    expect(newMessages[0]?.role).toBe('assistant');
+  });
+
+  test('an abort partway through an assistant turn\u2019s tool calls still leaves every tool_call answered', async () => {
+    const controller = new AbortController();
+    // One assistant turn requesting two tools: aborting once the first result is in lands the loop on the
+    // abort check *inside* the tool loop, with call_2 requested and unanswered. That is precisely where a
+    // client disconnect falls, and the sequence a provider rejects on the next turn.
+    const script: FakeLlmScript = [
+      [
+        { type: 'tool_call', toolCall: { id: 'call_1', name: 'echo', argumentsJson: '{"value":"one"}' } },
+        { type: 'tool_call', toolCall: { id: 'call_2', name: 'echo', argumentsJson: '{"value":"two"}' } },
+        { type: 'done', finishReason: 'tool_calls' },
+      ],
+    ];
+    const llmClient = createFakeLlmClient(script);
+
+    const loop = runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages, signal: controller.signal });
+    const events: AgentLoopEvent[] = [];
+    let next = await loop.next();
+    while (!next.done) {
+      events.push(next.value);
+      if (next.value.type === 'tool_result') controller.abort();
+      next = await loop.next();
+    }
+    const result = next.value as { finishReason: string; newMessages: { role: string; toolCalls?: { id: string }[]; toolCallId?: string; content: string }[] };
+
+    expect(result.finishReason).toBe('aborted');
+
+    // The invariant that matters: this transcript is replayed to the provider next turn, and an
+    // assistant with an unanswered tool_call is rejected there.
+    const requested = result.newMessages.flatMap((m) => (m.role === 'assistant' ? (m.toolCalls ?? []) : [])).map((c) => c.id);
+    const answered = result.newMessages.filter((m) => m.role === 'tool').map((m) => m.toolCallId);
+    expect(requested).toEqual(['call_1', 'call_2']);
+    expect(answered).toEqual(['call_1', 'call_2']);
+    expect(result.newMessages.at(-1)?.content).toContain('interrupted');
+  });
+
+  test('a turn that answered every tool call is left exactly as it was', async () => {
+    const script: FakeLlmScript = [
+      [{ type: 'tool_call', toolCall: { id: 'call_1', name: 'echo', argumentsJson: '{"value":"hi"}' } }, { type: 'done', finishReason: 'tool_calls' }],
+      [{ type: 'token', text: 'done' }, { type: 'done', finishReason: 'stop' }],
+    ];
+    const llmClient = createFakeLlmClient(script);
+    const { result } = await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages }));
+    const { newMessages } = result as { newMessages: { role: string; content: string }[] };
+
+    expect(newMessages.filter((m) => m.role === 'tool')).toHaveLength(1);
+    expect(newMessages.some((m) => m.content.includes('interrupted'))).toBe(false);
+  });
+});
+
 describe('boundMessagesForResend (WO-171, SDD-009 "historial reenviado acotado")', () => {
   test('returns everything unchanged when within the limit', () => {
     const messages: LlmMessage[] = [{ role: 'system', content: 's' }, { role: 'user', content: 'u' }];

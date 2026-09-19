@@ -116,9 +116,19 @@ function toLlmMessage(row: AgentMessageRecord): LlmMessage {
 }
 
 /** Structurally typed against just the `write` method every real and Fastify-injected `reply.raw` has —
- * avoids importing Node's own `ServerResponse` type just for this one call site. */
-function sendSseEvent(raw: { write: (chunk: string) => void }, event: AgentLoopEvent): void {
-  raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+ * avoids importing Node's own `ServerResponse` type just for this one call site.
+ *
+ * WO-470 (SDD-035/PRD-016): writing to a socket the client already closed throws, and that throw used to
+ * escape past the loop and cost the caller the turn's whole transcript. A disconnected reader is the
+ * expected end of an SSE stream, not an error: the events simply have nowhere to go, while the turn's
+ * output still has somewhere to be persisted. */
+function sendSseEvent(raw: { write: (chunk: string) => void; writableEnded?: boolean; destroyed?: boolean }, event: AgentLoopEvent): void {
+  if (raw.writableEnded === true || raw.destroyed === true) return;
+  try {
+    raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+  } catch {
+    // The reader went away mid-turn. Persistence below is what still matters.
+  }
 }
 
 /** Node's default `server.requestTimeout` is 5 minutes — verified against the real DeepSeek API (never
@@ -255,9 +265,13 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
           'x-accel-buffering': 'no',
         });
 
+        // WO-470 (SDD-035/PRD-016): the loop no longer throws -- it returns what it produced plus a
+        // `finishReason`, so an aborted or failed turn persists its partial transcript instead of
+        // vanishing. This `catch` is now only for something going wrong *outside* the loop's own
+        // handling, and it still keeps whatever was already collected.
+        const loop = runAgentLoop({ llmClient, tools: ALL_AGENT_TOOLS, toolCtx, messages, model, maxTokensPerTurn: reservationTokens, signal: controller.signal });
         let newMessages: AgentTranscriptMessage[] = [];
         try {
-          const loop = runAgentLoop({ llmClient, tools: ALL_AGENT_TOOLS, toolCtx, messages, model, maxTokensPerTurn: reservationTokens, signal: controller.signal });
           let step = await loop.next();
           while (!step.done) {
             sendSseEvent(reply.raw, step.value);
