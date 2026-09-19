@@ -106,6 +106,42 @@ export function sealUnansweredToolCalls(newMessages: AgentTranscriptMessage[]): 
   return [...newMessages, ...unanswered.map((call) => buildFencedToolResultMessage(call, JSON.stringify({ error: 'interrupted', message: 'the turn ended before this tool call ran' })))];
 }
 
+/**
+ * WO-471 (SDD-035/PRD-016): the protocol invariant every OpenAI-compatible provider enforces on the
+ * message list, stated as a check rather than left implicit — a `tool` message must follow the
+ * `assistant` that emitted its `tool_call_id`, and every emitted `tool_call_id` must have a result.
+ *
+ * Worth checking explicitly because it is exactly what the `created_at` ordering bug broke: the
+ * transcript was persisted correctly and then *read back* in an order that violated this, so nothing in
+ * the write path could have caught it. Returns a human-readable issue per violation, empty when valid.
+ */
+export function toolCallSequenceIssues(messages: readonly LlmMessage[]): string[] {
+  const issues: string[] = [];
+  const emitted = new Set<string>();
+  const answered = new Set<string>();
+
+  for (const message of messages) {
+    if (message.role === 'assistant') {
+      for (const call of message.toolCalls ?? []) emitted.add(call.id);
+      continue;
+    }
+    if (message.role !== 'tool') continue;
+    const id = message.toolCallId;
+    if (id === undefined) {
+      issues.push('a tool message carries no toolCallId');
+    } else if (!emitted.has(id)) {
+      issues.push(`tool result ${id} appears before the assistant message that requested it`);
+    } else if (answered.has(id)) {
+      issues.push(`tool call ${id} has more than one result`);
+    } else {
+      answered.add(id);
+    }
+  }
+
+  for (const id of emitted) if (!answered.has(id)) issues.push(`tool call ${id} was requested but never answered`);
+  return issues;
+}
+
 export async function* runAgentLoop(input: RunAgentLoopInput): AsyncGenerator<AgentLoopEvent, RunAgentLoopResult> {
   yield { type: 'message_start' };
 

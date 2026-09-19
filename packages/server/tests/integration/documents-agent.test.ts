@@ -7,7 +7,8 @@ import { createMemberFixture, createOrganizationFixture, createProjectFixture, m
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
 import { createFakeLlmClient, type FakeLlmClient } from '../../src/agent/fake-llm-client.js';
-import type { LlmClient } from '../../src/agent/llm-client.js';
+import { toolCallSequenceIssues } from '../../src/agent/agent-loop.js';
+import type { LlmClient, LlmMessage } from '../../src/agent/llm-client.js';
 import { FakeMailer } from '../../src/mailer.js';
 import { mutationHeaders } from '../helpers/csrf.js';
 import { buildTestServerEnv } from '../helpers/test-env.js';
@@ -161,6 +162,50 @@ describe('.../documents/:docId/agent/messages (WO-172)', () => {
     const requested = await countRows('agent_messages', "role = 'assistant' AND tool_calls IS NOT NULL", []);
     const answered = await countRows('agent_messages', "role = 'tool'", []);
     expect(answered).toBeGreaterThanOrEqual(requested);
+
+    await app.close();
+  });
+
+  test('WO-471 (SDD-035/PRD-016): a conversation persisted by one turn and read back for the next satisfies the tool-call sequence invariant', async () => {
+    // The full round trip -- persist a turn, read it back, map it to LlmMessages -- because that read is
+    // where the ordering bug lived. A write-side assertion could never have caught it.
+    const llmClient = createFakeLlmClient([
+      [{ type: 'tool_call', toolCall: { id: 'call_1', name: 'read_document', argumentsJson: '{}' } }, { type: 'done', finishReason: 'tool_calls' }],
+      [{ type: 'token', text: 'It is a draft PRD.' }, { type: 'done', finishReason: 'stop' }],
+    ]);
+    const app = buildApp(llmClient);
+    const { org, project, docId, editorACookie } = await setupOrgProjectAndDocument(app);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: sseUrl(org, project, docId),
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), editorACookie),
+      payload: { message: 'what is this?' },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const conversation = await app.inject({
+      method: 'GET',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${docId}/agent/conversation`,
+      headers: { cookie: editorACookie, ...AUTH_HOST() },
+    });
+    expect(conversation.statusCode).toBe(200);
+    const { messages } = conversation.json() as { messages: { role: string; content: string; toolCalls: unknown; toolCallId: string | null; toolName: string | null }[] };
+
+    const replayed: LlmMessage[] = messages.map((m) => ({
+      role: m.role as LlmMessage['role'],
+      content: m.content,
+      ...(m.toolCalls ? { toolCalls: m.toolCalls as LlmMessage['toolCalls'] } : {}),
+      ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
+      ...(m.toolName ? { name: m.toolName } : {}),
+    }));
+
+    expect(toolCallSequenceIssues(replayed)).toEqual([]);
+    // And the order really is the causal one: the assistant that asked, then its result.
+    const assistantIndex = replayed.findIndex((m) => m.role === 'assistant' && (m.toolCalls?.length ?? 0) > 0);
+    const resultIndex = replayed.findIndex((m) => m.role === 'tool');
+    expect(assistantIndex).toBeGreaterThanOrEqual(0);
+    expect(resultIndex).toBeGreaterThan(assistantIndex);
 
     await app.close();
   });

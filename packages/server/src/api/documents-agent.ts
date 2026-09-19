@@ -26,7 +26,7 @@ import type { Hocuspocus } from '@hocuspocus/server';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
-import { DEFAULT_MAX_TOKENS_PER_TURN, runAgentLoop, type AgentLoopEvent, type AgentTranscriptMessage } from '../agent/agent-loop.js';
+import { DEFAULT_MAX_TOKENS_PER_TURN, runAgentLoop, toolCallSequenceIssues, type AgentLoopEvent, type AgentTranscriptMessage } from '../agent/agent-loop.js';
 import { reconcileAgentTokens, reserveAgentTokens, todayUsageDate } from '../agent/agent-quota.js';
 import { buildAgentSystemPrompt } from '../agent/system-prompt.js';
 import type { LlmClient, LlmMessage, LlmToolCall } from '../agent/llm-client.js';
@@ -231,6 +231,14 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
           ...priorMessages.map(toLlmMessage),
           { role: 'user', content: parsed.data.message },
         ];
+
+        // WO-471 (SDD-035/PRD-016): the replayed history is where the ordering bug actually hurt -- a
+        // `tool` message ahead of the `assistant` that requested it is rejected by the provider, and it
+        // was produced by the *read*, not the write, so no amount of care at persistence time would have
+        // caught it. Logged rather than thrown: refusing to answer would turn a recoverable history
+        // defect into an outage, and this is the signal that says a conversation went bad and where.
+        const sequenceIssues = toolCallSequenceIssues(messages);
+        if (sequenceIssues.length > 0) req.log.warn({ conversationId: conversation.id, issues: sequenceIssues }, 'replayed agent history violates the tool-call sequence invariant');
 
         const toolCtx: AgentToolContext = {
           pool,
