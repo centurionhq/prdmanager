@@ -306,6 +306,40 @@ describe('AgentPanel', () => {
     expect(await screen.findByText('hello there')).toBeTruthy();
   });
 
+  it('WO-534 (SDD-049/FB-027): a pending proposal that just appeared is scrolled into view, not left below the fold', async () => {
+    mockContext();
+    // Feature-detected in the component itself (jsdom has no layout and no real `scrollIntoView`); the
+    // component only calls it if it exists, so assigning a spy here is what makes it observable at all
+    // — before WO-534 nothing pointed it at a proposal, no matter how this were mocked. WO-501's own
+    // thread-end effect fires on every mount regardless of content, so the interesting assertion isn't
+    // "was it called" but "was it called on the proposals anchor" once the proposal actually shows up.
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    vi.spyOn(agentApi, 'getAgentConversation')
+      .mockResolvedValueOnce(fakeConversation({ conversationId: 'conv-1' }))
+      .mockResolvedValueOnce(fakeConversation({ conversationId: 'conv-1', proposals: [fakeProposal()] }));
+    vi.spyOn(agentApi, 'sendAgentMessage').mockImplementation(async (_org, _project, _doc, _message, onEvent) => {
+      onEvent({ type: 'message_start' });
+      onEvent({ type: 'done', finishReason: 'stop' });
+    });
+
+    render(<AgentPanel subject={{ orgRole: 'member', projectRole: 'editor' }} />);
+    await screen.findByText('Sin conversación todavía.');
+
+    // Mirrors the real path: a turn finishes, `handleSend`'s own `reload()` brings in the proposal it
+    // created — nothing about accepting or rejecting is under test here.
+    await userEvent.type(screen.getByLabelText('Mensaje para el agente'), 'armá el PRD');
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    await screen.findByText('Tighten the intro');
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'end' }));
+    // The thread's own end-of-list `<li>` (WO-501) didn't move: no message changed. Only the proposals
+    // anchor -- a `<div>`, rendered after the pending proposal card -- should be the most recent target.
+    const mostRecentTarget = scrollIntoView.mock.instances.at(-1) as HTMLElement | undefined;
+    expect(mostRecentTarget?.tagName).toBe('DIV');
+  });
+
   it('accepting a pending proposal calls the API and reloads', async () => {
     mockContext();
     vi.spyOn(agentApi, 'getAgentConversation')

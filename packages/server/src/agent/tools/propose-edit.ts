@@ -76,6 +76,13 @@ function rangesOverlap(a: CharRange, b: CharRange): boolean {
   return a.from < b.to && b.from < a.to;
 }
 
+/** WO-535 (SDD-049/FB-027): is this `expectedText` nothing a human reviewer could actually see in the
+ * proposal's diff? `min(1)` already rejects the empty string, but a lone newline or a run of spaces
+ * passes it just as easily and "quotes" nothing visible — the diff's removed side reads as blank. */
+function isBlank(expectedText: string): boolean {
+  return expectedText.trim() === '';
+}
+
 /** The frontmatter keys this project's documents actually use. Matching on the key *name* rather than on
  * the field being present matters: the case where the agent most needs the hint is a document whose
  * working copy is still empty, where no field exists to match against yet. */
@@ -145,6 +152,19 @@ export const proposeEditTool: AgentTool<z.infer<typeof inputSchema>> = {
     const resolvedEdits: ResolvedProposalEdit[] = [];
     for (const edit of input.edits) {
       const occurrence = edit.occurrence ?? 0;
+
+      // WO-535 (SDD-049/FB-027): observed in a real session — an edit anchored on `"\n"` with a
+      // 1228-character replacement landed glued to an existing heading and left the document's own
+      // original sections orphaned below it. `accept_agent_proposal` applied it exactly as asked; the
+      // proposal itself was the problem, and nothing here stopped it from being created. Blocked before
+      // `findOccurrenceRange` even runs, so it never gets to look plausible.
+      if (isBlank(edit.expectedText)) {
+        throw new AgentToolError(
+          'blank_expected_text',
+          `expectedText ${JSON.stringify(edit.expectedText)} is empty or only whitespace, so a reviewer could never tell what it quotes. Anchor on real, visible text instead — a heading, a sentence — not a blank line.`,
+        );
+      }
+
       const range = findOccurrenceRange(projection.body, edit.expectedText, occurrence);
       if (!range) {
         // WO-527 (SDD-047/FB-026): observed in a real session — the agent tried to edit `title: ""`,

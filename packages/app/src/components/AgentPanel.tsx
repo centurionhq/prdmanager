@@ -229,6 +229,7 @@ export function AgentPanel({ subject }: AgentPanelProps): ReactElement {
   const [stopped, setStopped] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const threadEndRef = useRef<HTMLLIElement | null>(null);
+  const proposalsEndRef = useRef<HTMLDivElement | null>(null);
 
   const canUseAgent = can(subject, 'use_agent');
   const canDecideProposals = can(subject, 'accept_agent_proposal');
@@ -342,6 +343,16 @@ export function AgentPanel({ subject }: AgentPanelProps): ReactElement {
     threadEndRef.current?.scrollIntoView?.({ block: 'end' });
   }, [visibleMessages.length, streaming?.text, streaming?.activity.length]);
 
+  useEffect(() => {
+    // WO-534 (SDD-049/FB-027): `ProposalCard`s render after `</ul>` closes, outside the element the
+    // effect above scrolls -- so a proposal created by the turn that just finished had nothing bringing
+    // it into view. It sat below the fold of the panel's own scroll container (`Tabs.module.css`
+    // `.panel`, `overflow: auto`) until someone went looking for it by hand, which is exactly the "no se
+    // ve que haya escrito el documento" this WO exists to close.
+    if (pendingProposals.length === 0) return;
+    proposalsEndRef.current?.scrollIntoView?.({ block: 'end' });
+  }, [pendingProposals.length]);
+
   return (
     <section className={styles.panel} aria-label="Agente">
       {error && (
@@ -428,6 +439,10 @@ export function AgentPanel({ subject }: AgentPanelProps): ReactElement {
       {pendingProposals.map((proposal) => (
         <ProposalCard key={proposal.id} proposal={proposal} canDecide={canDecideProposals} onAccept={() => void handleAccept(proposal.id)} onReject={() => void handleReject(proposal.id)} />
       ))}
+      {/* WO-534: scrolled into view whenever a pending proposal appears -- right after the newest
+          pending card rather than at the very end of the panel, so it is *this* card's Aceptar/Rechazar
+          that lands in view, not pushed off-screen by older, already-decided ones below. */}
+      <div ref={proposalsEndRef} aria-hidden="true" />
       {decidedProposals.map((proposal) => (
         <ProposalCard key={proposal.id} proposal={proposal} canDecide={false} onAccept={() => undefined} onReject={() => undefined} />
       ))}

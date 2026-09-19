@@ -147,6 +147,31 @@ describe('propose_edit tool (SDD-009 §Diseño, WO-173)', () => {
     expect(resolveCommentAnchor(ydoc, anchor).range).toEqual({ from: 7, to: 13 });
   });
 
+  test('WO-535 (SDD-049/FB-027): rejects an expectedText that is only a newline, before it ever reaches findOccurrenceRange', async () => {
+    // The exact shape observed in a real session: a whitespace anchor with a large replacement landed
+    // glued to an existing heading and orphaned the document's own original sections below it.
+    const { ctx } = await setup('## Resumen\n\n## Requisitos\n\n## Fuera de alcance\n');
+    await expect(
+      proposeEditTool.execute(ctx, { summary: 'x', edits: [{ expectedText: '\n', replacement: '## Resumen\n\nfull new body...' }] }),
+    ).rejects.toMatchObject({ code: 'blank_expected_text' });
+  });
+
+  test('WO-535: rejects an expectedText that is only spaces, the same way', async () => {
+    const { ctx } = await setup('some real body text');
+    await expect(proposeEditTool.execute(ctx, { summary: 'x', edits: [{ expectedText: '   ', replacement: 'y' }] })).rejects.toMatchObject({
+      code: 'blank_expected_text',
+    });
+  });
+
+  test('WO-535: a real, non-blank quote is unaffected by the new check', async () => {
+    const { ctx } = await setup('## Resumen\n\nEsto es un resumen real.\n');
+    const result = (await proposeEditTool.execute(ctx, {
+      summary: 'x',
+      edits: [{ expectedText: '## Resumen', replacement: '## Resumen actualizado' }],
+    })) as { editCount: number };
+    expect(result.editCount).toBe(1);
+  });
+
   test('rejects when expectedText does not appear in the current body', async () => {
     const { ctx } = await setup('nothing relevant here');
     await expect(
