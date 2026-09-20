@@ -251,7 +251,9 @@ export function DocumentDetail(): ReactElement {
               {/* SDD-053: only a BC gets a writing guide -- it is the one kind someone writes without knowing
                   the method, and its four sections are a real gate, not a convention. */}
               {doc.kind === 'BC' ? <BusinessCaseGuide /> : null}
-              <FrontmatterForm kind={doc.kind} />
+              <div className={styles.sidebarBlock}>
+                <FrontmatterForm kind={doc.kind} />
+              </div>
             </div>
             <CollabEditor subject={subject} archived={doc.workflowState === 'archived'} />
             <DocumentPanelTabs

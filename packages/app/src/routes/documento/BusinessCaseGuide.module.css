@@ -1,18 +1,23 @@
 .guide {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
 }
 
+/* Same height and same shape as the editor's tab bar and the panel's: that is what actually puts the three
+   columns on one line, rather than the accident of how tall a heading happens to be. */
 .heading {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  height: 44px;
+  padding: 0 var(--space-4);
+  border-bottom: var(--rule);
 }
 
 .title {
-  font-size: var(--text-md);
-  font-weight: 700;
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 .progress {
@@ -23,25 +28,26 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* Rows inside the column's body, separated by a rule: four bordered cards inside a bordered card is the
+   repeated-plate pattern the design system rules out (PRD-011 §6). */
 .item {
   display: flex;
   gap: var(--space-2);
-  padding: var(--space-3);
-  background: var(--superficie);
-  border: var(--rule);
-  border-radius: var(--radius-plate);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--rule-row);
 }
 
-/* The one still missing: a stronger rule, never a fake focus ring -- focus belongs to whatever the keyboard
-   is actually on. */
+/* The one still missing: marked on its edge, never with a fake focus ring -- focus belongs to whatever the
+   keyboard is actually on. */
 .itemCurrent {
-  border-color: var(--cianotipo);
+  padding-left: calc(var(--space-4) - 3px);
+  border-left: 3px solid var(--cianotipo);
+  background: var(--relleno);
 }
 
 .marker {
@@ -79,7 +85,7 @@
 
 .aside {
   margin: 0;
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   font-size: var(--text-xs);
   line-height: 1.45;
   color: var(--texto-secundario);

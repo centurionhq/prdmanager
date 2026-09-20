@@ -21,16 +21,34 @@
   gap: var(--space-3);
 }
 
+/* FB-033/SDD-054: the column is a body, like `.editorShell` and the panel card beside it -- one surface
+   with a border, so the three columns start on the same line and read as three pieces. Whatever goes in it
+   (the business-case guide, the frontmatter fields) are blocks inside that body, never cards of their own. */
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
   min-width: 0;
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  overflow: hidden;
+}
+
+.sidebarBlock {
+  padding: var(--space-4);
+}
+
+/* Only between blocks: the first one never draws a line under the header bar it already has. */
+.sidebarBlock + .sidebarBlock,
+.sidebar > * + .sidebarBlock {
+  border-top: var(--rule);
 }
 
 .collabLayout {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 320px;
+  /* 300px is the artboard's own width for this column (`ConstruirNegocio.dc.html`): at 240 the guide's
+     header wrapped onto two lines, which is the cramped look FB-033 was about. */
+  grid-template-columns: 300px minmax(0, 1fr) 320px;
   gap: var(--space-4);
   align-items: start;
   margin-top: var(--space-4);
