@@ -21,6 +21,13 @@
   gap: var(--space-3);
 }
 
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
 .collabLayout {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr) 320px;
