@@ -1,0 +1,98 @@
+.band {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  margin-bottom: var(--space-6);
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  font-stretch: var(--stretch-wide);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.summaryText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.identity {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.nextStep {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: none;
+}
+
+/* The button's own look, reused rather than copied: it is a link because it navigates. */
+.cta {
+  composes: button primary from '../../components/Button/Button.module.css';
+  text-decoration: none;
+}
+
+.cta:hover {
+  color: var(--blanco);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--paro);
+}
+
+@media (max-width: 767px) {
+  .band {
+    padding: var(--space-4);
+  }
+
+  .summary {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .cta {
+    min-height: var(--hit-target);
+  }
+}

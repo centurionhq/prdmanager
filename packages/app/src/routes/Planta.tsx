@@ -12,6 +12,7 @@ import { errorMessage } from '../api/error-message.js';
 import { useApiQuery } from '../api/use-api-query.js';
 import { EmptyState, ErrorState, LineBoard, PageHeader, Skeleton } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
+import { ProfileBand } from './inicio/ProfileBand.js';
 import styles from './Planta.module.css';
 import { useProjectShellContext } from './ProjectShell.js';
 
@@ -68,6 +69,11 @@ export function Planta(): ReactElement {
   return (
     <div>
       <PageHeader title="Planta" />
+
+      {/* SDD-051: the entry band depends only on the shell's context, never on the line's data, so it is
+          always there -- including while the line loads, if it fails, and above the empty state, which is
+          exactly when someone most needs to be told where to start. */}
+      <ProfileBand />
 
       {isLoading ? (
         <div className={styles.loading}>
