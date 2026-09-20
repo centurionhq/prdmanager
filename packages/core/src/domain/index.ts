@@ -5,4 +5,5 @@
  * (and, once it exists, `packages/collab`) import VALUES only from here, never from the root `@prdm/core`
  * barrel (see the guard test in `packages/core/tests/unit/no-core-value-import.test.ts`).
  */
+export * from './business-case.js';
 export * from './schema.js';
