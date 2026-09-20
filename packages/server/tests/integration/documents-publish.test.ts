@@ -257,6 +257,47 @@ describe('/api/app/organizations/:orgSlug/projects/:projectSlug/documents/:docId
     await app.close();
   });
 
+  test('SDD-052: publishing a BC from the app leaves it approved, so it counts as an initiative on the line', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await setupOrgAndProject();
+    const ownerCookie = await signIn(app, owner.email);
+
+    // A BC needs a justification that resolves against what is *published*, so the feedback goes in first.
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+       VALUES ($1, $2, 'FB-001', 'FB', 'Real customer pain', 'docs/fb/FB-001.md', 'collab', 'published', $3)`,
+      [org.id, project.id, '---\nid: FB-001\ntype: FB\ntitle: "Real customer pain"\nstatus: new\nroot: true\n---\n\nWe lose people at the first screen.\n'],
+    );
+    const bcContent =
+      '---\nid: BC-001\ntype: BC\ntitle: "Mejorar la entrada"\nstatus: draft\njustified_by: ["FB-001"]\ntags: []\n---\n\n## Problema\n\nSe frena el arranque.\n\n## Impacto esperado\n\nMás gente arranca.\n\n## Métrica de éxito\n\nArranque sin ayuda.\n\n## Costo estimado\n\nUna iteración.\n';
+    const { rows } = await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state)
+       VALUES ($1, $2, 'BC-001', 'BC', 'Mejorar la entrada', 'docs/bc/BC-001.md', 'collab', 'in_review') RETURNING id`,
+      [org.id, project.id],
+    );
+    const { rows: versionRows } = await pg.ownerPool.query(
+      `INSERT INTO "document_versions" (org_id, document_id, version_no, reason, rendered_markdown, content_hash) VALUES ($1, $2, 1, 'manual', $3, $4) RETURNING id, content_hash`,
+      [org.id, rows[0].id, bcContent, sha256(bcContent)],
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/BC-001/publish`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
+      payload: { versionId: versionRows[0].id, contentHash: versionRows[0].content_hash },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().document.publishedRaw).toContain('status: "approved"');
+    expect(res.json().document.publishedRaw).not.toContain('status: "draft"');
+
+    const board = await app.inject({ method: 'GET', url: `/api/app/organizations/${org.slug}/projects/${project.slug}/line-board`, headers: { ...AUTH_HOST(), cookie: ownerCookie } });
+    expect(board.statusCode).toBe(200);
+    const lane = (board.json().features as Array<{ id: string; kind: string; status: string }>).find((f) => f.id === 'BC-001');
+    expect(lane).toMatchObject({ kind: 'BC', status: 'approved' });
+
+    await app.close();
+  });
+
   test('blocking validateDocument issues (e.g. an unjustified Feature) refuse publish with 409', async () => {
     const app = buildApp();
     const { owner, editor, org, project } = await setupOrgAndProject();
