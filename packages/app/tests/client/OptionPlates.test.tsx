@@ -128,3 +128,25 @@ describe('OptionPlates — action mode (WO-545, SDD-051)', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: /Escribo el código/ }));
   });
 });
+
+describe('OptionPlates — meta line (SDD-052)', () => {
+  const WITH_META: readonly OptionPlate[] = [
+    { value: 'a', title: 'Mejorar la entrada', description: 'Se frena el arranque.', meta: <span data-testid="meta-a">BC-013 · 2 documentos</span> },
+    { value: 'b', title: 'Un agente que se ve trabajar', description: 'El chat parece colgado.' },
+  ];
+
+  it('draws the meta of an option inside its own plate in radio mode, and counts it in the accessible name', () => {
+    render(<OptionPlates label="Elegí la iniciativa" options={WITH_META} value="a" onChange={() => {}} />);
+
+    const plate = screen.getByRole('radio', { name: /Mejorar la entrada/ });
+    expect(plate.contains(screen.getByTestId('meta-a'))).toBe(true);
+    expect(plate.textContent).toContain('BC-013');
+  });
+
+  it('draws it in action mode too, and a plate without meta stays as it was', () => {
+    render(<OptionPlates label="x" mode="action" options={WITH_META} onChange={() => {}} />);
+
+    expect(screen.getByRole('button', { name: /Mejorar la entrada/ }).contains(screen.getByTestId('meta-a'))).toBe(true);
+    expect(screen.getAllByTestId(/meta-/)).toHaveLength(1);
+  });
+});

@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactElement } from 'react';
+import type { KeyboardEvent, ReactElement, ReactNode } from 'react';
 import styles from './OptionPlates.module.css';
 
 export interface OptionPlate {
@@ -7,6 +7,9 @@ export interface OptionPlate {
   readonly title: string;
   /** One sentence on what choosing it lets them do. */
   readonly description: string;
+  /** Optional line under the description for what identifies the option rather than explains it (an id, a
+   * count). It is part of the plate, so it is read as part of the option's name. */
+  readonly meta?: ReactNode;
 }
 
 export interface OptionPlatesProps {
@@ -54,6 +57,7 @@ export function OptionPlates({ label, options, onChange, mode = 'radio', value =
             <span className={styles.body}>
               <span className={styles.title}>{option.title}</span>
               <span className={styles.description}>{option.description}</span>
+              {option.meta ? <span className={styles.meta}>{option.meta}</span> : null}
             </span>
           </button>
         ))}
@@ -100,6 +104,7 @@ export function OptionPlates({ label, options, onChange, mode = 'radio', value =
             <span className={styles.body}>
               <span className={styles.title}>{option.title}</span>
               <span className={styles.description}>{option.description}</span>
+              {option.meta ? <span className={styles.meta}>{option.meta}</span> : null}
             </span>
           </button>
         );
