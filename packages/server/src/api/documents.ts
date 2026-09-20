@@ -49,6 +49,8 @@ interface DocumentRouteParams extends ProjectRouteParams {
   docId: string;
 }
 
+const FEATURE_KINDS: ReadonlySet<string> = new Set(['MRD', 'PRD', 'FR']);
+
 function toSummary(document: DocumentRecord): DocumentSummary {
   return {
     id: document.id,
@@ -126,14 +128,24 @@ export function registerDocumentRoutes(app: FastifyInstance, opts: RegisterDocum
       if (!parsed.success) throw new ValidationError('invalid body');
       const kind = parsed.data.kind as TemplateKind;
       const title = parsed.data.title;
+      const fields = parsed.data.fields;
+
+      // SDD-052: only a Feature (MRD/PRD/FR) is justified by a Business Case; `justified_by` on anything else
+      // would be a field its own schema does not define.
+      if (fields && !FEATURE_KINDS.has(kind)) throw new ValidationError(`${kind} cannot be created with justified_by`);
 
       const scope = createTenantDb(pool).forOrg(org.id).forProject(project.id);
+      // Existence only, and before anything is written: whether the target is an *approved* BC is
+      // `checkFeatureBusinessCase`'s rule (publish and editor already run it), never re-implemented here.
+      for (const id of fields?.justified_by ?? []) {
+        if (!(await scope.documents.findByDocId(id))) throw new NotFoundError(`${id} does not exist in this project`);
+      }
       // WO-217: `createAndSubmitDocument` substitutes `type` via `setFrontmatterFields`'s own
       // `JSON.stringify`-based rewrite, quoted exactly like `id`/`title`/`status`/`created_at` already
       // are — matching the quoting convention every later version snapshot (`captureDocumentVersion`'s
       // `renderDocument` call) already uses for the same field, so opening the editor and saving again
       // with no real edit never produces a spurious `type: PRD` / `type: "PRD"` diff line.
-      const { document, latestVersion } = await createAndSubmitDocument(scope, { kind, title, createdBy: session.user.id, submitForReview: false });
+      const { document, latestVersion } = await createAndSubmitDocument(scope, { kind, title, createdBy: session.user.id, submitForReview: false, fields });
 
       await createTenantDb(pool)
         .forOrg(org.id)
