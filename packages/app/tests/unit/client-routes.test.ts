@@ -9,6 +9,7 @@ import * as requestModule from '../../src/api/request.js';
 import {
   claimWorkOrder,
   completeWorkOrder,
+  createDocument,
   getDriftIssues,
   getDriftReportDetail,
   getFeatureBranch,
@@ -289,5 +290,26 @@ describe('setWorkProfile', () => {
 
     await expect(setWorkProfile({ workProfile: 'producto' })).resolves.toEqual({ workProfile: 'producto' });
     expect(spy).toHaveBeenCalledWith('/api/app/profile/work-profile', { method: 'POST', body: { workProfile: 'producto' } });
+  });
+});
+
+describe('createDocument', () => {
+  const detail = { docId: 'PRD-001', kind: 'PRD', title: 'Aviso', workflowState: 'draft' };
+
+  it('POSTs the bare { kind, title } untouched, so every caller that predates fields keeps its exact body', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ document: detail });
+
+    await expect(createDocument('acme', 'factory', { kind: 'PRD', title: 'Aviso' })).resolves.toEqual(detail);
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/documents', { method: 'POST', body: { kind: 'PRD', title: 'Aviso' } });
+  });
+
+  it('sends justified_by along when the document is born chained to an initiative (SDD-052)', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ document: detail });
+
+    await createDocument('acme', 'factory', { kind: 'PRD', title: 'Aviso', fields: { justified_by: ['BC-013'] } });
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/documents', {
+      method: 'POST',
+      body: { kind: 'PRD', title: 'Aviso', fields: { justified_by: ['BC-013'] } },
+    });
   });
 });
