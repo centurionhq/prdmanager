@@ -13,7 +13,7 @@
  * `./domain` export, by design — it's server/CLI-only authoring logic). Validation, though, always goes
  * through the real schema's own `.safeParse` — this file never reimplements a single validation rule.
  */
-import { artifactSchema, blueprintSchema, featureSchema, feedbackSchema, type DocKind } from '@prdm/core/domain';
+import { artifactSchema, blueprintSchema, businessCaseSchema, featureSchema, feedbackSchema, type DocKind } from '@prdm/core/domain';
 import type { FrontmatterValue } from '@prdm/collab';
 
 export type FrontmatterWidget = 'text' | 'id-list' | 'string-list' | 'boolean';
@@ -36,6 +36,16 @@ const FEATURE_FIELDS: FrontmatterFieldDescriptor[] = [
   { key: 'implements', label: 'Implementa', widget: 'id-list', hint: 'ids separados por coma, p. ej. SDD-001' },
   { key: 'evolves_from', label: 'Evoluciona de', widget: 'id-list', hint: 'ids separados por coma' },
   { key: 'justified_by', label: 'Justificado por', widget: 'id-list', hint: 'ids separados por coma' },
+];
+
+/** A BC is justified exactly like a Feature (`checkBusinessCase` reuses `hasJustification`), but by a Feedback
+ * or an Artifact rather than by another BC -- and it neither implements nor evolves from anything, so those two
+ * relation fields would only be noise here. Without `justified_by` on this form there is nowhere in the whole
+ * UI to justify a BC, and an unjustified BC can never be published (SDD-053). */
+const BUSINESS_CASE_FIELDS: FrontmatterFieldDescriptor[] = [
+  TITLE_FIELD,
+  TAGS_FIELD,
+  { key: 'justified_by', label: 'Justificado por', widget: 'id-list', hint: 'el feedback o artefacto del que sale, p. ej. FB-026' },
 ];
 
 const BLUEPRINT_FIELDS: FrontmatterFieldDescriptor[] = [
@@ -70,6 +80,8 @@ export function frontmatterFieldsForKind(kind: DocKind): FrontmatterFieldDescrip
     case 'PRD':
     case 'FR':
       return FEATURE_FIELDS;
+    case 'BC':
+      return BUSINESS_CASE_FIELDS;
     case 'SDD':
     case 'ADR':
       return BLUEPRINT_FIELDS;
@@ -88,6 +100,8 @@ function schemaForKind(kind: DocKind) {
     case 'PRD':
     case 'FR':
       return featureSchema;
+    case 'BC':
+      return businessCaseSchema;
     case 'SDD':
     case 'ADR':
       return blueprintSchema;
