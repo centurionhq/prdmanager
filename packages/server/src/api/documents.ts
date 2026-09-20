@@ -49,7 +49,10 @@ interface DocumentRouteParams extends ProjectRouteParams {
   docId: string;
 }
 
-const FEATURE_KINDS: ReadonlySet<string> = new Set(['MRD', 'PRD', 'FR']);
+/** The kinds whose own schema defines `justified_by` and whose lifecycle rule reads it (`hasJustification`):
+ * the three Features plus the Business Case, which is justified by a Feedback or an Artifact instead of by
+ * another BC (SDD-053). On anything else the field would not even be part of the document's schema. */
+const JUSTIFIABLE_KINDS: ReadonlySet<string> = new Set(['MRD', 'PRD', 'FR', 'BC']);
 
 function toSummary(document: DocumentRecord): DocumentSummary {
   return {
@@ -130,9 +133,7 @@ export function registerDocumentRoutes(app: FastifyInstance, opts: RegisterDocum
       const title = parsed.data.title;
       const fields = parsed.data.fields;
 
-      // SDD-052: only a Feature (MRD/PRD/FR) is justified by a Business Case; `justified_by` on anything else
-      // would be a field its own schema does not define.
-      if (fields && !FEATURE_KINDS.has(kind)) throw new ValidationError(`${kind} cannot be created with justified_by`);
+      if (fields && !JUSTIFIABLE_KINDS.has(kind)) throw new ValidationError(`${kind} cannot be created with justified_by`);
 
       const scope = createTenantDb(pool).forOrg(org.id).forProject(project.id);
       // Existence only, and before anything is written: whether the target is an *approved* BC is

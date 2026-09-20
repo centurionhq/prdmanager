@@ -163,6 +163,24 @@ describe('/api/app/organizations/:orgSlug/projects/:projectSlug/documents/* (WO-
       await app.close();
     });
 
+    test('SDD-053: a BC is born chained to the feedback it came from, the same way a PRD is to its BC', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { editor, org, project } = await setupOrgAndProject();
+      const cookie = await signIn(app, editor.email);
+      await pg.ownerPool.query(
+        `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+         VALUES ($1, $2, 'FB-001', 'FB', 'Lo que dijo un cliente', 'docs/fb/FB-001.md', 'generated', 'published', $3)`,
+        [org.id, project.id, '---\nid: FB-001\ntype: FB\ntitle: "Lo que dijo un cliente"\nstatus: new\nroot: true\n---\n\nNadie sabe dónde empezar.\n'],
+      );
+
+      const created = await createVia(app, cookie, org, project, { kind: 'BC', title: 'Que arrancar no frene el trabajo', fields: { justified_by: ['FB-001'] } });
+
+      expect(created.statusCode).toBe(200);
+      expect(created.json().document.latestVersion.renderedMarkdown).toContain('justified_by: ["FB-001"]');
+
+      await app.close();
+    });
+
     test('refuses (400) justified_by on a kind that is not justified by a business case', async () => {
       const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
       const { editor, org, project } = await setupOrgAndProject();
