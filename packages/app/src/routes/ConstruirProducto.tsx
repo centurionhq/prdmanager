@@ -11,7 +11,7 @@
 import { useState, type FormEvent, type ReactElement } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { can, documentTitleSchema, type FeatureLineDto } from '@prdm/contracts';
-import { createDocument, getLineBoard } from '../api/client.js';
+import { createDocument, getLineBoard, listDocuments } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { useApiMutation } from '../api/use-api-mutation.js';
 import { useApiQuery } from '../api/use-api-query.js';
@@ -109,6 +109,46 @@ function ChooseInitiative({ orgSlug, projectSlug, initiatives }: ChooseInitiativ
   );
 }
 
+function draftsSentence(count: number): string {
+  return count === 1
+    ? 'Hay 1 iniciativa escrita pero sin publicar. Si es la tuya, publicarla la deja aprobada y podés volver acá.'
+    : `Hay ${count} iniciativas escritas pero sin publicar. Si alguna es la tuya, publicarla la deja aprobada y podés volver acá.`;
+}
+
+interface NoApprovedInitiativeProps {
+  readonly orgSlug: string;
+  readonly projectSlug: string;
+}
+
+/** R3's third bullet: with nothing approved to hang from, say so *now* -- not when the PRD, already written, is
+ * refused at publish. It offers the way out (write the business case) and, as a hint, how many are already
+ * written but unpublished. That count is a courtesy: if it cannot be read, the screen is still complete. */
+function NoApprovedInitiative({ orgSlug, projectSlug }: NoApprovedInitiativeProps): ReactElement {
+  const base = projectBasePath(orgSlug, projectSlug);
+  const businessCases = useApiQuery(`documents:${orgSlug}:${projectSlug}:bc`, () => listDocuments(orgSlug, projectSlug, { kind: 'BC' }), [orgSlug, projectSlug], () => false);
+  const unpublished = (businessCases.data ?? []).filter((doc) => doc.workflowState === 'draft' || doc.workflowState === 'in_review').length;
+
+  return (
+    <section aria-labelledby="construir-sin-iniciativa" className={styles.empty}>
+      <div className={styles.emptyText}>
+        <h2 id="construir-sin-iniciativa" className={styles.emptyTitle}>
+          Todavía no hay ninguna iniciativa aprobada
+        </h2>
+        <p className={styles.emptyBody}>
+          Los requisitos siempre cuelgan de una iniciativa: es lo que explica por qué conviene construir algo. Sin una aprobada, este documento no podría publicarse — y preferimos decírtelo ahora y no cuando ya lo hayas escrito entero.
+        </p>
+      </div>
+      <div className={styles.submit}>
+        <Link to={`${base}/construir/negocio`} className={styles.cta}>
+          Escribir el caso de negocio
+        </Link>
+        {unpublished > 0 ? <Link to={`${base}/documents`}>Ver las iniciativas en borrador</Link> : null}
+      </div>
+      {unpublished > 0 ? <p className={styles.aside}>{draftsSentence(unpublished)}</p> : null}
+    </section>
+  );
+}
+
 export function ConstruirProducto(): ReactElement {
   const { orgSlug, projectSlug, subject } = useProjectShellContext();
   useDocumentTitle('Escribir requisitos');
@@ -139,6 +179,8 @@ export function ConstruirProducto(): ReactElement {
       ) : null}
 
       {canCreate && lineBoardQuery.data && initiatives.length > 0 ? <ChooseInitiative orgSlug={orgSlug} projectSlug={projectSlug} initiatives={initiatives} /> : null}
+
+      {canCreate && lineBoardQuery.data && initiatives.length === 0 ? <NoApprovedInitiative orgSlug={orgSlug} projectSlug={projectSlug} /> : null}
     </div>
   );
 }
