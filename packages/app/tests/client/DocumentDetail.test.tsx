@@ -269,6 +269,24 @@ describe('DocumentDetail', () => {
     expect(screen.getByRole('button', { name: /reintentar/i })).toBeTruthy();
   });
 
+  it('a business case gets the writing guide beside the editor (WO-561, SDD-053)', async () => {
+    renderPage(baseDoc({ docId: 'BC-014', kind: 'BC', title: 'Notificar cuando una orden se atrasa', origin: 'collab' }), 'editor');
+    await screen.findByRole('heading', { name: 'Notificar cuando una orden se atrasa' });
+
+    const guide = await screen.findByRole('complementary', { name: 'Guía del caso de negocio' });
+    expect(guide.textContent).toContain('El problema');
+    // The frontmatter form is still there, which is where `justified_by` can be fixed by hand (WO-557).
+    expect(screen.getByLabelText('Justificado por')).toBeTruthy();
+  });
+
+  it('every other kind keeps the document screen it had, with no guide', async () => {
+    renderPage(baseDoc({ origin: 'collab' }), 'editor');
+    await screen.findByRole('heading', { name: 'Feature A' });
+
+    expect(await screen.findByTestId('collab-editor-container')).toBeTruthy();
+    expect(screen.queryByRole('complementary', { name: 'Guía del caso de negocio' })).toBeNull();
+  });
+
   it('a collab-origin document renders the live CollabEditor instead of the static body view', async () => {
     renderPage(baseDoc({ origin: 'collab' }), 'editor');
     await screen.findByRole('heading', { name: 'Feature A' });
