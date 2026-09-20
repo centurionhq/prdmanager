@@ -15,6 +15,10 @@
     {
       "id": "page-4",
       "name": "PRD-007 · ronda A"
+    },
+    {
+      "id": "page-5",
+      "name": "PRD-033 · ronda A"
     }
   ],
   "artboards": [
@@ -298,6 +302,55 @@
       "w": 1440,
       "h": 780,
       "page": "page-4"
+    },
+    {
+      "file": "PlantaBanda.dc.html",
+      "title": "Planta con la banda · probá los cuatro estados (sin perfil y los tres perfiles)",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-5",
+      "is_interactive": true
+    },
+    {
+      "file": "ConstruirNegocio.dc.html",
+      "title": "Negocio · el caso de negocio guiado sección por sección",
+      "x": 1600,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-5"
+    },
+    {
+      "file": "ConstruirProducto.dc.html",
+      "title": "Producto · elegí la iniciativa; probá también el estado sin ninguna aprobada",
+      "x": 3200,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-5",
+      "is_interactive": true
+    },
+    {
+      "file": "ConstruirDeveloper.dc.html",
+      "title": "Developer · puesta en marcha; probá los tres estados de instalación",
+      "x": 4800,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-5",
+      "is_interactive": true
+    },
+    {
+      "file": "PlantaBandaMobile.dc.html",
+      "title": "390 px · la banda y los tres destinos",
+      "x": 0,
+      "y": 1120,
+      "w": 390,
+      "h": 844,
+      "page": "page-5",
+      "is_interactive": true
     }
   ],
   "annotations": [
@@ -356,10 +409,18 @@
       "w": 900,
       "page": "page-4",
       "text": "PRD-007 · Ronda B — verificación contra datos reales (aprobada 2026-09-15)\n\nNo hizo falta diseño nuevo: las pantallas ya construidas resuelven los 6 puntos de la ronda B con los datos reales del backend.\n\n- Planta es data-driven, sin límite de filas para más de 6 features.\n- \"Esperando el primer reporte de CI\" reemplaza un 0% fabricado cuando el proyecto todavía no tiene reporte.\n- Tokens de CI ya no muestra el campo \"Rama\": explica que la baseline depende de la rama por defecto del proyecto y de OIDC.\n- Login no muestra ningún botón de SSO.\n- Enlazar feedback a una feature explica el caso de un documento colaborativo pendiente de republicar, en vez de tratarlo como error.\n- Un issue de drift sin feature ni blueprint (por ejemplo, un error de escaneo del proyecto) se muestra igual, sin esa etiqueta."
+    },
+    {
+      "id": "prd033-ronda-a-intro",
+      "x": 0,
+      "y": -320,
+      "w": 900,
+      "page": "page-5",
+      "text": "PRD-033 · Trabajar en la línea de producción — ronda A de canvas\n\nEl problema (BC-013, a partir de la prueba de usuario de FB-026): la fábrica no tiene puerta de entrada. El único camino para empezar algo es Documentos, una lista donde conviven ocho tipos de documento y hay que saber de antemano cuál elegir.\n\nLa forma que se decidió: la Planta NO se mueve, sigue siendo la pantalla de arranque. Arriba de la línea aparece una banda que la primera vez pregunta a qué venís, y de ahí en más muestra tu próximo paso con una salida a construir. A dónde lleva depende del camino: negocio y producto terminan en un documento creado, developer en un entorno conectado.\n\nEste desvío respecto del texto de R1 (que pedía sacar a la Planta del arranque) está registrado en FB-032.\n\nQué mirar: que ninguna sigla (BC, PRD, SDD, FR, WO) aparezca como opción a elegir; que cada camino termine en algo concreto y no en una lista; y que el estado 'todavía no hay iniciativa aprobada' del camino de producto avise antes de escribir, no al intentar publicar."
     }
   ],
   "launch": {
     "view": "canvas",
-    "page": "page-4"
+    "page": "page-5"
   }
 }
