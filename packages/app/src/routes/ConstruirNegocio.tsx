@@ -114,6 +114,30 @@ function ChooseOrigin({ orgSlug, projectSlug, records }: ChooseOriginProps): Rea
   );
 }
 
+/** R2 read the way the product path reads R3: without a record to hang from, the business case could never be
+ * published, so it is said *here* -- not after someone has written the whole thing. The way out is the inbox,
+ * which already registers what someone heard; this screen never opens a second way to do that. */
+function NothingRegistered({ orgSlug, projectSlug }: { readonly orgSlug: string; readonly projectSlug: string }): ReactElement {
+  return (
+    <section aria-labelledby="negocio-sin-registros" className={styles.empty}>
+      <div className={styles.emptyText}>
+        <h2 id="negocio-sin-registros" className={styles.emptyTitle}>
+          Todavía no hay nada registrado de dónde partir
+        </h2>
+        <p className={styles.emptyBody}>
+          Un caso de negocio arranca de algo que pasó: lo que dijo un cliente, lo que se habló en una llamada. Sin eso registrado, este documento no podría publicarse — y preferimos decírtelo ahora y no cuando ya lo hayas escrito entero.
+        </p>
+      </div>
+      <div className={styles.submit}>
+        <Link to={`${projectBasePath(orgSlug, projectSlug)}/entrada`} className={styles.cta}>
+          Registrar lo que escuchaste
+        </Link>
+      </div>
+      <p className={styles.aside}>Se registra una vez en la bandeja de entrada y después volvés acá: el caso de negocio queda colgado de eso.</p>
+    </section>
+  );
+}
+
 export function ConstruirNegocio(): ReactElement {
   const { orgSlug, projectSlug, subject } = useProjectShellContext();
   useDocumentTitle('Empezar un caso de negocio');
@@ -147,6 +171,8 @@ export function ConstruirNegocio(): ReactElement {
       {canCreate && documentsQuery.status === 'error' ? <ErrorState title="No pudimos cargar los registros" body={errorMessage(documentsQuery.error)} onRetry={documentsQuery.retry} /> : null}
 
       {canCreate && documentsQuery.data && records.length > 0 ? <ChooseOrigin orgSlug={orgSlug} projectSlug={projectSlug} records={records} /> : null}
+
+      {canCreate && documentsQuery.data && records.length === 0 ? <NothingRegistered orgSlug={orgSlug} projectSlug={projectSlug} /> : null}
     </div>
   );
 }
