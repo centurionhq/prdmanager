@@ -6,6 +6,7 @@
  */
 export * from './schema/auth.js';
 export * from './schema/user-profile.js';
+export * from './schema/user-work-profile.js';
 export * from './schema/projects.js';
 export * from './schema/audit.js';
 export * from './schema/invitations.js';
