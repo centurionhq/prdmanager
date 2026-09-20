@@ -33,6 +33,9 @@ export type { FilterChipOption, FilterChipsProps } from './FilterChips/FilterChi
 export { OptionPlates } from './OptionPlates/OptionPlates';
 export type { OptionPlate, OptionPlatesProps } from './OptionPlates/OptionPlates';
 
+export { CopyBlock } from './CopyBlock/CopyBlock';
+export type { CopyBlockProps } from './CopyBlock/CopyBlock';
+
 export { SearchField } from './SearchField/SearchField';
 export type { SearchFieldProps } from './SearchField/SearchField';
 
