@@ -17,6 +17,7 @@ import {
   getMetrics,
   getOrgAuditLog,
   getProjectAuditLog,
+  getProfile,
   getProjectsOverview,
   getWorkOrderContext,
   listCodeRefs,
@@ -24,6 +25,7 @@ import {
   listInbox,
   resendInvitation,
   searchGraph,
+  setWorkProfile,
   submitFeedback,
   triageFeedback,
 } from '../../src/api/client.js';
@@ -259,5 +261,33 @@ describe('resendInvitation', () => {
 
     await expect(resendInvitation('acme', 'inv_1')).resolves.toBeUndefined();
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/invitations/inv_1/resend', { method: 'POST' });
+  });
+});
+
+describe('getProfile', () => {
+  it('GETs /api/app/profile once and returns the handle together with the work profile', async () => {
+    const profile = { handle: 'lucia', workProfile: 'developer' };
+    const spy = spyOnRequest().mockResolvedValue(profile);
+
+    await expect(getProfile()).resolves.toEqual(profile);
+    expect(spy).toHaveBeenCalledWith('/api/app/profile');
+    // One read, not two: the entry band must know the profile before it renders (SDD-051).
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports workProfile: null for someone who has not chosen yet, as-is', async () => {
+    const profile = { handle: null, workProfile: null };
+    spyOnRequest().mockResolvedValue(profile);
+
+    await expect(getProfile()).resolves.toEqual(profile);
+  });
+});
+
+describe('setWorkProfile', () => {
+  it('POSTs the chosen profile to /api/app/profile/work-profile and returns the stored one', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ workProfile: 'producto' });
+
+    await expect(setWorkProfile({ workProfile: 'producto' })).resolves.toEqual({ workProfile: 'producto' });
+    expect(spy).toHaveBeenCalledWith('/api/app/profile/work-profile', { method: 'POST', body: { workProfile: 'producto' } });
   });
 });
