@@ -41,6 +41,11 @@ const ALLOWLISTED_TABLES = new Set([
   'retired_handles',
   // see the DEVIATION note in the module doc comment above
   'user_profile',
+  // WO-541 (SDD-051): same shape and same reason as `user_profile` — a global 1:1 with a *user*
+  // (which way of working they picked), not with an organization. A person is a member of several
+  // orgs, and the profile is a routing preference that follows them across all of them, so there is
+  // no meaningful single `org_id` to carry. It is never read for authorization.
+  'user_work_profile',
   // SDD-009 §Seguridad y costo (WO-168/175): the cross-org daily token/request cutoff that protects the
   // one shared DeepSeek key — see packages/db/src/schema/agent.ts's own module doc comment for why this
   // is structurally a platform-level counter (no single org_id could own a cross-tenant total) rather
