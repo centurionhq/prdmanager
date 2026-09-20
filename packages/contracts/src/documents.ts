@@ -25,9 +25,25 @@ export const documentWorkflowStateSchema = z.enum(DOCUMENT_WORKFLOW_STATES);
 
 export const documentTitleSchema = z.string().min(1).max(300);
 
+/** Includes `BC`, unlike the copies in `code-reports.ts` and `project-settings.ts`: the one thing a browser
+ * seeds at creation is a link to a Business Case. Anchored and single-line, so an id can never carry a newline
+ * into the frontmatter it is written to. */
+const DOCUMENT_ID_PATTERN = /^(MRD|PRD|FR|BC|SDD|ADR|WO|ART|FB)-\d{3,9}$/;
+
+/** SDD-052: what `POST .../documents` lets a browser seed into the first version. A strict allowlist of one
+ * key, not the open record the MCP's `create_document` takes: this route is reachable by any editor, and
+ * everything else in the frontmatter (`id`, `status`, ...) is the server's to write. */
+export const createDocumentFieldsSchema = z
+  .object({
+    justified_by: z.array(z.string().regex(DOCUMENT_ID_PATTERN, 'invalid document id (expected e.g. BC-013)')).min(1).max(20),
+  })
+  .strict();
+export type CreateDocumentFields = z.infer<typeof createDocumentFieldsSchema>;
+
 export const createDocumentInputSchema = z.object({
   kind: templateDocumentKindSchema,
   title: documentTitleSchema,
+  fields: createDocumentFieldsSchema.optional(),
 });
 export type CreateDocumentInput = z.infer<typeof createDocumentInputSchema>;
 
