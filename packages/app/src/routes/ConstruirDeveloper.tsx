@@ -117,6 +117,36 @@ export function ConstruirDeveloper(): ReactElement {
           })}
         </ol>
 
+        <aside aria-label="Datos de este proyecto" className={styles.aside}>
+          <div className={styles.card}>
+            <span className={styles.cardTitle}>Datos de este proyecto</span>
+            <div className={styles.datum}>
+              <span className={styles.datumLabel}>Identificador del proyecto</span>
+              <IdTag id={project.graphProjectId} />
+            </div>
+            <div className={styles.datum}>
+              <span className={styles.datumLabel}>Servidor</span>
+              <IdTag id={origin} />
+            </div>
+            <div className={styles.datum}>
+              <span className={styles.datumLabel}>Rama oficial</span>
+              <IdTag id={project.settings.default_branch} />
+            </div>
+          </div>
+
+          {project.awaitingFirstReport ? (
+            <div className={styles.warning}>
+              <span className={styles.cardTitle}>El árbol va a estar vacío hasta el primer reporte</span>
+              <p className={styles.stepText}>Este proyecto todavía no recibió ningún reporte de integración continua. Hasta que corra el primero, el Árbol de features no muestra código.</p>
+            </div>
+          ) : null}
+
+          <div className={styles.after}>
+            <span className={styles.cardTitle}>Después de conectar</span>
+            <p className={styles.stepText}>Pedile a tu asistente las órdenes pendientes de este proyecto. Cada commit tuyo tiene que referenciar la orden que resuelve.</p>
+            <Link to={`${base}/ordenes`}>Ver órdenes pendientes</Link>
+          </div>
+        </aside>
       </div>
     </div>
   );
