@@ -61,47 +61,61 @@
 
     <div style="display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 28px; min-height: 0;">
 
-      <!-- La guía: las cuatro secciones obligatorias del BC, una por una -->
-      <aside aria-label="Guía del caso de negocio" style="display: flex; flex-direction: column; gap: 10px;">
-        <div style="display: flex; flex-direction: column; gap: 2px;">
-          <span style="font-size: 16px; font-weight: 700;">Cuatro cosas, en orden</span>
+      <!-- La guía: un cuerpo encuadrado, como el editor y el panel; las cuatro secciones son filas -->
+      <aside aria-label="Guía del caso de negocio" style="display: flex; flex-direction: column; border: 1px solid #C9CFCD; background: #FBFCFB; border-radius: 2px; overflow: hidden; align-self: start;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 44px; padding: 0 16px; border-bottom: 1px solid #C9CFCD;">
+          <span style="font-size: 15px; font-weight: 600;">Cuatro cosas, en orden</span>
           <span class="num" style="font-size: 13px; color: #565D63;">2 de 4 escritas</span>
         </div>
 
-        <div style="display: flex; gap: 10px; padding: 12px 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+        <div style="display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #DDE1DF;">
           <span style="flex: none; width: 16px; height: 16px; margin-top: 2px; background: #1E7F4F;"></span>
           <div style="display: flex; flex-direction: column; gap: 2px;">
-            <span style="font-size: 15px; font-weight: 600;">El problema</span>
+            <span style="font-size: 14px; font-weight: 600;">El problema</span>
             <span style="font-size: 13px; color: #33383D; line-height: 1.4;">Qué duele hoy y a quién. Sin proponer solución todavía.</span>
           </div>
         </div>
 
-        <div style="display: flex; gap: 10px; padding: 12px 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+        <div style="display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #DDE1DF;">
           <span style="flex: none; width: 16px; height: 16px; margin-top: 2px; background: #1E7F4F;"></span>
           <div style="display: flex; flex-direction: column; gap: 2px;">
-            <span style="font-size: 15px; font-weight: 600;">Qué cambia si lo hacemos</span>
+            <span style="font-size: 14px; font-weight: 600;">Qué cambia si lo hacemos</span>
             <span style="font-size: 13px; color: #33383D; line-height: 1.4;">El impacto esperado, en términos de quien sufre el problema.</span>
           </div>
         </div>
 
-        <div style="display: flex; gap: 10px; padding: 12px 14px; background: #FBFCFB; border: 1px solid #1F4FA0; border-radius: 2px; box-shadow: 0 0 0 2px #FBFCFB, 0 0 0 4px #1F4FA0;">
+        <!-- La que falta: se marca con la regla de la izquierda, nunca con un anillo de foco de mentira -->
+        <div style="display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #DDE1DF; border-left: 3px solid #1F4FA0; background: #F1F3F2;">
           <span style="flex: none; width: 16px; height: 16px; margin-top: 2px; border: 1px solid #1F4FA0;"></span>
           <div style="display: flex; flex-direction: column; gap: 2px;">
-            <span style="font-size: 15px; font-weight: 600;">Cómo sabremos que funcionó</span>
+            <span style="font-size: 14px; font-weight: 600;">Cómo sabremos que funcionó</span>
             <span style="font-size: 13px; color: #33383D; line-height: 1.4;">Una métrica con su valor de hoy y el que buscás. Si no se puede medir, decilo así.</span>
           </div>
         </div>
 
-        <div style="display: flex; gap: 10px; padding: 12px 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+        <div style="display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #DDE1DF;">
           <span style="flex: none; width: 16px; height: 16px; margin-top: 2px; border: 1px solid #C9CFCD;"></span>
           <div style="display: flex; flex-direction: column; gap: 2px;">
-            <span style="font-size: 15px; font-weight: 600;">Cuánto cuesta, a grandes rasgos</span>
+            <span style="font-size: 14px; font-weight: 600;">Cuánto cuesta, a grandes rasgos</span>
             <span style="font-size: 13px; color: #33383D; line-height: 1.4;">Qué se toca y qué no. Orden de magnitud, no estimación fina.</span>
           </div>
         </div>
 
-        <div style="margin-top: 6px; padding: 12px 14px; background: #F1F3F2; border-left: 3px solid #1F4FA0; font-size: 13px; line-height: 1.45; color: #17191C;">
+        <div style="padding: 12px 16px; background: #F1F3F2; border-left: 3px solid #1F4FA0; font-size: 13px; line-height: 1.45; color: #17191C;">
           <strong style="font-weight: 700;">Después de esto.</strong> Cuando lo publiques, esta iniciativa queda aprobada y recién ahí alguien de producto puede escribir los requisitos colgados de ella. Sin este documento publicado, esos requisitos no arrancan.
+        </div>
+
+        <!-- El frontmatter, dentro del mismo cuerpo: la columna se lee como una sola pieza -->
+        <div style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-top: 1px solid #C9CFCD;">
+          <span style="font-size: 13px; font-weight: 700; color: #565D63;">Frontmatter</span>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 13px; color: #565D63;">Título</span>
+            <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px;">Notificar cuando una orden se atrasa</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 13px; color: #565D63;">Justificado por</span>
+            <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px;"><span class="id">FB-026</span></div>
+          </div>
         </div>
       </aside>
 
