@@ -30,6 +30,9 @@ export type { DataTableColumn, DataTableProps } from './DataTable/DataTable';
 export { FilterChips } from './FilterChips/FilterChips';
 export type { FilterChipOption, FilterChipsProps } from './FilterChips/FilterChips';
 
+export { OptionPlates } from './OptionPlates/OptionPlates';
+export type { OptionPlate, OptionPlatesProps } from './OptionPlates/OptionPlates';
+
 export { SearchField } from './SearchField/SearchField';
 export type { SearchFieldProps } from './SearchField/SearchField';
 
