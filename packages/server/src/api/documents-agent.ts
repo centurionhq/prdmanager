@@ -26,7 +26,7 @@ import type { Hocuspocus } from '@hocuspocus/server';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
-import { DEFAULT_MAX_TOKENS_PER_TURN, runAgentLoop, toolCallSequenceIssues, type AgentLoopEvent, type AgentTranscriptMessage } from '../agent/agent-loop.js';
+import { boundMessagesForResend, DEFAULT_MAX_HISTORY_MESSAGES, DEFAULT_MAX_TOKENS_PER_TURN, runAgentLoop, toolCallSequenceIssues, type AgentLoopEvent, type AgentLoopFinishReason, type AgentTranscriptMessage } from '../agent/agent-loop.js';
 import { reconcileAgentTokens, reserveAgentTokens, todayUsageDate } from '../agent/agent-quota.js';
 import { buildAgentSystemPrompt } from '../agent/system-prompt.js';
 import type { LlmClient, LlmMessage, LlmToolCall } from '../agent/llm-client.js';
@@ -78,6 +78,11 @@ function toMessageSummary(message: AgentMessageRecord) {
     toolCallId: message.toolCallId,
     toolName: message.toolName,
     model: message.model,
+    // WO-492/WO-493 (SDD-040): persisting these was only half the job — "survives a reload" means the
+    // panel can read them back, so they belong in the DTO too. `toolOk` is set only on a tool message,
+    // `finishReason` only on a turn's last one.
+    toolOk: message.toolOk,
+    finishReason: message.finishReason,
     createdAt: message.createdAt.toISOString(),
   };
 }
@@ -114,6 +119,13 @@ function toLlmMessage(row: AgentMessageRecord): LlmMessage {
     ...(row.toolName ? { name: row.toolName } : {}),
   };
 }
+
+/**
+ * WO-491 (SDD-040/PRD-020): how often the stream says "still here" while waiting on the model. Short
+ * enough to beat the idle timeouts of intermediaries the stream passes through, long enough that a
+ * multi-minute thinking phase does not flood the client with events.
+ */
+const HEARTBEAT_INTERVAL_MS = 10_000;
 
 /** Structurally typed against just the `write` method every real and Fastify-injected `reply.raw` has —
  * avoids importing Node's own `ServerResponse` type just for this one call site.
@@ -169,7 +181,8 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
       if (!conversation) return { conversationId: null, messages: [], proposals: [] };
 
       const [messages, proposals] = await Promise.all([
-        tenantDb.agent.messages.listForConversation(conversation.id),
+        // WO-506: `null` = the whole transcript. The panel shows everything the user ever said here.
+        tenantDb.agent.messages.listForConversation(conversation.id, null),
         tenantDb.agent.proposals.listForConversation(conversation.id),
       ]);
       return { conversationId: conversation.id, messages: messages.map(toMessageSummary), proposals: proposals.map(toProposalSummary) };
@@ -210,6 +223,9 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
       // can still reach it to unregister from `agentStreamRevocationHub`; `undefined` covers the early-throw
       // paths above `new AbortController()` that this `finally` also runs for.
       let controller: AbortController | undefined;
+      // WO-491: declared out here for the same reason `controller` is -- the `finally` must be able to
+      // clear it on every exit path, including the early throws above the stream ever opening.
+      let heartbeat: ReturnType<typeof setInterval> | undefined;
       try {
         // Reserved *before* the model is ever called (SDD-009 "reserva de tokens antes de llamar (los
         // turnos concurrentes no exceden la cuota)") — see agent-quota.ts's own module doc comment for why
@@ -217,7 +233,10 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
         const usageDate = todayUsageDate(clock);
         const reservationTokens = DEFAULT_MAX_TOKENS_PER_TURN;
         const reservation = await reserveAgentTokens(pool, org.id, reservationTokens, env.agentQuotas, usageDate);
-        if (!reservation.ok) throw new RateLimitedError();
+        // WO-494 (SDD-040): distinct from the per-user rate limit above. Both used the same bare
+        // `RateLimitedError`, so the client rendered "too many attempts, try again in a moment" for a
+        // daily quota that will not come back until tomorrow -- advice that is simply wrong.
+        if (!reservation.ok) throw new RateLimitedError(reservation.reason === 'global_quota_exceeded' ? 'the shared daily token budget is exhausted' : 'this organization has used its daily token budget');
 
         const conversation =
           (await tenantDb.agent.conversations.findForDocumentAndOwner(existing.document.id, userId)) ??
@@ -253,7 +272,10 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
         // was produced by the *read*, not the write, so no amount of care at persistence time would have
         // caught it. Logged rather than thrown: refusing to answer would turn a recoverable history
         // defect into an outage, and this is the signal that says a conversation went bad and where.
-        const sequenceIssues = toolCallSequenceIssues(messages);
+        // WO-505 (SDD-042): checked on the *bounded* list, which is what actually reaches the provider.
+        // Running it on the full history is what let FB-023 through: the full list was valid and the
+        // slice sent to DeepSeek was not.
+        const sequenceIssues = toolCallSequenceIssues(boundMessagesForResend(messages, DEFAULT_MAX_HISTORY_MESSAGES));
         if (sequenceIssues.length > 0) req.log.warn({ conversationId: conversation.id, issues: sequenceIssues }, 'replayed agent history violates the tool-call sequence invariant');
 
         const toolCtx: AgentToolContext = {
@@ -294,7 +316,17 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
         // vanishing. This `catch` is now only for something going wrong *outside* the loop's own
         // handling, and it still keeps whatever was already collected.
         const loop = runAgentLoop({ llmClient, tools: ALL_AGENT_TOOLS, toolCtx, messages, model, maxTokensPerTurn: reservationTokens, signal: controller.signal });
+        // WO-491: until the first token arrives the socket is otherwise silent, and with this account
+        // running in thinking mode that silence can last minutes -- indistinguishable, from the client's
+        // side, from a dead connection. Cleared in the `finally` below; writing to an already-closed
+        // socket is a no-op since WO-470.
+        const turnStartedAt = clock().getTime();
+        heartbeat = setInterval(() => sendSseEvent(reply.raw, { type: 'heartbeat', elapsedMs: clock().getTime() - turnStartedAt }), HEARTBEAT_INTERVAL_MS);
+
         let newMessages: AgentTranscriptMessage[] = [];
+        // WO-493: persisted on the turn's last message. `'error'` is the right default for the catch
+        // below -- a turn that never reached a `done` did not end cleanly.
+        let finishReason: AgentLoopFinishReason = 'error';
         try {
           let step = await loop.next();
           while (!step.done) {
@@ -302,6 +334,7 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
             step = await loop.next();
           }
           newMessages = step.value.newMessages;
+          finishReason = step.value.finishReason;
         } catch (error: unknown) {
           req.log.error({ err: error }, 'agent loop failed unexpectedly');
           sendSseEvent(reply.raw, { type: 'error', code: 'llm_error', message: 'the agent failed unexpectedly' });
@@ -312,7 +345,7 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
 
         // WO-256: one batched insert instead of one `append` per message.
         await tenantDb.agent.messages.appendMany(
-          newMessages.map((message) => ({
+          newMessages.map((message, index) => ({
             conversationId: conversation.id,
             role: message.role,
             content: message.content,
@@ -323,12 +356,19 @@ export function registerDocumentAgentRoutes(app: FastifyInstance, opts: Register
             completionTokens: message.usage?.completionTokens ?? null,
             totalTokens: message.usage?.totalTokens ?? null,
             model: message.model ?? null,
+            // WO-492/WO-493 (SDD-040): both written here, in the turn's own INSERT, because
+            // `agent_messages` is append-only for the app -- there is no later moment to mark them.
+            // The finish reason rides the turn's *last* message, which is what makes "this turn ran
+            // out of budget" still readable after a reload.
+            toolOk: message.toolOk ?? null,
+            finishReason: index === newMessages.length - 1 ? finishReason : null,
           })),
         );
         await tenantDb.agent.conversations.touch(conversation.id);
 
         reply.raw.end();
       } finally {
+        if (heartbeat) clearInterval(heartbeat);
         activeStreamUserIds.delete(userId);
         if (controller) agentStreamRevocationHub?.unregister(userId, controller);
       }

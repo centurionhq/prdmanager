@@ -210,6 +210,85 @@ describe('.../documents/:docId/agent/messages (WO-172)', () => {
     await app.close();
   });
 
+  test('WO-492/WO-493 (SDD-040/PRD-020): a tool failure and the turn\u2019s finish reason survive a reload', async () => {
+    // The exact shape of what a user saw in PRD-019: the agent calls a tool, the tool fails, and after
+    // a reload there was no trace at all that anything had gone wrong.
+    const llmClient = createFakeLlmClient([
+      [{ type: 'tool_call', toolCall: { id: 'call_1', name: 'get_node', argumentsJson: 'not json at all' } }, { type: 'done', finishReason: 'tool_calls' }],
+      [{ type: 'token', text: 'No pude leer ese nodo.' }, { type: 'done', finishReason: 'stop' }],
+    ]);
+    const app = buildApp(llmClient);
+    const { org, project, docId, editorACookie } = await setupOrgProjectAndDocument(app);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: sseUrl(org, project, docId),
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), editorACookie),
+      payload: { message: 'leé el nodo' },
+    });
+    expect(res.statusCode).toBe(200);
+
+    // Persisted, not merely streamed: `ok` used to exist only on the wire event.
+    expect(await countRows('agent_messages', "role = 'tool' AND tool_ok = false", [])).toBe(1);
+    expect(await countRows('agent_messages', "finish_reason IS NOT NULL", [])).toBe(1);
+
+    const conversation = await app.inject({
+      method: 'GET',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/${docId}/agent/conversation`,
+      headers: { cookie: editorACookie, ...AUTH_HOST() },
+    });
+    expect(conversation.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  test('WO-491: the heartbeat reaches the client, so silence while the model thinks is not silence on the wire', async () => {
+    const llmClient = createFakeLlmClient([[{ type: 'token', text: 'listo' }, { type: 'done', finishReason: 'stop' }]]);
+    const app = buildApp(llmClient);
+    const { org, project, docId, editorACookie } = await setupOrgProjectAndDocument(app);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: sseUrl(org, project, docId),
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), editorACookie),
+      payload: { message: 'hola' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    // A fake client answers instantly, so this turn finishes well inside one heartbeat interval; what is
+    // asserted is that the stream is wired for it at all and that nothing leaks past the turn's end.
+    expect(res.payload).toContain('event: done');
+
+    await app.close();
+  });
+
+  test('WO-494 (SDD-040): running out of the daily token budget does not masquerade as \u201ctoo many attempts\u201d', async () => {
+    const llmClient = createFakeLlmClient([[{ type: 'token', text: 'hola' }, { type: 'done', finishReason: 'stop' }]]);
+    const app = buildApp(llmClient);
+    const { org, project, docId, editorACookie } = await setupOrgProjectAndDocument(app);
+
+    // Burn the org's whole daily allowance before the turn starts.
+    await pg.ownerPool.query(
+      `INSERT INTO "llm_usage" (org_id, usage_date, total_tokens) VALUES ($1, CURRENT_DATE, 100000000)
+       ON CONFLICT (org_id, usage_date) DO UPDATE SET total_tokens = 100000000`,
+      [org.id],
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: sseUrl(org, project, docId),
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), editorACookie),
+      payload: { message: 'hola' },
+    });
+
+    expect(res.statusCode).toBe(429);
+    // The message has to say it is a budget, not an attempt rate -- "try again in a moment" is wrong
+    // advice for something that only resets tomorrow.
+    expect(res.json().error.message).toMatch(/budget/i);
+
+    await app.close();
+  });
+
   test('a viewer (no use_agent permission) gets 403 and nothing is persisted', async () => {
     const llmClient = createFakeLlmClient([]);
     const app = buildApp(llmClient);

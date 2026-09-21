@@ -34,6 +34,10 @@ export interface AppendMessageInput {
   completionTokens?: number | null;
   totalTokens?: number | null;
   model?: string | null;
+  /** WO-492 (SDD-040): only meaningful on a `role: 'tool'` message — whether that tool call succeeded. */
+  toolOk?: boolean | null;
+  /** WO-493 (SDD-040): only set on the last message of a turn — how that turn ended. */
+  finishReason?: string | null;
 }
 
 export interface CreateProposalInput {
@@ -42,7 +46,9 @@ export interface CreateProposalInput {
   summary: string;
   /** WO-173 defines the precise shape; stored as-is here (see the schema's own doc comment). */
   edits: unknown;
-  fieldsSet?: Record<string, string> | null;
+  /** WO-537 (SDD-050): a field's value may be a list (`tags`, `implements`, ...), not only a string —
+   * this stores whatever `propose_edit` already validated, as-is, into the opaque `jsonb` column below. */
+  fieldsSet?: Record<string, string | number | boolean | string[]> | null;
   fieldsUnset?: string[] | null;
   requestedBy: string;
 }
@@ -75,7 +81,7 @@ export interface AgentMessagesRepository {
    * written in a single batched insert, and `defaultNow()` is the transaction clock), so ordering by it
    * left the order *within* a turn up to Postgres. That surfaced as a scrambled transcript, and, because
    * `documents-agent.ts` replays this exact list back to the model, as a scrambled history too. */
-  listForConversation(conversationId: string, limit?: number): Promise<AgentMessageRecord[]>;
+  listForConversation(conversationId: string, limit?: number | null): Promise<AgentMessageRecord[]>;
 }
 
 /** WO-254: generous relative to `agent-loop.ts`'s `DEFAULT_MAX_HISTORY_MESSAGES` (40) so the chat panel's
@@ -144,6 +150,8 @@ function toAgentMessageValues(orgId: string, input: AppendMessageInput, seq: num
     completionTokens: input.completionTokens ?? null,
     totalTokens: input.totalTokens ?? null,
     model: input.model ?? null,
+    toolOk: input.toolOk ?? null,
+    finishReason: input.finishReason ?? null,
   };
 }
 
@@ -194,12 +202,13 @@ export function buildAgentRepositories(pool: Pool, orgId: string): AgentReposito
       },
       listForConversation: (conversationId, limit = DEFAULT_MESSAGE_HISTORY_LIMIT) =>
         withTenantTx(pool, orgId, async (tx) => {
-          const rows = await tx
-            .select()
-            .from(agentMessages)
-            .where(eq(agentMessages.conversationId, conversationId))
-            .orderBy(desc(agentMessages.seq))
-            .limit(limit);
+          // WO-506 (SDD-042/FB-023): `null` means the whole conversation. The product owner's rule is
+          // "context stays at the last 40 messages, but the chat itself has no limit" -- two different
+          // caps that used to be conflated here. The resend budget lives in `agent-loop.ts`; this one
+          // only ever governed what a reader is shown, and silently hiding the oldest messages is not a
+          // thing a chat should do.
+          const base = tx.select().from(agentMessages).where(eq(agentMessages.conversationId, conversationId)).orderBy(desc(agentMessages.seq));
+          const rows = limit === null ? await base : await base.limit(limit);
           return rows.reverse();
         }),
     },

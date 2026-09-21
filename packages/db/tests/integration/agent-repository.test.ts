@@ -5,7 +5,7 @@
  * this file exercises the actual repository behavior on top.
  */
 import { randomUUID } from 'node:crypto';
-import { buildLlmGlobalUsageRepository, createTenantDb } from '@prdm/db';
+import { buildLlmGlobalUsageRepository, createTenantDb, DEFAULT_MESSAGE_HISTORY_LIMIT } from '@prdm/db';
 import { createOrganizationFixture, createProjectFixture, createUserFixture, openTestPg, truncateAll, type PgTestDb } from '@prdm/testkit';
 import type { Pool } from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
@@ -149,6 +149,28 @@ describe('agent repositories (SDD-009, WO-168)', () => {
 
     expect((await db.agent.messages.listForConversation(first.id)).map((m) => m.seq)).toEqual([1, 2]);
     expect((await db.agent.messages.listForConversation(second.id)).map((m) => m.seq)).toEqual([1]);
+  });
+
+  test('WO-506 (SDD-042/FB-023): a conversation longer than the default cap reads back whole when no limit is asked for', async () => {
+    const org = await createOrganizationFixture(pg);
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    const documentId = await insertDocumentFixture(pg.ownerPool, { orgId: org.id, projectId: project.id });
+    const owner = await createUserFixture(pg);
+    const db = createTenantDb(pg.appPool).forOrg(org.id);
+    const conversation = await db.agent.conversations.create({ documentId, ownerId: owner.id });
+
+    // Comfortably past DEFAULT_MESSAGE_HISTORY_LIMIT (100), which used to silently drop the oldest.
+    const total = 130;
+    await db.agent.messages.appendMany(Array.from({ length: total }, (_, i) => ({ conversationId: conversation.id, role: 'user' as const, content: `mensaje ${i}` })));
+
+    // The product rule: the model's context stays bounded, the chat itself does not.
+    const capped = await db.agent.messages.listForConversation(conversation.id);
+    expect(capped).toHaveLength(DEFAULT_MESSAGE_HISTORY_LIMIT);
+
+    const whole = await db.agent.messages.listForConversation(conversation.id, null);
+    expect(whole).toHaveLength(total);
+    expect(whole[0]?.content).toBe('mensaje 0');
+    expect(whole.at(-1)?.content).toBe(`mensaje ${total - 1}`);
   });
 
   test('findForDocumentAndOwner only ever finds the caller’s own conversation for that document', async () => {

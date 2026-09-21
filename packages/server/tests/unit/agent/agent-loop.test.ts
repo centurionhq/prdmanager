@@ -4,7 +4,20 @@
  * per-turn token budget, and bounded resent history.
  */
 import { describe, expect, test } from 'vitest';
-import { boundMessagesForResend, DEFAULT_MAX_ITERATIONS, runAgentLoop, toolCallSequenceIssues, type AgentLoopEvent } from '../../../src/agent/agent-loop.js';
+import {
+  boundMessagesForResend,
+  DEFAULT_MAX_COMPLETION_TOKENS_PER_CALL,
+  DEFAULT_MAX_ITERATIONS,
+  DEFAULT_MAX_HISTORY_TOKENS,
+  DEFAULT_MAX_TOKENS_PER_TURN,
+  compactedSummary,
+  estimateTokens,
+  FINAL_ANSWER_HEADROOM_TOKENS,
+  FINAL_ANSWER_INSTRUCTION,
+  runAgentLoop,
+  toolCallSequenceIssues,
+  type AgentLoopEvent,
+} from '../../../src/agent/agent-loop.js';
 import { createFakeLlmClient, type FakeLlmScript } from '../../../src/agent/fake-llm-client.js';
 import type { AgentTool, AgentToolContext } from '../../../src/agent/tools/index.js';
 import type { LlmMessage } from '../../../src/agent/llm-client.js';
@@ -216,6 +229,227 @@ describe('WO-470 (SDD-035/PRD-016): a turn that ends badly still returns what it
   });
 });
 
+describe('the turn budget (WO-486..WO-489, SDD-039/PRD-020)', () => {
+  test('WO-486: the generation cap is fixed and does not shrink as the history grows', async () => {
+    const script: FakeLlmScript = [
+      [
+        { type: 'tool_call', toolCall: { id: 'call_1', name: 'echo', argumentsJson: '{"value":"one"}' } },
+        { type: 'usage', promptTokens: 4800, completionTokens: 50, totalTokens: 4850 },
+        { type: 'done', finishReason: 'tool_calls' },
+      ],
+      [
+        { type: 'token', text: 'done' },
+        { type: 'usage', promptTokens: 5300, completionTokens: 1200, totalTokens: 6500 },
+        { type: 'done', finishReason: 'stop' },
+      ],
+    ];
+    const llmClient = createFakeLlmClient(script);
+    await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages }));
+
+    // The second call is the one that used to be starved: under the old code `max_tokens` was
+    // `8000 - 4850 = 3150`, which is what truncated a long tool argument mid-JSON.
+    expect(llmClient.calls).toHaveLength(2);
+    expect(llmClient.calls.map((c) => c.maxTokens)).toEqual([DEFAULT_MAX_COMPLETION_TOKENS_PER_CALL, DEFAULT_MAX_COMPLETION_TOKENS_PER_CALL]);
+  });
+
+  test('WO-488: a turn that runs out of budget mid-work still ends with prose, from a final call offered no tools', async () => {
+    const script: FakeLlmScript = [
+      // One tool-using iteration that eats almost the whole turn budget.
+      [
+        { type: 'tool_call', toolCall: { id: 'call_1', name: 'echo', argumentsJson: '{"value":"one"}' } },
+        { type: 'usage', promptTokens: 19_900, completionTokens: 100, totalTokens: 20_000 },
+        { type: 'done', finishReason: 'tool_calls' },
+      ],
+      // The final, tool-free call.
+      [{ type: 'token', text: 'Esto es lo que averigüé.' }, { type: 'done', finishReason: 'stop' }],
+    ];
+    const llmClient = createFakeLlmClient(script);
+    // Expressed against the constants, not magic numbers: one 20k iteration has to leave less than the
+    // headroom free, whatever the headroom currently is.
+    const budget = FINAL_ANSWER_HEADROOM_TOKENS + 10_000;
+    const { result } = await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages, maxTokensPerTurn: budget }));
+    const { newMessages, finishReason } = result as { newMessages: { role: string; content: string }[]; finishReason: string };
+
+    expect(finishReason).toBe('token_budget_exceeded');
+    // The point of the whole WO: the turn does not end on three empty bubbles.
+    expect(newMessages.at(-1)).toMatchObject({ role: 'assistant', content: 'Esto es lo que averigüé.' });
+
+    // And that last call really was offered nothing to call.
+    expect(llmClient.calls).toHaveLength(2);
+    expect(llmClient.calls[1]?.tools).toEqual([]);
+  });
+
+  test('WO-488: the final answer is skipped when the turn ends normally with budget to spare', async () => {
+    const script: FakeLlmScript = [[{ type: 'token', text: 'listo' }, { type: 'done', finishReason: 'stop' }]];
+    const llmClient = createFakeLlmClient(script);
+    const { result } = await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages }));
+
+    expect((result as { finishReason: string }).finishReason).toBe('stop');
+    expect(llmClient.calls).toHaveLength(1);
+  });
+
+  test('WO-488: a turn whose budget is exhausted from the start goes straight to the final answer', async () => {
+    const script: FakeLlmScript = [[{ type: 'token', text: 'no me alcanzó el presupuesto' }, { type: 'done', finishReason: 'stop' }]];
+    const llmClient = createFakeLlmClient(script);
+    const { result } = await collect(
+      runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages, maxTokensPerTurn: FINAL_ANSWER_HEADROOM_TOKENS - 1 }),
+    );
+
+    expect(llmClient.calls).toHaveLength(1);
+    expect(llmClient.calls[0]?.tools).toEqual([]);
+    expect((result as { finishReason: string }).finishReason).toBe('token_budget_exceeded');
+  });
+
+  test('WO-512/WO-513 (SDD-044/FB-024): a turn whose tools return capped payloads still gets to answer', async () => {
+    // The measured shape: two `get_feature_branch` results at the ~20 KB tool-output cap plus a 7 KB
+    // `get_node`, i.e. ~12k tokens of context. Under the old 32_000 ceiling the turn ran out *after
+    // reading well* and never wrote its answer. Shrinking what the tools return was rejected on product
+    // grounds, so the turn has to be able to pay for it.
+    const heavy = (total: number) => ({ type: 'usage' as const, promptTokens: total - 200, completionTokens: 200, totalTokens: total });
+    const script: FakeLlmScript = [
+      [{ type: 'tool_call', toolCall: { id: 'c1', name: 'echo', argumentsJson: '{"value":"a"}' } }, heavy(20_000), { type: 'done', finishReason: 'tool_calls' }],
+      [{ type: 'tool_call', toolCall: { id: 'c2', name: 'echo', argumentsJson: '{"value":"b"}' } }, heavy(24_000), { type: 'done', finishReason: 'tool_calls' }],
+      [{ type: 'tool_call', toolCall: { id: 'c3', name: 'echo', argumentsJson: '{"value":"c"}' } }, heavy(28_000), { type: 'done', finishReason: 'tool_calls' }],
+      [{ type: 'token', text: 'Acá está el balance.' }, heavy(30_000), { type: 'done', finishReason: 'stop' }],
+    ];
+    const llmClient = createFakeLlmClient(script);
+    const { result } = await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages }));
+    const { newMessages, finishReason } = result as { newMessages: { role: string; content: string }[]; finishReason: string };
+
+    // 102k of cumulative usage: comfortably fatal under the old ceiling, payable under the new one.
+    expect(finishReason).toBe('stop');
+    expect(newMessages.at(-1)).toMatchObject({ role: 'assistant', content: 'Acá está el balance.' });
+    // Four real model calls, none of them spent on a forced tool-free fallback.
+    expect(llmClient.calls).toHaveLength(4);
+    expect(llmClient.calls.every((c) => c.tools.length > 0)).toBe(true);
+  });
+
+  test('WO-513: the final-answer headroom covers a heavy prompt, so the loop stops before it cannot pay', async () => {
+    // Leaves less than the headroom free, so the very next decision must be the tool-free final call.
+    const used = DEFAULT_MAX_TOKENS_PER_TURN - FINAL_ANSWER_HEADROOM_TOKENS + 1_000;
+    const script: FakeLlmScript = [
+      [
+        { type: 'tool_call', toolCall: { id: 'c1', name: 'echo', argumentsJson: '{"value":"a"}' } },
+        { type: 'usage', promptTokens: used - 500, completionTokens: 500, totalTokens: used },
+        { type: 'done', finishReason: 'tool_calls' },
+      ],
+      [{ type: 'token', text: 'con lo que tengo' }, { type: 'done', finishReason: 'stop' }],
+    ];
+    const llmClient = createFakeLlmClient(script);
+    const { result } = await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages }));
+
+    expect(llmClient.calls).toHaveLength(2);
+    expect(llmClient.calls[1]?.tools).toEqual([]);
+    expect((result as { newMessages: { content: string }[] }).newMessages.at(-1)?.content).toBe('con lo que tengo');
+  });
+
+  test('WO-509 (SDD-043/FB-024): the final call asks for the answer instead of silently removing the tools', async () => {
+    const script: FakeLlmScript = [[{ type: 'token', text: 'lo que tengo' }, { type: 'done', finishReason: 'stop' }]];
+    const llmClient = createFakeLlmClient(script);
+    await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages, maxTokensPerTurn: FINAL_ANSWER_HEADROOM_TOKENS - 1 }));
+
+    expect(llmClient.calls).toHaveLength(1);
+    const call = llmClient.calls[0]!;
+    // No tools *and* an explicit instruction. Removing them without saying why is what made the model
+    // write its invocation markup into the answer instead (FB-024).
+    expect(call.tools).toEqual([]);
+    expect(call.messages.at(-1)).toEqual({ role: 'user', content: FINAL_ANSWER_INSTRUCTION });
+    expect(FINAL_ANSWER_INSTRUCTION).toMatch(/no intentes llamar ninguna/i);
+  });
+
+  test('WO-509: an ordinary tool-using iteration carries no such instruction', async () => {
+    const script: FakeLlmScript = [
+      [{ type: 'tool_call', toolCall: { id: 'call_1', name: 'echo', argumentsJson: '{"value":"x"}' } }, { type: 'done', finishReason: 'tool_calls' }],
+      [{ type: 'token', text: 'listo' }, { type: 'done', finishReason: 'stop' }],
+    ];
+    const llmClient = createFakeLlmClient(script);
+    await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages }));
+
+    for (const call of llmClient.calls) {
+      expect(call.messages.some((m) => m.content === FINAL_ANSWER_INSTRUCTION)).toBe(false);
+    }
+  });
+
+  test('WO-489: a response the provider cut off is reported as truncated, not as a clean stop', async () => {
+    const script: FakeLlmScript = [[{ type: 'token', text: 'una respuesta a medio escr' }, { type: 'done', finishReason: 'length' }]];
+    const llmClient = createFakeLlmClient(script);
+    const { events, result } = await collect(runAgentLoop({ llmClient, tools: [echoTool()], toolCtx: FAKE_CTX, messages: baseMessages }));
+
+    expect((result as { finishReason: string }).finishReason).toBe('truncated');
+    expect(events.filter((e) => e.type === 'done')).toEqual([{ type: 'done', finishReason: 'truncated' }]);
+  });
+});
+
+describe('the resend window by size, with compaction (WO-521/WO-522, SDD-046)', () => {
+  /** A tool result of roughly `kb` kilobytes, the shape that made counting messages meaningless. */
+  const bigTool = (id: string, kb: number): LlmMessage => ({ role: 'tool', content: 'x'.repeat(kb * 1024), toolCallId: id, name: 'get_feature_branch' });
+  const asks = (id: string): LlmMessage => ({ role: 'assistant', content: '', toolCalls: [{ id, name: 'get_feature_branch', argumentsJson: '{}' }] });
+
+  test('WO-521: a window well under the message cap is still trimmed when its tokens blow the budget', () => {
+    // 30 messages -- comfortably under the 40-message cap -- but ~300 KB, i.e. ~100k tokens.
+    const messages: LlmMessage[] = [{ role: 'system', content: 'system instructions' }, { role: 'user', content: 'hacé un balance' }];
+    for (let i = 0; i < 14; i += 1) {
+      messages.push(asks(`c${i}`), bigTool(`c${i}`, 20));
+    }
+
+    const bounded = boundMessagesForResend(messages, DEFAULT_MAX_ITERATIONS * 10, DEFAULT_MAX_HISTORY_TOKENS);
+    const total = bounded.reduce((sum, m) => sum + estimateTokens(m), 0);
+
+    expect(messages.length).toBeLessThan(40); // the message cap would never have fired
+    expect(total).toBeLessThanOrEqual(DEFAULT_MAX_HISTORY_TOKENS);
+    expect(bounded.length).toBeLessThan(messages.length);
+  });
+
+  test('WO-521: the size cut still lands on a valid boundary, never on an orphaned tool result', () => {
+    const messages: LlmMessage[] = [{ role: 'system', content: 's' }];
+    for (let i = 0; i < 20; i += 1) messages.push(asks(`c${i}`), bigTool(`c${i}`, 20));
+
+    const bounded = boundMessagesForResend(messages, 1_000, DEFAULT_MAX_HISTORY_TOKENS);
+    // [system, summary, ...kept] -- the first kept message must not depend on one that was dropped.
+    const firstKept = bounded.find((m, i) => i > 0 && m.role !== 'user');
+    expect(firstKept?.role).not.toBe('tool');
+    expect(toolCallSequenceIssues(bounded)).toEqual([]);
+  });
+
+  test('WO-522: what falls outside the window is summarised once, not silently dropped', () => {
+    const messages: LlmMessage[] = [
+      { role: 'system', content: 's' },
+      { role: 'user', content: 'la pregunta vieja' },
+      asks('c0'),
+      bigTool('c0', 30),
+      { role: 'user', content: 'la pregunta nueva' },
+    ];
+
+    const bounded = boundMessagesForResend(messages, 1_000, 2_000);
+    const summaries = bounded.filter((m) => m.content.includes('Resumen de'));
+
+    expect(summaries).toHaveLength(1);
+    // It carries forward what was asked and what has already been run, so the agent does not redo it.
+    expect(summaries[0]?.content).toContain('la pregunta vieja');
+    expect(summaries[0]?.content).toContain('get_feature_branch');
+    // And it sits right after the system message, where the dropped history used to be.
+    expect(bounded[0]?.role).toBe('system');
+    expect(bounded[1]).toBe(summaries[0]);
+  });
+
+  test('WO-522: nothing is summarised when everything fits', () => {
+    const messages: LlmMessage[] = [
+      { role: 'system', content: 's' },
+      { role: 'user', content: 'hola' },
+      { role: 'assistant', content: 'buenas' },
+    ];
+    const bounded = boundMessagesForResend(messages, 40, DEFAULT_MAX_HISTORY_TOKENS);
+    expect(bounded).toEqual(messages);
+    expect(compactedSummary([])).toBeNull();
+  });
+
+  test('WO-521: the estimate counts tool-call arguments, not just content', () => {
+    const plain = estimateTokens({ role: 'assistant', content: 'abc' });
+    const withCall = estimateTokens({ role: 'assistant', content: 'abc', toolCalls: [{ id: 'c1', name: 'get_node', argumentsJson: '{"id":"PRD-001"}' }] });
+    expect(withCall).toBeGreaterThan(plain);
+  });
+});
+
 describe('toolCallSequenceIssues (WO-471, SDD-035/PRD-016)', () => {
   const assistantCalling = (id: string): LlmMessage => ({ role: 'assistant', content: '', toolCalls: [{ id, name: 'echo', argumentsJson: '{}' }] });
   const toolResult = (id: string): LlmMessage => ({ role: 'tool', content: '{}', toolCallId: id, name: 'echo' });
@@ -279,15 +513,68 @@ describe('boundMessagesForResend (WO-171, SDD-009 "historial reenviado acotado")
       ...Array.from({ length: 50 }, (_, i) => ({ role: 'user' as const, content: `message ${i}` })),
     ];
     const bounded = boundMessagesForResend(messages, 10);
-    expect(bounded).toHaveLength(10);
     expect(bounded[0]).toEqual({ role: 'system', content: 'system instructions' });
     expect(bounded.at(-1)).toEqual({ role: 'user', content: 'message 49' });
-    expect(bounded[1]).toEqual({ role: 'user', content: 'message 41' });
+    // WO-522: whatever was cut is now represented by one summary message, sitting between the system
+    // message and the kept tail -- dropping history silently is exactly what this stopped doing.
+    expect(bounded[1]?.content).toContain('Resumen de');
+    expect(bounded[2]).toEqual({ role: 'user', content: 'message 41' });
+    expect(bounded).toHaveLength(11);
+  });
+
+  test('WO-504 (SDD-042/FB-023): the cut never lands on a tool message, so a long conversation stays valid', () => {
+    // The exact shape that broke a real 42-message conversation permanently: every later turn cut the
+    // same way, and the provider rejected every one of them with
+    // "Messages with role 'tool' must be a response to a preceding message with 'tool_calls'".
+    const turn = (n: number): LlmMessage[] => [
+      { role: 'user', content: `pregunta ${n}` },
+      { role: 'assistant', content: '', toolCalls: [{ id: `c${n}`, name: 'read_document', argumentsJson: '{}' }] },
+      { role: 'tool', content: '{}', toolCallId: `c${n}`, name: 'read_document' },
+      { role: 'assistant', content: `respuesta ${n}` },
+    ];
+    const messages: LlmMessage[] = [{ role: 'system', content: 'system instructions' }, ...Array.from({ length: 15 }, (_, i) => turn(i)).flat()];
+
+    // Sweep every budget: whatever the cut would have landed on, the result must be sendable.
+    for (let max = 2; max <= messages.length; max += 1) {
+      const bounded = boundMessagesForResend(messages, max);
+      expect(bounded[0]).toEqual({ role: 'system', content: 'system instructions' });
+      expect(bounded[1]?.role).not.toBe('tool');
+      expect(toolCallSequenceIssues(bounded)).toEqual([]);
+    }
+  });
+
+  test('WO-504: aligning moves the cut backwards, so it never drops a turn that fits', () => {
+    const messages: LlmMessage[] = [
+      { role: 'system', content: 's' },
+      { role: 'user', content: 'u1' },
+      { role: 'assistant', content: '', toolCalls: [{ id: 'c1', name: 'echo', argumentsJson: '{}' }] },
+      { role: 'tool', content: '{}', toolCallId: 'c1', name: 'echo' },
+      { role: 'assistant', content: 'a1' },
+    ];
+    // A budget of 3 would have sliced at the `tool`; aligning backwards reaches the assistant that owns it.
+    const bounded = boundMessagesForResend(messages, 3);
+    // system, the WO-522 summary of what was cut, then the aligned tail starting at the assistant that
+    // owns the tool result.
+    expect(bounded.map((m) => m.role)).toEqual(['system', 'user', 'assistant', 'tool', 'assistant']);
+    expect(bounded[1]?.content).toContain('Resumen de');
+    expect(toolCallSequenceIssues(bounded)).toEqual([]);
+  });
+
+  test('WO-504: with no system message the alignment still holds', () => {
+    const messages: LlmMessage[] = [
+      { role: 'user', content: 'u' },
+      { role: 'assistant', content: '', toolCalls: [{ id: 'c1', name: 'echo', argumentsJson: '{}' }] },
+      { role: 'tool', content: '{}', toolCallId: 'c1', name: 'echo' },
+    ];
+    const bounded = boundMessagesForResend(messages, 1);
+    expect(bounded[0]?.role).not.toBe('tool');
+    expect(toolCallSequenceIssues(bounded)).toEqual([]);
   });
 
   test('without a leading system message, simply keeps the most recent entries', () => {
     const messages: LlmMessage[] = Array.from({ length: 20 }, (_, i) => ({ role: 'user' as const, content: `m${i}` }));
     const bounded = boundMessagesForResend(messages, 5);
-    expect(bounded).toEqual(messages.slice(15));
+    expect(bounded[0]?.content).toContain('Resumen de');
+    expect(bounded.slice(1)).toEqual(messages.slice(15));
   });
 });

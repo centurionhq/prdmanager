@@ -122,6 +122,61 @@ describe('DeepSeekClient contract (WO-167)', () => {
     ]);
   });
 
+  test('WO-510 (SDD-043/FB-024): invocation markup arriving as content is suppressed, keeping the prose before it', async () => {
+    // Verbatim shape observed in production after WO-488's tool-free final call: the model could not
+    // reach the structured channel, so it wrote DeepSeek's own syntax into `content` and the panel
+    // rendered it as text.
+    respond = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      sseChunk(res, { choices: [{ index: 0, delta: { content: 'Esto es lo que averigüé. ' }, finish_reason: null }] });
+      sseChunk(res, { choices: [{ index: 0, delta: { content: '<\uff5c\uff5cDSML\uff5c\uff5c invoke name="get_node">' }, finish_reason: null }] });
+      sseChunk(res, { choices: [{ index: 0, delta: { content: 'PRD-019</\uff5c\uff5cDSML\uff5c\uff5c invoke>' }, finish_reason: null }] });
+      sseChunk(res, { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] });
+      res.write('data: [DONE]\n\n');
+      res.end();
+    };
+
+    const client = createDeepSeekClient({ apiKey: FAKE_API_KEY, baseUrl });
+    const events = await collect(client.streamChat(input));
+    const text = events.filter((e) => e.type === 'token').map((e) => (e as { text: string }).text).join('');
+
+    expect(text).toBe('Esto es lo que averigüé. ');
+    expect(text).not.toContain('DSML');
+    expect(events.at(-1)).toEqual({ type: 'done', finishReason: 'stop' });
+  });
+
+  test('WO-510: a sentinel split across two deltas is still caught before any of it is emitted', async () => {
+    respond = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      sseChunk(res, { choices: [{ index: 0, delta: { content: 'respuesta<' }, finish_reason: null }] });
+      sseChunk(res, { choices: [{ index: 0, delta: { content: '\uff5c\uff5cDSML\uff5c\uff5c calls>' }, finish_reason: null }] });
+      sseChunk(res, { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] });
+      res.write('data: [DONE]\n\n');
+      res.end();
+    };
+
+    const client = createDeepSeekClient({ apiKey: FAKE_API_KEY, baseUrl });
+    const text = (await collect(client.streamChat(input))).filter((e) => e.type === 'token').map((e) => (e as { text: string }).text).join('');
+
+    // The lone `<` that ended the first delta must not leak either: it was a possible sentinel start.
+    expect(text).toBe('respuesta');
+  });
+
+  test('WO-510: ordinary text is forwarded unchanged, including a trailing angle bracket', async () => {
+    respond = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      sseChunk(res, { choices: [{ index: 0, delta: { content: 'usá <Button> acá' }, finish_reason: null }] });
+      sseChunk(res, { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] });
+      res.write('data: [DONE]\n\n');
+      res.end();
+    };
+
+    const client = createDeepSeekClient({ apiKey: FAKE_API_KEY, baseUrl });
+    const text = (await collect(client.streamChat(input))).filter((e) => e.type === 'token').map((e) => (e as { text: string }).text).join('');
+
+    expect(text).toBe('usá <Button> acá');
+  });
+
   test('accumulates a streamed tool call across chunks by index and emits it once complete', async () => {
     respond = (_req, res) => {
       res.writeHead(200, { 'content-type': 'text/event-stream' });

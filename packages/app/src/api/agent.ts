@@ -16,13 +16,26 @@ export interface AgentToolCallDto {
   argumentsJson: string;
 }
 
+/** Why a turn stopped. Mirrors the server's `AgentLoopFinishReason`; `'error'` (WO-470) and
+ * `'truncated'` (WO-489) were added there while this mirror silently lagged behind — harmless only for
+ * as long as nobody read `done`, which WO-499 now does. */
+export type AgentFinishReason = 'stop' | 'max_iterations' | 'token_budget_exceeded' | 'aborted' | 'error' | 'truncated';
+
 export type AgentSseEvent =
   | { type: 'message_start' }
   | { type: 'token'; text: string }
   | { type: 'tool_call'; toolCall: AgentToolCallDto }
   | { type: 'tool_result'; toolCall: AgentToolCallDto; resultJson: string; ok: boolean }
   | { type: 'usage'; promptTokens: number; completionTokens: number; totalTokens: number }
-  | { type: 'done'; finishReason: 'stop' | 'max_iterations' | 'token_budget_exceeded' | 'aborted' }
+  /** WO-524: the model is reasoning. Volume only — the product decision is to show activity, never the
+   * chain of thought — but knowing it is happening is what keeps "Pensando" honest during a long think
+   * instead of leaving the turn looking stalled. */
+  | { type: 'reasoning'; chars: number }
+  | { type: 'done'; finishReason: AgentFinishReason }
+  /** WO-491: the server saying "still here" while the model thinks, with how long the turn has been
+   * running. The elapsed time is the server's, never a client-side stopwatch that would keep counting
+   * against a server that had already died. */
+  | { type: 'heartbeat'; elapsedMs: number }
   | { type: 'error'; code: string; message: string };
 
 export interface AgentProposalEditDto {
@@ -38,7 +51,8 @@ export interface AgentProposalDto {
   status: 'pending' | 'accepted' | 'rejected' | 'stale';
   summary: string;
   edits: AgentProposalEditDto[];
-  fieldsSet: Record<string, string> | null;
+  /** WO-537 (SDD-050): a field's value may be a list (`tags`, `implements`, ...), not only a string. */
+  fieldsSet: Record<string, string | number | boolean | string[]> | null;
   fieldsUnset: string[] | null;
   requestedBy: string;
   respondedBy: string | null;
@@ -54,6 +68,10 @@ export interface AgentMessageDto {
   toolCallId: string | null;
   toolName: string | null;
   model: string | null;
+  /** WO-492: only on a `role: 'tool'` message — whether that call succeeded. */
+  toolOk: boolean | null;
+  /** WO-493: only on a turn's last message — how that turn ended. */
+  finishReason: AgentFinishReason | null;
   createdAt: string;
 }
 

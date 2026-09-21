@@ -1,0 +1,215 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+    /* State marks only: a continuous pulse while something is genuinely in progress. Never an entrance
+       animation (that moment belongs to the Planta reveal), and neutralized under reduced motion. */
+    @keyframes cf-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+    .cf-pulse { animation: cf-pulse 1400ms ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .cf-pulse { animation: none; } }
+  </style>
+</helmet>
+
+<div style="width: 560px; height: 960px; overflow: hidden; background: #E9ECEB; padding: 24px; display: flex; flex-direction: column;">
+
+  <div style="flex: none; margin-bottom: 12px;">
+    <div style="font-size: 12px; font-weight: 600; color: #565D63;">Documento · panel derecho</div>
+    <div style="font-size: 20px; font-weight: 700; letter-spacing: -0.2px;">{{ estadoTitulo }}</div>
+  </div>
+
+  <!-- Panel -->
+  <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+
+    <div style="height: 44px; flex: none; display: flex; align-items: stretch; padding: 0 4px; border-bottom: 1px solid #C9CFCD; font-size: 14px;">
+      <div style="display: flex; align-items: center; padding: 0 7px; font-weight: 600; color: #17191C; border-bottom: 2px solid #17191C; margin-bottom: -1px;">Agente</div>
+      <div style="display: flex; align-items: center; gap: 4px; padding: 0 7px; color: #33383D;">Comentarios <span class="num">(2)</span></div>
+      <div style="display: flex; align-items: center; padding: 0 7px; color: #33383D;">Versiones</div>
+      <div style="display: flex; align-items: center; padding: 0 7px; color: #33383D;">Validación</div>
+    </div>
+
+    <!-- Hilo -->
+    <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 16px;">
+
+      <!-- Mensaje del usuario: aparece apenas se envía, nunca después -->
+      <div style="align-self: flex-end; max-width: 88%; padding: 8px 12px; background: #D5E0F1; border-radius: 2px; font-size: 14px; line-height: 20px;">{{ pedido }}</div>
+
+      <!-- Respuesta ya completa del agente (sólo en la conversación normal) -->
+      <sc-if value="{{ muestraRespuesta }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 6px; max-width: 92%;">
+          <span style="align-self: flex-start; height: 16px; display: inline-flex; align-items: center; padding: 0 4px; border: 1px solid #C9CFCD; background: #F1F3F2; border-radius: 2px; font-size: 12px; line-height: 1; font-weight: 600; color: #33383D;">Agente</span>
+          <div style="padding: 8px 12px; background: #FBFCFB; border: 1px solid #DDE1DF; border-radius: 2px; font-size: 14px; line-height: 20px;">Miré el árbol del producto y el estado del proyecto. PRD-019 no cuelga de ningún caso de negocio todavía, así que publicar va a fallar por lifecycle.</div>
+        </div>
+      </sc-if>
+
+      <!-- Actividad ya terminada: resumen compacto, nunca el payload -->
+      <sc-if value="{{ muestraActividadHecha }}" hint-placeholder-val="{{ false }}">
+        <sc-for list="{{ actividadHecha }}" as="paso" hint-placeholder-count="3">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #565D63;">
+            <span style="width: 6px; height: 6px; border-radius: 3px; flex: none; background: {{ paso.color }};"></span>
+            <span>{{ paso.texto }}</span>
+          </div>
+        </sc-for>
+      </sc-if>
+
+      <!-- Trabajando: latido del servidor + qué está haciendo -->
+      <sc-if value="{{ muestraTrabajando }}" hint-placeholder-val="{{ true }}">
+        <div role="status" style="display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; background: #F1F3F2; border-radius: 2px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #33383D;">
+              <span class="cf-pulse" style="width: 8px; height: 8px; border-radius: 4px; flex: none; background: #1F4FA0;"></span>
+              <span>{{ actividadTexto }}</span>
+            </div>
+            <span class="num" style="font-size: 12px; color: #565D63;">{{ transcurrido }}</span>
+          </div>
+          <div style="font-size: 12px; color: #565D63;">{{ actividadDetalle }}</div>
+        </div>
+      </sc-if>
+
+      <!-- Una herramienta que falló: junto a su actividad, no como una línea roja arriba de todo -->
+      <sc-if value="{{ muestraFallo }}" hint-placeholder-val="{{ false }}">
+        <div role="alert" style="display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background: #F6E3E1; border-left: 3px solid #B8322A; border-radius: 2px;">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #17191C;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B8322A" stroke-width="2" stroke-linecap="round" style="flex: none;"><path d="M12 7v6"></path><path d="M12 17h.01"></path><circle cx="12" cy="12" r="9"></circle></svg>
+            No se pudo aplicar el cambio
+          </div>
+          <div style="font-size: 14px; line-height: 20px; color: #33383D;">El texto que el agente citó ya no está en el documento, así que no hay dónde aplicar la edición.</div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="id" style="color: #565D63;">text_not_found</span>
+            <span style="font-size: 12px; color: #565D63;">al proponer un cambio</span>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- El turno terminó sin respuesta: lo dice y ofrece reintentar -->
+      <sc-if value="{{ muestraCortado }}" hint-placeholder-val="{{ false }}">
+        <div role="alert" style="display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+          <div style="font-size: 14px; font-weight: 600;">El agente se quedó sin presupuesto y no llegó a responder</div>
+          <div style="font-size: 14px; line-height: 20px; color: #33383D;">Usó todo el turno en leer y buscar. Podés volver a pedírselo; va a arrancar con lo que ya averiguó.</div>
+          <div onClick="{{ onReintentar }}" style="align-self: flex-start; height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px; cursor: pointer;">Reintentar</div>
+        </div>
+      </sc-if>
+
+      <!-- Detenido por el usuario: marca clara, no un fallo -->
+      <sc-if value="{{ muestraDetenido }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #F1F3F2; border-radius: 2px; font-size: 13px; color: #565D63;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" style="flex: none;"><rect x="6" y="6" width="12" height="12" rx="1"></rect></svg>
+          Lo detuviste. Lo que alcanzó a escribir quedó arriba.
+        </div>
+      </sc-if>
+
+      <!-- Propuesta pendiente, con su etiqueta propia -->
+      <sc-if value="{{ muestraPropuesta }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid #C9CFCD; border-radius: 2px; background: #FBFCFB;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="height: 18px; display: inline-flex; align-items: center; padding: 0 6px; background: #D5E0F1; color: #173C7A; font-size: 12px; font-weight: 600; border-radius: 2px;">Propuesta pendiente</span>
+            <span style="font-size: 12px; color: #565D63;">hace 2 min</span>
+          </div>
+          <div style="font-size: 15px; font-weight: 600; line-height: 21px;">Agregar la sección de métricas con el objetivo por trimestre</div>
+          <div style="display: flex; flex-direction: column; border: 1px solid #DDE1DF; border-radius: 2px; overflow: hidden;">
+            <div class="id" style="display: flex; gap: 8px; padding: 4px 8px; line-height: 20px; background: #F6E3E1;"><span style="flex: none; color: #B8322A; font-weight: 500;">-</span><span>## Métricas</span></div>
+            <div class="id" style="display: flex; gap: 8px; padding: 4px 8px; line-height: 20px; background: #E1F0E8;"><span style="flex: none; color: #19703F; font-weight: 500;">+</span><span>## Métricas · objetivo 80 % al Q3</span></div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px; cursor: pointer;">Aceptar</div>
+            <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px; cursor: pointer;">Rechazar</div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+
+    <!-- Composer -->
+    <div style="flex: none; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid #DDE1DF;">
+      <div style="min-height: 72px; padding: 8px 12px; background: {{ composerFondo }}; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; line-height: 20px; color: #565D63;">{{ composerTexto }}</div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <sc-if value="{{ enCurso }}" hint-placeholder-val="{{ true }}">
+          <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px; cursor: pointer;">Detener</div>
+        </sc-if>
+        <sc-if value="{{ puedeEnviar }}" hint-placeholder-val="{{ false }}">
+          <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px; cursor: pointer;">Enviar</div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"estado":{"editor":"enum","default":"trabajando","options":["esperando","trabajando","herramienta_fallida","turno_cortado","detenido","conversacion"],"section":"Estado del turno"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const estado = this.props.estado ?? 'trabajando';
+
+    const esperando = estado === 'esperando';
+    const trabajando = estado === 'trabajando';
+    const fallo = estado === 'herramienta_fallida';
+    const cortado = estado === 'turno_cortado';
+    const detenido = estado === 'detenido';
+    const conversacion = estado === 'conversacion';
+
+    // "Working" covers the waiting state too: before the first token the agent is still thinking, and
+    // the honest thing to show is that plus how long it has been.
+    const enCurso = esperando || trabajando || fallo;
+
+    const titulos = {
+      esperando: 'Esperando al agente',
+      trabajando: 'Trabajando, y se ve en qué',
+      herramienta_fallida: 'Una herramienta falló',
+      turno_cortado: 'El turno terminó sin respuesta',
+      detenido: 'Detenido por el usuario',
+      conversacion: 'Conversación con propuesta',
+    };
+
+    // The activity phrase is written for a person: `read_document` means nothing to anyone.
+    const actividad = {
+      esperando: { texto: 'Pensando', detalle: 'Todavía no empezó a escribir.', transcurrido: '8 s' },
+      trabajando: { texto: 'Leyendo el documento', detalle: 'Después va a mirar el árbol del producto.', transcurrido: '23 s' },
+      herramienta_fallida: { texto: 'Proponiendo un cambio', detalle: 'Reintentando con el texto actual del documento.', transcurrido: '41 s' },
+    };
+    const act = actividad[estado] ?? actividad.trabajando;
+
+    return {
+      estadoTitulo: titulos[estado] ?? titulos.trabajando,
+      pedido: 'Armá el PRD del agente de deep research para business case',
+
+      muestraTrabajando: enCurso,
+      actividadTexto: act.texto,
+      actividadDetalle: act.detalle,
+      transcurrido: act.transcurrido,
+
+      muestraFallo: fallo,
+      muestraCortado: cortado,
+      muestraDetenido: detenido,
+      muestraPropuesta: conversacion,
+      muestraRespuesta: conversacion,
+
+      // A finished turn keeps a compact trace of what it did -- never the 20 KB payload.
+      muestraActividadHecha: conversacion || cortado || detenido,
+      actividadHecha: [
+        { texto: 'Leyó el documento', color: '#19703F' },
+        { texto: 'Miró el árbol del producto', color: '#19703F' },
+        { texto: cortado ? 'Se quedó sin presupuesto antes de responder' : 'Revisó el estado del proyecto', color: cortado ? '#B8322A' : '#19703F' },
+      ],
+
+      enCurso,
+      puedeEnviar: !enCurso,
+      composerFondo: enCurso ? '#F1F3F2' : '#FBFCFB',
+      composerTexto: enCurso ? 'Esperá a que termine, o detenelo' : 'Pedile un cambio al documento',
+
+      onReintentar: () => undefined,
+    };
+  }
+}
+</script>
+</body>
+</html>

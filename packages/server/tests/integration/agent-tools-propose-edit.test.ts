@@ -147,6 +147,31 @@ describe('propose_edit tool (SDD-009 §Diseño, WO-173)', () => {
     expect(resolveCommentAnchor(ydoc, anchor).range).toEqual({ from: 7, to: 13 });
   });
 
+  test('WO-535 (SDD-049/FB-027): rejects an expectedText that is only a newline, before it ever reaches findOccurrenceRange', async () => {
+    // The exact shape observed in a real session: a whitespace anchor with a large replacement landed
+    // glued to an existing heading and orphaned the document's own original sections below it.
+    const { ctx } = await setup('## Resumen\n\n## Requisitos\n\n## Fuera de alcance\n');
+    await expect(
+      proposeEditTool.execute(ctx, { summary: 'x', edits: [{ expectedText: '\n', replacement: '## Resumen\n\nfull new body...' }] }),
+    ).rejects.toMatchObject({ code: 'blank_expected_text' });
+  });
+
+  test('WO-535: rejects an expectedText that is only spaces, the same way', async () => {
+    const { ctx } = await setup('some real body text');
+    await expect(proposeEditTool.execute(ctx, { summary: 'x', edits: [{ expectedText: '   ', replacement: 'y' }] })).rejects.toMatchObject({
+      code: 'blank_expected_text',
+    });
+  });
+
+  test('WO-535: a real, non-blank quote is unaffected by the new check', async () => {
+    const { ctx } = await setup('## Resumen\n\nEsto es un resumen real.\n');
+    const result = (await proposeEditTool.execute(ctx, {
+      summary: 'x',
+      edits: [{ expectedText: '## Resumen', replacement: '## Resumen actualizado' }],
+    })) as { editCount: number };
+    expect(result.editCount).toBe(1);
+  });
+
   test('rejects when expectedText does not appear in the current body', async () => {
     const { ctx } = await setup('nothing relevant here');
     await expect(
@@ -194,6 +219,50 @@ describe('propose_edit tool (SDD-009 §Diseño, WO-173)', () => {
       summary: 'reassign owner',
       edits: [{ expectedText: 'body text', replacement: 'body text!' }],
       fields: { set: { owner: 'bob' } },
+    })) as { editCount: number };
+    expect(result.editCount).toBe(1);
+  });
+
+  test('WO-537/WO-539 (SDD-050/FB-028): tags set as a real array is accepted and stored as an array', async () => {
+    const { org, documentId, ctx } = await setup('body text');
+    const result = (await proposeEditTool.execute(ctx, {
+      summary: 'tag it',
+      edits: [{ expectedText: 'body text', replacement: 'body text!' }],
+      fields: { set: { tags: ['agente', 'ux'] } },
+    })) as { proposalId: string };
+
+    const proposal = await createTenantDb(pg.appPool).forOrg(org.id).agent.proposals.findById(result.proposalId);
+    expect(proposal?.fieldsSet).toEqual({ tags: ['agente', 'ux'] });
+  });
+
+  test('WO-538/WO-539: rejects tags sent as a comma-separated string, with an actionable error', async () => {
+    const { ctx } = await setup('body text');
+    await expect(
+      proposeEditTool.execute(ctx, {
+        summary: 'tag it wrong',
+        edits: [{ expectedText: 'body text', replacement: 'body text!' }],
+        fields: { set: { tags: 'agente, ux' } },
+      }),
+    ).rejects.toMatchObject({ code: 'field_type_mismatch', message: expect.stringContaining('tags') });
+  });
+
+  test('WO-538: rejects implements (an id-list field, not just tags) sent as a string, the same way', async () => {
+    const { ctx } = await setup('body text');
+    await expect(
+      proposeEditTool.execute(ctx, {
+        summary: 'x',
+        edits: [{ expectedText: 'body text', replacement: 'y' }],
+        fields: { set: { implements: 'SDD-001' } },
+      }),
+    ).rejects.toMatchObject({ code: 'field_type_mismatch' });
+  });
+
+  test('WO-539: a scalar field (title) as a string is unaffected by the new list-field check', async () => {
+    const { ctx } = await setup('body text');
+    const result = (await proposeEditTool.execute(ctx, {
+      summary: 'rename',
+      edits: [{ expectedText: 'body text', replacement: 'body text!' }],
+      fields: { set: { title: 'New title' } },
     })) as { editCount: number };
     expect(result.editCount).toBe(1);
   });
