@@ -51,6 +51,9 @@ export type { ToastContextValue, ToastOptions, ToastProviderProps, ToastTone } f
 export { PageHeader } from './PageHeader/PageHeader';
 export type { PageHeaderProps } from './PageHeader/PageHeader';
 
+export { SubNav } from './SubNav/SubNav';
+export type { SubNavGroup, SubNavItem, SubNavProps } from './SubNav/SubNav';
+
 export { Tabs } from './Tabs/Tabs';
 export type { TabDef, TabsClassNames, TabsProps } from './Tabs/Tabs';
 
