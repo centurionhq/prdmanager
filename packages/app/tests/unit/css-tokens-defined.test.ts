@@ -18,8 +18,9 @@ import { describe, expect, it } from 'vitest';
 
 const SRC = resolve(import.meta.dirname, '../../src');
 
-/** Sheets known to use variables nobody defines. Shrink it; never grow it. */
-const KNOWN_BROKEN: ReadonlySet<string> = new Set(['styles/dashboard.module.css']);
+/** Sheets known to use variables nobody defines. Shrink it; never grow it. Empty since SDD-056/WO-576: keep
+ * it empty -- a new undefined variable is a bug to fix, not an exception to list. */
+const KNOWN_BROKEN: ReadonlySet<string> = new Set([]);
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
