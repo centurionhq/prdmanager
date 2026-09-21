@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 const SRC = resolve(import.meta.dirname, '../../src');
 
 /** Sheets known to use variables nobody defines. Shrink it; never grow it. */
-const KNOWN_BROKEN: ReadonlySet<string> = new Set(['styles/forms.module.css', 'styles/dashboard.module.css']);
+const KNOWN_BROKEN: ReadonlySet<string> = new Set(['styles/dashboard.module.css']);
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
