@@ -130,6 +130,25 @@ describe('ProjectShell — work profile (WO-544, SDD-051)', () => {
     expect(await screen.findByText('perfil: sin elegir')).toBeTruthy();
   });
 
+  it('a server that predates the profile (no workProfile in its answer at all) reads as "not chosen", never as undefined', async () => {
+    mockShellBasics();
+    // What a server still running the previous release answers: just the handle, no such field.
+    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null } as never);
+
+    renderShellWithProbe();
+
+    expect(await screen.findByText('perfil: sin elegir')).toBeTruthy();
+  });
+
+  it('a profile value this build does not know is "not chosen", not something to look up in a table', async () => {
+    mockShellBasics();
+    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null, workProfile: 'gerente' } as never);
+
+    renderShellWithProbe();
+
+    expect(await screen.findByText('perfil: sin elegir')).toBeTruthy();
+  });
+
   it('asks for the profile in parallel with the rest, not after them: no extra round trip in series', async () => {
     // Nothing resolves until we say so: if the profile were fetched only after the other three settled,
     // getProfile would not have been called yet at the moment we assert.

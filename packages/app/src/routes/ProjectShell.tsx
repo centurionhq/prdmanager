@@ -16,6 +16,7 @@ import {
   type PermissionSubject,
   type ProjectOverviewDto,
   type ProjectRole,
+  workProfileSchema,
   type WorkProfile,
 } from '@prdm/contracts';
 import { LoadingState } from '@prdm/ui';
@@ -58,10 +59,18 @@ interface Loaded {
 
 /** The profile is a UX preference, so failing to read it must not take the whole project down with it:
  * it degrades to "has not chosen", and the entry band simply asks again. Everything else the shell loads
- * is load-bearing and still fails loudly. */
+ * is load-bearing and still fails loudly.
+ *
+ * The answer is *validated*, not trusted: a server still on the previous release answers without the field
+ * at all (`undefined`, which is not the `null` the band treats as "ask"), and a newer one could send a value
+ * this build has no copy for. Both mean "not chosen". Trusting the type here is what took the whole Planta
+ * down in production the day this shipped ahead of the server. */
 function loadWorkProfile(): Promise<WorkProfile | null> {
   return getProfile().then(
-    (profile) => profile.workProfile,
+    (profile) => {
+      const parsed = workProfileSchema.safeParse(profile.workProfile);
+      return parsed.success ? parsed.data : null;
+    },
     () => null,
   );
 }

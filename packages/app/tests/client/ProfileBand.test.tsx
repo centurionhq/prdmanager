@@ -30,15 +30,17 @@ const EMPTY_LINE_BOARD: LineBoardDto = { features: [], andon: null };
 
 interface Options {
   profile?: WorkProfile | null;
+  /** The literal answer of `GET /api/app/profile`, for a server whose answer is not the current shape. */
+  profileAnswer?: unknown;
   lineBoard?: () => Promise<LineBoardDto>;
   myRole?: 'viewer' | 'editor' | 'admin';
 }
 
-function renderPlanta({ profile = null, lineBoard = () => Promise.resolve(LINE_BOARD), myRole = 'editor' }: Options = {}) {
+function renderPlanta({ profile = null, profileAnswer, lineBoard = () => Promise.resolve(LINE_BOARD), myRole = 'editor' }: Options = {}) {
   vi.spyOn(client, 'listOrganizations').mockResolvedValue([makeOrgSummary()]);
   vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProjectOverview({ myRole })]);
   vi.spyOn(client, 'getSession').mockResolvedValue({ user: { id: 'u1', email: 'me@example.test', name: 'Ana Ríos' } });
-  vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null, workProfile: profile });
+  vi.spyOn(client, 'getProfile').mockResolvedValue((profileAnswer ?? { handle: null, workProfile: profile }) as never);
   vi.spyOn(client, 'getLineBoard').mockImplementation(lineBoard);
   vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
 
@@ -66,6 +68,36 @@ function renderPlanta({ profile = null, lineBoard = () => Promise.resolve(LINE_B
 const NEGOCIO = /Traigo una necesidad del negocio/;
 const PRODUCTO = /Defino qué se construye/;
 const DEVELOPER = /Escribo el código/;
+
+describe('ProfileBand — against a server that predates the profile (production incident)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    clearQueryCache();
+  });
+
+  it('does not crash: it asks exactly as on a first visit when the server never heard of workProfile', async () => {
+    renderPlanta({ profileAnswer: { handle: null } });
+
+    expect(await screen.findByRole('heading', { name: '¿Qué venís a hacer acá?' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Tu próximo paso' })).toBeNull();
+  });
+
+  it('does not crash on a profile value it does not know either', async () => {
+    renderPlanta({ profileAnswer: { handle: null, workProfile: 'gerente' } });
+
+    expect(await screen.findByRole('heading', { name: '¿Qué venís a hacer acá?' })).toBeTruthy();
+  });
+
+  it('when that server cannot save the choice, it says so and asks again instead of pretending', async () => {
+    renderPlanta({ profileAnswer: { handle: null } });
+    vi.spyOn(client, 'setWorkProfile').mockRejectedValue(new client.ApiClientError(404, 'not_found', 'not found'));
+
+    await userEvent.click(await screen.findByRole('button', { name: PRODUCTO }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('No pudimos guardar tu elección');
+    expect(screen.getByRole('heading', { name: '¿Qué venís a hacer acá?' })).toBeTruthy();
+  });
+});
 
 describe('ProfileBand — nothing chosen yet (WO-547, SDD-051)', () => {
   afterEach(() => {
