@@ -50,7 +50,7 @@ describe('app router', () => {
       render(<RouterProvider router={router} />);
 
       await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme/p/web/ajustes/general'));
-      expect(await screen.findByRole('heading', { name: 'Web' })).toBeTruthy();
+      expect(await screen.findByRole('heading', { name: 'General' })).toBeTruthy();
     });
 
     it('redirects /settings/tokens to the first visible project\'s ajustes/tokens-personales', async () => {

@@ -51,6 +51,18 @@ export type { ToastContextValue, ToastOptions, ToastProviderProps, ToastTone } f
 export { PageHeader } from './PageHeader/PageHeader';
 export type { PageHeaderProps } from './PageHeader/PageHeader';
 
+export { SectionHeader } from './SectionHeader/SectionHeader';
+export type { SectionHeaderProps } from './SectionHeader/SectionHeader';
+
+export { TextField } from './TextField/TextField';
+export type { TextFieldProps } from './TextField/TextField';
+
+export { ReadOnlyField } from './ReadOnlyField/ReadOnlyField';
+export type { ReadOnlyFieldProps } from './ReadOnlyField/ReadOnlyField';
+
+export { Panel } from './Panel/Panel';
+export type { PanelProps } from './Panel/Panel';
+
 export { SubNav } from './SubNav/SubNav';
 export type { SubNavGroup, SubNavItem, SubNavProps } from './SubNav/SubNav';
 
