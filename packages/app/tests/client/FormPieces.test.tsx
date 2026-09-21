@@ -7,7 +7,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { Panel, ReadOnlyField, SectionHeader, TextField } from '../../src/components/index.js';
+import { Notice, Panel, ReadOnlyField, SectionHeader, SelectField, TextField } from '../../src/components/index.js';
 
 describe('SectionHeader', () => {
   it('is a level-two heading with its subtitle, so the page keeps its single h1', () => {
@@ -128,5 +128,49 @@ describe('Panel', () => {
     );
 
     expect(screen.getByText('contenido')).toBeTruthy();
+  });
+});
+
+describe('SelectField', () => {
+  const OPTIONS = [
+    { value: 'acme', label: 'Acme' },
+    { value: 'globex', label: 'Globex' },
+  ];
+
+  it('is a select named by its label, with the current value selected', () => {
+    render(<SelectField label="Organización" value="globex" options={OPTIONS} onChange={() => {}} />);
+
+    expect((screen.getByLabelText('Organización') as HTMLSelectElement).value).toBe('globex');
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Acme', 'Globex']);
+  });
+
+  it('reports the chosen value', async () => {
+    const onChange = vi.fn();
+    render(<SelectField label="Organización" value="acme" options={OPTIONS} onChange={onChange} />);
+
+    await userEvent.selectOptions(screen.getByLabelText('Organización'), 'globex');
+
+    expect(onChange).toHaveBeenCalledWith('globex');
+  });
+
+  it('can keep its label for assistive technology and hide it, when a table header already says it', () => {
+    render(<SelectField label="Rol de Ana" value="acme" options={OPTIONS} onChange={() => {}} hideLabel />);
+
+    expect(screen.getByLabelText('Rol de Ana')).toBeTruthy();
+  });
+
+  it('ties its hint to the select', () => {
+    render(<SelectField label="Rol" value="acme" options={OPTIONS} onChange={() => {}} hint="Quién puede publicar." />);
+
+    expect(screen.getByLabelText('Rol').getAttribute('aria-describedby')).toContain(screen.getByText('Quién puede publicar.').id);
+  });
+});
+
+describe('Notice', () => {
+  it('says something the screen owes the person, without pretending to be an error', () => {
+    render(<Notice>No tenés permiso para gestionar tokens de CI.</Notice>);
+
+    expect(screen.getByText('No tenés permiso para gestionar tokens de CI.')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

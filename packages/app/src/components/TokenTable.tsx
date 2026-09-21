@@ -1,59 +1,76 @@
 /**
- * Shared read-only-plus-revoke table for both the personal-token screen and the per-project CI-token
- * section (SDD-006 §Modelo de datos: `tokenSummarySchema` — name, prefix, scopes, expiry, last use,
- * revoked status; never a secret).
+ * The list of a person's or a project's tokens (SDD-056/PRD-036 R2, canvas `AjustesTokens.dc.html`), on the
+ * design system's `DataTable`: sortable-ready, stacks under 640px, real `<table>` semantics. It only ever shows
+ * what `TokenSummaryDto` carries -- never a secret or its hash -- and a revoked token offers no action.
  */
 import type { ReactElement } from 'react';
 import type { TokenSummaryDto } from '@prdm/contracts';
-import styles from '../styles/forms.module.css';
+import { Button, DataTable, EmptyState, IdTag, type DataTableColumn } from './index.js';
+import styles from './TokenTable.module.css';
 
-function statusOf(token: TokenSummaryDto): string {
+const DATE_FORMAT = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+
+function formatDate(iso: string): string {
+  return DATE_FORMAT.format(new Date(iso));
+}
+
+type TokenState = 'activo' | 'vencido' | 'revocado';
+
+function stateOf(token: TokenSummaryDto): TokenState {
   if (token.revokedAt) return 'revocado';
   if (new Date(token.expiresAt).getTime() < Date.now()) return 'vencido';
   return 'activo';
 }
 
+const STATE_LABEL: Readonly<Record<TokenState, string>> = { activo: 'Activo', vencido: 'Vencido', revocado: 'Revocado' };
+
 export function TokenTable({ tokens, onRevoke }: { tokens: TokenSummaryDto[]; onRevoke: (tokenId: string) => void }): ReactElement {
   if (tokens.length === 0) {
-    return <p className={styles.hint}>Todavía no hay tokens.</p>;
+    return <EmptyState title="Todavía no hay tokens." body="Cuando crees uno, aparece acá con su alcance y su vencimiento." />;
   }
 
-  return (
-    <div className={styles.tableWrap}>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Prefijo</th>
-            <th>Scopes</th>
-            <th>Vence</th>
-            <th>Último uso</th>
-            <th>Estado</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tokens.map((token) => (
-            <tr key={token.id}>
-              <td>{token.name}</td>
-              <td>
-                <code>{token.prefix}</code>
-              </td>
-              <td>{token.scopes.join(', ')}</td>
-              <td>{token.expiresAt}</td>
-              <td>{token.lastUsedAt ?? '—'}</td>
-              <td>{statusOf(token)}</td>
-              <td>
-                {!token.revokedAt && (
-                  <button type="button" className={styles.secondaryButton} onClick={() => onRevoke(token.id)}>
-                    Revocar
-                  </button>
-                )}
-              </td>
-            </tr>
+  const columns: readonly DataTableColumn<TokenSummaryDto>[] = [
+    {
+      key: 'name',
+      header: 'Nombre',
+      render: (token) => (
+        <span className={styles.name}>
+          <span className={styles.nameMain}>{token.name}</span>
+          <span className={styles.nameMeta}>{[token.createdByName, formatDate(token.createdAt)].filter(Boolean).join(', ')}</span>
+        </span>
+      ),
+      sortValue: (token) => token.name,
+    },
+    { key: 'prefix', header: 'Prefijo', render: (token) => <IdTag id={token.prefix} tone="muted" /> },
+    {
+      key: 'scopes',
+      header: 'Alcance',
+      stack: 'block',
+      render: (token) => (
+        <span className={styles.scopes}>
+          {token.scopes.map((scope) => (
+            <span key={scope} className={`id ${styles.scope}`}>
+              {scope}
+            </span>
           ))}
-        </tbody>
-      </table>
-    </div>
-  );
+        </span>
+      ),
+    },
+    { key: 'expires', header: 'Vence', render: (token) => formatDate(token.expiresAt), sortValue: (token) => token.expiresAt },
+    { key: 'used', header: 'Último uso', render: (token) => (token.lastUsedAt ? formatDate(token.lastUsedAt) : 'Sin usar') },
+    { key: 'state', header: 'Estado', render: (token) => STATE_LABEL[stateOf(token)] },
+    {
+      key: 'actions',
+      header: 'Acciones',
+      align: 'end',
+      render: (token) =>
+        token.revokedAt ? null : (
+          <Button type="button" variant="destructive" size="sm" aria-label={`Revocar ${token.name}`} onClick={() => onRevoke(token.id)}>
+            Revocar
+          </Button>
+        ),
+    },
+  ];
+
+  return <DataTable caption="Tokens" columns={columns} rows={tokens} getRowId={(token) => token.id} />;
 }

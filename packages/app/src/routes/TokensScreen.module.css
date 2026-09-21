@@ -1,0 +1,9 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.orgPicker {
+  max-width: 360px;
+}

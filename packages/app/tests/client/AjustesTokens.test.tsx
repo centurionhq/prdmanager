@@ -47,6 +47,7 @@ describe('AjustesTokens', () => {
     expect(await screen.findByRole('heading', { name: 'Tokens de CI' })).toBeTruthy();
     await screen.findByText(/Todavía no hay tokens/);
 
+    await userEvent.click(screen.getByRole('button', { name: 'Crear token' }));
     await userEvent.type(screen.getByLabelText('Nombre'), 'ci-pipeline');
     await userEvent.click(screen.getByLabelText('reports:write'));
     await userEvent.click(screen.getByRole('button', { name: 'Crear token' }));
@@ -57,7 +58,7 @@ describe('AjustesTokens', () => {
     expect(await screen.findByText('prdm_ci_abcd.SECRET')).toBeTruthy();
 
     const revoke = vi.spyOn(client, 'revokeCiToken').mockResolvedValue(undefined);
-    await userEvent.click(screen.getByRole('button', { name: 'Revocar' }));
+    await userEvent.click(screen.getByRole('button', { name: /^Revocar/ }));
     await waitFor(() => expect(revoke).toHaveBeenCalledWith('acme', 'web', 'tok1'));
   });
 
@@ -82,6 +83,9 @@ describe('AjustesTokens', () => {
     renderAjustesTokens('member', 'admin');
 
     await screen.findByRole('heading', { name: 'Tokens de CI' });
+    // The scopes only exist once the form is open, so it has to be open for this to prove anything.
+    await userEvent.click(screen.getByRole('button', { name: 'Crear token' }));
+    expect(screen.getByLabelText('reports:write')).toBeTruthy();
     expect(screen.queryByLabelText('mcp:read')).toBeNull();
     expect(screen.queryByLabelText('mcp:write')).toBeNull();
     expect(screen.queryByLabelText('import:write')).toBeNull();

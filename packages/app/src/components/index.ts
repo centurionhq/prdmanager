@@ -57,8 +57,14 @@ export type { SectionHeaderProps } from './SectionHeader/SectionHeader';
 export { TextField } from './TextField/TextField';
 export type { TextFieldProps } from './TextField/TextField';
 
+export { SelectField } from './SelectField/SelectField';
+export type { SelectFieldProps, SelectOption } from './SelectField/SelectField';
+
 export { ReadOnlyField } from './ReadOnlyField/ReadOnlyField';
 export type { ReadOnlyFieldProps } from './ReadOnlyField/ReadOnlyField';
+
+export { Notice } from './Notice/Notice';
+export type { NoticeProps } from './Notice/Notice';
 
 export { Panel } from './Panel/Panel';
 export type { PanelProps } from './Panel/Panel';

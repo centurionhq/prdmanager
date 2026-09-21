@@ -12,6 +12,8 @@ export interface TextFieldProps {
   readonly disabled?: boolean;
   readonly required?: boolean;
   readonly type?: 'text' | 'email' | 'date';
+  /** Client-side upper bound for a `date` field; the server stays the one that decides. */
+  readonly max?: string;
 }
 
 /**
@@ -20,7 +22,7 @@ export interface TextFieldProps {
  * than from a `.field` class it has to remember to wire up -- the label is always tied to the input, the hint
  * and the error are always described by it, and an invalid field is never only red.
  */
-export function TextField({ label, value, onChange, hint, error, placeholder, disabled, required, type = 'text' }: TextFieldProps): ReactElement {
+export function TextField({ label, value, onChange, hint, error, placeholder, disabled, required, type = 'text', max }: TextFieldProps): ReactElement {
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
@@ -39,6 +41,7 @@ export function TextField({ label, value, onChange, hint, error, placeholder, di
         placeholder={placeholder}
         disabled={disabled}
         required={required}
+        max={max}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
         onChange={(event) => onChange?.(event.target.value)}
