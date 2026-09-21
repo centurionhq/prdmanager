@@ -141,7 +141,21 @@
 @media (max-width: 767px) {
   .header {
     flex-wrap: wrap;
+    gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
+  }
+
+  /* A long organisation name must shrink inside the header, not push the whole page sideways. */
+  .orgSwitcher {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .nav {
+    flex-wrap: wrap;
+    margin-left: 0;
+    gap: var(--space-3) var(--space-4);
   }
 
   .content {

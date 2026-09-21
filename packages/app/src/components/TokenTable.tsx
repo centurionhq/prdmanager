@@ -5,14 +5,9 @@
  */
 import type { ReactElement } from 'react';
 import type { TokenSummaryDto } from '@prdm/contracts';
+import { formatDate } from '../lib/format-date.js';
 import { Button, DataTable, EmptyState, IdTag, type DataTableColumn } from './index.js';
 import styles from './TokenTable.module.css';
-
-const DATE_FORMAT = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
-
-function formatDate(iso: string): string {
-  return DATE_FORMAT.format(new Date(iso));
-}
 
 type TokenState = 'activo' | 'vencido' | 'revocado';
 

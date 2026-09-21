@@ -1,0 +1,34 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.invitations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.cannotRemove {
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}

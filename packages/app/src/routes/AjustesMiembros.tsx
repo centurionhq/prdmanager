@@ -10,9 +10,9 @@
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import { can, type OrganizationMember, type ProjectMemberDto } from '@prdm/contracts';
-import { LoadingState } from '@prdm/ui';
 import { getSession, listOrganizationMembers, listProjectMembers } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
+import { Skeleton } from '../components/index.js';
 import { FormError } from '../components/FormError.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { ProjectMembersSection } from './ProjectMembersSection.js';
@@ -51,7 +51,7 @@ export function AjustesMiembros(): ReactElement {
   }, [orgSlug, projectSlug]);
 
   if (error) return <FormError message={error} />;
-  if (!data) return <LoadingState label="Cargando miembros…" />;
+  if (!data) return <Skeleton rows={4} />;
 
   return (
     <ProjectMembersSection
