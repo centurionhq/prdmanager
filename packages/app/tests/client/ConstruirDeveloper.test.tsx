@@ -214,7 +214,8 @@ describe('ConstruirDeveloper — around the edges (WO-572, SDD-055)', () => {
     renderPath({ tokens: () => Promise.reject(new Error('sin conexión')) });
 
     expect(await screen.findByRole('group', { name: 'Comandos para vincular el repositorio' })).toBeTruthy();
-    expect(screen.getByText(/No pudimos leer tus credenciales/)).toBeTruthy();
+    // The screen draws first and the failed read lands a tick later: wait for the notice, do not race it.
+    expect(await screen.findByText(/No pudimos leer tus credenciales/)).toBeTruthy();
     expect(within(screen.getByRole('list', { name: 'Pasos de puesta en marcha' })).getAllByRole('listitem')).toHaveLength(3);
   });
 
