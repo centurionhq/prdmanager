@@ -227,17 +227,27 @@ describe('listCodeRefs', () => {
   });
 });
 
-describe('getProjectAuditLog', () => {
-  it('GETs the project audit log with no params', async () => {
-    const page = { items: [], nextCursor: null };
-    const spy = spyOnRequest().mockResolvedValue(page);
+/** What the server really answers (`packages/server/src/api/audit-log.ts`, pinned by its own integration test):
+ * `{ entries, nextCursor }`. These tests once mocked `{ items, ... }` -- the shape the client *assumed* -- so both
+ * audit screens passed every test and crashed in the real app with "Cannot read properties of undefined". */
+const SERVER_ENTRY = { id: 'e1', actor: { type: 'user', id: 'u1' }, action: 'wo.claim', target: 'WO-001', metadata: {}, createdAt: '2026-09-20T10:00:00.000Z' };
 
-    await expect(getProjectAuditLog('acme', 'factory')).resolves.toEqual(page);
+describe('getProjectAuditLog', () => {
+  it('GETs the project audit log with no params, and reads the entries the server sends as items', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ entries: [SERVER_ENTRY], nextCursor: 'c1' });
+
+    await expect(getProjectAuditLog('acme', 'factory')).resolves.toEqual({ items: [SERVER_ENTRY], nextCursor: 'c1' });
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/audit-log');
   });
 
+  it('an answer that is not the shape the server promises fails loudly here, not deep inside a render', async () => {
+    spyOnRequest().mockResolvedValue({ items: [SERVER_ENTRY], nextCursor: null });
+
+    await expect(getProjectAuditLog('acme', 'factory')).rejects.toThrow(/auditor/i);
+  });
+
   it('GETs the project audit log with action/limit/cursor as query params', async () => {
-    const spy = spyOnRequest().mockResolvedValue({ items: [], nextCursor: null });
+    const spy = spyOnRequest().mockResolvedValue({ entries: [], nextCursor: null });
 
     await getProjectAuditLog('acme', 'factory', { action: 'wo.claim', limit: 10, cursor: 'xyz' });
     expect(spy).toHaveBeenCalledWith(
@@ -247,12 +257,17 @@ describe('getProjectAuditLog', () => {
 });
 
 describe('getOrgAuditLog', () => {
-  it('GETs the org-level audit log with no project scoping', async () => {
-    const page = { items: [], nextCursor: null };
-    const spy = spyOnRequest().mockResolvedValue(page);
+  it('GETs the org-level audit log with no project scoping, and reads the entries the server sends as items', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ entries: [SERVER_ENTRY], nextCursor: null });
 
-    await expect(getOrgAuditLog('acme')).resolves.toEqual(page);
+    await expect(getOrgAuditLog('acme')).resolves.toEqual({ items: [SERVER_ENTRY], nextCursor: null });
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/audit-log');
+  });
+
+  it('fails loudly on an answer that is not the promised shape', async () => {
+    spyOnRequest().mockResolvedValue({ rows: [] });
+
+    await expect(getOrgAuditLog('acme')).rejects.toThrow(/auditor/i);
   });
 });
 

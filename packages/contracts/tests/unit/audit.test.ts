@@ -1,32 +1,25 @@
-/**
- * Redacted audit-log-entry DTO validation (SDD-012, WO-327): mirrors `@prdm/db`'s `audit_log` table
- * (`packages/db/src/schema/audit.ts`), deliberately dropping `ip`/`user_agent`.
- */
 import { describe, expect, test } from 'vitest';
-import { auditLogEntrySchema } from '../../src/audit.js';
+import { auditLogPageSchema } from '../../src/audit.js';
 
-describe('auditLogEntrySchema', () => {
-  const valid = {
-    id: 'audit-1',
-    actor: { type: 'user', id: 'user-1' },
-    action: 'project.settings.update',
-    target: 'proj-1',
-    metadata: { field: 'default_branch' },
-    createdAt: '2026-09-01T00:00:00.000Z',
-  };
+const ENTRY = { id: 'e1', actor: { type: 'user', id: 'u1' }, action: 'wo.claim', target: 'WO-001', metadata: {}, createdAt: '2026-09-20T10:00:00.000Z' };
 
-  test('accepts a full entry', () => {
-    expect(auditLogEntrySchema.parse(valid)).toEqual(valid);
+/** The page both audit endpoints answer with. It is shared so the server and the client cannot disagree about
+ * its shape again: they did (`entries` on the wire, `items` in the client) and both audit screens crashed. */
+describe('auditLogPageSchema (SDD-056/WO-582)', () => {
+  test('is { entries, nextCursor }, the shape the server sends', () => {
+    expect(auditLogPageSchema.safeParse({ entries: [ENTRY], nextCursor: 'c1' }).success).toBe(true);
+    expect(auditLogPageSchema.safeParse({ entries: [], nextCursor: null }).success).toBe(true);
   });
 
-  test('never carries ip/user_agent even if present on the input', () => {
-    const parsed = auditLogEntrySchema.parse({ ...valid, ip: '127.0.0.1', userAgent: 'curl' });
-    expect(parsed).not.toHaveProperty('ip');
-    expect(parsed).not.toHaveProperty('userAgent');
+  test('refuses the shape the client used to assume', () => {
+    expect(auditLogPageSchema.safeParse({ items: [ENTRY], nextCursor: null }).success).toBe(false);
   });
 
-  test('rejects a missing actor', () => {
-    const { actor: _actor, ...withoutActor } = valid;
-    expect(() => auditLogEntrySchema.parse(withoutActor)).toThrow();
+  test('refuses a page whose entries are not audit entries', () => {
+    expect(auditLogPageSchema.safeParse({ entries: [{ id: 'x' }], nextCursor: null }).success).toBe(false);
+  });
+
+  test('needs a cursor field, null when there is no further page', () => {
+    expect(auditLogPageSchema.safeParse({ entries: [] }).success).toBe(false);
   });
 });
