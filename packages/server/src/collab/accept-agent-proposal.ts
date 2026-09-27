@@ -109,7 +109,8 @@ function findStaleReason(
 
   if (proposal.fieldsSet || proposal.fieldsUnset) {
     const rendered: Record<string, FieldValue> = { ...(currentFields as Record<string, FieldValue>) };
-    for (const [key, value] of Object.entries((proposal.fieldsSet as Record<string, string> | null) ?? {})) rendered[key] = value;
+    // WO-537 (SDD-050): a field's value may be a list (`tags`, `implements`, ...), not only a string.
+    for (const [key, value] of Object.entries((proposal.fieldsSet as Record<string, FieldValue> | null) ?? {})) rendered[key] = value;
     for (const key of (proposal.fieldsUnset as string[] | null) ?? []) delete rendered[key];
     const issues = forbiddenFieldInjectionIssues(rendered, currentFields as Record<string, FieldValue>);
     if (issues.length > 0) return issues.map((issue) => issue.message).join('; ');
@@ -195,7 +196,7 @@ export async function acceptAgentProposal(pool: Pool, hocuspocus: Hocuspocus, in
       }
       if (proposal.fieldsSet || proposal.fieldsUnset) {
         const fm = scratch.getMap<FrontmatterValue>(FRONTMATTER_ROOT);
-        for (const [key, value] of Object.entries((proposal.fieldsSet as Record<string, string> | null) ?? {})) fm.set(key, value);
+        for (const [key, value] of Object.entries((proposal.fieldsSet as Record<string, FrontmatterValue> | null) ?? {})) fm.set(key, value);
         for (const key of (proposal.fieldsUnset as string[] | null) ?? []) fm.delete(key);
       }
     }, AGENT_ACTOR_ID);

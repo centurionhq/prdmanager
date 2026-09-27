@@ -9,6 +9,7 @@ import { createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { AgentToolError, AgentToolPermissionError, buildToolDefinitions, executeAgentTool, READ_ONLY_AGENT_TOOLS, type AgentToolContext } from '../../src/agent/tools/index.js';
 import { getFeatureBranchTool } from '../../src/agent/tools/get-feature-branch.js';
+import { proposeEditTool as proposeEditToolForTest } from '../../src/agent/tools/propose-edit.js';
 import { getNodeTool } from '../../src/agent/tools/get-node.js';
 import { buildProductForest, getProductTreeTool } from '../../src/agent/tools/get-product-tree.js';
 import { getProjectStatusTool } from '../../src/agent/tools/get-project-status.js';
@@ -205,6 +206,79 @@ describe('agent tools (SDD-009 §Herramientas, WO-169)', () => {
     expect(Buffer.byteLength(JSON.stringify(forest), 'utf8')).toBeLessThan(20 * 1024);
     // Still valid JSON describing whole features, never a half-written one.
     expect(() => JSON.parse(JSON.stringify(forest))).not.toThrow();
+  });
+
+  test('WO-516/WO-517 (SDD-045/FB-025): walking the graph brings no document bodies, and the body is one explicit argument away', async () => {
+    const base = await setupPublishedProject();
+    const ctx = contextFor(base, true);
+
+    const structural = (await getNodeTool.execute(ctx, { id: 'PRD-001' })) as { found: boolean; node?: Record<string, unknown> } & Record<string, unknown>;
+    const flat = structural.node ?? structural;
+
+    expect(structural.found).toBe(true);
+    // The measured problem: `body` was 86 % of a 12 KB result, twelve times over in one turn.
+    expect(flat).not.toHaveProperty('body');
+    // Identity and links still come back -- this is a narrowing of payload, not of capability.
+    expect(JSON.stringify(structural)).toContain('PRD-001');
+
+    // And internal bookkeeping the model can do nothing with is gone.
+    for (const internal of ['project_id', 'content_hash', 'tags_text']) {
+      expect(flat).not.toHaveProperty(internal);
+    }
+
+    const withBody = (await getNodeTool.execute(ctx, { id: 'PRD-001', includeBody: true })) as { node?: Record<string, unknown> } & Record<string, unknown>;
+    expect(withBody.node ?? withBody).toHaveProperty('body');
+  });
+
+  test('WO-517: a feature branch is structure only, and stays small per node', async () => {
+    const base = await setupPublishedProject();
+    const branch = (await getFeatureBranchTool.execute(contextFor(base, true), { featureId: 'PRD-001' })) as { found: boolean; nodes: Record<string, unknown>[] };
+
+    expect(branch.found).toBe(true);
+    for (const node of branch.nodes) {
+      expect(node).not.toHaveProperty('body');
+      expect(node).not.toHaveProperty('project_id');
+    }
+
+    // Four of these accounted for 79_662 bytes of one real turn. Structure alone is hundreds of bytes
+    // per node, not thousands.
+    const bytesPerNode = branch.nodes.length === 0 ? 0 : JSON.stringify(branch.nodes).length / branch.nodes.length;
+    expect(bytesPerNode).toBeLessThan(1_000);
+  });
+
+  test('WO-526 (SDD-047/FB-026): a mis-shaped argument says which field is wrong, so the agent can fix it', async () => {
+    const base = await setupPublishedProject();
+    // `propose_edit` requires `summary` and a non-empty `edits`; send neither correctly.
+    const result = await executeAgentTool(contextFor(base, true), READ_ONLY_AGENT_TOOLS.concat([proposeEditToolForTest]), 'propose_edit', JSON.stringify({ edits: [] }));
+    const parsed = JSON.parse(result.resultJson) as { error: { code: string; message: string } };
+
+    expect(result.ok).toBe(false);
+    expect(parsed.error.code).toBe('invalid_arguments');
+    // The old message was a fixed sentence with no field in it: the model retried blind and failed again.
+    expect(parsed.error.message).toMatch(/summary|edits/);
+    // And it never echoes back the value that was sent.
+    expect(parsed.error.message).not.toContain(JSON.stringify({ edits: [] }));
+  });
+
+  test('WO-527 (SDD-047/FB-026): an expectedText that is really a frontmatter field points at the right argument', async () => {
+    const base = await setupPublishedProject();
+    // The exact shape seen in the user test: the agent tried to edit `title: ""` as if it were body text.
+    await expect(
+      proposeEditToolForTest.execute(contextFor(base, true), {
+        summary: 'cambiar el título',
+        edits: [{ expectedText: 'title: ""', replacement: 'title: "Otro"' }],
+      }),
+    ).rejects.toMatchObject({ code: 'text_not_found', message: expect.stringContaining('fields') });
+  });
+
+  test('WO-527: body text that is genuinely absent still gets the plain not-found message', async () => {
+    const base = await setupPublishedProject();
+    await expect(
+      proposeEditToolForTest.execute(contextFor(base, true), {
+        summary: 'cambiar algo',
+        edits: [{ expectedText: 'este texto no existe en ningún lado', replacement: 'x' }],
+      }),
+    ).rejects.toMatchObject({ code: 'text_not_found', message: expect.stringContaining('was not found in the current document body') });
   });
 
   test('read_document returns line-numbered body and frontmatter fields for the live working copy', async () => {

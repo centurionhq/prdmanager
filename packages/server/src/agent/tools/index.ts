@@ -62,6 +62,26 @@ function errorResult(code: string, message: string): AgentToolCallResult {
   return { ok: false, resultJson: JSON.stringify({ error: { code, message } }) };
 }
 
+/**
+ * WO-526 (SDD-047/FB-026): says which argument was wrong.
+ *
+ * The message used to be the fixed "tool arguments did not match the expected schema". Observed in a
+ * real session: the model got it, had nothing to correct, retried blind, and failed the same way — a
+ * trivial mismatch turned into a lost turn.
+ *
+ * Only the *shape* of the argument is reported: the field path and what was expected, both of which
+ * come from the schema this server wrote. Never the value the model sent, which could carry document
+ * or user content — the caution that justified the fixed message applies to content, not to the form
+ * of a call the model itself made.
+ */
+function describeSchemaFailure(error: { issues: readonly { path: readonly PropertyKey[]; message: string }[] }): string {
+  const details = error.issues.slice(0, 4).map((issue) => {
+    const where = issue.path.length > 0 ? issue.path.join('.') : '(root)';
+    return `${where}: ${issue.message}`;
+  });
+  return details.length > 0 ? `tool arguments did not match the expected schema — ${details.join('; ')}` : 'tool arguments did not match the expected schema';
+}
+
 /** Parses `argumentsJson` (the model's own, untrusted, possibly-malformed JSON), runs the named tool from
  * `tools`, and always resolves (never rejects) — every failure mode (unknown tool, invalid arguments,
  * permission denial, an unexpected internal error) becomes a `{error}` JSON result the model receives as
@@ -78,7 +98,7 @@ export async function executeAgentTool(ctx: AgentToolContext, tools: readonly Ag
   }
 
   const parsed = tool.inputSchema.safeParse(rawArgs);
-  if (!parsed.success) return errorResult('invalid_arguments', 'tool arguments did not match the expected schema');
+  if (!parsed.success) return errorResult('invalid_arguments', describeSchemaFailure(parsed.error));
 
   try {
     const output = await tool.execute(ctx, parsed.data);

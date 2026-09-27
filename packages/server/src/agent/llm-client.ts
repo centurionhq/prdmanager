@@ -58,6 +58,12 @@ export type LlmFinishReason = 'stop' | 'tool_calls' | 'length' | 'aborted';
 
 export type LlmEvent =
   | { type: 'token'; text: string }
+  /** WO-524 (SDD-046): the provider is thinking. DeepSeek streams `reasoning_content` alongside
+   * `content`, and those tokens consume `max_tokens` while producing nothing readable — which is how a
+   * turn ended with `finish_reason: length` and an empty answer. Surfaced as *activity* only: the
+   * product decision is to show what the agent is doing, never its chain of thought, so `chars` carries
+   * the volume and never the text. */
+  | { type: 'reasoning'; chars: number }
   | { type: 'tool_call'; toolCall: LlmToolCall }
   | { type: 'usage'; promptTokens: number; completionTokens: number; totalTokens: number }
   | { type: 'done'; finishReason: LlmFinishReason }
