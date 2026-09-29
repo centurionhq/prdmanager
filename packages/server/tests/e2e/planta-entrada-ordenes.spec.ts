@@ -167,6 +167,7 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
   await login(page, baseUrl, alice.email);
 
   let prdDocId = '';
+  let bcDocId = '';
 
   await test.step('Alice creates the PRD and a Feedback that justifies it', async () => {
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents`);
@@ -214,7 +215,7 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await createDocument(page, 'BC', 'Caso de negocio: Line Board Journey');
     const bcLink = page.getByRole('link', { name: /^BC-\d+$/ });
     await expect(bcLink).toBeVisible();
-    const bcDocId = (await bcLink.textContent())!.trim();
+    bcDocId = (await bcLink.textContent())!.trim();
     await bcLink.click();
     await expect(page.getByRole('heading', { level: 1, name: 'Caso de negocio: Line Board Journey' })).toBeVisible();
     await fillTitle(page, 'Caso de negocio: Line Board Journey');
@@ -250,16 +251,27 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await waitForFieldOnServer(context, `${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${prdDocId}`, 'Justificado por', bcDocId);
   });
 
-  await test.step('Planta: publishing the now-justified PRD shows it at the real Diseño técnico station', async () => {
+  await test.step('Planta: publishing the now-justified PRD shows it at the real Producto station', async () => {
     await switchToValidationTab(page);
     await page.getByRole('button', { name: 'Solicitar revisión' }).click();
     await expect(page.locator('p', { hasText: /in_review/ })).toBeVisible();
     await publishFromReview(page);
     await expect(page.locator('p', { hasText: /published/ })).toBeVisible();
 
+    // WO-443 (SDD-024 §4.4): a PRD whose `justified_by` resolves to a present BC no longer gets its own
+    // top-level row -- it collapses into `FeatureLine.children` of that BC's row (`LineBoard.tsx`'s
+    // `secondaryLine`), so the station shown on the board from here on is the *BC*'s own row (whose
+    // `deriveBcRowStation`, `station.ts`, reuses the same architecting-blueprint/work-order graph a
+    // legacy top-level PRD's `deriveStation` would -- but unlike that one, it splits "producto" (PRD
+    // approved, no architecting blueprint yet) from "diseño técnico" (one exists) into two distinct
+    // stations instead of collapsing them: PRD-011 §4.4 is explicit that a just-approved PRD with no SDD
+    // yet parks at "Producto", not "Diseño técnico"). The PRD's id still shows, just as plain text inside
+    // that row rather than as its own "estación"-labeled link.
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
     await expect(page.getByRole('heading', { level: 1, name: 'Planta' })).toBeVisible();
-    await expect(page.getByRole('link', { name: new RegExp(`${prdDocId} .*estación Diseño técnico`) })).toBeVisible();
+    const bcRow = page.getByRole('link', { name: new RegExp(`${bcDocId} .*estación Producto`) });
+    await expect(bcRow).toBeVisible();
+    await expect(bcRow).toContainText(prdDocId);
   });
 
   await test.step('Entrada: submit feedback, then triage it into the PRD feature from the inbox', async () => {
@@ -326,7 +338,8 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     workOrderId = body.documents[0]!.docId;
 
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
-    await expect(page.getByRole('link', { name: new RegExp(`${prdDocId} .*estación Planificación`) })).toBeVisible();
+    // Same WO-443 collapse as the earlier station check -- the row is keyed on the BC, not the PRD.
+    await expect(page.getByRole('link', { name: new RegExp(`${bcDocId} .*estación Planificación`) })).toBeVisible();
   });
 
   await test.step('Órdenes: claim the work order from the drawer and see it reflect as claimed', async () => {
@@ -352,7 +365,8 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
 
   await test.step('Planta: claiming the work order moves the PRD to the real Construcción station', async () => {
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
-    await expect(page.getByRole('link', { name: new RegExp(`${prdDocId} .*estación Construcción`) })).toBeVisible();
+    // Same WO-443 collapse as the earlier station checks -- the row is keyed on the BC, not the PRD.
+    await expect(page.getByRole('link', { name: new RegExp(`${bcDocId} .*estación Construcción`) })).toBeVisible();
   });
 
   await test.step('Zero CSP violations fired during the whole journey', async () => {
