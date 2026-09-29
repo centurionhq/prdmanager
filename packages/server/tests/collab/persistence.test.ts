@@ -159,6 +159,25 @@ describe('collab persistence (SDD-008, WO-145)', () => {
     expect(provider.document.getText('body').toString()).toBe('v2 body');
   });
 
+  test('WO-596: the WO-447 seed is durably journaled to doc_updates, not just applied to the live Y.Doc', async () => {
+    const doc = await createCollabDocumentFixture(pg, { orgId: org.id, projectId: project.id });
+    const renderedMarkdown = '---\nid: "PRD-001"\ntype: "PRD"\ntitle: "Test doc"\nstatus: "draft"\n---\n\n## Resumen\n\nSeeded body.\n';
+    await insertDocumentVersion(pg, org.id, doc.id, 1, renderedMarkdown);
+
+    harness = await startHarness(pg.appPool);
+    const provider = makeProvider(harness.url, `${project.id}:${doc.id}`);
+    providers.push(provider);
+    // No wait for any debounced store here on purpose -- the journal write must be part of
+    // `onLoadDocument` itself (awaited before the connection is considered loaded), never contingent on
+    // a later `onStoreDocument` flush. If this row is missing at this point, the fix isn't durable yet.
+    await onceSynced(provider);
+
+    const { rows } = await pg.ownerPool.query(`SELECT actor_kind, user_id FROM doc_updates WHERE document_id = $1 ORDER BY seq`, [doc.id]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].actor_kind).toBe('system');
+    expect(rows[0].user_id).toBeNull();
+  });
+
   test('onLoadDocument applies WO-139 pending_editable_patch as a system:engine transaction and clears it', async () => {
     const doc = await createCollabDocumentFixture(pg, { orgId: org.id, projectId: project.id, pendingEditablePatch: { tags: ['from-engine'] } });
     harness = await startHarness(pg.appPool);
