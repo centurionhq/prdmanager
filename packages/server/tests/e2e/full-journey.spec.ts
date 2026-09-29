@@ -277,12 +277,53 @@ test('full product journey', async ({ browser }) => {
     fbDocIdRef = fbDocId;
   });
 
-  await test.step('Alice publishes the PRD', async () => {
-    await pageAlice.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${prdDocId}`);
+  let bcDocIdRef = '';
+
+  // SDD-023's `checkFeatureBusinessCase` requires a PRD's justification to resolve to an *approved* BC,
+  // not just any Feedback (same gap `planta-entrada-ordenes.spec.ts`'s own WO-594 already fixed) -- the FB
+  // above justifies the BC, the BC is published (WO-548 makes that leave it `approved`), and the PRD's
+  // `justified_by` points at the BC instead of the FB directly.
+  await test.step('Alice creates and publishes a Business Case that justifies the PRD', async () => {
+    await pageAlice.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents`);
+    await createDocument(pageAlice, 'BC', 'Caso de negocio: Product Vision');
+
+    const link = pageAlice.getByRole('link', { name: /^BC-\d+$/ });
+    await expect(link).toBeVisible();
+    const bcDocId = (await link.textContent())!.trim();
+    await link.click();
+    await expect(pageAlice.getByRole('heading', { level: 1, name: 'Caso de negocio: Product Vision' })).toBeVisible();
+
+    await frontmatterField(pageAlice, 'Título').fill('Caso de negocio: Product Vision');
+    await frontmatterField(pageAlice, 'Título').blur();
     await pageAlice.getByLabel('Justificado por').fill(fbDocIdRef);
     await pageAlice.getByLabel('Justificado por').blur();
+    const bcUrl = `${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${bcDocId}`;
+    await waitForFieldOnServer(contextAlice, bcUrl, 'Justificado por', fbDocIdRef);
 
-    await waitForFieldOnServer(contextAlice, `${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${prdDocId}`, 'Justificado por', fbDocIdRef);
+    // "Nuevo documento" only ever seeds the *editor's local display* from the BC template -- the
+    // server-side body stays empty until a real edit syncs it (same root cause `typeIntoEmptyBody`'s own
+    // doc comment explains), so the four sections `checkBusinessCase` requires have to be typed for real.
+    await typeIntoEmptyBody(
+      pageAlice,
+      '## Problema\n\nLos equipos no colaboran en tiempo real.\n\n## Impacto esperado\n\nMenos fricción al co-editar documentos.\n\n## Métrica de éxito\n\nTiempo de ronda de feedback baja a la mitad.\n\n## Costo estimado\n\nUn sprint de un developer.',
+    );
+    await waitForBodyOnServer(contextAlice, bcUrl, 'Un sprint de un developer.');
+
+    await switchToValidationTab(pageAlice);
+    await pageAlice.getByRole('button', { name: 'Solicitar revisión' }).click();
+    await expect(pageAlice.locator('p', { hasText: /in_review/ })).toBeVisible();
+    await publishFromReview(pageAlice);
+    await expect(pageAlice.locator('p', { hasText: /published/ })).toBeVisible();
+
+    bcDocIdRef = bcDocId;
+  });
+
+  await test.step('Alice publishes the PRD', async () => {
+    await pageAlice.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${prdDocId}`);
+    await pageAlice.getByLabel('Justificado por').fill(bcDocIdRef);
+    await pageAlice.getByLabel('Justificado por').blur();
+
+    await waitForFieldOnServer(contextAlice, `${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${prdDocId}`, 'Justificado por', bcDocIdRef);
 
     // The live validation panel only refreshes from its own `validation:updated` broadcast (recomputed
     // server-side *after* a change lands) — waiting for the specific "no justification" error to clear
