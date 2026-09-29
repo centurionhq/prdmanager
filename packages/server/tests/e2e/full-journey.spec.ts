@@ -67,13 +67,16 @@ async function switchToValidationTab(page: Page): Promise<void> {
   await page.getByRole('tab', { name: 'Validación' }).click();
 }
 
-/** A freshly created document's live `Y.Doc` starts genuinely empty (its `working_state` is only ever
- * written once a real collab edit happens — the template used to seed `document_versions` never seeds
- * the live document itself), so the very first edit can just click into `.cm-content` and type: the
- * caret lands at the document's only (empty) line. */
+/** A freshly created PRD/BC's live `Y.Doc` is NOT empty -- "Nuevo documento" seeds it from that kind's
+ * template (`packages/core/src/templates/index.ts`), e.g. a PRD starts with "## Resumen/## Requisitos/##
+ * Fuera de alcance" already in the body. `Control+a` selects that seeded content before typing, so `text`
+ * replaces it outright instead of landing wherever a bare click happens to place the caret (which used to
+ * be reliable back when the live document genuinely started blank, but silently merges into the seeded
+ * headings now -- see WO-594's commit message for how this was found). */
 async function typeIntoEmptyBody(page: Page, text: string): Promise<void> {
   await switchToMarkdownTab(page);
   await page.locator('.cm-content').click();
+  await page.keyboard.press('Control+a');
   await typeLines(page, text);
 }
 
