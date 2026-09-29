@@ -54,9 +54,14 @@ async function switchToPreviewTab(page: Page): Promise<void> {
   await page.getByRole('tab', { name: 'Vista previa' }).click();
 }
 
+/** A freshly created PRD's live `Y.Doc` is NOT empty -- "Nuevo documento" seeds it from the PRD template
+ * (`packages/core/src/templates/index.ts`: "## Resumen/## Requisitos/## Fuera de alcance" already in the
+ * body). `Control+a` selects that seeded content before typing, so `text` replaces it outright -- see
+ * WO-594's commit message for how the stale "starts genuinely empty" assumption here was found. */
 async function typeIntoEmptyBody(page: Page, text: string): Promise<void> {
   await switchToMarkdownTab(page);
   await page.locator('.cm-content').click();
+  await page.keyboard.press('Control+a');
   await typeLines(page, text);
 }
 

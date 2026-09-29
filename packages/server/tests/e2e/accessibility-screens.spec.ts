@@ -92,6 +92,9 @@ test.describe('Accessibility gate: ported frontend screens (WO-369)', () => {
     // WO-387's own checklist calls out, not just an empty document.
     await switchToMarkdownTab(page);
     await page.locator('.cm-content').click();
+    // A fresh PRD's body isn't empty -- "Nuevo documento" seeds it from the PRD template ("## Resumen/##
+    // Requisitos/## Fuera de alcance"), so select-all before typing to replace it outright.
+    await page.keyboard.press('Control+a');
     const lines = ['# Overview', '', 'A **bold** point with a [link](https://example.com).', '', '- one', '- two', '', '- [ ] pending task'];
     for (const [index, line] of lines.entries()) {
       if (index > 0) await page.keyboard.press('Enter');
