@@ -102,9 +102,13 @@ async function waitForBodyOnServer(context: BrowserContext, url: string, expecte
   }
 }
 
+/** A freshly created document's live `Y.Doc` is NOT empty -- "Nuevo documento" seeds it from that kind's
+ * template (`packages/core/src/templates/index.ts`). `Control+a` selects that seeded content before
+ * typing, so `text` replaces it outright -- see WO-594's commit message for how this was found. */
 async function typeIntoEmptyBody(page: Page, text: string): Promise<void> {
   await switchToMarkdownTab(page);
   await page.locator('.cm-content').click();
+  await page.keyboard.press('Control+a');
   await typeLines(page, text);
 }
 
@@ -201,9 +205,11 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
 
     // SDD-023's `checkFeatureBusinessCase` requires a PRD's justification to resolve to an *approved BC*,
     // not just any Feedback -- so the FB above only justifies the BC, and the PRD is justified by the BC
-    // itself. "Nuevo documento" seeds the BC from its template (`packages/core/src/templates/index.ts`),
-    // which already carries all four sections `checkBusinessCase` requires (Problema/Impacto esperado/
-    // Métrica de éxito/Costo estimado), so no body edit is needed here beyond the title.
+    // itself. "Nuevo documento" only ever seeds the *editor's local display* from the BC template
+    // (`packages/core/src/templates/index.ts`) -- the server-side body stays genuinely empty until a real
+    // edit syncs it (same root cause `typeIntoEmptyBody`'s own doc comment now explains), so the four
+    // sections `checkBusinessCase` requires have to be typed for real, not left as the visual-only
+    // template placeholder.
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents`);
     await createDocument(page, 'BC', 'Caso de negocio: Line Board Journey');
     const bcLink = page.getByRole('link', { name: /^BC-\d+$/ });
@@ -216,9 +222,24 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await page.getByLabel('Justificado por').blur();
     await waitForFieldOnServer(context, `${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${bcDocId}`, 'Justificado por', fbDocId);
 
+    await typeIntoEmptyBody(
+      page,
+      '## Problema\n\nLos clientes no pueden ver el estado real de la linea.\n\n## Impacto esperado\n\nMenos consultas de soporte sobre el estado.\n\n## Métrica de éxito\n\nConsultas de soporte bajan 30%.\n\n## Costo estimado\n\nUn sprint de un developer.',
+    );
+    const bcUrl = `${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${bcDocId}`;
+    await waitForBodyOnServer(context, bcUrl, 'Un sprint de un developer.');
+
     await switchToValidationTab(page);
     await page.getByRole('button', { name: 'Solicitar revisión' }).click();
     await expect(page.locator('p', { hasText: /in_review/ })).toBeVisible();
+    // `PublishReviewModal`'s validation summary comes from `doc.lastValidation`, only refreshed by
+    // `DocumentDetail`'s own `reload()` -- `openPublishReview` itself doesn't trigger one. A hard reload
+    // here forces a fresh fetch instead of risking a `Publicar` click racing whatever `lastValidation`
+    // snapshot happened to be in memory (confirmed stale in practice: the dialog once showed "1 error"
+    // and a leftover "cannot publish" banner immediately after the body/justified_by above had both
+    // already round-tripped through `waitForBodyOnServer`/`waitForFieldOnServer`).
+    await page.reload();
+    await switchToValidationTab(page);
     await publishFromReview(page);
     await expect(page.locator('p', { hasText: /published/ })).toBeVisible();
 
