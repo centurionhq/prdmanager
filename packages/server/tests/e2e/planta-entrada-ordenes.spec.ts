@@ -24,12 +24,13 @@
  * exists) -> construcción (once that work order is claimed).
  *
  * WO-446/SDD-024 note (station names only, not run in this WO -- see its own commit message): renamed the
- * station literals/labels this spec asserts on to match SDD-024's seven-station rename. Separately,
- * SDD-023's `checkFeatureBusinessCase` (merged before SDD-024) now requires a PRD's justification to resolve
- * to an *approved BC*, not just any Feedback -- this spec still justifies its PRD with a plain FB, same as
- * before SDD-023. Whether that still lets the PRD publish (and reach "diseño técnico") needs verifying by
- * actually running this spec; if SDD-023 broke it, fixing it is its own WO (adding a BC-creation-and-
- * approval step to the journey), out of scope here.
+ * station literals/labels this spec asserts on to match SDD-024's seven-station rename.
+ *
+ * SDD-023's `checkFeatureBusinessCase` (merged before SDD-024) requires a PRD's justification to resolve
+ * to an *approved BC*, not just any Feedback -- confirmed broken against a plain-FB justification (this
+ * spec's own run reproduced it: publish stayed blocked with "is justified, but not by a BC"). Fixed by
+ * inserting a BC between the FB and the PRD: the FB justifies the BC, the BC is published, and the PRD's
+ * `justified_by` points at the BC instead of the FB directly.
  */
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { PASSWORD, startJourney, stopJourney, type Journey } from './harness.js';
@@ -198,11 +199,34 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await publishFromReview(page);
     await expect(page.locator('p', { hasText: /published/ })).toBeVisible();
 
-    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${prdDocId}`);
+    // SDD-023's `checkFeatureBusinessCase` requires a PRD's justification to resolve to an *approved BC*,
+    // not just any Feedback -- so the FB above only justifies the BC, and the PRD is justified by the BC
+    // itself. "Nuevo documento" seeds the BC from its template (`packages/core/src/templates/index.ts`),
+    // which already carries all four sections `checkBusinessCase` requires (Problema/Impacto esperado/
+    // Métrica de éxito/Costo estimado), so no body edit is needed here beyond the title.
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents`);
+    await createDocument(page, 'BC', 'Caso de negocio: Line Board Journey');
+    const bcLink = page.getByRole('link', { name: /^BC-\d+$/ });
+    await expect(bcLink).toBeVisible();
+    const bcDocId = (await bcLink.textContent())!.trim();
+    await bcLink.click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Caso de negocio: Line Board Journey' })).toBeVisible();
+    await fillTitle(page, 'Caso de negocio: Line Board Journey');
     await page.getByLabel('Justificado por').fill(fbDocId);
     await page.getByLabel('Justificado por').blur();
+    await waitForFieldOnServer(context, `${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${bcDocId}`, 'Justificado por', fbDocId);
+
+    await switchToValidationTab(page);
+    await page.getByRole('button', { name: 'Solicitar revisión' }).click();
+    await expect(page.locator('p', { hasText: /in_review/ })).toBeVisible();
+    await publishFromReview(page);
+    await expect(page.locator('p', { hasText: /published/ })).toBeVisible();
+
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${prdDocId}`);
+    await page.getByLabel('Justificado por').fill(bcDocId);
+    await page.getByLabel('Justificado por').blur();
     await expect(page.getByText(/has no justification/)).toBeHidden();
-    await waitForFieldOnServer(context, `${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${prdDocId}`, 'Justificado por', fbDocId);
+    await waitForFieldOnServer(context, `${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${prdDocId}`, 'Justificado por', bcDocId);
   });
 
   await test.step('Planta: publishing the now-justified PRD shows it at the real Diseño técnico station', async () => {
