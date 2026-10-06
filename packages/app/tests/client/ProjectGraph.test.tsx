@@ -114,6 +114,23 @@ const BRANCH: Subgraph = {
   edges: [],
 };
 
+/** WO-749: un subgrafo con `count` órdenes (más el SDD que las sostiene) para medir el tope del panel. */
+function branchWithOrders(count: number): Subgraph {
+  return {
+    nodes: [
+      { ref: 'SDD-005', label: 'Blueprint', kind: 'SDD', title: 'Diseño', status: 'published' },
+      ...Array.from({ length: count }, (_, index) => ({
+        ref: `WO-${100 + index}`,
+        label: 'WorkOrder',
+        kind: 'WO',
+        title: `Orden ${100 + index}`,
+        status: 'pending',
+      })),
+    ],
+    edges: [],
+  };
+}
+
 const READY = { featureId: 'FR-001', ready: true, checks: [{ name: 'feature_exists', ok: true, detail: 'FR-001 existe' }] };
 const NOT_READY = {
   featureId: 'FR-001',
@@ -741,5 +758,91 @@ describe('ProjectGraph (árbol de features)', () => {
     expect(await screen.findByRole('treeitem', { name: /FR-001/ })).toBeTruthy();
     expect(screen.getByRole('treeitem', { name: /MRD-001/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Sin código/ })).toBeNull();
+  });
+
+  describe('el panel deja de montarse entero (WO-749, SDD-105)', () => {
+    it('monta 25 órdenes como máximo, las más recientes, y dice el total con su enlace a la cola (D1/D2)', async () => {
+      vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+      vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+      vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(branchWithOrders(40));
+      vi.spyOn(client, 'listCommits').mockResolvedValue({ items: [], nextCursor: null });
+      vi.spyOn(client, 'listCodeRefs').mockResolvedValue([]);
+
+      renderPage('FR-001');
+
+      const table = await screen.findByRole('table', { name: /órdenes de FR-001/i });
+      // 1 fila de encabezado + 25 órdenes: las 40 nunca se montan.
+      expect(within(table).getAllByRole('row')).toHaveLength(26);
+      // Sin fechas el orden es por id descendente: WO-139..WO-115 quedan, WO-114 y anteriores no.
+      expect(within(table).getByRole('row', { name: /WO-115/ })).toBeTruthy();
+      expect(within(table).queryByRole('row', { name: /WO-114\b/ })).toBeNull();
+
+      expect(screen.getByText((_, element) => element?.tagName === 'SPAN' && element.textContent === 'Mostrando las 25 órdenes más recientes de 40')).toBeTruthy();
+      const link = screen.getByRole('link', { name: 'Ver las 40 órdenes en la cola' });
+      expect(link.getAttribute('href')).toBe('/o/acme/p/web/ordenes');
+    });
+
+    it('ordena por fecha de commit descendente y, sin fecha, por id descendente (D1)', async () => {
+      vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+      vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+      vi.spyOn(client, 'getFeatureBranch').mockResolvedValue({
+        nodes: [
+          { ref: 'SDD-005', label: 'Blueprint', kind: 'SDD', title: 'Diseño', status: 'published' },
+          { ref: 'WO-100', label: 'WorkOrder', kind: 'WO', title: 'Vieja', status: 'done' },
+          { ref: 'WO-101', label: 'WorkOrder', kind: 'WO', title: 'Sin commit', status: 'pending' },
+          { ref: 'WO-102', label: 'WorkOrder', kind: 'WO', title: 'Nueva', status: 'done' },
+          { ref: 'WO-103', label: 'WorkOrder', kind: 'WO', title: 'Sin commit tampoco', status: 'pending' },
+          { ref: 'WO-104', label: 'WorkOrder', kind: 'WO', title: 'Media', status: 'done' },
+        ],
+        edges: [],
+      });
+      vi.spyOn(client, 'listCommits').mockResolvedValue({
+        items: [
+          { sha: 'aaa1111', subject: 'x', author: 'me', date: '2026-01-01', refs: ['WO-100'], files: [], trust: 'baseline' },
+          { sha: 'ccc3333', subject: 'x', author: 'me', date: '2026-03-01', refs: ['WO-102'], files: [], trust: 'baseline' },
+          { sha: 'bbb2222', subject: 'x', author: 'me', date: '2026-02-01', refs: ['WO-104'], files: [], trust: 'baseline' },
+        ],
+        nextCursor: null,
+      });
+      vi.spyOn(client, 'listCodeRefs').mockResolvedValue([]);
+
+      renderPage('FR-001');
+
+      const table = await screen.findByRole('table', { name: /órdenes de FR-001/i });
+      await waitFor(() =>
+        expect(within(table).getAllByRole('row').slice(1).map((row) => /WO-\d+/.exec(row.textContent ?? '')?.[0])).toEqual([
+          'WO-102',
+          'WO-104',
+          'WO-100',
+          'WO-103',
+          'WO-101',
+        ]),
+      );
+      // Con 5 órdenes no hay recorte: la línea del tope no aparece.
+      expect(screen.queryByText(/Mostrando las/)).toBeNull();
+    });
+
+    it('mientras carga el panel muestra el texto de lo que carga, además del bloque gris (D4)', async () => {
+      vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+      vi.spyOn(client, 'getNode').mockImplementation(() => new Promise<never>(() => {}));
+      vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
+
+      renderPage('FR-001');
+
+      await screen.findByRole('tree', { name: /árbol de features/i });
+      const status = await screen.findByRole('status');
+      expect(status.textContent).toBe('Cargando las órdenes y la trazabilidad de FR-001…');
+      expect(document.querySelector('[data-skeleton-bar]')).toBeTruthy();
+    });
+
+    it('mientras carga el árbol muestra el texto de lo que carga, además del bloque gris (D4)', async () => {
+      vi.spyOn(client, 'getTree').mockImplementation(() => new Promise<never>(() => {}));
+
+      renderPage();
+
+      const status = await screen.findByRole('status');
+      expect(status.textContent).toBe('Cargando el árbol de features…');
+      expect(document.querySelector('[data-skeleton-bar]')).toBeTruthy();
+    });
   });
 });
