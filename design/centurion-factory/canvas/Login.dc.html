@@ -10,133 +10,327 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
   <style>
-    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
-    a { color: #1F4FA0; } a:hover { color: #173C7A; }
-    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    /* Mirror of packages/app/src/styles/tokens.css: the comp only uses these names. */
+    :root {
+      --grafito: #17191C; --acero: #E9ECEB; --cianotipo: #1F4FA0; --cianotipo-hover: #173C7A;
+      --senal: #1E7F4F; --senal-texto: #19703F; --paro: #B8322A;
+      --superficie: #FBFCFB; --regla: #C9CFCD; --regla-fila: #DDE1DF; --relleno: #F1F3F2;
+      --texto-secundario: #33383D; --apagado: #565D63; --blanco: #FFFFFF; --diff-agregado: #E1F0E8;
+      --diff-quitado: #F6E3E1;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px; --space-12: 48px;
+      --radius-plate: 2px; --radius-input: 4px; --control-height: 40px; --hit-target: 44px;
+      --focus-ring: 0 0 0 2px var(--superficie), 0 0 0 4px var(--cianotipo);
+    }
+    .m { --control-height: 44px; }
+    body { margin: 0; background: var(--acero); font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: var(--grafito); }
     * { box-sizing: border-box; }
     .num { font-variant-numeric: tabular-nums; }
-    @keyframes cf-station { from { color: #3A4046; border-color: #17191C; } }
-    @keyframes cf-row { from { opacity: 0; transform: translateX(-24px); } }
-    @keyframes cf-andon { 0% { background-color: transparent; color: #C4CAD0; } 60% { background-color: #F5C400; } 75% { background-color: #8A7000; } 100% { background-color: #F5C400; } }
-    .cf-station { animation: cf-station 320ms ease-out both; }
-    .cf-row { animation: cf-row 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-    .cf-andon { animation: cf-andon 700ms ease-out 1300ms both; }
-    @media (prefers-reduced-motion: reduce) { .cf-station, .cf-row, .cf-andon { animation: none; } }
+    a, .link { color: var(--cianotipo); } a:hover, .link:hover { color: var(--cianotipo-hover); }
+    :focus { outline: none; }
+    :focus-visible { box-shadow: var(--focus-ring); }
+
+    .wordmark { font-size: 20px; line-height: 24px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em; }
+    .split { display: flex; gap: var(--space-12); align-items: flex-start; }
+    .m .split { flex-direction: column; gap: var(--space-6); }
+    .ctx { width: 440px; display: flex; flex-direction: column; gap: var(--space-6); padding-top: var(--space-4); }
+    .m .ctx { width: 100%; padding-top: 0; gap: var(--space-4); }
+    .panel { width: 440px; display: flex; flex-direction: column; gap: var(--space-6); padding: var(--space-8); background: var(--superficie); border: 1px solid var(--regla); border-radius: var(--radius-plate); }
+    .m .panel { width: 100%; padding: var(--space-4); gap: var(--space-4); }
+
+    .h1 { margin: 0; font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.01em; }
+    .m .h1 { font-size: 20px; line-height: 26px; }
+    .ctx-h { margin: 0; font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.01em; font-stretch: 112%; }
+    .m .ctx-h { font-size: 20px; line-height: 26px; }
+    .muted { font-size: 14px; line-height: 20px; color: var(--apagado); }
+    .body { font-size: 14px; line-height: 20px; color: var(--texto-secundario); }
+    .small { font-size: 12px; line-height: 16px; color: var(--apagado); }
+    .m .muted, .m .body { font-size: 16px; line-height: 22px; }
+    .m .small { font-size: 14px; line-height: 20px; }
+
+    .ctx-card { display: flex; flex-direction: column; background: var(--superficie); border: 1px solid var(--regla); border-radius: var(--radius-plate); }
+    .ctx-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
+    .ctx-row + .ctx-row { border-top: 1px solid var(--regla-fila); }
+    .org-mark { flex: none; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: var(--grafito); color: var(--blanco); border-radius: var(--radius-plate); font-size: 14px; font-weight: 700; letter-spacing: 0.02em; }
+    .proj-mark { flex: none; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+    .proj-mark i { display: block; width: 12px; height: 12px; background: var(--cianotipo); }
+    .ctx-label { font-size: 12px; line-height: 16px; color: var(--apagado); }
+    .ctx-name { font-size: 16px; line-height: 22px; font-weight: 600; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .label { font-size: 14px; line-height: 20px; font-weight: 600; }
+    .input { width: 100%; height: var(--control-height); padding: 0 12px; background: var(--superficie); border: 1px solid var(--regla); border-radius: var(--radius-input); font-family: inherit; font-size: 14px; color: var(--grafito); }
+    .m .input { font-size: 16px; }
+    .input::placeholder { color: var(--apagado); }
+    .input:focus-visible { border-color: var(--cianotipo); }
+    textarea.input { height: auto; min-height: 96px; padding: 10px 12px; line-height: 20px; resize: vertical; }
+    .input.bad { border: 2px solid var(--paro); padding: 0 11px; }
+    textarea.input.bad { padding: 9px 11px; }
+    .pw { display: flex; align-items: center; gap: var(--space-2); height: var(--control-height); padding: 0 4px 0 12px; background: var(--superficie); border: 1px solid var(--regla); border-radius: var(--radius-input); }
+    .pw:focus-within { border-color: var(--cianotipo); box-shadow: var(--focus-ring); }
+    .pw input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; font-family: inherit; font-size: 14px; color: var(--grafito); box-shadow: none; }
+    .m .pw input { font-size: 16px; }
+    .pw .link-btn { height: calc(var(--control-height) - 8px); min-width: var(--hit-target); }
+    .help { font-size: 12px; line-height: 16px; color: var(--apagado); }
+    .m .help { font-size: 14px; line-height: 20px; }
+    .err { display: flex; gap: 6px; align-items: flex-start; font-size: 14px; line-height: 20px; color: var(--paro); font-weight: 600; }
+    .err::before { content: ''; flex: none; width: 8px; height: 8px; margin-top: 6px; background: var(--paro); }
+
+    .btn { width: 100%; height: var(--control-height); display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: 0 var(--space-4); border-radius: var(--radius-plate); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .m .btn { font-size: 16px; }
+    .btn-primary { background: var(--cianotipo); color: var(--blanco); border: 0; }
+    .btn-primary:hover { background: var(--cianotipo-hover); }
+    .btn-secondary { background: var(--superficie); color: var(--grafito); border: 1px solid var(--regla); }
+    .btn-secondary:hover { background: var(--relleno); }
+    .btn[disabled] { cursor: progress; opacity: 1; background: var(--cianotipo-hover); }
+    .link-btn { display: inline-flex; align-items: center; justify-content: center; min-height: var(--control-height); padding: 0 var(--space-2); background: transparent; border: 0; border-radius: var(--radius-plate); font-family: inherit; font-size: 14px; font-weight: 600; color: var(--cianotipo); cursor: pointer; }
+    .link-btn:hover { color: var(--cianotipo-hover); }
+    .m .link-btn { font-size: 16px; min-height: var(--hit-target); }
+    .row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+    .rule { height: 1px; background: var(--regla-fila); border: 0; margin: 0; }
+    .alert { display: flex; gap: var(--space-3); padding: var(--space-3); background: var(--diff-quitado); border-left: 3px solid var(--paro); font-size: 14px; line-height: 20px; color: var(--grafito); }
+    .m .alert { font-size: 16px; line-height: 22px; }
+    .alert b { color: var(--paro); font-weight: 600; }
+    .ok { display: flex; gap: var(--space-3); padding: var(--space-3); background: var(--diff-agregado); border-left: 3px solid var(--senal); font-size: 14px; line-height: 20px; }
+    .m .ok { font-size: 16px; line-height: 22px; }
+    .ok b { color: var(--senal-texto); font-weight: 600; }
+    .code { display: flex; gap: var(--space-2); }
+    .code div { flex: 1; min-width: 0; height: 56px; display: flex; align-items: center; justify-content: center; background: var(--superficie); border: 1px solid var(--regla); border-radius: var(--radius-input); font-size: 22px; font-weight: 700; }
+    .code div.on { border-color: var(--cianotipo); box-shadow: var(--focus-ring); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 900ms linear infinite; }
+    @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+    /* Demo-only controls (not part of the screen). */
+    .demo { display: flex; align-items: center; gap: var(--space-6); padding: 0 var(--space-6); height: 56px; border-bottom: 1px solid var(--regla); background: var(--relleno); font-size: 13px; color: var(--apagado); flex: none; }
+    .chip { height: 32px; padding: 0 var(--space-3); border: 1px solid var(--regla); border-radius: var(--radius-plate); background: var(--superficie); color: var(--grafito); font-family: inherit; font-size: 13px; cursor: pointer; }
+    .chip.on { background: var(--grafito); color: var(--blanco); border-color: var(--grafito); }
   </style>
 </helmet>
-<div style="position: relative; width: 1440px; height: 960px; overflow: hidden; background: #E9ECEB;">
+<div class="{{ rootClass }}" style="position: relative; width: 1440px; height: 960px; overflow: hidden; background: var(--acero); display: flex; flex-direction: column;">
 
-  <main style="position: absolute; top: 180px; left: 520px; width: 400px; display: flex; flex-direction: column; gap: 32px;">
-    <div style="display: flex; flex-direction: column; gap: 32px;">
-      <div style="font-size: 28px; line-height: 32px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
-      <div style="display: flex; flex-direction: column; gap: 4px;">
-        <h1 style="margin: 0; font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.01em;">Entrá a tu organización</h1>
-        <div style="font-size: 14px; line-height: 20px; color: #565D63;">El acceso es solo por invitación.</div>
-      </div>
+  <div class="demo" role="toolbar" aria-label="Controles de la maqueta (no son parte de la pantalla)">
+    <span>Vista</span>
+    <div style="display: flex; gap: 4px;">
+      <sc-for list="{{ views }}" as="v" hint-placeholder-count="2">
+        <button type="button" class="{{ v.cls }}" onClick="{{ v.onClick }}">{{ v.label }}</button>
+      </sc-for>
     </div>
+    <span>Estado</span>
+    <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+      <sc-for list="{{ states }}" as="s" hint-placeholder-count="7">
+        <button type="button" class="{{ s.cls }}" onClick="{{ s.onClick }}">{{ s.label }}</button>
+      </sc-for>
+    </div>
+  </div>
 
-    <sc-if value="{{ isSso }}" hint-placeholder-val="{{ true }}">
-      <section style="display: flex; flex-direction: column; gap: 24px;">
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <label style="font-size: 14px; line-height: 20px; font-weight: 600;">Email de trabajo</label>
-            <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;">ana.rios@centurionhq.com</div>
+  <div style="flex: 1; display: flex; align-items: flex-start; justify-content: center; padding-top: {{ stagePad }}; overflow: hidden;">
+    <div style="{{ frameStyle }}">
+      <header style="{{ headerStyle }}">
+        <div class="wordmark">Centurion Factory</div>
+      </header>
+
+      <main class="split">
+        <section class="ctx" aria-label="A dónde entrás">
+          <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+            <h2 class="ctx-h">Te invitaron a trabajar en prdmanager</h2>
+            <p class="muted" style="margin: 0;">Para entrar tenés que tener una cuenta con acceso a esta organización.</p>
           </div>
-          <button type="button" onClick="{{ onSso }}" style="width: 100%; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; border: 0; border-radius: 2px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">Continuar con SSO</button>
-          <sc-if value="{{ isRedirecting }}" hint-placeholder-val="{{ false }}">
-            <div role="status" style="display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: #33383D;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" style="flex: none;"><circle cx="12" cy="12" r="9" stroke="#C9CFCD"></circle><path d="M12 3a9 9 0 0 1 9 9" stroke="#1F4FA0"></path></svg>
-              Redirigiendo a Okta de Centurion HQ…
+          <div class="ctx-card">
+            <div class="ctx-row">
+              <span class="org-mark" aria-hidden="true">C</span>
+              <div><div class="ctx-label">Organización</div><div class="ctx-name">centurionhq</div></div>
             </div>
-          </sc-if>
-          <div style="font-size: 14px; line-height: 20px; color: #565D63;">Si tu dominio tiene SSO (centurionhq.com), te llevamos al proveedor de tu organización.</div>
-        </div>
-
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-          <button type="button" style="width: 100%; height: 40px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 16px; background: #FBFCFB; color: #17191C; border: 1px solid #C9CFCD; border-radius: 2px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"></path><path d="M20 12h-7"></path></svg>
-            Continuar con Google Workspace
-          </button>
-          <button type="button" style="width: 100%; height: 40px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 16px; background: #FBFCFB; color: #17191C; border: 1px solid #C9CFCD; border-radius: 2px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="#33383D" aria-hidden="true"><rect x="4" y="4" width="7" height="7"></rect><rect x="13" y="4" width="7" height="7"></rect><rect x="4" y="13" width="7" height="7"></rect><rect x="13" y="13" width="7" height="7"></rect></svg>
-            Continuar con Microsoft Entra ID
-          </button>
-        </div>
-
-        <div style="display: flex; flex-direction: column; align-items: center; gap: 12px;">
-          <div style="width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px;">
-            <span style="height: 1px; background: #C9CFCD;"></span>
-            <span style="font-size: 12px; line-height: 16px; color: #565D63;">o con contraseña</span>
-            <span style="height: 1px; background: #C9CFCD;"></span>
+            <div class="ctx-row">
+              <span class="proj-mark" aria-hidden="true"><i></i></span>
+              <div><div class="ctx-label">Proyecto</div><div class="ctx-name">prdmanager</div></div>
+            </div>
           </div>
-          <button type="button" onClick="{{ onPasswordMode }}" style="height: 40px; padding: 0 8px; background: transparent; border: 0; font-family: inherit; font-size: 14px; font-weight: 600; color: #1F4FA0; cursor: pointer;">Usar email y contraseña</button>
-        </div>
-      </section>
-    </sc-if>
+          <p class="small" style="margin: 0;">¿Tenés un email de invitación? Abrí el enlace que te mandamos para crear tu cuenta.</p>
+        </section>
 
-    <sc-if value="{{ isPassword }}" hint-placeholder-val="{{ false }}">
-      <section style="display: flex; flex-direction: column; gap: 16px;">
-        <sc-if value="{{ hasError }}" hint-placeholder-val="{{ false }}">
-          <div role="alert" style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px; line-height: 20px; color: #17191C;">
-            <span style="flex: none; width: 10px; height: 10px; margin-top: 5px; background: #B8322A;"></span>
-            <span><span style="font-weight: 600; color: #B8322A;">Email o contraseña incorrectos.</span> Revisá los datos o pedí un nuevo acceso a tu admin.</span>
-          </div>
+        <!-- Entrar con email y contraseña -->
+        <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+          <section class="panel" aria-labelledby="t-login">
+            <div style="display: flex; flex-direction: column; gap: var(--space-1);">
+              <h1 id="t-login" class="h1">Entrá a centurionhq</h1>
+              <div class="muted">Vas a entrar al proyecto prdmanager de la organización centurionhq.</div>
+            </div>
+            <sc-if value="{{ hasLoginError }}" hint-placeholder-val="{{ false }}">
+              <div role="alert" class="alert"><span><b>Email o contraseña incorrectos.</b> Revisá los datos e intentá de nuevo. Si no recordás la contraseña, podés restablecerla.</span></div>
+            </sc-if>
+            <form style="display: flex; flex-direction: column; gap: var(--space-4);" onSubmit="{{ noop }}">
+              <div class="field">
+                <label class="label" for="login-email">Email</label>
+                <input id="login-email" class="{{ loginInputClass }}" type="email" autocomplete="username" value="ana.rios@centurionhq.com" aria-invalid="{{ loginInvalid }}">
+              </div>
+              <div class="field">
+                <label class="label" for="login-pass">Contraseña</label>
+                <div class="pw" style="{{ pwStyle }}">
+                  <input id="login-pass" type="{{ pwType }}" autocomplete="current-password" value="planta-de-acero" aria-invalid="{{ loginInvalid }}">
+                  <button type="button" class="link-btn" onClick="{{ onTogglePassword }}" aria-pressed="{{ showPassword }}">{{ toggleLabel }}</button>
+                </div>
+              </div>
+              <button type="button" class="btn btn-primary" onClick="{{ onSubmitLogin }}" disabled="{{ isLoading }}" style="margin-top: var(--space-2);">
+                <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
+                  <svg class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" style="stroke: var(--blanco); opacity: 0.35;"></circle><path d="M12 3a9 9 0 0 1 9 9" style="stroke: var(--blanco);"></path></svg>
+                </sc-if>
+                {{ submitLabel }}
+              </button>
+              <div style="display: flex; justify-content: flex-start;">
+                <button type="button" class="link-btn" style="padding-left: 0;">Olvidé mi contraseña</button>
+              </div>
+            </form>
+            <hr class="rule">
+            <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+              <div>
+                <div class="label">¿Todavía no tenés acceso?</div>
+                <div class="muted">Pedíselo a los administradores de Centurion HQ. Lo revisan y te avisan por email.</div>
+              </div>
+              <button type="button" class="btn btn-secondary" onClick="{{ goRequest }}">Pedir acceso a Centurion HQ</button>
+            </div>
+          </section>
         </sc-if>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 14px; line-height: 20px; font-weight: 600;">Email</label>
-          <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;">ana.rios@centurionhq.com</div>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 14px; line-height: 20px; font-weight: 600;">Contraseña</label>
-          <div style="{{ passwordStyle }}">
-            <span style="{{ passwordValueStyle }}">{{ passwordValue }}</span>
-            <button type="button" onClick="{{ onTogglePassword }}" style="height: 32px; padding: 0 4px; background: transparent; border: 0; font-family: inherit; font-size: 14px; font-weight: 600; color: #1F4FA0; cursor: pointer;">{{ toggleLabel }}</button>
-          </div>
-        </div>
-        <button type="button" onClick="{{ onSubmit }}" style="width: 100%; height: 40px; margin-top: 8px; display: flex; align-items: center; justify-content: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; border: 0; border-radius: 2px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">Entrar</button>
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-          <a style="font-size: 14px; line-height: 20px; cursor: pointer;">Olvidé mi contraseña</a>
-          <button type="button" onClick="{{ onSsoMode }}" style="height: 40px; padding: 0; background: transparent; border: 0; font-family: inherit; font-size: 14px; color: #1F4FA0; cursor: pointer;">Volver al acceso con SSO</button>
-        </div>
-      </section>
-    </sc-if>
-  </main>
 
-  <footer style="position: absolute; left: 0; right: 0; bottom: 32px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; color: #565D63;">
-    <div>¿Te invitaron? Abrí el enlace del email para crear tu cuenta.</div>
-    <div>Centurion Factory · prdmanager 0.2.0</div>
-  </footer>
+        <!-- Segundo paso: código de la app de autenticación -->
+        <sc-if value="{{ isTotp }}" hint-placeholder-val="{{ false }}">
+          <section class="panel" aria-labelledby="t-totp">
+            <div style="display: flex; flex-direction: column; gap: var(--space-1);">
+              <h1 id="t-totp" class="h1">Verificación en dos pasos</h1>
+              <div class="muted">Ingresá el código de 6 dígitos de tu app de autenticación.</div>
+            </div>
+            <div class="code num" role="group" aria-label="Código de 6 dígitos">
+              <sc-for list="{{ digits }}" as="d" hint-placeholder-count="6">
+                <div class="{{ d.cls }}">{{ d.value }}</div>
+              </sc-for>
+            </div>
+            <button type="button" class="btn btn-primary">Verificar</button>
+            <div class="row-between">
+              <button type="button" class="link-btn" style="padding-left: 0;">Usar un código de respaldo</button>
+              <button type="button" class="link-btn" onClick="{{ goLogin }}">Volver</button>
+            </div>
+          </section>
+        </sc-if>
+
+        <!-- Pedir acceso -->
+        <sc-if value="{{ isRequest }}" hint-placeholder-val="{{ false }}">
+          <section class="panel" aria-labelledby="t-req">
+            <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+              <button type="button" class="link-btn" onClick="{{ goLogin }}" style="align-self: flex-start; padding-left: 0;">Volver a entrar</button>
+              <h1 id="t-req" class="h1">Pedí acceso a Centurion HQ</h1>
+              <div class="muted">Un administrador de la organización va a revisar tu pedido. No necesitás tener cuenta todavía.</div>
+            </div>
+            <sc-if value="{{ hasRequestError }}" hint-placeholder-val="{{ false }}">
+              <div role="alert" class="alert"><span><b>No pudimos registrar tu pedido.</b> Tus datos siguen acá: probá de nuevo en unos minutos.</span></div>
+            </sc-if>
+            <form style="display: flex; flex-direction: column; gap: var(--space-4);" onSubmit="{{ noop }}">
+              <div class="field">
+                <label class="label" for="req-email">Email</label>
+                <input id="req-email" class="{{ reqEmailClass }}" type="email" autocomplete="email" placeholder="nombre@empresa.com" value="{{ reqEmail }}" aria-invalid="{{ hasFieldError }}" aria-describedby="req-email-msg">
+                <sc-if value="{{ hasFieldError }}" hint-placeholder-val="{{ false }}">
+                  <div id="req-email-msg" class="err">Ese email no parece completo. Revisá que tenga la forma nombre@empresa.com.</div>
+                </sc-if>
+              </div>
+              <div class="field">
+                <label class="label" for="req-name">Nombre</label>
+                <input id="req-name" class="input" type="text" autocomplete="name" value="Tomás Vega">
+              </div>
+              <div class="field">
+                <label class="label" for="req-msg">Mensaje <span style="font-weight: 400; color: var(--apagado);">(opcional)</span></label>
+                <textarea id="req-msg" class="input" aria-describedby="req-msg-help">Soy el nuevo líder de calidad. Necesito ver el estado de las órdenes de Planta de acero.</textarea>
+                <div id="req-msg-help" class="help">Contales quién sos y para qué necesitás entrar. Ayuda a que te respondan más rápido.</div>
+              </div>
+              <button type="button" class="btn btn-primary" onClick="{{ onSubmitRequest }}" style="margin-top: var(--space-2);">Enviar pedido</button>
+            </form>
+          </section>
+        </sc-if>
+
+        <!-- Pedido registrado -->
+        <sc-if value="{{ isSent }}" hint-placeholder-val="{{ false }}">
+          <section class="panel" aria-labelledby="t-sent">
+            <h1 id="t-sent" class="h1">Pedido enviado</h1>
+            <div role="status" class="ok">
+              <span><b>Quedó registrado para los administradores de Centurion HQ.</b> Cuando lo revisen te escriben a <span style="font-weight: 600;">tomas@centurionhq.com</span>.</span>
+            </div>
+            <div class="body">Mientras tanto no hace falta que hagas nada más. Si ya tenés una invitación por email, podés usarla para crear tu cuenta ahora.</div>
+            <button type="button" class="btn btn-secondary" onClick="{{ goLogin }}">Volver a entrar</button>
+          </section>
+        </sc-if>
+      </main>
+      <footer style="display: flex; flex-direction: column; align-items: center; gap: var(--space-1); padding: var(--space-4) 0; text-align: center;">
+        <span class="small">El acceso es por invitación: si todavía no tenés cuenta, pedile a quien te compartió el enlace que te invite.</span>
+        <span class="small">Centurion Factory</span>
+      </footer>
+    </div>
+  </div>
 </div>
 </x-dc>
 <script data-dc-script data-props='{}'>
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { mode: 'sso', redirecting: false, error: false, showPassword: false };
+    // screen: login | totp | request | sent. flags layer on top of it.
+    this.state = { mobile: false, screen: 'login', loginError: false, loading: false, requestError: false, fieldError: false, showPassword: false };
   }
 
   renderVals() {
-    const isSso = this.state.mode === 'sso';
-    const hasError = !isSso && this.state.error;
-    const showPassword = this.state.showPassword;
-    const inputBase = 'height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #FBFCFB; border-radius: 4px; font-size: 14px; color: #17191C;';
+    const s = this.state;
+    const set = (patch) => () => this.setState(Object.assign({ loginError: false, loading: false, requestError: false, fieldError: false }, patch));
+    const chip = (on) => 'chip' + (on ? ' on' : '');
+    const isLogin = s.screen === 'login';
+    const isRequest = s.screen === 'request';
+    const loginBad = isLogin && s.loginError;
+
+    const frameStyle = s.mobile
+      ? 'width: 375px; height: 880px; padding: 16px; display: flex; flex-direction: column; gap: 24px; overflow: hidden; background: var(--acero); border: 1px solid var(--regla); box-shadow: 0 0 0 8px var(--relleno);'
+      : 'width: 960px; padding: 0; display: flex; flex-direction: column; gap: 48px;';
 
     return {
-      isSso: isSso,
-      isPassword: !isSso,
-      isRedirecting: isSso && this.state.redirecting,
-      hasError: hasError,
-      passwordStyle: hasError
-        ? inputBase + ' padding: 0 7px 0 11px; border: 2px solid #B8322A;'
-        : inputBase + ' padding: 0 8px 0 12px; border: 1px solid #C9CFCD;',
-      passwordValue: showPassword ? 'planta-de-acero' : '•••••••••••••••',
-      passwordValueStyle: showPassword ? 'letter-spacing: 0;' : 'letter-spacing: 0.08em;',
-      toggleLabel: showPassword ? 'Ocultar' : 'Mostrar',
-      onSso: () => this.setState({ redirecting: true }),
-      onPasswordMode: () => this.setState({ mode: 'password', redirecting: false, error: false }),
-      onSsoMode: () => this.setState({ mode: 'sso', redirecting: false, error: false }),
-      onSubmit: () => this.setState({ error: true }),
-      onTogglePassword: () => this.setState({ showPassword: !showPassword })
+      rootClass: s.mobile ? 'm' : '',
+      stagePad: s.mobile ? '24px' : '48px',
+      frameStyle: frameStyle,
+      headerStyle: s.mobile ? 'padding: 8px 0 0;' : 'padding: 0;',
+      views: [
+        { label: 'Escritorio 1440', cls: chip(!s.mobile), onClick: () => this.setState({ mobile: false }) },
+        { label: 'Móvil 375', cls: chip(s.mobile), onClick: () => this.setState({ mobile: true }) }
+      ],
+      states: [
+        { label: 'Entrar', cls: chip(isLogin && !s.loginError && !s.loading), onClick: set({ screen: 'login' }) },
+        { label: 'Entrando', cls: chip(isLogin && s.loading), onClick: set({ screen: 'login', loading: true }) },
+        { label: 'Datos incorrectos', cls: chip(loginBad), onClick: set({ screen: 'login', loginError: true }) },
+        { label: 'Segundo paso', cls: chip(s.screen === 'totp'), onClick: set({ screen: 'totp' }) },
+        { label: 'Pedir acceso', cls: chip(isRequest && !s.requestError && !s.fieldError), onClick: set({ screen: 'request' }) },
+        { label: 'Pedido con error', cls: chip(isRequest && (s.requestError || s.fieldError)), onClick: set({ screen: 'request', requestError: true, fieldError: true }) },
+        { label: 'Pedido enviado', cls: chip(s.screen === 'sent'), onClick: set({ screen: 'sent' }) }
+      ],
+
+      isLogin: isLogin,
+      isTotp: s.screen === 'totp',
+      isRequest: isRequest,
+      isSent: s.screen === 'sent',
+
+      hasLoginError: loginBad,
+      loginInputClass: loginBad ? 'input bad' : 'input',
+      loginInvalid: loginBad ? 'true' : 'false',
+      pwStyle: loginBad ? 'border: 2px solid var(--paro); padding-left: 11px;' : '',
+      pwType: s.showPassword ? 'text' : 'password',
+      showPassword: s.showPassword ? 'true' : 'false',
+      toggleLabel: s.showPassword ? 'Ocultar' : 'Mostrar',
+      isLoading: s.loading,
+      submitLabel: s.loading ? 'Entrando…' : 'Entrar',
+
+      hasRequestError: isRequest && s.requestError,
+      hasFieldError: isRequest && s.fieldError,
+      reqEmail: s.fieldError ? 'tomas@centurionhq' : 'tomas@centurionhq.com',
+      reqEmailClass: isRequest && s.fieldError ? 'input bad' : 'input',
+
+      digits: ['4', '8', '1', '', '', ''].map((v, i) => ({ value: v, cls: i === 3 ? 'on' : '' })),
+
+      noop: (e) => { if (e && e.preventDefault) e.preventDefault(); },
+      onTogglePassword: () => this.setState({ showPassword: !s.showPassword }),
+      onSubmitLogin: set({ screen: 'login', loginError: true }),
+      onSubmitRequest: set({ screen: 'sent' }),
+      goRequest: set({ screen: 'request' }),
+      goLogin: set({ screen: 'login' })
     };
   }
 }

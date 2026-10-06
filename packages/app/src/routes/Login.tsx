@@ -11,8 +11,9 @@
  * only its "isPassword" section, direct to email + password.
  */
 import { useState, type FormEvent, type ReactElement } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { signInWithPassword, verifyTotpCode } from '../api/client.js';
+import { loginDestinationFromNext, type LoginDestination } from '../api/request.js';
 import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
@@ -21,10 +22,25 @@ import styles from '../styles/auth.module.css';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function destinationCopy(destination: LoginDestination | null): { title: string; subtitle: string } {
+  if (!destination) {
+    return { title: 'Entrá a tu organización', subtitle: 'Entrá con tu cuenta para ver tus organizaciones.' };
+  }
+  const { orgSlug, projSlug } = destination;
+  return {
+    title: `Entrá a ${orgSlug}`,
+    subtitle: projSlug
+      ? `Vas a entrar al proyecto ${projSlug} de la organización ${orgSlug}.`
+      : `Vas a entrar a la organización ${orgSlug}.`,
+  };
+}
+
 type Step = { kind: 'credentials' } | { kind: 'totp' };
 
 export function Login(): ReactElement {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const copy = destinationCopy(loginDestinationFromNext(searchParams.get('next')));
   const [step, setStep] = useState<Step>({ kind: 'credentials' });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -85,8 +101,8 @@ export function Login(): ReactElement {
         <div className={styles.brand}>Centurion Factory</div>
         <div className={styles.section}>
           <div className={styles.heading}>
-            <h1 className={styles.title}>Entrá a tu organización</h1>
-            <p className={styles.subtitle}>El acceso es solo por invitación.</p>
+            <h1 className={styles.title}>{copy.title}</h1>
+            <p className={styles.subtitle}>{copy.subtitle}</p>
           </div>
           <div className={styles.field}>
             <label htmlFor="login-email">Email</label>
@@ -133,8 +149,8 @@ export function Login(): ReactElement {
         </div>
       </form>
       <footer className={styles.footer}>
-        <span>¿Te invitaron? Abrí el enlace del email para crear tu cuenta.</span>
-        <span>Centurion Factory · prdmanager 0.2.0</span>
+        <span>El acceso es por invitación: si todavía no tenés cuenta, pedile a quien te compartió el enlace que te invite.</span>
+        <span>Centurion Factory</span>
       </footer>
     </div>
   );
