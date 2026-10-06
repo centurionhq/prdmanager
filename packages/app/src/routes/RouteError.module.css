@@ -1,0 +1,11 @@
+.detail {
+  max-width: 32rem;
+  margin: 0 auto var(--space-6);
+  padding: var(--space-3);
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--texto-secundario);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
