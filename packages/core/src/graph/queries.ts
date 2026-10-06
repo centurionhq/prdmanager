@@ -193,8 +193,11 @@ export const METRICS_RAW = `
   }
   CALL () {
     MATCH (f:Feature {project_id: $projectId})
+    WITH f ORDER BY f.id
+    WITH f, EXISTS { (f)((:Feature)-[:EVOLVES_FROM|JUSTIFIED_BY]-(:Feature)){0,${MAX_DEPTH}}(:Feature)<-[:ARCHITECTS]-(:Blueprint {project_id: $projectId})<-[:GOVERNED_BY]-(:CodeRef {project_id: $projectId}) } AS traced
     RETURN count(f) AS featuresTotal,
-           sum(CASE WHEN EXISTS { (f)(()<-[:EVOLVES_FROM]-()){0,${MAX_DEPTH}}(:Feature)<-[:ARCHITECTS]-(:Blueprint)<-[:GOVERNED_BY]-(:CodeRef) } THEN 1 ELSE 0 END) AS featuresTraced
+           sum(CASE WHEN traced THEN 1 ELSE 0 END) AS featuresTraced,
+           collect(CASE WHEN traced THEN null ELSE {id: f.id, kind: f.kind, title: coalesce(f.title, f.id), status: coalesce(f.status, '')} END) AS orphanFeatures
   }
   CALL () {
     MATCH (c:Commit {project_id: $projectId})
@@ -206,7 +209,7 @@ export const METRICS_RAW = `
     MATCH (wo:WorkOrder {project_id: $projectId}) WITH wo ORDER BY wo.id
     RETURN collect({id: wo.id, status: wo.status, assignedTo: wo.assigned_to, createdAt: wo.created_at, claimedAt: wo.claimed_at, completedAt: wo.completed_at}) AS workOrders
   }
-  RETURN governedTotal, governedSynced, featuresTotal, featuresTraced, commitsTotal, commitsWithRefs, commitsTraced, workOrders`;
+  RETURN governedTotal, governedSynced, featuresTotal, featuresTraced, orphanFeatures, commitsTotal, commitsWithRefs, commitsTraced, workOrders`;
 
 export const CLEAR_PROJECT = `
   MATCH (n) WHERE (n:Node OR n:CodeRef OR n:Commit OR n:Actor) AND n.project_id = $projectId

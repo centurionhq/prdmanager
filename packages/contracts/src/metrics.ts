@@ -17,9 +17,17 @@ export const systemIntegritySchema = z.object({
   syncedPercent: z.number().nullable(),
 });
 
+export const orphanFeatureSchema = z.object({
+  id: z.string().min(1),
+  kind: z.string().min(1),
+  title: z.string(),
+  status: z.string(),
+});
+
 export const traceabilitySchema = z.object({
   featuresTotal: z.number().int().min(0),
   featuresTraced: z.number().int().min(0),
+  orphanFeatures: z.array(orphanFeatureSchema),
   featurePercent: z.number().nullable(),
   commitsTotal: z.number().int().min(0),
   commitsWithRefs: z.number().int().min(0),

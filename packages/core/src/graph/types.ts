@@ -129,11 +129,19 @@ export interface WorkOrderContextRaw {
   commits: { sha: string; subject: string; author: string; date: string }[];
 }
 
+export interface OrphanFeature {
+  id: string;
+  kind: string;
+  title: string;
+  status: string;
+}
+
 export interface MetricsRaw {
   governedTotal: number;
   governedSynced: number;
   featuresTotal: number;
   featuresTraced: number;
+  orphanFeatures: OrphanFeature[];
   commitsTotal: number;
   commitsWithRefs: number;
   commitsTraced: number;

@@ -12,13 +12,13 @@ import { makeProjectShellContext, makeProjectOverview } from './fixtures.js';
 const METRICS: SuccessMetricsDto = {
   agentHumanEfficiency: { completedWorkOrders: 10, measuredWorkOrders: 10, avgResolutionHours: 0.1, medianResolutionHours: 0.083 },
   systemIntegrity: { governedTotal: 100, governedSynced: 99, syncedPercent: 99.6 },
-  traceability: { featuresTotal: 4, featuresTraced: 4, featurePercent: 100, commitsTotal: 10, commitsWithRefs: 7, commitsTraced: 6, commitPercent: 66.4 },
+  traceability: { featuresTotal: 4, featuresTraced: 4, orphanFeatures: [], featurePercent: 100, commitsTotal: 10, commitsWithRefs: 7, commitsTraced: 6, commitPercent: 66.4 },
 };
 
 const EMPTY_METRICS: SuccessMetricsDto = {
   agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null },
   systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
-  traceability: { featuresTotal: 0, featuresTraced: 0, featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null },
+  traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null },
 };
 
 /**
@@ -237,7 +237,7 @@ describe('Planta', () => {
     vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
     vi.spyOn(client, 'getMetrics').mockResolvedValue({
       ...METRICS,
-      traceability: { featuresTotal: 4, featuresTraced: 4, featurePercent: 100, commitsTotal: 20, commitsWithRefs: 10, commitsTraced: 6, commitPercent: 30 },
+      traceability: { featuresTotal: 4, featuresTraced: 4, orphanFeatures: [], featurePercent: 100, commitsTotal: 20, commitsWithRefs: 10, commitsTraced: 6, commitPercent: 30 },
     });
     renderPlanta();
 

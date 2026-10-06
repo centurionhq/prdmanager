@@ -67,7 +67,7 @@ function metrics(overrides: Partial<SuccessMetrics> = {}): SuccessMetrics {
   return {
     agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null },
     systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
-    traceability: { featuresTotal: 0, featuresTraced: 0, featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null },
+    traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null },
     pendingQueue: { total: 0, unassigned: 0, oldestDays: null, over7Days: 0 },
     ...overrides,
   };
@@ -90,6 +90,21 @@ describe('formatMetrics', () => {
     );
     expect(text).toContain('avg resolution: 4h');
     expect(text).toContain('governed: 1/2 synced (50%)');
+  });
+});
+
+describe('formatMetrics orphan features', () => {
+  test('lists orphan features with id, kind, title and status', () => {
+    const base = metrics();
+    const text = formatMetrics(
+      metrics({ traceability: { ...base.traceability, orphanFeatures: [{ id: 'BC-004', kind: 'BC', title: 'El Árbol...', status: 'approved' }] } }),
+    );
+    expect(text).toContain('orphan features: 1');
+    expect(text).toContain('    BC-004 <BC> El Árbol... (approved)');
+  });
+
+  test('prints the honest line when there are none', () => {
+    expect(formatMetrics(metrics())).toContain('orphan features: 0 (sin features huérfanas)');
   });
 });
 

@@ -8,6 +8,7 @@ function raw(overrides: Partial<MetricsRaw> = {}): MetricsRaw {
     governedSynced: 0,
     featuresTotal: 0,
     featuresTraced: 0,
+    orphanFeatures: [],
     commitsTotal: 0,
     commitsWithRefs: 0,
     commitsTraced: 0,
@@ -26,6 +27,7 @@ describe('computeMetrics', () => {
       traceability: {
         featuresTotal: 0,
         featuresTraced: 0,
+        orphanFeatures: [],
         featurePercent: null,
         commitsTotal: 0,
         commitsWithRefs: 0,
@@ -34,6 +36,17 @@ describe('computeMetrics', () => {
       },
       pendingQueue: { total: 0, unassigned: 0, oldestDays: null, over7Days: 0 },
     });
+  });
+
+  test('copies orphanFeatures as-is and keeps featuresTraced + orphans == featuresTotal', () => {
+    const orphan = { id: 'BC-003', kind: 'BC', title: 'Sin linaje', status: 'approved' };
+    const mixed = computeMetrics(raw({ featuresTotal: 4, featuresTraced: 3, orphanFeatures: [orphan] })).traceability;
+    expect(mixed.orphanFeatures).toEqual([orphan]);
+    expect(mixed.featuresTraced + mixed.orphanFeatures.length).toBe(mixed.featuresTotal);
+
+    expect(computeMetrics(raw({ featuresTotal: 2, featuresTraced: 2 })).traceability.featurePercent).toBe(100);
+    const allOrphans = computeMetrics(raw({ featuresTotal: 1, featuresTraced: 0, orphanFeatures: [orphan] })).traceability;
+    expect(allOrphans.featurePercent).toBe(0);
   });
 
   test('rounds percentages to 1 decimal', () => {
