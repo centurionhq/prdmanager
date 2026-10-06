@@ -40,26 +40,32 @@ interface KpiStripProps {
 }
 
 function KpiStrip({ metrics, awaitingFirstReport, orgSlug, projectSlug }: KpiStripProps): ReactElement {
-  const { featuresTotal, featuresTraced, orphanFeatures } = metrics.traceability;
+  const { featuresTotal, featuresTraced } = metrics.traceability;
   // SDD-079 D4: la invariante del servidor es featuresTraced + orphanFeatures.length === featuresTotal.
   // El faltante es la MISMA lista que filtra el Árbol, así que el número de acá y el del chip coinciden.
-  const missing = orphanFeatures.length;
+  // El frontend y el backend se despliegan por separado: `orphanFeatures` es requerido en el contrato,
+  // pero la respuesta no se valida en runtime, así que un server anterior a WO-665 no lo manda. Se lee
+  // defensivo: sin la lista no se puede afirmar cuánto falta, así que el KPI muestra sólo el ratio.
+  const orphanFeatures = Array.isArray(metrics.traceability.orphanFeatures) ? metrics.traceability.orphanFeatures : null;
+  const missing = orphanFeatures?.length ?? null;
   const ratio = `${featuresTraced}/${featuresTotal}`;
   const treeHref = `/o/${orgSlug}/p/${projectSlug}/arbol?sinCodigo=1`;
 
   const traced: { readonly value: ReactNode; readonly note: ReactNode } =
     featuresTotal === 0
       ? { value: <span className={`num ${styles.kpiValue}`}>Sin datos</span>, note: null }
-      : missing === 0
-        ? { value: <span className={`num ${styles.kpiValue}`}>{ratio}</span>, note: <span className={styles.kpiLabel}>Todas trazadas</span> }
-        : {
-            value: (
-              <Link className={`num ${styles.kpiValue}`} to={treeHref} aria-label={`${featuresTraced} de ${featuresTotal} features trazadas; faltan ${missing}`}>
-                {ratio}
-              </Link>
-            ),
-            note: <span className={styles.kpiLabel}>faltan {missing}</span>,
-          };
+      : missing === null
+        ? { value: <span className={`num ${styles.kpiValue}`}>{ratio}</span>, note: null }
+        : missing === 0
+          ? { value: <span className={`num ${styles.kpiValue}`}>{ratio}</span>, note: <span className={styles.kpiLabel}>Todas trazadas</span> }
+          : {
+              value: (
+                <Link className={`num ${styles.kpiValue}`} to={treeHref} aria-label={`${featuresTraced} de ${featuresTotal} features trazadas; faltan ${missing}`}>
+                  {ratio}
+                </Link>
+              ),
+              note: <span className={styles.kpiLabel}>faltan {missing}</span>,
+            };
 
   const plain = (value: string): ReactNode => <span className={`num ${styles.kpiValue}`}>{value}</span>;
   const items: { label: string; value: ReactNode; note: ReactNode }[] = [

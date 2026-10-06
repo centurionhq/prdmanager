@@ -576,4 +576,18 @@ describe('ProjectGraph (árbol de features)', () => {
     expect(screen.getByRole('treeitem', { name: /MRD-001/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Sin código/ })).toBeNull();
   });
+
+  it('offers no chip and keeps the tree whole when the server predates the field (SDD-079, separate deploys)', async () => {
+    mockTree();
+    vi.spyOn(client, 'getMetrics').mockResolvedValue({
+      ...METRICS,
+      traceability: { featuresTotal: 3, featuresTraced: 3, featurePercent: 100, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null },
+    } as unknown as SuccessMetricsDto);
+
+    renderPage(undefined, ['owner', 'admin'], '?sinCodigo=1');
+
+    expect(await screen.findByRole('treeitem', { name: /FR-001/ })).toBeTruthy();
+    expect(screen.getByRole('treeitem', { name: /MRD-001/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Sin código/ })).toBeNull();
+  });
 });
