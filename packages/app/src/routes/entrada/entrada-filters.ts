@@ -9,7 +9,7 @@
 import type { InboxItemDto } from '@prdm/contracts';
 import { normalize, sortItems, type SortState } from '../../lib/filter-sort.js';
 
-export type EntradaEstado = 'todos' | 'new' | 'triaged';
+export type EntradaEstado = 'todos' | 'new' | 'triaged' | 'dismissed';
 export type EntradaTipo = 'todos' | 'FB' | 'ART';
 /** Every sortable column the `DataTable` exposes; `receivedAt` is the default (D2). */
 export type EntradaSortKey = 'receivedAt' | 'id' | 'title' | 'source' | 'status';
@@ -21,7 +21,7 @@ export const ALL_ESTADOS: EntradaEstado = 'todos';
 export const ALL_TIPOS: EntradaTipo = 'todos';
 export const AUTOMATIC_SOURCE_PREFIX = 'agent:';
 
-const ESTADOS: readonly EntradaEstado[] = ['todos', 'new', 'triaged'];
+const ESTADOS: readonly EntradaEstado[] = ['todos', 'new', 'triaged', 'dismissed'];
 const TIPOS: readonly EntradaTipo[] = ['todos', 'FB', 'ART'];
 const SORT_KEYS: readonly EntradaSortKey[] = ['receivedAt', 'id', 'title', 'source', 'status'];
 const DIRECTIONS: readonly SortDirection[] = ['asc', 'desc'];
@@ -193,4 +193,13 @@ export function formatReceivedDate(iso: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   if (match === null || match[1] === undefined || match[2] === undefined || match[3] === undefined) return iso;
   return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+/** Human label of an inbox item's `status` (SDD-065 D7); unknown values pass through. */
+export function statusLabel(status: string): string {
+  if (status === 'new') return 'Sin triar';
+  if (status === 'triaged') return 'Triado';
+  if (status === 'dismissed') return 'Descartado';
+  if (status === 'duplicate') return 'Duplicado';
+  return status;
 }

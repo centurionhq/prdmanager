@@ -3,7 +3,17 @@
  * conectado al backend SaaS", WO-339): submit raw feedback text, list the triage inbox, and — for one
  * inbox item — fetch its linking candidates and act on them.
  */
-import type { CandidateDto, InboxResponseDto, SubmitFeedbackInput } from '@prdm/contracts';
+import type {
+  CandidateDto,
+  DismissFeedbackInputDto,
+  DismissFeedbackResultDto,
+  InboxResponseDto,
+  MarkDuplicateInputDto,
+  MarkDuplicateResultDto,
+  SubmitFeedbackInput,
+  TriageBatchInputDto,
+  TriageBatchResultDto,
+} from '@prdm/contracts';
 import { buildQuery } from './build-query.js';
 import { request } from './request.js';
 
@@ -76,4 +86,37 @@ export function triageFeedback(
     method: 'POST',
     body: input,
   });
+}
+
+/** `POST .../feedback/:docId/dismiss` (SDD-065 D5): the item leaves «Sin triar» but stays in the graph. */
+export function dismissFeedback(
+  orgSlug: string,
+  projectSlug: string,
+  docId: string,
+  input: DismissFeedbackInputDto,
+): Promise<DismissFeedbackResultDto> {
+  return request<{ result: DismissFeedbackResultDto }>(
+    `${projectBase(orgSlug, projectSlug)}/feedback/${encodeURIComponent(docId)}/dismiss`,
+    { method: 'POST', body: input },
+  ).then((r) => r.result);
+}
+
+export function markDuplicate(
+  orgSlug: string,
+  projectSlug: string,
+  docId: string,
+  input: MarkDuplicateInputDto,
+): Promise<MarkDuplicateResultDto> {
+  return request<{ result: MarkDuplicateResultDto }>(
+    `${projectBase(orgSlug, projectSlug)}/feedback/${encodeURIComponent(docId)}/duplicate`,
+    { method: 'POST', body: input },
+  ).then((r) => r.result);
+}
+
+/** `POST .../feedback/triage-batch`: answers per item, so a partial failure is data, not an exception. */
+export function triageBatch(orgSlug: string, projectSlug: string, input: TriageBatchInputDto): Promise<TriageBatchResultDto> {
+  return request<{ result: TriageBatchResultDto }>(`${projectBase(orgSlug, projectSlug)}/feedback/triage-batch`, {
+    method: 'POST',
+    body: input,
+  }).then((r) => r.result);
 }

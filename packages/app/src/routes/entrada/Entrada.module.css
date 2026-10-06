@@ -117,3 +117,50 @@
     min-height: var(--hit-target);
   }
 }
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.checkbox {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.checkbox:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.batchBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+}
+
+.batchCount {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  margin-right: auto;
+}
+
+@media (max-width: 640px) {
+  .checkbox {
+    width: var(--hit-target);
+    height: var(--hit-target);
+  }
+
+  .rowActions > button,
+  .batchBar > button {
+    min-height: var(--hit-target);
+  }
+}

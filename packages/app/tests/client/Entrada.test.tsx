@@ -228,6 +228,148 @@ describe('Entrada', () => {
     expect(await screen.findByText('Feedback registrado')).toBeTruthy();
   });
 
+  describe('triage', () => {
+    function rowOf(id: string): HTMLElement {
+      const row = screen.getByText(id).closest('tr');
+      if (row === null) throw new Error(`row ${id} not found`);
+      return row;
+    }
+
+    it('dismisses one row without a reason', async () => {
+      vi.spyOn(client, 'listInbox').mockResolvedValue(inbox());
+      const dismiss = vi.spyOn(client, 'dismissFeedback').mockResolvedValue({ id: 'FB-007', status: 'dismissed', reason: null, applied: 'immediate' });
+      renderPage();
+      await screen.findByText('FB-007');
+
+      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Descartar' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Descartar ítem' });
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Descartar' }));
+
+      await waitFor(() => expect(dismiss).toHaveBeenCalledWith('acme', 'web', 'FB-007', { reason: undefined }));
+      expect(await screen.findByText('FB-007 descartado')).toBeTruthy();
+    });
+
+    it('sends the optional dismiss reason', async () => {
+      vi.spyOn(client, 'listInbox').mockResolvedValue(inbox());
+      const dismiss = vi.spyOn(client, 'dismissFeedback').mockResolvedValue({ id: 'FB-007', status: 'dismissed', reason: 'x', applied: 'immediate' });
+      renderPage();
+      await screen.findByText('FB-007');
+
+      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Descartar' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Descartar ítem' });
+      await userEvent.type(within(dialog).getByLabelText('Motivo (opcional)'), 'ya lo cubre otra feature');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Descartar' }));
+
+      await waitFor(() => expect(dismiss).toHaveBeenCalledWith('acme', 'web', 'FB-007', { reason: 'ya lo cubre otra feature' }));
+    });
+
+    it('keeps the modal open and explains a 409 on dismiss', async () => {
+      vi.spyOn(client, 'listInbox').mockResolvedValue(inbox());
+      vi.spyOn(client, 'dismissFeedback').mockRejectedValue(new ApiClientError(409, 'unknown', 'pending republish'));
+      renderPage();
+      await screen.findByText('FB-007');
+
+      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Descartar' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Descartar ítem' });
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Descartar' }));
+
+      expect(await within(dialog).findByText(/el descarte se va a aplicar recién cuando se republique el documento/)).toBeTruthy();
+    });
+
+    it('marks a row as duplicate of another id', async () => {
+      vi.spyOn(client, 'listInbox').mockResolvedValue(inbox());
+      const mark = vi.spyOn(client, 'markDuplicate').mockResolvedValue({ id: 'FB-007', status: 'duplicate', duplicateOf: 'FB-001', applied: 'immediate' });
+      renderPage();
+      await screen.findByText('FB-007');
+
+      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Marcar duplicado' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Marcar duplicado' });
+      await userEvent.type(within(dialog).getByLabelText('Id del duplicado'), 'FB-001');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Marcar duplicado' }));
+
+      await waitFor(() => expect(mark).toHaveBeenCalledWith('acme', 'web', 'FB-007', { duplicateOf: 'FB-001' }));
+      expect(await screen.findByText(/FB-001/, { selector: '[role="status"], [role="status"] *' })).toBeTruthy();
+    });
+
+    it('rejects a malformed duplicate id without calling the API', async () => {
+      vi.spyOn(client, 'listInbox').mockResolvedValue(inbox());
+      const mark = vi.spyOn(client, 'markDuplicate');
+      renderPage();
+      await screen.findByText('FB-007');
+
+      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Marcar duplicado' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Marcar duplicado' });
+      await userEvent.type(within(dialog).getByLabelText('Id del duplicado'), 'nope');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Marcar duplicado' }));
+
+      expect(await within(dialog).findByText('Ingresá el id del duplicado (por ejemplo FB-018).')).toBeTruthy();
+      expect(mark).not.toHaveBeenCalled();
+    });
+
+    it('opens the detail drawer with the rendered body', async () => {
+      const item: InboxItemDto = { ...ITEMS[0]!, body: '## Detalle\n\nCuerpo del feedback' };
+      vi.spyOn(client, 'listInbox').mockResolvedValue({ items: [item], total: 1 });
+      renderPage();
+
+      await userEvent.click(await screen.findByText('Ver drift por rama'));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByText('Detalle')).toBeTruthy();
+      expect(within(dialog).getByText('Cuerpo del feedback')).toBeTruthy();
+    });
+
+    it('shows the batch bar with the selection count', async () => {
+      vi.spyOn(client, 'listInbox').mockResolvedValue(inbox());
+      renderPage();
+      await screen.findByText('FB-007');
+
+      await userEvent.click(within(rowOf('FB-007')).getByRole('checkbox'));
+      await userEvent.click(within(rowOf('ART-002')).getByRole('checkbox'));
+
+      expect(screen.getByText('2 seleccionados')).toBeTruthy();
+      await userEvent.click(screen.getByRole('button', { name: 'Limpiar selección' }));
+      expect(screen.queryByText('2 seleccionados')).toBeNull();
+    });
+
+    it('reports per-item failures of a partial batch', async () => {
+      vi.spyOn(client, 'listInbox').mockResolvedValue(inbox());
+      const batch = vi.spyOn(client, 'triageBatch').mockResolvedValue({
+        action: 'dismiss',
+        results: [
+          { id: 'FB-007', ok: true },
+          { id: 'ART-002', ok: false, error: 'pending_republish' },
+        ],
+        ok: 1,
+        failed: 1,
+      });
+      renderPage();
+      await screen.findByText('FB-007');
+
+      await userEvent.click(within(rowOf('FB-007')).getByRole('checkbox'));
+      await userEvent.click(within(rowOf('ART-002')).getByRole('checkbox'));
+      await userEvent.click(screen.getByRole('button', { name: 'Descartar seleccionados' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Descartar ítem' });
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Descartar' }));
+
+      await waitFor(() => expect(batch).toHaveBeenCalledWith('acme', 'web', { action: 'dismiss', ids: ['ART-002', 'FB-007'].sort(), reason: undefined }));
+      expect(await screen.findByText(/ART-002 \(pending_republish\)/)).toBeTruthy();
+      expect(screen.queryByText(/seleccionados$/)).toBeNull();
+    });
+
+    it('filters to dismissed items with the «Descartados» chip', async () => {
+      const dismissed: InboxItemDto = { ...ITEMS[0]!, id: 'FB-020', title: 'Ya descartado', status: 'dismissed' };
+      vi.spyOn(client, 'listInbox').mockResolvedValue({ items: [...ITEMS, dismissed], total: 3 });
+      renderPage();
+      await screen.findByText('FB-020');
+
+      await userEvent.click(screen.getByRole('radio', { name: /Descartados/ }));
+
+      expect(screen.getByText('FB-020')).toBeTruthy();
+      expect(screen.queryByText('FB-007')).toBeNull();
+      expect(within(rowOf('FB-020')).queryByRole('button', { name: 'Descartar' })).toBeNull();
+    });
+  });
+
   it('surfaces a load error', async () => {
     vi.spyOn(client, 'listInbox').mockRejectedValue(new Error('boom'));
     renderPage();

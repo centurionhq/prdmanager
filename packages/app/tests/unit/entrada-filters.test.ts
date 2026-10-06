@@ -53,7 +53,7 @@ describe('parseEntradaQuery', () => {
   });
 
   it('maps an unknown estado, tipo, sort or dir onto its default', () => {
-    const params = new URLSearchParams({ estado: 'dismissed', tipo: 'XX', sort: 'body', dir: 'sideways' });
+    const params = new URLSearchParams({ estado: 'archived', tipo: 'XX', sort: 'body', dir: 'sideways' });
     expect(parseEntradaQuery(params)).toEqual(DEFAULT_ENTRADA_QUERY);
   });
 
