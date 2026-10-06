@@ -12,9 +12,9 @@
  * `publish_document`'s strict validation (e.g. empty `impacts_paths`, the exact SDD-016 incident this PRD
  * traces back to) without abandoning the document id and starting over.
  *
- * Plus one read-only tool, `get_impacts_paths_drift` (SDD-021, WO-431): lives here rather than
- * `tools-read.ts` because it needs the same `RemoteDocumentsPort` this file already wires in, not the
- * portable `ProjectEngine`/`store` every `tools-read.ts` tool uses instead.
+ * The read-only `get_impacts_paths_drift` (SDD-021, WO-431; SDD-072, WO-643) is registered from here via
+ * `registerImpactsPathsDriftTool` (`tools-drift.ts`), since it needs the same `RemoteDocumentsPort` this
+ * file wires in rather than the portable `ProjectEngine`/`store`.
  *
  * SDD and ADR are treated identically by every tool here: both are `Blueprint` (`LABEL_BY_KIND`), same
  * `templateFor`/`validateDocument`/`checkBlueprint`. `WO` stays excluded from `create_document`'s `kind`
@@ -34,7 +34,8 @@ import { docId, type DraftKind } from '@prdm/core';
 import type { PrdmDeps } from './deps.js';
 import { requireDocumentsPort } from './deps.js';
 import { denyRemoteWrite, type RemoteWriteAuth } from './tools-remote.js';
-import { jsonResult, READ_ONLY, safeTool, WRITE_ONCE } from './shared.js';
+import { registerImpactsPathsDriftTool } from './tools-drift.js';
+import { jsonResult, safeTool, WRITE_ONCE } from './shared.js';
 
 /** Mirrors `@prdm/core`'s `DRAFT_KINDS` minus `WO` (never drafted, local or remote) -- kept as a literal
  * tuple here rather than importing `DRAFT_KINDS` itself so this file's own zod enum stays a compile-time
@@ -123,23 +124,5 @@ export function registerRemoteAuthoringTools(server: McpServer, deps: PrdmDeps, 
     }),
   );
 
-  // SDD-021 "Reconciliacion de impacts_paths desde CI", WO-431: read-only, so it is deliberately left out
-  // of `REMOTE_AUTHORING_TOOL_NAMES` -- the caller's own `view` permission (already checked before any MCP
-  // tool dispatches, `mcp-remote.ts`) is enough, no `denyRemoteWrite`/`mcp:write` scope required. The write
-  // counterpart (`sync_impacts_paths`) stays REST/dashboard-only by the same trust-tier reasoning as
-  // `force_close_feature`.
-  server.registerTool(
-    'get_impacts_paths_drift',
-    {
-      title: 'Get impacts_paths drift',
-      description:
-        "Suggests additions to a published Blueprint's (SDD/ADR) impacts_paths, derived from files actually touched by commits referencing its Work Orders (Refs: WO-xxx) that aren't yet covered by its current impacts_paths patterns -- the exact shape of the SDD-016 incident (a typo'd pattern silently missing subdirectory files). Read-only visibility for an agent session without opening the dashboard; applying a suggestion requires an admin via the dashboard's sync_impacts_paths action.",
-      inputSchema: { blueprint_id: docId },
-      annotations: { title: 'Get impacts_paths drift', ...READ_ONLY },
-    },
-    safeTool(async ({ blueprint_id }: { blueprint_id: string }) => {
-      const drift = await documents().getImpactsPathsDrift(blueprint_id);
-      return jsonResult(drift ? { ...drift } : { found: false });
-    }),
-  );
+  registerImpactsPathsDriftTool(server, deps);
 }

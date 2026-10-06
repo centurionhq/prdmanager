@@ -1,8 +1,9 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import type { RefreshReport } from '@prdm/core';
+import { docId, type RefreshReport } from '@prdm/core';
 import type { PrdmDeps } from './deps.js';
-import { DESTRUCTIVE_IDEMPOTENT, jsonResult, safeTool, WRITE_IDEMPOTENT } from './shared.js';
+import { requireDocumentsPort } from './deps.js';
+import { DESTRUCTIVE_IDEMPOTENT, jsonResult, READ_ONLY, safeTool, WRITE_IDEMPOTENT } from './shared.js';
 
 /**
  * WO ids only (architect gate, ADR-002 D15): acknowledging a Blueprint, Feature or `all` re-baselines other
@@ -43,6 +44,30 @@ export function registerDriftReportTool(server: McpServer, deps: PrdmDeps, opts:
         return last ? reportResult(last) : jsonResult({ hasReport: false });
       }
       return reportResult(await deps.engine.refresh());
+    }),
+  );
+}
+
+/**
+ * `get_impacts_paths_drift` (SDD-021, WO-431; narrowing direction SDD-072, WO-643): read-only, so it is
+ * deliberately left out of `REMOTE_AUTHORING_TOOL_NAMES` -- the caller's own `view` permission (already
+ * checked before any MCP tool dispatches, `mcp-remote.ts`) is enough, no `mcp:write` scope required. It
+ * needs the `RemoteDocumentsPort`, not the portable `ProjectEngine`. The write counterpart
+ * (`sync_impacts_paths`) stays REST/dashboard-only by the same trust-tier reasoning as `force_close_feature`.
+ */
+export function registerImpactsPathsDriftTool(server: McpServer, deps: PrdmDeps): void {
+  server.registerTool(
+    'get_impacts_paths_drift',
+    {
+      title: 'Get impacts_paths drift',
+      description:
+        "Read-only: reconciles a published Blueprint's (SDD/ADR) impacts_paths against what its Work Orders' commits actually touch, in both directions, so an agent session can see a narrowing suggestion without opening the dashboard. `suggestedAdditions` lists files touched by commits whose message carries a `Refs: <this blueprint's Work Order>` trailer that no current pattern covers (the SDD-016 shape: a typo'd pattern silently missing its subdirectory files). `suggestedRemovals` lists current patterns that look surplus, each with its own evidence: `matchedPaths` (the files the pattern matches that only foreign commits touched), `foreignCommits` (those commits' shas, from OTHER blueprints' Work Orders), `alsoDeclaredBy` (other blueprints declaring the pattern verbatim) and `driftIssueCount`. A pattern is only suggested for removal when (a) no commit referencing one of this blueprint's own Work Orders touched a file it matches AND (b) it is de-facto shared -- at least 3 foreign commits touch it, or more than 5 blueprints declare it. Nothing here is applied: applying additions and/or removals is the admin-only `sync_impacts_paths` action, which requires echoing back the exact suggestion shown here plus a mandatory reason, and answers 409 if the suggestion changed underneath.",
+      inputSchema: { blueprint_id: docId },
+      annotations: { title: 'Get impacts_paths drift', ...READ_ONLY },
+    },
+    safeTool(async ({ blueprint_id }: { blueprint_id: string }) => {
+      const drift = await requireDocumentsPort(deps).getImpactsPathsDrift(blueprint_id);
+      return jsonResult(drift ? { ...drift } : { found: false });
     }),
   );
 }
