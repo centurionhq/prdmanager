@@ -23,15 +23,35 @@
 
 /* WO-680 (SDD-084 D1): the notice is now a list, one row per stopped initiative, each a link to that
  * initiative's drift. Right-aligned in the band header on desktop; a full-width andon banner at 375px. */
+.andonDetails {
+  min-width: 0;
+  max-width: 100%;
+  font-size: var(--text-sm);
+  color: var(--linea-texto);
+}
+
+.andonSummary {
+  cursor: pointer;
+  text-align: right;
+}
+
+.andonSummary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* The expanded panel is capped so a long list scrolls instead of pushing the band down. */
 .andon {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: var(--space-2);
-  margin: 0;
+  margin: var(--space-2) 0 0;
   padding: 0;
   list-style: none;
   min-width: 0;
+  max-height: min(40vh, 320px);
+  overflow-y: auto;
   font-size: var(--text-sm);
   color: var(--linea-texto);
 }

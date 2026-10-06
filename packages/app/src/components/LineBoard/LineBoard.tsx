@@ -216,22 +216,27 @@ export function LineBoard({ orgSlug, projectSlug, lineBoard }: LineBoardProps): 
           * station) instead of printing only the station. It carries the `drift?feature=` destination
           * the andon cell used to own. */}
         {stopped.length > 0 ? (
-          <ul className={styles.andon} aria-label="Iniciativas detenidas">
-            {stopped.map(({ feature, station }) => (
-              <li key={feature.id}>
-                <Link
-                  to={`/o/${orgSlug}/p/${projectSlug}/drift?feature=${encodeURIComponent(feature.id)}`}
-                  className={styles.andonLink}
-                  aria-label={`${feature.id} ${feature.title}, línea detenida en ${STATION_META[station].label}. Ver drift.`}
-                >
-                  <span aria-hidden="true" className={styles.andonDot} />
-                  <span className={`id ${styles.andonId}`}>{feature.id}</span>
-                  <span className={styles.andonTitle}>{feature.title}</span>
-                  <span className={styles.andonStation}>detenida en {STATION_META[station].label}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <details className={styles.andonDetails}>
+            <summary className={styles.andonSummary}>
+              {stopped.length} {stopped.length === 1 ? 'iniciativa detenida' : 'iniciativas detenidas'}
+            </summary>
+            <ul className={styles.andon} aria-label="Iniciativas detenidas">
+              {stopped.map(({ feature, station }) => (
+                <li key={feature.id}>
+                  <Link
+                    to={`/o/${orgSlug}/p/${projectSlug}/drift?feature=${encodeURIComponent(feature.id)}`}
+                    className={styles.andonLink}
+                    aria-label={`${feature.id} ${feature.title}, línea detenida en ${STATION_META[station].label}. Ver drift.`}
+                  >
+                    <span aria-hidden="true" className={styles.andonDot} />
+                    <span className={`id ${styles.andonId}`}>{feature.id}</span>
+                    <span className={styles.andonTitle}>{feature.title}</span>
+                    <span className={styles.andonStation}>detenida en {STATION_META[station].label}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </details>
         ) : null}
       </div>
 
