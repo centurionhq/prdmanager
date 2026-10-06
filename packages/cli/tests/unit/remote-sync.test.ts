@@ -186,6 +186,27 @@ describe('runRemoteAck (WO-691)', () => {
     expect(called).toBe(false);
   });
 
+  test('validates --reason before resolving the server origin (CI=true, no PRDM_SERVER)', async () => {
+    let called = false;
+    const fetchImpl = (async () => {
+      called = true;
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+    const env = { XDG_CONFIG_HOME: xdgHome, CI: 'true' };
+
+    for (const [reason, expected] of [
+      [undefined, '--reason is required'],
+      ['   ', '--reason is required'],
+      ['x'.repeat(501), '--reason must be 500 characters or fewer'],
+    ] as const) {
+      const attempt = runRemoteAck(root, remoteFile('https://app.example.test'), 'all', { reason }, { stdout: () => undefined, env, fetchImpl });
+      await expect(attempt).rejects.toThrow(CliError);
+      await expect(attempt).rejects.toThrow(expected);
+      await expect(attempt).rejects.not.toThrow('PRDM_SERVER is required in CI');
+    }
+    expect(called).toBe(false);
+  });
+
   test('posts { target, reason } with the bearer token and prints the report like local mode', async () => {
     linkAndLogin();
     const lines: string[] = [];

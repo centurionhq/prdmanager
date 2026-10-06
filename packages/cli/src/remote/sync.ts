@@ -100,14 +100,14 @@ const MAX_ACK_REASON_LENGTH = 500;
 /** SDD-087 D4: `prdm sync ack <target|all> --reason "..."` in remote mode. The reason is checked before
  * anything else (no credential lookup, no `fetch`): the server audits it and rejects a missing one anyway. */
 export async function runRemoteAck(root: string, file: RemoteProjectFile, target: string, options: RemoteAckOptions, deps: RemoteSyncDeps): Promise<void> {
-  const origin = resolveRemoteServerOrigin(file.remote, deps.env);
-  const graphProjectId = file.project.id;
-
   const reason = options.reason?.trim() ?? '';
   if (reason.length === 0) {
     throw new CliError('--reason is required: "prdm sync ack" records an audited re-baseline; pass --reason "<why this baseline is correct>"');
   }
   if (reason.length > MAX_ACK_REASON_LENGTH) throw new CliError(`--reason must be ${MAX_ACK_REASON_LENGTH} characters or fewer`);
+
+  const origin = resolveRemoteServerOrigin(file.remote, deps.env);
+  const graphProjectId = file.project.id;
 
   const pinMismatch = checkProjectPinMismatch(root, graphProjectId, deps.env);
   if (pinMismatch) throw new CliError(pinMismatch);
