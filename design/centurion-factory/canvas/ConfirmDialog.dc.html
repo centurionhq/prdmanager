@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; }
+    * { box-sizing: border-box; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 0.9s linear infinite; }
+    @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+  </style>
+</helmet>
+<!-- ConfirmDialog (nuevo, SDD-082 / Ajustes). Variante destructiva sobre Modal size md (520). Pantalla 1440 + 375.
+     Foco inicial en Cancelar (aro azul). Botón de acción = Button destructive SÓLIDO (propuesta; hoy solo existe el delineado). -->
+<div style="width: 1440px; padding: 32px; display: flex; flex-direction: column; gap: 32px; background: #E9ECEB;">
+  <header style="display:flex;flex-direction:column;gap:4px;">
+    <h1 style="margin:0;font-size:28px;line-height:1.1;font-weight:800;font-stretch:112%;letter-spacing:-0.01em;">ConfirmDialog</h1>
+    <span style="font-size:14px;color:#565D63;">Una sola pieza para las cinco acciones destructivas de Ajustes. Hoy "Revocar" ejecuta sin preguntar.</span>
+  </header>
+
+  <section style="display:flex;flex-direction:column;gap:12px;">
+    <h2 style="margin:0;font-size:20px;font-weight:700;">Desktop 1440 · estados (ejemplo: token de CI)</h2>
+    <div style="display:grid;grid-template-columns:repeat(2,664px);gap:32px;">
+      <div><div style="display:flex;flex-direction:column;gap:2px;margin-bottom:8px;"><span style="font-size:15px;font-weight:700;">1 · Reposo</span><span style="font-size:13px;color:#565D63;">Foco inicial en Cancelar. Esc, X y clic en el fondo cancelan.</span></div><div style="position:relative;width:664px;height:540px;background:#E9ECEB;overflow:hidden;border:1px solid #C9CFCD;">
+  <div style="position:absolute;inset:0;background:rgba(23,25,28,0.45);display:flex;align-items:center;justify-content:center;padding:32px;"><div style="width:520px;display:flex;flex-direction:column;background:#FBFCFB;border-radius:2px;box-shadow:0 12px 32px rgba(23,25,28,0.18);">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:24px 24px 0;">
+      <h2 style="margin:0;font-size:28px;line-height:1.1;font-weight:800;font-stretch:112%;letter-spacing:-0.01em;">Revocar token de CI</h2>
+      <div style="flex:none;width:32px;height:32px;margin:0;display:flex;align-items:center;justify-content:center;opacity:1;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg></div>
+    </div>
+    <p style="margin:0;padding:16px 24px 0;font-size:14px;line-height:20px;color:#33383D;">Los pipelines que usan este token dejan de poder enviar reportes y la baseline oficial de drift no avanza hasta que configures otro. No se puede deshacer.</p>
+    <div style="display:flex;flex-direction:column;gap:12px;padding:16px 24px 24px;"><div style="display:flex;flex-direction:column;gap:4px;padding:12px;background:#F1F3F2;border:1px solid #DDE1DF;border-left:3px solid #B8322A;border-radius:2px;min-width:0;">
+    <span style="font-size:16px;font-weight:700;line-height:1.3;overflow-wrap:anywhere;">github-actions-real-ci</span>
+    <span style="font-size:13px;line-height:18px;color:#565D63;overflow-wrap:anywhere;">Creado por Tano el 16/09/2026 · usado hace 4 min · <span class="id">prdm_ci_7b1b…</span></span></div></div>
+    <div style="display:flex;justify-content:flex-end;gap:12px;padding:16px 24px;border-top:1px solid #DDE1DF;"><div style="height:40px;display:flex;align-items:center;justify-content:center;padding:0 16px;background:#FBFCFB;border:1px solid #C9CFCD;color:#17191C;font-weight:600;font-size:14px;border-radius:2px;box-shadow: 0 0 0 2px #FBFCFB, 0 0 0 4px #1F4FA0;">Cancelar</div><div style="height:40px;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;background:#B8322A;border:1px solid #B8322A;color:#FFFFFF;font-weight:600;font-size:14px;border-radius:2px;">Revocar token</div></div></div></div></div></div>
+      <div><div style="display:flex;flex-direction:column;gap:2px;margin-bottom:8px;"><span style="font-size:15px;font-weight:700;">2 · En vuelo</span><span style="font-size:13px;color:#565D63;">Acción deshabilitada con spinner; Cancelar y X inactivos. No se cierra solo.</span></div><div style="position:relative;width:664px;height:540px;background:#E9ECEB;overflow:hidden;border:1px solid #C9CFCD;">
+  <div style="position:absolute;inset:0;background:rgba(23,25,28,0.45);display:flex;align-items:center;justify-content:center;padding:32px;"><div style="width:520px;display:flex;flex-direction:column;background:#FBFCFB;border-radius:2px;box-shadow:0 12px 32px rgba(23,25,28,0.18);">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:24px 24px 0;">
+      <h2 style="margin:0;font-size:28px;line-height:1.1;font-weight:800;font-stretch:112%;letter-spacing:-0.01em;">Revocar token de CI</h2>
+      <div style="flex:none;width:32px;height:32px;margin:0;display:flex;align-items:center;justify-content:center;opacity:0.4;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg></div>
+    </div>
+    <p style="margin:0;padding:16px 24px 0;font-size:14px;line-height:20px;color:#33383D;">Los pipelines que usan este token dejan de poder enviar reportes y la baseline oficial de drift no avanza hasta que configures otro. No se puede deshacer.</p>
+    <div style="display:flex;flex-direction:column;gap:12px;padding:16px 24px 24px;"><div style="display:flex;flex-direction:column;gap:4px;padding:12px;background:#F1F3F2;border:1px solid #DDE1DF;border-left:3px solid #B8322A;border-radius:2px;min-width:0;">
+    <span style="font-size:16px;font-weight:700;line-height:1.3;overflow-wrap:anywhere;">github-actions-real-ci</span>
+    <span style="font-size:13px;line-height:18px;color:#565D63;overflow-wrap:anywhere;">Creado por Tano el 16/09/2026 · usado hace 4 min · <span class="id">prdm_ci_7b1b…</span></span></div><span style="font-size:13px;color:#565D63;" aria-live="polite">Revocando…</span></div>
+    <div style="display:flex;justify-content:flex-end;gap:12px;padding:16px 24px;border-top:1px solid #DDE1DF;"><div style="height:40px;display:flex;align-items:center;justify-content:center;padding:0 16px;background:#DDE1DF;border:1px solid #DDE1DF;color:#565D63;font-weight:600;font-size:14px;border-radius:2px;">Cancelar</div><div style="height:40px;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;background:#B8322A;border:1px solid #B8322A;color:#FFFFFF;font-weight:600;font-size:14px;border-radius:2px;opacity:1;"><svg class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9" opacity="1"></path></svg>Revocando</div></div></div></div></div></div>
+      <div><div style="display:flex;flex-direction:column;gap:2px;margin-bottom:8px;"><span style="font-size:15px;font-weight:700;">3 · Error</span><span style="font-size:13px;color:#565D63;">Aviso dentro del diálogo, sin perder contexto. La acción pasa a "Reintentar".</span></div><div style="position:relative;width:664px;height:540px;background:#E9ECEB;overflow:hidden;border:1px solid #C9CFCD;">
+  <div style="position:absolute;inset:0;background:rgba(23,25,28,0.45);display:flex;align-items:center;justify-content:center;padding:32px;"><div style="width:520px;display:flex;flex-direction:column;background:#FBFCFB;border-radius:2px;box-shadow:0 12px 32px rgba(23,25,28,0.18);">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:24px 24px 0;">
+      <h2 style="margin:0;font-size:28px;line-height:1.1;font-weight:800;font-stretch:112%;letter-spacing:-0.01em;">Revocar token de CI</h2>
+      <div style="flex:none;width:32px;height:32px;margin:0;display:flex;align-items:center;justify-content:center;opacity:1;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg></div>
+    </div>
+    <p style="margin:0;padding:16px 24px 0;font-size:14px;line-height:20px;color:#33383D;">Los pipelines que usan este token dejan de poder enviar reportes y la baseline oficial de drift no avanza hasta que configures otro. No se puede deshacer.</p>
+    <div style="display:flex;flex-direction:column;gap:12px;padding:16px 24px 24px;"><div style="display:flex;flex-direction:column;gap:4px;padding:12px;background:#F1F3F2;border:1px solid #DDE1DF;border-left:3px solid #B8322A;border-radius:2px;min-width:0;">
+    <span style="font-size:16px;font-weight:700;line-height:1.3;overflow-wrap:anywhere;">github-actions-real-ci</span>
+    <span style="font-size:13px;line-height:18px;color:#565D63;overflow-wrap:anywhere;">Creado por Tano el 16/09/2026 · usado hace 4 min · <span class="id">prdm_ci_7b1b…</span></span></div><div role="alert" style="display:flex;gap:8px;padding:12px;background:#F6E3E1;border:1px solid #B8322A;border-radius:2px;font-size:14px;line-height:20px;color:#17191C;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B8322A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6"></path><circle cx="12" cy="16.5" r="0.5"></circle></svg><span>No pudimos revocar el token. Revisá tu conexión e intentá de nuevo. El token sigue activo.</span></div></div>
+    <div style="display:flex;justify-content:flex-end;gap:12px;padding:16px 24px;border-top:1px solid #DDE1DF;"><div style="height:40px;display:flex;align-items:center;justify-content:center;padding:0 16px;background:#FBFCFB;border:1px solid #C9CFCD;color:#17191C;font-weight:600;font-size:14px;border-radius:2px;">Cancelar</div><div style="height:40px;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;background:#B8322A;border:1px solid #B8322A;color:#FFFFFF;font-weight:600;font-size:14px;border-radius:2px;">Reintentar</div></div></div></div></div></div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:12px;">
+    <h2 style="margin:0;font-size:20px;font-weight:700;">Mobile 375 · mismo contenido, botones apilados a ancho completo (44 px)</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,375px);gap:32px;">
+      <div><div style="display:flex;flex-direction:column;gap:2px;margin-bottom:8px;"><span style="font-size:15px;font-weight:700;">1 · Reposo</span><span style="font-size:13px;color:#565D63;">Cancelar arriba (foco), acción debajo. X de 44 px.</span></div><div style="position:relative;width:375px;height:640px;background:#E9ECEB;overflow:hidden;border:1px solid #C9CFCD;">
+  <div style="position:absolute;inset:0;background:rgba(23,25,28,0.45);display:flex;align-items:center;justify-content:center;padding:24px;"><div style="width:327px;display:flex;flex-direction:column;background:#FBFCFB;border-radius:2px;box-shadow:0 12px 32px rgba(23,25,28,0.18);">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px 20px 0;">
+      <h2 style="margin:0;font-size:24px;line-height:1.1;font-weight:800;font-stretch:112%;letter-spacing:-0.01em;">Quitar del proyecto</h2>
+      <div style="flex:none;width:44px;height:44px;margin:-8px -8px 0 0;display:flex;align-items:center;justify-content:center;opacity:1;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg></div>
+    </div>
+    <p style="margin:0;padding:16px 20px 0;font-size:14px;line-height:20px;color:#33383D;">Pierde el acceso a prdmanager de inmediato. Sus comentarios y cambios se conservan. Sigue en la organización y puede volver si le dan acceso otra vez.</p>
+    <div style="display:flex;flex-direction:column;gap:12px;padding:16px 20px 20px;"><div style="display:flex;flex-direction:column;gap:4px;padding:12px;background:#F1F3F2;border:1px solid #DDE1DF;border-left:3px solid #B8322A;border-radius:2px;min-width:0;">
+    <span style="font-size:16px;font-weight:700;line-height:1.3;overflow-wrap:anywhere;">Ana Ríos</span>
+    <span style="font-size:13px;line-height:18px;color:#565D63;overflow-wrap:anywhere;">ana.rios@centurionhq.com · Editora en prdmanager</span></div></div>
+    <div style="display:flex;flex-direction:column;gap:8px;padding:16px 20px;border-top:1px solid #DDE1DF;"><div style="width:100%;height:44px;display:flex;align-items:center;justify-content:center;padding:0 16px;background:#FBFCFB;border:1px solid #C9CFCD;color:#17191C;font-weight:600;font-size:14px;border-radius:2px;box-shadow: 0 0 0 2px #FBFCFB, 0 0 0 4px #1F4FA0;">Cancelar</div><div style="width:100%;height:44px;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;background:#B8322A;border:1px solid #B8322A;color:#FFFFFF;font-weight:600;font-size:14px;border-radius:2px;">Quitar del proyecto</div></div></div></div></div></div>
+      <div><div style="display:flex;flex-direction:column;gap:2px;margin-bottom:8px;"><span style="font-size:15px;font-weight:700;">2 · En vuelo</span><span style="font-size:13px;color:#565D63;">Misma estructura; el texto de la acción cambia a "Quitando".</span></div><div style="position:relative;width:375px;height:640px;background:#E9ECEB;overflow:hidden;border:1px solid #C9CFCD;">
+  <div style="position:absolute;inset:0;background:rgba(23,25,28,0.45);display:flex;align-items:center;justify-content:center;padding:24px;"><div style="width:327px;display:flex;flex-direction:column;background:#FBFCFB;border-radius:2px;box-shadow:0 12px 32px rgba(23,25,28,0.18);">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px 20px 0;">
+      <h2 style="margin:0;font-size:24px;line-height:1.1;font-weight:800;font-stretch:112%;letter-spacing:-0.01em;">Quitar del proyecto</h2>
+      <div style="flex:none;width:44px;height:44px;margin:-8px -8px 0 0;display:flex;align-items:center;justify-content:center;opacity:0.4;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg></div>
+    </div>
+    <p style="margin:0;padding:16px 20px 0;font-size:14px;line-height:20px;color:#33383D;">Pierde el acceso a prdmanager de inmediato. Sus comentarios y cambios se conservan. Sigue en la organización y puede volver si le dan acceso otra vez.</p>
+    <div style="display:flex;flex-direction:column;gap:12px;padding:16px 20px 20px;"><div style="display:flex;flex-direction:column;gap:4px;padding:12px;background:#F1F3F2;border:1px solid #DDE1DF;border-left:3px solid #B8322A;border-radius:2px;min-width:0;">
+    <span style="font-size:16px;font-weight:700;line-height:1.3;overflow-wrap:anywhere;">Ana Ríos</span>
+    <span style="font-size:13px;line-height:18px;color:#565D63;overflow-wrap:anywhere;">ana.rios@centurionhq.com · Editora en prdmanager</span></div><span style="font-size:13px;color:#565D63;" aria-live="polite">Quitando…</span></div>
+    <div style="display:flex;flex-direction:column;gap:8px;padding:16px 20px;border-top:1px solid #DDE1DF;"><div style="width:100%;height:44px;display:flex;align-items:center;justify-content:center;padding:0 16px;background:#DDE1DF;border:1px solid #DDE1DF;color:#565D63;font-weight:600;font-size:14px;border-radius:2px;">Cancelar</div><div style="width:100%;height:44px;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;background:#B8322A;border:1px solid #B8322A;color:#FFFFFF;font-weight:600;font-size:14px;border-radius:2px;opacity:1;"><svg class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9" opacity="1"></path></svg>Quitando</div></div></div></div></div></div>
+      <div><div style="display:flex;flex-direction:column;gap:2px;margin-bottom:8px;"><span style="font-size:15px;font-weight:700;">3 · Error</span><span style="font-size:13px;color:#565D63;">El aviso crece hacia abajo; el diálogo scrollea si no entra.</span></div><div style="position:relative;width:375px;height:640px;background:#E9ECEB;overflow:hidden;border:1px solid #C9CFCD;">
+  <div style="position:absolute;inset:0;background:rgba(23,25,28,0.45);display:flex;align-items:center;justify-content:center;padding:24px;"><div style="width:327px;display:flex;flex-direction:column;background:#FBFCFB;border-radius:2px;box-shadow:0 12px 32px rgba(23,25,28,0.18);">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px 20px 0;">
+      <h2 style="margin:0;font-size:24px;line-height:1.1;font-weight:800;font-stretch:112%;letter-spacing:-0.01em;">Quitar del proyecto</h2>
+      <div style="flex:none;width:44px;height:44px;margin:-8px -8px 0 0;display:flex;align-items:center;justify-content:center;opacity:1;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg></div>
+    </div>
+    <p style="margin:0;padding:16px 20px 0;font-size:14px;line-height:20px;color:#33383D;">Pierde el acceso a prdmanager de inmediato. Sus comentarios y cambios se conservan. Sigue en la organización y puede volver si le dan acceso otra vez.</p>
+    <div style="display:flex;flex-direction:column;gap:12px;padding:16px 20px 20px;"><div style="display:flex;flex-direction:column;gap:4px;padding:12px;background:#F1F3F2;border:1px solid #DDE1DF;border-left:3px solid #B8322A;border-radius:2px;min-width:0;">
+    <span style="font-size:16px;font-weight:700;line-height:1.3;overflow-wrap:anywhere;">Ana Ríos</span>
+    <span style="font-size:13px;line-height:18px;color:#565D63;overflow-wrap:anywhere;">ana.rios@centurionhq.com · Editora en prdmanager</span></div><div role="alert" style="display:flex;gap:8px;padding:12px;background:#F6E3E1;border:1px solid #B8322A;border-radius:2px;font-size:14px;line-height:20px;color:#17191C;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B8322A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6"></path><circle cx="12" cy="16.5" r="0.5"></circle></svg><span>No pudimos quitar a Ana Ríos del proyecto. Intentá de nuevo. Sigue teniendo acceso.</span></div></div>
+    <div style="display:flex;flex-direction:column;gap:8px;padding:16px 20px;border-top:1px solid #DDE1DF;"><div style="width:100%;height:44px;display:flex;align-items:center;justify-content:center;padding:0 16px;background:#FBFCFB;border:1px solid #C9CFCD;color:#17191C;font-weight:600;font-size:14px;border-radius:2px;">Cancelar</div><div style="width:100%;height:44px;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;background:#B8322A;border:1px solid #B8322A;color:#FFFFFF;font-weight:600;font-size:14px;border-radius:2px;">Reintentar</div></div></div></div></div></div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:8px;">
+    <h2 style="margin:0;font-size:20px;font-weight:700;">Copy por caso</h2>
+    <div style="display:grid;grid-template-columns:150px 170px 1fr 170px;gap:16px;padding:6px 0;border-bottom:1px solid #C9CFCD;font-size:13px;font-weight:600;color:#565D63;"><span>Caso</span><span>Título</span><span>Consecuencia (descripción)</span><span>Botón de acción</span></div>
+    <div style="display:grid;grid-template-columns:150px 170px 1fr 170px;gap:16px;padding:10px 0;border-bottom:1px solid #DDE1DF;font-size:13px;line-height:18px;"><span style="font-weight:600;">Token de CI</span><span>Revocar token de CI</span><span style="color:#33383D;">Los pipelines que usan este token dejan de poder enviar reportes y la baseline oficial de drift no avanza hasta que configures otro. No se puede deshacer.</span><span style="font-weight:600;color:#B8322A;">Revocar token</span></div><div style="display:grid;grid-template-columns:150px 170px 1fr 170px;gap:16px;padding:10px 0;border-bottom:1px solid #DDE1DF;font-size:13px;line-height:18px;"><span style="font-weight:600;">Token personal</span><span>Revocar token personal</span><span style="color:#33383D;">Cualquier herramienta que lo use va a recibir un error de acceso desde ahora. No se puede deshacer; para volver a usarla vas a crear un token nuevo.</span><span style="font-weight:600;color:#B8322A;">Revocar token</span></div><div style="display:grid;grid-template-columns:150px 170px 1fr 170px;gap:16px;padding:10px 0;border-bottom:1px solid #DDE1DF;font-size:13px;line-height:18px;"><span style="font-weight:600;">Miembro del proyecto</span><span>Quitar del proyecto</span><span style="color:#33383D;">Pierde el acceso a prdmanager de inmediato. Sus comentarios y cambios se conservan. Sigue en la organización y puede volver si le dan acceso otra vez.</span><span style="font-weight:600;color:#B8322A;">Quitar del proyecto</span></div><div style="display:grid;grid-template-columns:150px 170px 1fr 170px;gap:16px;padding:10px 0;border-bottom:1px solid #DDE1DF;font-size:13px;line-height:18px;"><span style="font-weight:600;">Miembro de la organización</span><span>Quitar de la organización</span><span style="color:#33383D;">Pierde el acceso a Centurion HQ y a todos sus proyectos, y sus tokens personales dejan de funcionar. Sus comentarios y cambios se conservan.</span><span style="font-weight:600;color:#B8322A;">Quitar de la organización</span></div><div style="display:grid;grid-template-columns:150px 170px 1fr 170px;gap:16px;padding:10px 0;border-bottom:1px solid #DDE1DF;font-size:13px;line-height:18px;"><span style="font-weight:600;">Invitación</span><span>Revocar invitación</span><span style="color:#33383D;">El enlace que le enviamos deja de funcionar. Podés invitarla de nuevo cuando quieras.</span><span style="font-weight:600;color:#B8322A;">Revocar invitación</span></div>
+    <div style="font-size:13px;color:#565D63;line-height:18px;max-width:900px;">El recurso afectado va siempre en la placa (nombre en 16/700, dato de contexto en 13). La invitación es el único caso reversible: sin "No se puede deshacer".</div>
+  </section>
+</div>
+</x-dc>
+</body>
+</html>
