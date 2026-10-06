@@ -77,34 +77,70 @@ export function OrgShell(): ReactElement {
   }
 
   const currentOrg = organizations.find((org) => org.slug === orgSlug);
+
+  // Un switcher solo existe si hay algo que cambiar (SDD-077 D1); con una sola organización se
+  // muestra su nombre como texto estático (o nada, si la organización pedida no existe).
+  let switcher: ReactElement | null = null;
+  if (organizations.length > 1) {
+    switcher = (
+      <select
+        id="org-switcher"
+        name="organization"
+        className={styles.orgSwitcher}
+        value={currentOrg?.slug ?? ''}
+        onChange={(e) => void handleSwitch(e.target.value)}
+        aria-label="Organización"
+      >
+        {currentOrg ? null : (
+          <option value="" disabled>
+            Elegí una organización
+          </option>
+        )}
+        {organizations.map((org) => (
+          <option key={org.id} value={org.slug}>
+            {org.name}
+          </option>
+        ))}
+      </select>
+    );
+  } else if (currentOrg) {
+    switcher = <span className={styles.orgName}>{currentOrg.name}</span>;
+  }
+  const signOutButton = (
+    <button type="button" className={styles.signOutButton} onClick={() => void handleSignOut()}>
+      Cerrar sesión
+    </button>
+  );
+
   if (!currentOrg) {
-    return <FormNotice title="Organización no encontrada" subtitle="No pertenecés a esta organización o no existe." />;
+    return (
+      <div className={styles.shell}>
+        <header className={styles.header}>
+          <span className={styles.brand}>prdm</span>
+          {switcher}
+          <nav className={styles.nav}>
+            <Link to="/settings/tokens">Tokens</Link>
+            {signOutButton}
+          </nav>
+        </header>
+        <main className={styles.content}>
+          <FormNotice title="Organización no encontrada" subtitle="No pertenecés a esta organización o no existe." />
+        </main>
+      </div>
+    );
   }
 
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
         <span className={styles.brand}>prdm</span>
-        <select
-          className={styles.orgSwitcher}
-          value={currentOrg.slug}
-          onChange={(e) => void handleSwitch(e.target.value)}
-          aria-label="Organización"
-        >
-          {organizations.map((org) => (
-            <option key={org.id} value={org.slug}>
-              {org.name}
-            </option>
-          ))}
-        </select>
+        {switcher}
         <nav className={styles.nav}>
           <Link to={`/o/${currentOrg.slug}`}>Proyectos</Link>
           <Link to={`/o/${currentOrg.slug}/ajustes/miembros`}>Miembros</Link>
           <Link to={`/o/${currentOrg.slug}/ajustes/auditoria`}>Auditoría</Link>
           <Link to="/settings/tokens">Tokens</Link>
-          <button type="button" className={styles.signOutButton} onClick={() => void handleSignOut()}>
-            Cerrar sesión
-          </button>
+          {signOutButton}
         </nav>
       </header>
       <main className={styles.content}>

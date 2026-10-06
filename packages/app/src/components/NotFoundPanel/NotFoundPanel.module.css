@@ -1,0 +1,112 @@
+.page {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+}
+
+.card {
+  width: 100%;
+  max-width: 32rem;
+  min-width: 0;
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.brand {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--apagado);
+}
+
+.title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.body {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 20px;
+  color: var(--texto-secundario);
+  overflow-wrap: anywhere;
+}
+
+.body code {
+  font-family: var(--font-mono);
+  color: var(--grafito);
+  overflow-wrap: anywhere;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hit-target);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--cianotipo);
+  border-radius: var(--radius-plate);
+}
+
+.action:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.destinations {
+  width: 100%;
+  min-width: 0;
+}
+
+.destinationList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.destination {
+  display: flex;
+  align-items: center;
+  min-height: var(--hit-target);
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-plate);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  color: var(--texto-secundario);
+  overflow-wrap: anywhere;
+}
+
+.destination:hover {
+  background: var(--relleno);
+  color: var(--grafito);
+}
+
+.destination:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.active {
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: var(--space-4);
+  }
+}

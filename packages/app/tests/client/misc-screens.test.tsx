@@ -25,7 +25,7 @@ describe('misc screens', () => {
         router={createMemoryRouter([{ path: '/nope', element: <NotFound /> }], { initialEntries: ['/nope'] })}
       />,
     );
-    expect(screen.getByRole('heading', { name: 'Página no encontrada' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Esta dirección no existe' })).toBeTruthy();
   });
 
   it('AjustesGeneral shows the real project identity', () => {

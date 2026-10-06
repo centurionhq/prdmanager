@@ -45,6 +45,12 @@
   box-shadow: var(--focus-ring);
 }
 
+.orgName {
+  color: var(--grafito);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
 .nav {
   display: flex;
   gap: var(--space-4);
@@ -146,7 +152,8 @@
   }
 
   /* A long organisation name must shrink inside the header, not push the whole page sideways. */
-  .orgSwitcher {
+  .orgSwitcher,
+  .orgName {
     flex: 1 1 100%;
     min-width: 0;
     max-width: 100%;
