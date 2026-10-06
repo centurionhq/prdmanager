@@ -1,0 +1,22 @@
+/* WO-751 (SDD-105 D5, decisión T2): el plano de texto corta a dos líneas -- el mismo corte del comp
+   (`.dos-lineas`) -- y el texto completo va en el `title` del mismo elemento. Nada de alto variable. */
+.inline {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* El tramo entre acentos graves: pieza mono sobre `--relleno`, como el `.cod` del comp y la regla de
+   «mono sólo para literales» del diseño (una ruta o un identificador, nunca una etiqueta). */
+.code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 0 4px;
+  background: var(--relleno);
+  border-radius: var(--radius-plate);
+  color: var(--texto-secundario);
+  overflow-wrap: anywhere;
+}

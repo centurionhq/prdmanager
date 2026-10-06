@@ -37,6 +37,7 @@ import {
   ErrorState,
   FeatureTree,
   IdTag,
+  MarkdownInline,
   Modal,
   PageHeader,
   SearchField,
@@ -194,7 +195,9 @@ function byMostRecentOrder(left: FeatureOrderRow, right: FeatureOrderRow): numbe
 
 const ORDER_COLUMNS: readonly DataTableColumn<FeatureOrderRow>[] = [
   { key: 'ref', header: 'Orden', render: (row) => <IdTag id={row.ref} /> },
-  { key: 'title', header: 'Título', render: (row) => row.title },
+  // WO-751 (SDD-105 D5/T1): el título es markdown -- la celda pinta el texto plano con los tramos de
+  // código como pieza mono, en vez de imprimir `**`, acentos graves y rutas crudas (FB-263).
+  { key: 'title', header: 'Título', render: (row) => <MarkdownInline text={row.title} /> },
   {
     key: 'status',
     header: 'Estado',
