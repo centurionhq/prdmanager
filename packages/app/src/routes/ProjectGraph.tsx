@@ -48,6 +48,7 @@ import {
   type StatusBadgeWorkflowStatus,
 } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
+import { countMatches, filterForestByQuery } from './arbol/tree-search.js';
 import styles from './ProjectGraph.module.css';
 import { useProjectShellContext } from './ProjectShell.js';
 
@@ -142,17 +143,6 @@ function keepOnlyOrphans(nodes: readonly TreeNode[], orphanRefs: ReadonlySet<str
   return nodes.flatMap((node) => {
     const descendants = keepOnlyOrphans(node.children, orphanRefs);
     return orphanRefs.has(node.ref) ? [{ ...node, children: [] }, ...descendants] : descendants;
-  });
-}
-
-/** WO-461: the header's "Buscar por id o título" -- keeps a node if it (or any descendant) matches, so a
- * match's ancestors stay visible for context instead of the match showing up disconnected from its tree. */
-function filterForestByQuery(nodes: readonly TreeNode[], query: string): TreeNode[] {
-  if (!query) return [...nodes];
-  return nodes.flatMap((node) => {
-    const children = filterForestByQuery(node.children, query);
-    const matches = node.ref.toLowerCase().includes(query) || node.title.toLowerCase().includes(query);
-    return matches || children.length > 0 ? [{ ...node, children }] : [];
   });
 }
 
@@ -478,11 +468,14 @@ export function ProjectGraph(): ReactElement {
   const navigate = useNavigate();
   const [closureOpen, setClosureOpen] = useState(false);
   const [collapseSignal, setCollapseSignal] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
   // SDD-079 D5: el estado del filtro vive en la URL, así el drill-down de la Planta
   // (`?sinCodigo=1`) y cualquier link compartido funcionan, y el «atrás» del navegador también.
   const sinCodigo = searchParams.get('sinCodigo') === '1';
+  // SDD-083 D1: el texto buscado vive en la URL (`?q=`), como el chip «Sin código» de WO-666.
+  const query = searchParams.get('q') ?? '';
+  const trimmedQuery = query.trim();
+  const searching = trimmedQuery !== '';
   useDocumentTitle('Árbol de features');
 
   const treeQuery = useApiQuery(
@@ -508,9 +501,22 @@ export function ProjectGraph(): ReactElement {
   const filterByCode = sinCodigo && showCodeFilter;
   const visibleForest = useMemo(() => {
     const base = filterByCode ? keepOnlyOrphans(forest, orphanRefs) : forest;
-    return filterForestByQuery(base, searchQuery.trim().toLowerCase());
-  }, [forest, searchQuery, filterByCode, orphanRefs]);
+    return filterForestByQuery(base, query);
+  }, [forest, query, filterByCode, orphanRefs]);
+  const matchCount = useMemo(() => countMatches(visibleForest), [visibleForest]);
   const selectedRef = id ?? forest[0]?.ref;
+
+  function setQuery(value: string): void {
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        if (value.trim() === '') next.delete('q');
+        else next.set('q', value);
+        return next;
+      },
+      { replace: true },
+    );
+  }
 
   function toggleSinCodigo(): void {
     const next = new URLSearchParams(searchParams);
@@ -595,7 +601,7 @@ export function ProjectGraph(): ReactElement {
       <div className={styles.layout}>
         <div className={styles.treeColumn}>
           <div className={styles.treeSearch}>
-            <SearchField label="Buscar por id o título" value={searchQuery} onChange={setSearchQuery} placeholder="Buscar por id o título" />
+            <SearchField label="Buscar por id o título" value={query} onChange={setQuery} placeholder="Buscar por id o título" />
           </div>
           {showCodeFilter ? (
             <div className={styles.treeHeaderRow}>
@@ -608,21 +614,37 @@ export function ProjectGraph(): ReactElement {
             </div>
           ) : null}
           <div className={styles.treeHeaderRow}>
-            <span className={styles.treeCount}>
-              <span className="num">{totalFeatures}</span> features, <span className="num">{closedFeatures}</span> cerradas
+            <span className={styles.treeCount} aria-live="polite">
+              {searching ? (
+                <>
+                  <span className="num">{matchCount}</span> resultados de <span className="num">{totalFeatures}</span> features
+                </>
+              ) : (
+                <>
+                  <span className="num">{totalFeatures}</span> features, <span className="num">{closedFeatures}</span> cerradas
+                </>
+              )}
             </span>
             <Button type="button" variant="ghost" onClick={() => setCollapseSignal((value) => value + 1)}>
               Contraer todo
             </Button>
           </div>
-          <FeatureTree
-            forest={visibleForest}
-            selectedRef={selectedRef}
-            driftRefs={driftRefs}
-            orphanRefs={orphanRefs}
-            collapseSignal={collapseSignal}
-            onSelect={(ref) => navigate(`/o/${orgSlug}/p/${projectSlug}/arbol/${ref}`)}
-          />
+          {searching && matchCount === 0 ? (
+            <EmptyState
+              title={`Sin resultados para «${trimmedQuery}»`}
+              body="Probá con otra palabra: la búsqueda mira el id y el título de cada feature."
+              action={{ label: 'Limpiar búsqueda', onClick: () => setQuery('') }}
+            />
+          ) : (
+            <FeatureTree
+              forest={visibleForest}
+              selectedRef={selectedRef}
+              driftRefs={driftRefs}
+              orphanRefs={orphanRefs}
+              collapseSignal={collapseSignal}
+              onSelect={(ref) => navigate(`/o/${orgSlug}/p/${projectSlug}/arbol/${ref}`)}
+            />
+          )}
         </div>
         <div>
           {nodeQuery.status === 'cargando' ? <Skeleton rows={6} /> : null}

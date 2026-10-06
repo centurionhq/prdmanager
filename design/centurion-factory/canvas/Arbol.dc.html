@@ -63,10 +63,27 @@
 
       <div style="display: flex; flex-direction: column; gap: 12px; padding: 16px 24px 0 0; border-right: 1px solid #C9CFCD; min-width: 0;">
         <div style="display: flex; align-items: baseline; justify-content: space-between; font-size: 14px;">
-          <span style="color: #565D63;"><span class="num">12</span> features, <span class="num">4</span> cerradas</span>
+          <!-- SDD-083 D1/D2: con `?q=` activo la línea pasa a «N resultados de M features». -->
+          <sc-if value="{{ noBuscando }}" hint-placeholder-val="{{ true }}">
+            <span style="color: #565D63;"><span class="num">12</span> features, <span class="num">4</span> cerradas</span>
+          </sc-if>
+          <sc-if value="{{ isBuscando }}" hint-placeholder-val="{{ false }}">
+            <span style="color: #565D63;" aria-live="polite"><span class="num">2</span> resultados de <span class="num">12</span> features</span>
+          </sc-if>
           <a style="font-size: 14px;">Contraer todo</a>
         </div>
 
+        <!-- SDD-083 D3: con búsqueda activa y 0 resultados la columna del árbol muestra el EmptyState propio
+             (misma plaqueta que EmptyState.tsx) con la acción de limpiar la búsqueda. -->
+        <sc-if value="{{ isSinResultados }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 16px; padding: 24px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h6"></path></svg>
+            <span style="font-size: 16px; font-weight: 600;">Sin resultados para «árbol»</span>
+            <p style="margin: 0; font-size: 14px; line-height: 20px; color: #33383D;">Probá con otra palabra: la búsqueda mira el id y el título de cada feature.</p>
+            <span style="height: 32px; display: inline-flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px; font-weight: 600; color: #17191C;">Limpiar búsqueda</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ noSinResultados }}" hint-placeholder-val="{{ true }}">
         <div role="tree" style="display: flex; flex-direction: column;">
           <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
             <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
@@ -173,6 +190,7 @@
             <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Panel de salud de cuenta</span>
           </div>
         </div>
+        </sc-if>
 
         <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid #DDE1DF; font-size: 12px; color: #565D63;">
           <span>Las features cerradas se muestran atenuadas.</span>
@@ -329,17 +347,26 @@
   </div>
 </div>
 </x-dc>
-<script data-dc-script data-props='{"estado":{"editor":"enum","default":"con_datos","options":["con_datos","sin_datos"],"section":"Panel de detalle"}}'>
+<script data-dc-script data-props='{"estado":{"editor":"enum","default":"con_datos","options":["con_datos","sin_datos"],"section":"Panel de detalle"},"busqueda":{"editor":"enum","default":"todas","options":["todas","resultados","sin_resultados"],"section":"Buscador"}}'>
 class Component extends DCLogic {
   renderVals() {
     const estado = this.props.estado ?? 'con_datos';
     const isConDatos = estado === 'con_datos';
     const isSinDatos = estado === 'sin_datos';
+    const busqueda = this.props.busqueda ?? 'todas';
+    const isBuscando = busqueda !== 'todas';
+    const noBuscando = !isBuscando;
+    const isSinResultados = busqueda === 'sin_resultados';
+    const noSinResultados = !isSinResultados;
     const selectedStyle = 'position: relative; z-index: 1; display: flex; align-items: center; height: 36px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; outline: 2px solid #1F4FA0; outline-offset: 2px; min-width: 0;';
     const unselectedStyle = 'display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;';
     return {
       isConDatos,
       isSinDatos,
+      isBuscando,
+      noBuscando,
+      isSinResultados,
+      noSinResultados,
       // WO-456/SDD-028: el panel de detalle tiene dos estados -- PRD-004 (cerrada, con trazabilidad
       // completa) es el default; PRD-014 (recién colgada de BC-002, sin blueprints/órdenes/commits
       // todavía) muestra el estado vacío que packages/app/src/components/EmptyState/EmptyState.tsx ya
