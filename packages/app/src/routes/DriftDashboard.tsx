@@ -5,17 +5,17 @@
  * from the old graph/`getDriftDashboard`-only screen to also drive `getDriftIssues` (SDD-012, WO-340),
  * the same feature/blueprint/station-attributed issues `Drift.dc.html` shows.
  */
-import { useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { can } from '@prdm/contracts';
 import { getDriftDashboard, getDriftIssues } from '../api/client.js';
 import { acknowledgeDrift, authorizeForcePushOverride } from '../api/graph.js';
 import { errorMessage } from '../api/error-message.js';
 import { useApiQuery } from '../api/use-api-query.js';
-import { Button, ErrorState, PageHeader, Severity, Skeleton, ToastProvider, useToast } from '../components/index.js';
+import { Button, ErrorState, FilterChips, PageHeader, SearchField, SelectField, Severity, Skeleton, ToastProvider, useToast } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { useProjectShellContext } from './ProjectShell.js';
 import { AcknowledgeModal } from './drift/AcknowledgeModal.js';
-import { acknowledgeableTargets } from './drift/drift-groups.js';
+import { EMPTY_FILTERS, PROJECT_TARGET, acknowledgeableTargets, filterIssues, groupIssues, type DriftFilters } from './drift/drift-groups.js';
 import { DriftIssuesList } from './drift/DriftIssuesList.js';
 import { ForcePushOverrideModal } from './drift/ForcePushOverrideModal.js';
 import { ReportDetailModal } from './drift/ReportDetailModal.js';
@@ -50,6 +50,9 @@ function DriftContent(): ReactElement {
   const [reportId, setReportId] = useState<string | undefined>(undefined);
   const [forcePushOpen, setForcePushOpen] = useState(false);
   const [forcePushSubmitting, setForcePushSubmitting] = useState(false);
+  const [filters, setFilters] = useState<DriftFilters>(EMPTY_FILTERS);
+  const issues = issuesQuery.data ?? [];
+  const filtered = useMemo(() => filterIssues(issues, filters), [issues, filters]);
 
   if (dashboardQuery.status === 'cargando' || issuesQuery.status === 'cargando') return <Skeleton rows={6} />;
   if (dashboardQuery.status === 'error') {
@@ -60,10 +63,11 @@ function DriftContent(): ReactElement {
   }
 
   const dashboard = dashboardQuery.data ?? { official: null, previews: [], history: [] };
-  const issues = issuesQuery.data ?? [];
   const errorCount = issues.filter((issue) => issue.severity === 'error').length;
   const warningCount = issues.filter((issue) => issue.severity === 'warning').length;
   const targets = acknowledgeableTargets(issues);
+  const hasActiveFilters =
+    filters.severity !== 'all' || filters.kind !== 'all' || filters.blueprintId !== 'all' || filters.query.trim() !== '';
 
   async function handleAcknowledge(target: string): Promise<void> {
     setAckSubmitting(true);
@@ -133,26 +137,92 @@ function DriftContent(): ReactElement {
       ) : null}
 
       <section className={styles.summary} aria-label="Resumen de drift">
-        <div className={styles.summaryItem}>
+        <button
+          type="button"
+          aria-pressed={filters.severity === 'error'}
+          className={[styles.summaryItem, styles.kpiButton, filters.severity === 'error' ? styles.kpiSelected : null].filter(Boolean).join(' ')}
+          onClick={() => setFilters((f) => ({ ...f, severity: f.severity === 'error' ? 'all' : 'error' }))}
+        >
           <div className={styles.summaryHeadline}>
             <span className={`${styles.summaryDot} ${styles.dotError}`} aria-hidden="true" />
             <span className={styles.summaryCount}>{errorCount}</span>
             <span className={styles.summaryUnit}>errores</span>
           </div>
-        </div>
-        <div className={styles.summaryItem}>
+        </button>
+        <button
+          type="button"
+          aria-pressed={filters.severity === 'warning'}
+          className={[styles.summaryItem, styles.kpiButton, filters.severity === 'warning' ? `${styles.kpiSelected} ${styles.kpiSelectedWarning}` : null]
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => setFilters((f) => ({ ...f, severity: f.severity === 'warning' ? 'all' : 'warning' }))}
+        >
           <div className={styles.summaryHeadline}>
             <span className={`${styles.summaryDot} ${styles.dotWarning}`} aria-hidden="true" />
             <span className={styles.summaryCount}>{warningCount}</span>
             <span className={styles.summaryUnit}>avisos</span>
           </div>
-        </div>
+        </button>
       </section>
 
       <div className={styles.columns}>
         <div>
           <h2 className={styles.sectionTitle}>Issues</h2>
-          <DriftIssuesList issues={issues} />
+          <div className={styles.filters} role="group" aria-label="Filtros de drift">
+            <div className={styles.filterControls}>
+              <FilterChips
+                label="Severidad"
+                value={filters.severity}
+                onChange={(severity) => setFilters((f) => ({ ...f, severity: severity as DriftFilters['severity'] }))}
+                options={[
+                  { value: 'all', label: 'Todas', count: issues.length },
+                  { value: 'error', label: 'Errores', count: errorCount },
+                  { value: 'warning', label: 'Avisos', count: warningCount },
+                ]}
+              />
+              <FilterChips
+                label="Tipo"
+                value={filters.kind}
+                onChange={(kind) => setFilters((f) => ({ ...f, kind }))}
+                options={[
+                  { value: 'all', label: 'Todas', count: issues.length },
+                  ...groupIssues(issues).map((g) => ({
+                    value: g.kind,
+                    label: g.label,
+                    count: g.subgroups.reduce((n, s) => n + s.issues.length, 0),
+                  })),
+                ]}
+              />
+              <SelectField
+                label="Blueprint"
+                value={filters.blueprintId}
+                onChange={(blueprintId) => setFilters((f) => ({ ...f, blueprintId }))}
+                options={[
+                  { value: 'all', label: 'Todos los blueprints' },
+                  ...targets.filter((t) => t.value !== PROJECT_TARGET).map((t) => ({ value: t.value, label: t.label })),
+                ]}
+              />
+              <SearchField
+                label="Buscar en los issues"
+                value={filters.query}
+                placeholder="id, ruta o mensaje"
+                onChange={(query) => setFilters((f) => ({ ...f, query }))}
+              />
+            </div>
+            <div className={styles.filterFooter}>
+              <span className={styles.filterSummary}>
+                {filtered.length} de {issues.length} issues
+              </span>
+              {hasActiveFilters ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
+                  Limpiar filtros
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          <div className={styles.issuesList} role="region" aria-label="Issues de drift">
+            <DriftIssuesList issues={filtered} />
+          </div>
         </div>
 
         <div className={styles.sidebar}>
