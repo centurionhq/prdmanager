@@ -29,13 +29,72 @@ export function extractChecklistItems(body: string): ChecklistItem[] {
     .map((m) => ({ done: (m[1] ?? '').toLowerCase() === 'x', text: (m[2] ?? '').trim() }));
 }
 
-function extractTasks(body: string): ChecklistItem[] {
+const PATHS_OVERRIDE_LINE = /^paths:\s*(.+)$/i;
+
+interface TaskItem extends ChecklistItem {
+  /** Explicit `paths: a.ts, b.ts` line right under the item (SDD-068 D3); wins over the textual match. */
+  paths?: string[];
+}
+
+/** Like `extractTasks`, but also reads the `paths:` override line directly below an item (not counted as an item). */
+function extractTasksWithPaths(body: string): TaskItem[] {
   const heading = TASKS_HEADING.exec(body);
   if (!heading) return [];
   const rest = body.slice(heading.index + heading[0].length);
   const next = ANY_HEADING.exec(rest);
-  const section = next ? rest.slice(0, next.index) : rest;
-  return extractChecklistItems(section);
+  const lines = (next ? rest.slice(0, next.index) : rest).split('\n').map((l) => l.trim());
+
+  const items: TaskItem[] = [];
+  lines.forEach((line, i) => {
+    const m = CHECKLIST_LINE.exec(line);
+    if (!m) return;
+    const override = PATHS_OVERRIDE_LINE.exec(lines[i + 1] ?? '');
+    const paths = override ? (override[1] ?? '').split(',').map((p) => p.trim()).filter((p) => p.length > 0) : [];
+    items.push({ done: (m[1] ?? '').toLowerCase() === 'x', text: (m[2] ?? '').trim(), ...(paths.length > 0 ? { paths } : {}) });
+  });
+  return items;
+}
+
+function extractTasks(body: string): ChecklistItem[] {
+  return extractTasksWithPaths(body).map(({ text, done }) => ({ text, done }));
+}
+
+export type ImpactPathsSource = 'override' | 'match' | 'inherited';
+
+const normalizePath = (p: string): string => p.trim().replace(/^\.\//, '');
+const isWordChar = (c: string | undefined): boolean => c !== undefined && /[A-Za-z0-9_]/.test(c);
+
+/** True when `needle` appears in `haystack` (both lowercased) with no word character on either side. */
+function containsToken(haystack: string, needle: string): boolean {
+  if (needle.length === 0) return false;
+  for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + 1)) {
+    if (!isWordChar(haystack[at - 1]) && !isWordChar(haystack[at + needle.length])) return true;
+  }
+  return false;
+}
+
+function pathMatchesText(path: string, text: string): boolean {
+  const base = path.slice(path.lastIndexOf('/') + 1);
+  if (/[*?]/.test(base)) return text.includes(path);
+  if (text.includes(path)) return true;
+  if (containsToken(text, base)) return true;
+  const dot = base.lastIndexOf('.');
+  return dot > 0 && containsToken(text, base.slice(0, dot));
+}
+
+/**
+ * Derives the `impacts_paths` of one task (SDD-068 D1-D3): explicit override > blueprint paths named by the
+ * item text > the whole blueprint list (declared as inherited in the WO body).
+ */
+export function deriveImpactPaths(
+  taskText: string,
+  override: string[] | undefined,
+  blueprintPaths: string[],
+): { paths: string[]; source: ImpactPathsSource } {
+  if (override && override.length > 0) return { paths: override, source: 'override' };
+  const text = taskText.toLowerCase();
+  const matched = [...new Set(blueprintPaths.map(normalizePath))].filter((p) => pathMatchesText(p.toLowerCase(), text));
+  return matched.length > 0 ? { paths: matched, source: 'match' } : { paths: blueprintPaths, source: 'inherited' };
 }
 
 export interface PlanOptions {
@@ -59,7 +118,10 @@ function sourceTaskOf(blueprintId: string, text: string): string {
   return sha256(`${blueprintId}\n${normalizeText(text)}`).slice(0, 16);
 }
 
-function buildBody(blueprint: BlueprintDoc, taskText: string, id: string): string {
+const INHERITED_PATHS_DECLARATION = 'heredados del blueprint (el ítem no nombra archivos)';
+
+function buildBody(blueprint: BlueprintDoc, taskText: string, id: string, derived: { paths: string[]; source: ImpactPathsSource }): string {
+  const pathsDeclaration = derived.source === 'inherited' ? INHERITED_PATHS_DECLARATION : derived.paths.join(', ');
   const features = blueprint.frontmatter.architects.join(', ');
   return [
     '## Objetivo',
@@ -67,6 +129,8 @@ function buildBody(blueprint: BlueprintDoc, taskText: string, id: string): strin
     '',
     '## Contexto',
     `${blueprint.node.id} — ${blueprint.node.title}; features: ${features}`,
+    '',
+    `paths: ${pathsDeclaration}`,
     '',
     '## Criterios de aceptación',
     `- [ ] Implementación realizada dentro del código gobernado por ${blueprint.node.id}`,
@@ -76,7 +140,7 @@ function buildBody(blueprint: BlueprintDoc, taskText: string, id: string): strin
 }
 
 /** Every generated work order is born `pending` (ADR-002 D9/PRD-002 lifecycle): checking off a task never fabricates history. */
-function buildFields(blueprint: BlueprintDoc, id: string, title: string, sourceTask: string, now: Date): Record<string, FieldValue> {
+function buildFields(blueprint: BlueprintDoc, id: string, title: string, sourceTask: string, now: Date, impactsPaths: string[]): Record<string, FieldValue> {
   return {
     id,
     type: 'WO',
@@ -84,7 +148,7 @@ function buildFields(blueprint: BlueprintDoc, id: string, title: string, sourceT
     status: 'pending',
     created_at: todayIso(now),
     implements: [blueprint.node.id],
-    impacts_paths: blueprint.impactsPaths,
+    impacts_paths: impactsPaths,
     source_task: sourceTask,
     tags: blueprint.node.tags,
   };
@@ -95,7 +159,7 @@ const MAX_TITLE = 300;
 /** Pure planning: turns the `## Tareas`/`## Tasks` checklist of a blueprint into work orders, skipping tasks already generated (by source_task). */
 export function planWorkOrders(blueprint: ParsedDoc, existing: ParsedDoc[], options: PlanOptions): PlannedWorkOrder[] {
   if (!isBlueprint(blueprint)) throw new Error(`${blueprint.node.id} is not a blueprint`);
-  const tasks = extractTasks(blueprint.node.body);
+  const tasks = extractTasksWithPaths(blueprint.node.body);
   if (tasks.length === 0) return [];
 
   const knownSourceTasks = new Set(existing.filter(isWorkOrder).map((d) => d.frontmatter.source_task).filter((v): v is string => v !== undefined));
@@ -111,8 +175,9 @@ export function planWorkOrders(blueprint: ParsedDoc, existing: ParsedDoc[], opti
     const title = task.text.slice(0, MAX_TITLE);
     const folder = options.folder ?? `${options.docsDir}/work-orders`;
     const path = `${folder}/${id}-${slugify(task.text)}.md`;
-    const fields = buildFields(blueprint, id, title, sourceTask, options.now);
-    const content = renderDocument(fields, buildBody(blueprint, task.text, id));
+    const derived = deriveImpactPaths(task.text, task.paths, blueprint.impactsPaths);
+    const fields = buildFields(blueprint, id, title, sourceTask, options.now, derived.paths);
+    const content = renderDocument(fields, buildBody(blueprint, task.text, id, derived));
 
     planned.push({ id, path, title, status: 'pending', content });
   }
