@@ -1,0 +1,28 @@
+# WO-587 / SDD-057: systemd --user unit template that supervises `packages/server` in place of the ad
+# hoc `node --env-file=.env ... tsx ... packages/server/src/main.ts` process this was manually started
+# with. Runs the *built* dist (matching what CI and packages/server/Dockerfile both produce), not the
+# tsx dev script -- `npm run build` must have already produced `packages/server/dist/main.js`.
+#
+# This is a template, not installed automatically by any Work Order: activation (copying it to
+# ~/.config/systemd/user/prdmanager-server.service with REPO_ROOT substituted, then
+# `systemctl --user daemon-reload && systemctl --user enable --now prdmanager-server.service`, plus
+# `loginctl enable-linger` so it survives logout) is deliberately a separate, explicitly-confirmed step --
+# see PRD-039 "Fuera de alcance" / Fase 3.
+#
+# `packages/server/scripts/deploy.mjs` restarts this exact unit name (`prdmanager-server.service`) after
+# every rebuild.
+
+[Unit]
+Description=prdmanager server (@prdm/server) -- SaaS API + static @prdm/app bundle
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=REPO_ROOT
+EnvironmentFile=REPO_ROOT/.env
+ExecStart=/usr/bin/env node REPO_ROOT/packages/server/dist/main.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

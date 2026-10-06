@@ -1,0 +1,29 @@
+# WO-590 / SDD-057: systemd --user unit template that supervises the RSI loop driver
+# (`scripts/rsi/driver.mjs`), keeping it running across crashes and surviving terminal/session close.
+#
+# This is a template, not installed automatically by any Work Order. Activation (copying it to
+# ~/.config/systemd/user/prdmanager-rsi.service with REPO_ROOT substituted, `systemctl --user daemon-
+# reload && systemctl --user enable --now prdmanager-rsi.service`) is deliberately a separate, explicitly-
+# confirmed step -- see PRD-039 "Fuera de alcance" / Fase 3. It must only be installed AFTER
+# prdmanager-server.service (see ../../../packages/server/deploy/systemd/) is already running, since
+# `deploy.mjs` restarts that unit every cycle.
+#
+# `stop`/`disable` on this unit are deliberately excluded from `.claude/settings.rsi.json`'s allowlist
+# (PRD-039 "Circuit breaker / kill switch"), so a human-initiated stop of this unit can never be
+# self-healed by the loop itself -- only the PAUSE sentinel / loop-state.json's pausedReason, which the
+# driver checks every iteration, are used for that from inside the loop.
+
+[Unit]
+Description=prdmanager RSI loop driver -- autonomous sense/ideate/implement/deploy cycles
+After=network.target prdmanager-server.service
+
+[Service]
+Type=simple
+WorkingDirectory=REPO_ROOT
+EnvironmentFile=REPO_ROOT/.env
+ExecStart=/usr/bin/env node REPO_ROOT/scripts/rsi/driver.mjs
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target
