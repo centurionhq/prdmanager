@@ -1,6 +1,14 @@
 import { readFileSync, statSync } from 'node:fs';
 import type { Command } from 'commander';
-import { checkCommitMessage, checkCommitRange, detectProjectFileMode, type CommitRangeEntry } from '@prdm/core';
+import {
+  checkBranchRefs,
+  checkCommitMessage,
+  checkCommitRange,
+  detectProjectFileMode,
+  type BranchRefMismatch,
+  type BranchRefsCheck,
+  type CommitRangeEntry,
+} from '@prdm/core';
 import { CliError, messageOf } from '../errors.js';
 import type { CliDeps } from '../program.js';
 import { runRemoteCheckRange } from '../remote/check-range.js';
@@ -52,13 +60,33 @@ function formatEntry(entry: CommitRangeEntry): string {
   return `${entry.sha}: ${entry.result.ok ? 'ok' : (entry.result.message ?? 'rejected')}`;
 }
 
-async function runCommitsRange(deps: CliDeps, range: string): Promise<void> {
+function formatBranchWarning(check: BranchRefsCheck, mismatch: BranchRefMismatch): string {
+  const actual = mismatch.refs.length > 0 ? mismatch.refs.join(', ') : '(none)';
+  return `warning: ${mismatch.sha}: branch "${check.branch}" declares ${mismatch.expected} but the commit's Refs: is ${actual}`;
+}
+
+/** Warns per misaligned commit; with `--strict` the caller turns a non-zero count into a failure. */
+async function warnBranchMismatches(deps: CliDeps, range: string): Promise<number> {
+  const branchCheck = await checkBranchRefs(deps.root, range);
+  for (const mismatch of branchCheck.mismatches) deps.stderr(formatBranchWarning(branchCheck, mismatch));
+  return branchCheck.mismatches.length;
+}
+
+function failOnBranchMismatch(range: string, count: number, strict: boolean): void {
+  if (strict && count > 0) {
+    throw new CliError(`prdm check commits --range ${range}: ${count} commit(s) do not reference the branch's WO (--strict)`);
+  }
+}
+
+async function runCommitsRange(deps: CliDeps, range: string, strict: boolean): Promise<void> {
+  const mismatchCount = await warnBranchMismatches(deps, range);
   const mode = detectProjectFileMode(deps.root);
   if (mode.kind === 'remote') {
     const check = await runRemoteCheckRange(deps.root, mode.file, range, { env: process.env });
     for (const entry of check.commits.filter((c) => !c.result.ok)) deps.stdout(formatEntry(entry));
     if (!check.ok) throw new CliError(`prdm check commits --range ${range}: policy violations found`);
     deps.stdout(`prdm check commits --range ${range}: ${check.commits.length} commit(s) ok`);
+    failOnBranchMismatch(range, mismatchCount, strict);
     return;
   }
 
@@ -70,6 +98,7 @@ async function runCommitsRange(deps: CliDeps, range: string): Promise<void> {
   if (check.notEnforcedMessage) deps.stdout(check.notEnforcedMessage);
   if (!check.ok) throw new CliError(`prdm check commits --range ${range}: policy violations found`);
   deps.stdout(`prdm check commits --range ${range}: ${check.commits.length} commit(s) ok`);
+  failOnBranchMismatch(range, mismatchCount, strict);
 }
 
 export function register(program: Command, deps: CliDeps): void {
@@ -85,5 +114,6 @@ export function register(program: Command, deps: CliDeps): void {
     .command('commits')
     .description('validate every commit in a range against the Refs: enforcement policy (CI)')
     .requiredOption('--range <a..b>', 'commit range to check, e.g. origin/main..HEAD')
-    .action((options: { range: string }) => runCommitsRange(deps, options.range));
+    .option('--strict', 'fail (instead of warn) when a commit\'s Refs: does not include the WO declared by the branch name')
+    .action((options: { range: string; strict?: boolean }) => runCommitsRange(deps, options.range, options.strict === true));
 }
