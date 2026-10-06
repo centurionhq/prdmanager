@@ -29,12 +29,13 @@ describe('LineBoard', () => {
     expect(header?.className).toContain('stationHeaderAndon');
   });
 
-  it('shows an andon summary line naming the stopped station and feature', () => {
+  it('lists the stopped initiative in the notice, naming its station and linking to drift (WO-680, SDD-084 D1/D4)', () => {
     renderBoard();
-    expect(
-      screen.getByText((_, element) => element?.tagName === 'P' && (element.textContent ?? '').includes('Línea detenida en Ejecución')),
-    ).toBeTruthy();
-    expect(within(screen.getByText((_, el) => el?.tagName === 'P' && (el.textContent ?? '').includes('Línea detenida')).closest('p')!, ).getByText('FR-002')).toBeTruthy();
+    const notice = screen.getByRole('list', { name: 'Iniciativas detenidas' });
+    const link = within(notice).getByRole('link', { name: /FR-002 Importador incremental de repositorios, línea detenida en Ejecución\. Ver drift\./ });
+    expect(link.getAttribute('href')).toBe('/drift?feature=FR-002');
+    expect(within(notice).getByText('Importador incremental de repositorios')).toBeTruthy();
+    expect(within(notice).getByText(/detenida en Ejecución/)).toBeTruthy();
   });
 
   it('renders a row per selected feature with its id and title', () => {
@@ -51,15 +52,17 @@ describe('LineBoard', () => {
     expect(screen.getByText('14/22 · 3 paradas')).toBeTruthy();
   });
 
-  it('renders the row link to the tree and the andon label link to drift', () => {
+  it('renders the row link to the tree and keeps the drift link only in the notice (WO-680, SDD-084 D4)', () => {
     renderBoard();
     const rowLink = screen.getByRole('link', {
       name: 'FR-002 Importador incremental de repositorios, estación Ejecución, 14 de 22 órdenes hechas, línea detenida: 3 órdenes fuera de sincronía',
     });
     expect(rowLink.getAttribute('href')).toBe('/arbol/FR-002');
 
-    const andonLink = screen.getByRole('link', { name: '14/22 · 3 paradas' });
-    expect(andonLink.getAttribute('href')).toBe('/drift?feature=FR-002');
+    const notice = screen.getByRole('list', { name: 'Iniciativas detenidas' });
+    expect(within(notice).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['/drift?feature=FR-002']);
+    // The station cell is no longer a link to drift — the notice owns that destination.
+    expect(screen.queryByRole('link', { name: '14/22 · 3 paradas' })).toBeNull();
   });
 
   it('gives every row an accessible name describing station and progress', () => {

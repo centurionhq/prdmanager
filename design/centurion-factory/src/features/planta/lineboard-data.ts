@@ -56,17 +56,12 @@ export function stationIndex(station: Station): number {
   return STATIONS.indexOf(station);
 }
 
-export interface AndonState {
-  readonly row: LineRow;
-  readonly station: Station;
-  readonly stationIndex: number;
-}
-
-/** The first stopped row on the board, if any — the line only ever stops in one place. */
-export function findAndon(rows: readonly LineRow[]): AndonState | undefined {
-  const row = rows.find((candidate) => candidate.kind === 'stopped');
-  if (!row) return undefined;
-  return { row, station: row.feature.station, stationIndex: stationIndex(row.feature.station) };
+/** WO-680 (SDD-084 D1): every stopped row, ordered by station (earliest first) — the same criterion the
+ * board used to pick its single andon, now applied to the whole list the notice renders. */
+export function findStopped(rows: readonly LineRow[]): LineRow[] {
+  return rows
+    .filter((row) => row.kind === 'stopped')
+    .sort((a, b) => stationIndex(a.feature.station) - stationIndex(b.feature.station));
 }
 
 export function rowLabel(row: LineRow): string {

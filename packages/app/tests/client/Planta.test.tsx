@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -61,6 +61,9 @@ const LINE_BOARD: LineBoardDto = {
       title: 'Persistencia de borradores',
       status: 'in_progress',
       station: 'entregado',
+      // WO-680: a second stopped initiative, and NOT the project-wide andon (BC-001), stopped at an
+      // earlier station than where it currently sits -- the D2 case the old board could not show.
+      andonStation: 'diseno_tecnico',
       progress: { done: 4, total: 4, stopped: 0 },
       children: [],
     },
@@ -99,8 +102,9 @@ describe('Planta', () => {
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
-    expect(await screen.findByText('BC-001')).toBeTruthy();
-    expect(screen.getByText('Importador incremental de repos')).toBeTruthy();
+    // WO-680: the stopped initiatives are named in the notice too, so their id/title now appear twice.
+    expect((await screen.findAllByText('BC-001')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Importador incremental de repos').length).toBeGreaterThan(0);
     // The 375px layout (`LineBoard.module.css`'s `@media (max-width: 767px)`) renders a second, CSS-only
     // hidden copy of a row's own current station next to the desktop rail -- real browsers exclude
     // `display: none` content from the accessibility tree, but jsdom doesn't apply external stylesheet
@@ -116,7 +120,7 @@ describe('Planta', () => {
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
-    await screen.findByText('BC-001');
+    await screen.findAllByText('BC-001');
 
     // The old inline phrasing (which rendered glued to the title) is gone entirely.
     expect(screen.queryByText('Llegó sin evaluar')).toBeNull();
@@ -136,7 +140,7 @@ describe('Planta', () => {
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
-    await screen.findByText('BC-001');
+    await screen.findAllByText('BC-001');
     expect(screen.getByText('PRD-010')).toBeTruthy();
     expect(screen.queryAllByRole('link').some((link) => link.textContent?.startsWith('PRD-010'))).toBe(false);
   });
@@ -166,7 +170,7 @@ describe('Planta', () => {
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
-    expect(await screen.findByText('FR-001')).toBeTruthy();
+    expect((await screen.findAllByText('FR-001')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('sin caso de negocio').length).toBeGreaterThan(0);
   });
 
@@ -239,17 +243,63 @@ describe('Planta', () => {
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
-    await userEvent.click(await screen.findByRole('link', { name: /FR-001/ }));
+    // WO-680: two links now mention FR-001 (the row and the notice); click the row, by its own name.
+    await userEvent.click(await screen.findByRole('link', { name: /FR-001 Persistencia de borradores, estación Entregado/ }));
     expect(await screen.findByText('arbol screen')).toBeTruthy();
   });
 
-  it('shows the andon on the BC row and clicking it navigates to the drift screen filtered by that feature', async () => {
+  it('the notice lists every stopped initiative, earliest station first, each linked to its own drift (WO-680, SDD-084 D1/D4)', async () => {
     vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
-    expect(await screen.findByText(/línea detenida en construcción/i)).toBeTruthy();
-    await userEvent.click(await screen.findByRole('link', { name: /paradas/ }));
+    const notice = await screen.findByRole('list', { name: 'Iniciativas detenidas' });
+    // FR-001 is stopped at Diseño técnico (earlier) and BC-001 at Construcción (later): earliest first,
+    // even though the project-wide andon is BC-001. Both are named and linked -- not just the earliest.
+    const links = within(notice).getAllByRole('link');
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '/o/acme/p/web/drift?feature=FR-001',
+      '/o/acme/p/web/drift?feature=BC-001',
+    ]);
+    expect(within(notice).getByText('FR-001')).toBeTruthy();
+    expect(within(notice).getByText('Persistencia de borradores')).toBeTruthy();
+    expect(within(notice).getByText('BC-001')).toBeTruthy();
+    expect(within(notice).getByText('Importador incremental de repos')).toBeTruthy();
+    // Each row names its stopped station in text, not only by color.
+    expect(within(notice).getAllByText(/detenida en diseño técnico/i).length).toBeGreaterThan(0);
+    expect(within(notice).getAllByText(/detenida en construcción/i).length).toBeGreaterThan(0);
+  });
+
+  it('marks every stopped row with text and an accessible name, not just the project andon (WO-680, SDD-084 D2)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    // FR-001 is stopped at Diseño técnico but is NOT the project-wide andon: it must still be marked.
+    const frRow = await screen.findByRole('link', { name: /FR-001 Persistencia de borradores, estación Entregado, línea detenida en Diseño técnico/ });
+    expect(within(frRow).getByText(/detenida en diseño técnico/i)).toBeTruthy();
+
+    const bcRow = screen.getByRole('link', { name: /BC-001 Importador incremental de repos, estación Construcción, línea detenida en Construcción/ });
+    expect(within(bcRow).getByText(/detenida en construcción/i)).toBeTruthy();
+  });
+
+  it('keeps the drift destination only in the notice: the station cell is no longer a link to drift (WO-680, SDD-084 D4)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    const notice = await screen.findByRole('list', { name: 'Iniciativas detenidas' });
+    const driftLinks = screen.getAllByRole('link').filter((link) => (link.getAttribute('href') ?? '').includes('/drift?feature='));
+    expect(driftLinks).toHaveLength(2);
+    for (const link of driftLinks) expect(notice.contains(link)).toBe(true);
+  });
+
+  it('clicking an andon notice row navigates to the drift screen filtered by that initiative', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    await userEvent.click(await screen.findByRole('link', { name: /BC-001 Importador incremental de repos, línea detenida en Construcción\. Ver drift\./ }));
     expect(await screen.findByText('drift screen')).toBeTruthy();
   });
 
