@@ -187,7 +187,7 @@ describe('Entrada', () => {
     const triage = vi.spyOn(client, 'triageFeedback').mockResolvedValue({ linkedTo: ['FR-003'] });
     renderPage();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Enlazar a feature' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Enlazar FB-007 a una feature' }));
     const dialog = await screen.findByRole('dialog', { name: 'Enlazar a feature' });
     expect(within(dialog).getByText('FR-003')).toBeTruthy();
 
@@ -203,7 +203,7 @@ describe('Entrada', () => {
     vi.spyOn(client, 'triageFeedback').mockRejectedValue(new ApiClientError(409, 'unknown', 'pending republish'));
     renderPage();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Enlazar a feature' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Enlazar FB-007 a una feature' }));
     const dialog = await screen.findByRole('dialog', { name: 'Enlazar a feature' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Enlazar' }));
 
@@ -241,7 +241,7 @@ describe('Entrada', () => {
       renderPage();
       await screen.findByText('FB-007');
 
-      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Descartar' }));
+      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Descartar FB-007' }));
       const dialog = await screen.findByRole('dialog', { name: 'Descartar ítem' });
       await userEvent.click(within(dialog).getByRole('button', { name: 'Descartar' }));
 
@@ -255,7 +255,7 @@ describe('Entrada', () => {
       renderPage();
       await screen.findByText('FB-007');
 
-      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Descartar' }));
+      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Descartar FB-007' }));
       const dialog = await screen.findByRole('dialog', { name: 'Descartar ítem' });
       await userEvent.type(within(dialog).getByLabelText('Motivo (opcional)'), 'ya lo cubre otra feature');
       await userEvent.click(within(dialog).getByRole('button', { name: 'Descartar' }));
@@ -269,7 +269,7 @@ describe('Entrada', () => {
       renderPage();
       await screen.findByText('FB-007');
 
-      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Descartar' }));
+      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Descartar FB-007' }));
       const dialog = await screen.findByRole('dialog', { name: 'Descartar ítem' });
       await userEvent.click(within(dialog).getByRole('button', { name: 'Descartar' }));
 
@@ -282,7 +282,7 @@ describe('Entrada', () => {
       renderPage();
       await screen.findByText('FB-007');
 
-      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Marcar duplicado' }));
+      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Marcar duplicado FB-007' }));
       const dialog = await screen.findByRole('dialog', { name: 'Marcar duplicado' });
       await userEvent.type(within(dialog).getByLabelText('Id del duplicado'), 'FB-001');
       await userEvent.click(within(dialog).getByRole('button', { name: 'Marcar duplicado' }));
@@ -297,7 +297,7 @@ describe('Entrada', () => {
       renderPage();
       await screen.findByText('FB-007');
 
-      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Marcar duplicado' }));
+      await userEvent.click(within(rowOf('FB-007')).getByRole('button', { name: 'Marcar duplicado FB-007' }));
       const dialog = await screen.findByRole('dialog', { name: 'Marcar duplicado' });
       await userEvent.type(within(dialog).getByLabelText('Id del duplicado'), 'nope');
       await userEvent.click(within(dialog).getByRole('button', { name: 'Marcar duplicado' }));
@@ -366,7 +366,75 @@ describe('Entrada', () => {
 
       expect(screen.getByText('FB-020')).toBeTruthy();
       expect(screen.queryByText('FB-007')).toBeNull();
-      expect(within(rowOf('FB-020')).queryByRole('button', { name: 'Descartar' })).toBeNull();
+      expect(within(rowOf('FB-020')).queryByRole('button', { name: 'Descartar FB-020' })).toBeNull();
+    });
+  });
+
+  describe('contrato de nombres accesibles (WO-622)', () => {
+    beforeEach(() => {
+      vi.spyOn(client, 'listInbox').mockResolvedValue(inbox());
+    });
+
+    it('names every row control with its item id', async () => {
+      renderPage();
+      await screen.findByText('FB-007');
+
+      expect(screen.getByRole('checkbox', { name: 'Seleccionar FB-007' })).toBeTruthy();
+      expect(screen.getByRole('checkbox', { name: 'Seleccionar ART-002' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Enlazar FB-007 a una feature' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Descartar FB-007' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Marcar duplicado FB-007' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Descartar ART-002' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Marcar duplicado ART-002' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Enlazar ART-002 a una feature' })).toBeNull();
+    });
+
+    it('keeps the accessible names unique (no generic row control)', async () => {
+      renderPage();
+      await screen.findByText('FB-007');
+
+      expect(screen.queryByRole('button', { name: 'Descartar' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Marcar duplicado' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Enlazar a feature' })).toBeNull();
+    });
+
+    it('identifies the Tipo select with id and name', async () => {
+      renderPage();
+      await screen.findByText('FB-007');
+
+      const select = screen.getByRole('combobox', { name: 'Tipo' }) as HTMLSelectElement;
+      expect(select.id).toBe('entrada-tipo');
+      expect(select.getAttribute('name')).toBe('tipo');
+    });
+
+    it('announces the batch summary in an aria-live region', async () => {
+      renderPage();
+      await screen.findByText('FB-007');
+
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Seleccionar FB-007' }));
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Seleccionar ART-002' }));
+
+      const live = screen.getByText('2 ítems seleccionados');
+      expect(live.getAttribute('role')).toBe('status');
+      expect(live.getAttribute('aria-live')).toBe('polite');
+
+      await userEvent.click(screen.getByRole('button', { name: 'Limpiar selección' }));
+      expect(screen.queryByText('2 ítems seleccionados')).toBeNull();
+    });
+
+    it('flips aria-sort with the real sort wiring', async () => {
+      renderPage();
+      await screen.findByText('FB-007');
+
+      const table = screen.getByRole('table', { name: 'Bandeja de entrada' });
+      const header = () => within(table).getByRole('columnheader', { name: 'Recibido' });
+      expect(header().getAttribute('aria-sort')).toBe('descending');
+
+      await userEvent.click(within(header()).getByRole('button', { name: 'Recibido' }));
+      expect(header().getAttribute('aria-sort')).toBe('ascending');
+
+      await userEvent.click(within(header()).getByRole('button', { name: 'Recibido' }));
+      expect(header().getAttribute('aria-sort')).toBe('descending');
     });
   });
 

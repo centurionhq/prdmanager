@@ -62,6 +62,27 @@ test.describe('Accessibility gate: ported frontend screens (WO-369)', () => {
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/entrada`);
     await expectNoViolations(page, 'Entrada');
 
+    // WO-622 (SDD-065 D8): axe no detecta nombres accesibles duplicados — el contrato de nombres lo
+    // afirma Entrada.test.tsx. Este scan extra cubre layout/contraste con la barra de lote y el drawer
+    // montados, que hoy no se escanean.
+    await page.getByRole('button', { name: 'Registrar feedback' }).click();
+    const register = page.getByRole('dialog', { name: 'Registrar feedback' });
+    await register.getByLabel('Fuente').fill('other');
+    const body = 'Feedback de a11y para el lote y el drawer.';
+    await register.getByLabel('Texto').fill(body);
+    await register.getByRole('button', { name: 'Registrar feedback' }).click();
+
+    const row = page.getByRole('row').filter({ hasText: body }).first();
+    await expect(row).toBeVisible();
+    await row.getByRole('checkbox', { name: /^Seleccionar FB-/ }).check();
+    await expect(page.getByRole('button', { name: 'Descartar seleccionados' })).toBeVisible();
+    await expectNoViolations(page, 'Entrada (lote seleccionado)');
+
+    // Abre el drawer: click sobre la celda del Id (no sobre el checkbox ni los botones, que hacen stopPropagation).
+    await row.getByRole('cell', { name: /^FB-\d+$/ }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expectNoViolations(page, 'Entrada (drawer abierto)');
+
     for (const tab of ['general', 'miembros', 'tokens', 'tokens-personales', 'perfil', 'auditoria']) {
       await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/ajustes/${tab}`);
       await expectNoViolations(page, `project ajustes/${tab}`);

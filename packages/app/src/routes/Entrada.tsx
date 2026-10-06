@@ -299,6 +299,7 @@ function EntradaContent(): ReactElement {
                 type="button"
                 variant="primary"
                 size="sm"
+                aria-label={`Enlazar ${item.id} a una feature`}
                 onClick={(event) => {
                   event.stopPropagation();
                   setLinkTarget(item);
@@ -311,6 +312,7 @@ function EntradaContent(): ReactElement {
               type="button"
               variant="secondary"
               size="sm"
+              aria-label={`Descartar ${item.id}`}
               onClick={(event) => {
                 event.stopPropagation();
                 openAction('dismiss', [item.id], false);
@@ -322,6 +324,7 @@ function EntradaContent(): ReactElement {
               type="button"
               variant="secondary"
               size="sm"
+              aria-label={`Marcar duplicado ${item.id}`}
               onClick={(event) => {
                 event.stopPropagation();
                 openAction('duplicate', [item.id], false);
@@ -356,6 +359,9 @@ function EntradaContent(): ReactElement {
         <EmptyState title="Todavía no hay feedback ni artifacts para este proyecto" />
       ) : (
         <div className={styles.body}>
+          <p className="visually-hidden" role="status" aria-live="polite">
+            {selected.size > 0 ? `${selected.size} ítems seleccionados` : ''}
+          </p>
           <div className={styles.filtersBar}>
             <FilterChips
               label="Estado"
@@ -365,6 +371,8 @@ function EntradaContent(): ReactElement {
             />
             <div className={styles.selectWrapper}>
               <select
+                id="entrada-tipo"
+                name="tipo"
                 aria-label="Tipo"
                 className={styles.select}
                 value={query.tipo}
