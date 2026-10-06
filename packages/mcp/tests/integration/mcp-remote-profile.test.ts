@@ -7,11 +7,12 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { Engine, scanDocuments, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
+import { Engine, scanDocuments, submitFeedback, triageFeedback, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
 import { createFixtureRepo, openTestDb, removeDir, testConfig } from '@prdm/testkit';
 import { createPrdmServer } from '../../src/create.js';
 import type { RemoteDocumentDetail, RemoteDocumentSummary, RemoteDocumentsPort } from '../../src/documents-port.js';
 import { registerRemoteAuthoringTools } from '../../src/tools-remote-authoring.js';
+import { registerRemoteWriteTools } from '../../src/tools-remote.js';
 
 const EXPECTED_REMOTE_TOOLS = [
   'get_project',
@@ -45,6 +46,8 @@ const NEVER_REMOTE_TOOLS = [
   'claim_work_order',
   'complete_work_order',
   'submit_feedback',
+  'close_feedback',
+  'dismiss_feedback',
 ];
 
 let root: string;
@@ -230,5 +233,98 @@ describe('remote MCP profile: unpublished documents via the documents port (WO-6
     const result = await call('get_node', { id: 'ART-999' });
     expect(result.isError).toBe(true);
     expect(result.text).toContain('not found');
+  });
+});
+
+describe('remote MCP profile: close_feedback / dismiss_feedback (WO-708)', () => {
+  const auditCalls: { action: string; target: string; metadata: unknown }[] = [];
+  const opened: { client: Client; server: McpServer }[] = [];
+
+  const connect = async (subject: { projectRole: 'admin' | 'editor' | 'developer' | 'viewer' }, scopes: string[]) => {
+    const srv = createPrdmServer({ config, store, engine }, { profile: 'remote' });
+    registerRemoteWriteTools(srv, { config, store, engine }, {
+      subject,
+      scopes,
+      callerHandle: 'tester',
+      userId: 'user-1',
+      audit: async (action, target, metadata) => {
+        auditCalls.push({ action, target, metadata });
+      },
+    });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const cli = new Client({ name: 'test-remote-write-client', version: '0.0.0' });
+    await Promise.all([cli.connect(clientTransport), srv.connect(serverTransport)]);
+    opened.push({ client: cli, server: srv });
+    return cli;
+  };
+
+  const callOn = async (cli: Client, name: string, args: Record<string, unknown>) => {
+    const result = await cli.callTool({ name, arguments: args });
+    const text = (result.content as { type: string; text: string }[])[0]!.text;
+    return { isError: result.isError, text };
+  };
+
+  const seedTriaged = async (text: string) => {
+    const { id } = await submitFeedback(engine, { text, source: 'agent:prdm-scout' });
+    await triageFeedback(engine, id, { root: true });
+    return id;
+  };
+
+  const frontmatterOf = async (id: string) => (await engine.scan()).docs.find((d) => d.node.id === id)!.frontmatter as Record<string, unknown>;
+
+  let writer: Client;
+
+  beforeAll(async () => {
+    writer = await connect({ projectRole: 'editor' }, ['mcp:write']);
+  });
+
+  afterAll(async () => {
+    for (const { client: c, server: s } of opened) {
+      await c.close();
+      await s.close();
+    }
+  });
+
+  test('close_feedback closes a triaged feedback, records the closer, and audits it; a second close is rejected', async () => {
+    const id = await seedTriaged('Las alertas de drift llegan tarde');
+
+    const closed = await callOn(writer, 'close_feedback', { id, reason: 'entregado', resolved_by: ['WO-708'] });
+    expect(closed.isError).toBeFalsy();
+    expect(JSON.parse(closed.text)).toMatchObject({ id, status: 'closed', reason: 'entregado', resolvedBy: ['WO-708'] });
+
+    const fm = await frontmatterOf(id);
+    expect(fm).toMatchObject({ status: 'closed', close_reason: 'entregado', closed_by: 'dev:tester', resolved_by: ['WO-708'] });
+    expect(fm.closed_at).toBeTruthy();
+    expect(auditCalls).toContainEqual(expect.objectContaining({ action: 'mcp.close_feedback', target: id }));
+
+    const again = await callOn(writer, 'close_feedback', { id, reason: 'otra vez' });
+    expect(again.isError).toBe(true);
+    expect(again.text).toContain('only new or triaged feedback can be closed');
+  });
+
+  test('dismiss_feedback dismisses a triaged feedback and audits it', async () => {
+    const id = await seedTriaged('Ruido sin accion posible');
+
+    const dismissed = await callOn(writer, 'dismiss_feedback', { id, reason: 'duplicado' });
+    expect(dismissed.isError).toBeFalsy();
+    expect(JSON.parse(dismissed.text)).toMatchObject({ id, status: 'dismissed' });
+    expect((await frontmatterOf(id)).status).toBe('dismissed');
+    expect(auditCalls).toContainEqual(expect.objectContaining({ action: 'mcp.dismiss_feedback', target: id }));
+  });
+
+  test('without mcp:write both tools answer missing_scope', async () => {
+    const reader = await connect({ projectRole: 'editor' }, ['mcp:read']);
+    for (const [name, args] of [['close_feedback', { id: 'FB-001', reason: 'x' }], ['dismiss_feedback', { id: 'FB-001' }]] as const) {
+      const result = await callOn(reader, name, args);
+      expect(JSON.parse(result.text)).toMatchObject({ error: 'missing_scope' });
+    }
+  });
+
+  test('a developer role (no edit_document) answers insufficient_role', async () => {
+    const dev = await connect({ projectRole: 'developer' }, ['mcp:write']);
+    for (const [name, args] of [['close_feedback', { id: 'FB-001', reason: 'x' }], ['dismiss_feedback', { id: 'FB-001' }]] as const) {
+      const result = await callOn(dev, name, args);
+      expect(JSON.parse(result.text)).toMatchObject({ error: 'insufficient_role' });
+    }
   });
 });

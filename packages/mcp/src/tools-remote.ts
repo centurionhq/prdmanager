@@ -28,11 +28,16 @@
  *    catch `CommitNotVerifiedError` and turn it into the specific, actionable `commit_not_verified_by_ci`
  *    error code SDD-010 calls for, instead of letting `safeTool`'s generic error boundary flatten it to
  *    a bare message string.
+ *
+ * SDD-092 D5 (FB-092/FB-068): `close_feedback` and `dismiss_feedback` give a published Feedback its
+ * terminal transitions (`closed` / `dismissed`) over MCP — before them no terminal state was reachable
+ * remotely. They use `denyRemoteWrite(auth, 'edit_document')`, the same permission
+ * `POST .../feedback/:docId/triage` requires.
  */
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { addBlueprintTask, archiveWorkOrder, claimWorkOrder, CommitNotVerifiedError, completeWorkOrder, docId, generateWorkOrders, SHA_PATTERN, submitFeedback } from '@prdm/core';
+import { addBlueprintTask, archiveWorkOrder, claimWorkOrder, closeFeedback, CommitNotVerifiedError, completeWorkOrder, dismissFeedback, docId, generateWorkOrders, SHA_PATTERN, submitFeedback } from '@prdm/core';
 import { can, type PermissionAction, type PermissionSubject } from '@prdm/contracts';
 import type { PrdmDeps } from './deps.js';
 import { jsonResult, safeTool, WRITE_ONCE } from './shared.js';
@@ -43,7 +48,7 @@ import { jsonResult, safeTool, WRITE_ONCE } from './shared.js';
  * hand-copied set, which had gone stale: it was missing `generate_work_orders`/`add_blueprint_task`) to
  * decide which tool calls require the `mcp:write` scope at its outer gate.
  */
-export const REMOTE_WRITE_TOOL_NAMES = ['claim_work_order', 'complete_work_order', 'submit_feedback', 'generate_work_orders', 'add_blueprint_task', 'archive_work_order'] as const;
+export const REMOTE_WRITE_TOOL_NAMES = ['claim_work_order', 'complete_work_order', 'submit_feedback', 'generate_work_orders', 'add_blueprint_task', 'archive_work_order', 'close_feedback', 'dismiss_feedback'] as const;
 
 export interface RemoteWriteAuth {
   subject: PermissionSubject;
@@ -208,6 +213,48 @@ export function registerRemoteWriteTools(server: McpServer, deps: PrdmDeps, auth
 
       const result = await addBlueprintTask(deps.engine, blueprint_id, task);
       await auth.audit('mcp.add_blueprint_task', blueprint_id, { task });
+      return jsonResult({ ...result });
+    }),
+  );
+
+  server.registerTool(
+    'close_feedback',
+    {
+      title: 'Close feedback',
+      description:
+        'Closes a Feedback in `new` or `triaged` status as resolved (terminal status `closed`), recording who closed it, when, why and optionally which work items resolved it. `reason` is required: closing without a motive is not auditable. A Feedback already in a terminal state is rejected with the valid path. Requires an admin/editor project role.',
+      inputSchema: {
+        id: docId,
+        reason: z.string().min(1).max(2000),
+        resolved_by: z.array(z.string().min(1).max(300)).max(20).optional(),
+      },
+      annotations: { title: 'Close feedback', ...WRITE_ONCE },
+    },
+    safeTool(async ({ id, reason, resolved_by }: { id: string; reason: string; resolved_by?: string[] }) => {
+      const denial = denyRemoteWrite(auth, 'edit_document');
+      if (denial) return denial;
+
+      const result = await closeFeedback(deps.engine, id, `dev:${auth.callerHandle}`, { reason, resolvedBy: resolved_by });
+      await auth.audit('mcp.close_feedback', id, { reason, resolvedBy: resolved_by ?? [] });
+      return jsonResult({ ...result });
+    }),
+  );
+
+  server.registerTool(
+    'dismiss_feedback',
+    {
+      title: 'Dismiss feedback',
+      description:
+        'Dismisses a Feedback in `new` or `triaged` status as not actionable (terminal status `dismissed`), with an optional reason. Requires an admin/editor project role.',
+      inputSchema: { id: docId, reason: z.string().min(1).max(2000).optional() },
+      annotations: { title: 'Dismiss feedback', ...WRITE_ONCE },
+    },
+    safeTool(async ({ id, reason }: { id: string; reason?: string }) => {
+      const denial = denyRemoteWrite(auth, 'edit_document');
+      if (denial) return denial;
+
+      const result = await dismissFeedback(deps.engine, id, { reason });
+      await auth.audit('mcp.dismiss_feedback', id, { reason });
       return jsonResult({ ...result });
     }),
   );

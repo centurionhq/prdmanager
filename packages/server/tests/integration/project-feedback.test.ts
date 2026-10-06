@@ -283,7 +283,7 @@ describe('feedback submit/inbox/candidates/triage (WO-339)', () => {
     await app.close();
   });
 
-  test('POST triage-batch answers per item, including an already-triaged one', async () => {
+  test('POST triage-batch answers per item: a triaged item is dismissable (SDD-092 D4), an unknown one fails', async () => {
     const app = buildApp();
     const { owner, org, project } = await setupProject();
     await seedFb(org, project, { n: 1 });
@@ -296,9 +296,11 @@ describe('feedback submit/inbox/candidates/triage (WO-339)', () => {
     expect(clean.statusCode).toBe(200);
     expect(clean.json().result).toMatchObject({ ok: 2, failed: 0, results: [{ id: 'FB-001', ok: true }, { id: 'FB-002', ok: true }] });
 
-    const mixed = await postJson(app, cookie, url, { action: 'dismiss', ids: ['FB-003'] });
-    expect(mixed.json().result.results[0]).toMatchObject({ id: 'FB-003', ok: false });
-    expect(mixed.json().result).toMatchObject({ ok: 0, failed: 1 });
+    // SDD-092 D4: dismissFeedback accepts `new` or `triaged`, so the triaged FB-003 is dismissed (ok).
+    // FB-099 does not exist, so it is the item that fails.
+    const mixed = await postJson(app, cookie, url, { action: 'dismiss', ids: ['FB-003', 'FB-099'] });
+    expect(mixed.json().result.results).toMatchObject([{ id: 'FB-003', ok: true }, { id: 'FB-099', ok: false }]);
+    expect(mixed.json().result).toMatchObject({ ok: 1, failed: 1 });
     await app.close();
   });
 

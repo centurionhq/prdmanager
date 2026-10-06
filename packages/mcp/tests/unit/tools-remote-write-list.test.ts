@@ -11,7 +11,7 @@ import { REMOTE_WRITE_TOOL_NAMES } from '../../src/tools-remote.js';
 describe('REMOTE_WRITE_TOOL_NAMES', () => {
   test('lists exactly every write tool registerRemoteWriteTools registers', () => {
     expect([...REMOTE_WRITE_TOOL_NAMES].sort()).toEqual(
-      ['add_blueprint_task', 'archive_work_order', 'claim_work_order', 'complete_work_order', 'generate_work_orders', 'submit_feedback'].sort(),
+      ['add_blueprint_task', 'archive_work_order', 'claim_work_order', 'close_feedback', 'complete_work_order', 'dismiss_feedback', 'generate_work_orders', 'submit_feedback'].sort(),
     );
   });
 });
