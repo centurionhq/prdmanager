@@ -3,11 +3,11 @@
  * `ConstruirDeveloper.dc.html`): commands, a config snippet, an identifier.
  *
  * The text is always rendered as real, selectable text — the copy button is a shortcut, never the only way
- * to get it. `navigator.clipboard` is absent in an insecure context and can be denied outright, so a failure
- * says what happened and points at selecting it by hand, instead of leaving someone believing they copied
- * something they did not (the one thing worse than no button).
+ * to get it. The clipboard itself (its failure message included) lives in `use-copy-to-clipboard`, shared
+ * with every other copyable literal (WO-635).
  */
-import { useEffect, useState, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
+import { COPY_FAILED_MESSAGE, copyButtonLabel, useCopyToClipboard } from './use-copy-to-clipboard.js';
 import styles from './CopyBlock.module.css';
 
 export interface CopyBlockProps {
@@ -17,23 +17,8 @@ export interface CopyBlockProps {
   readonly text: string;
 }
 
-type CopyState = 'idle' | 'copied' | 'failed';
-
 export function CopyBlock({ label, text }: CopyBlockProps): ReactElement {
-  const [state, setState] = useState<CopyState>('idle');
-
-  // Showing "Copiado" under a different text than the one that was copied would be a lie the moment the
-  // block is reused for another step.
-  useEffect(() => setState('idle'), [text]);
-
-  async function handleCopy(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(text);
-      setState('copied');
-    } catch {
-      setState('failed');
-    }
-  }
+  const { state, copy } = useCopyToClipboard(text);
 
   return (
     <div role="group" aria-label={label} className={styles.block}>
@@ -41,13 +26,13 @@ export function CopyBlock({ label, text }: CopyBlockProps): ReactElement {
         <code>{text}</code>
       </pre>
       <div className={styles.side}>
-        <button type="button" className={styles.copy} onClick={() => void handleCopy()}>
-          {state === 'copied' ? 'Copiado' : 'Copiar'}
+        <button type="button" className={styles.copy} onClick={() => void copy()}>
+          {copyButtonLabel(state)}
         </button>
       </div>
       {state === 'failed' ? (
         <p role="status" className={styles.failed}>
-          No pudimos usar el portapapeles. Seleccionalo y copialo a mano.
+          {COPY_FAILED_MESSAGE}
         </p>
       ) : null}
     </div>

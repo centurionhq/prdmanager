@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DriftDashboardDto, DriftIssueDto, DriftReportDetailDto, DriftReportSummaryDto } from '@prdm/contracts';
+import type { DriftDashboardDto, DriftIssueDto, DriftReportDetailDto, DriftReportSummaryDto, ProjectSettings } from '@prdm/contracts';
 import * as client from '../../src/api/client.js';
 import * as graphApi from '../../src/api/graph.js';
 import { clearQueryCache } from '../../src/api/query-cache.js';
@@ -40,9 +40,15 @@ function fakeIssue(overrides: Partial<DriftIssueDto> = {}): DriftIssueDto {
   };
 }
 
-function renderPage(): void {
+function renderPage(settings: Partial<ProjectSettings> = {}): void {
   const router = createMemoryRouter(
-    [{ path: '/ctx', element: <Outlet context={makeProjectShellContext('owner', 'admin')} />, children: [{ index: true, element: <DriftDashboard /> }] }],
+    [
+      {
+        path: '/ctx',
+        element: <Outlet context={makeProjectShellContext('owner', 'admin', null, undefined, settings)} />,
+        children: [{ index: true, element: <DriftDashboard /> }],
+      },
+    ],
     { initialEntries: ['/ctx'] },
   );
   render(<RouterProvider router={router} />);
@@ -553,5 +559,88 @@ describe('DriftDashboard · frescura del reporte oficial (SDD-069)', () => {
     await waitFor(() => expect(dashboardSpy).toHaveBeenCalled());
     expect(issuesSpy).toHaveBeenCalled();
     expect(await screen.findByText('Reporte releído')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------
+// SDD-069 / WO-635 — the report sha: short on screen, copyable, and linked to the commit only when the
+// project knows its own repository. A guessed URL would be a link that goes nowhere.
+// ---------------------------------------------------------------------------------------------------
+
+const COMMIT_SHA = 'd'.repeat(40);
+const REPOSITORY = 'centurionhq/prdmanager';
+
+function stubClipboard(impl: () => Promise<void>): ReturnType<typeof vi.fn> {
+  const writeText = vi.fn(impl);
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  return writeText;
+}
+
+describe('DriftDashboard · sha del reporte (SDD-069 WO-635)', () => {
+  beforeEach(() => clearQueryCache());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+  });
+
+  it('links the official report sha to its commit when the project has a repository', async () => {
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({
+      official: fakeReport({ mode: 'baseline', branch: 'main', headSha: COMMIT_SHA }),
+      previews: [],
+      history: [],
+    });
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+
+    renderPage({ github_repository: REPOSITORY });
+
+    const link = await screen.findByRole('link', { name: 'Ver el commit en GitHub' });
+    expect(link.getAttribute('href')).toBe(`https://github.com/${REPOSITORY}/commit/${COMMIT_SHA}`);
+    expect(screen.getByText(COMMIT_SHA.slice(0, 12))).toBeTruthy();
+    expect(screen.getByRole('button', { name: `Copiar el sha ${COMMIT_SHA}` })).toBeTruthy();
+  });
+
+  it('renders no commit link at all without a repository, and still offers the copy', async () => {
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({
+      official: fakeReport({ mode: 'baseline', branch: 'main', headSha: COMMIT_SHA }),
+      previews: [],
+      history: [],
+    });
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+
+    renderPage();
+
+    expect(await screen.findByText(COMMIT_SHA.slice(0, 12))).toBeTruthy();
+    expect(screen.queryAllByRole('link', { name: 'Ver el commit en GitHub' })).toHaveLength(0);
+    expect(screen.getByRole('button', { name: `Copiar el sha ${COMMIT_SHA}` })).toBeTruthy();
+  });
+
+  it('copies a history row sha without opening the report detail', async () => {
+    const writeText = stubClipboard(() => Promise.resolve());
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({
+      official: null,
+      previews: [],
+      history: [fakeReport({ id: 'h1', mode: 'baseline', branch: 'main', headSha: COMMIT_SHA, tokenName: 'ci-pipeline' })],
+    });
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+    const detail = vi.spyOn(client, 'getDriftReportDetail').mockResolvedValue({
+      id: 'h1',
+      mode: 'baseline',
+      headSha: COMMIT_SHA,
+      branch: 'main',
+      tokenName: 'ci-pipeline',
+      issueCount: 0,
+      hasBlockingIssues: false,
+      createdAt: '2026-01-02T00:00:00.000Z',
+      issues: [],
+    });
+
+    renderPage({ github_repository: REPOSITORY });
+    await screen.findByRole('heading', { name: 'Historial' });
+
+    await userEvent.click(screen.getByRole('button', { name: `Copiar el sha ${COMMIT_SHA}` }));
+
+    expect(writeText).toHaveBeenCalledWith(COMMIT_SHA);
+    expect(detail).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

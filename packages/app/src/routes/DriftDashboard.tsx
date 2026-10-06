@@ -11,7 +11,7 @@ import { getDriftDashboard, getDriftIssues } from '../api/client.js';
 import { acknowledgeDrift, authorizeForcePushOverride } from '../api/graph.js';
 import { errorMessage } from '../api/error-message.js';
 import { useApiQuery } from '../api/use-api-query.js';
-import { Button, ErrorState, FilterChips, PageHeader, SearchField, SelectField, Severity, Skeleton, ToastProvider, Tooltip, useToast } from '../components/index.js';
+import { Button, ErrorState, FilterChips, PageHeader, SearchField, SelectField, Severity, ShaRef, Skeleton, ToastProvider, Tooltip, useToast } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { formatDateTime } from '../lib/format-date.js';
 import { useProjectShellContext } from './ProjectShell.js';
@@ -28,18 +28,22 @@ const REASON_TIP =
   'La razón la reporta el motor: el archivo cambió, el archivo ya no existe, cambió el diseño después de este código o cambió la feature.';
 const REFRESH_REPORT_TITLE = 'Vuelve a leer el último reporte de CI; no dispara una corrida nueva.';
 
-function shortSha(sha: string): string {
-  return sha.slice(0, 12);
-}
-
 function isActivationKey(key: string): boolean {
   return key === 'Enter' || key === ' ' || key === 'Spacebar';
 }
 
+/** The history row is a click target of its own, and its commit cell now holds a copy button and a link
+ * (WO-635): acting on those must not also open the report detail. */
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('a, button') !== null;
+}
+
 function DriftContent(): ReactElement {
-  const { orgSlug, projectSlug, subject } = useProjectShellContext();
+  const { orgSlug, projectSlug, project, subject } = useProjectShellContext();
   useDocumentTitle('Drift');
   const { show } = useToast();
+  // The commit links are the project's own repository or nothing at all: a guessed URL would be a broken link.
+  const repository = project.settings.github_repository;
 
   const dashboardQuery = useApiQuery(`drift-dashboard:${orgSlug}:${projectSlug}`, () => getDriftDashboard(orgSlug, projectSlug), [orgSlug, projectSlug]);
   const issuesQuery = useApiQuery(`drift-issues:${orgSlug}:${projectSlug}`, () => getDriftIssues(orgSlug, projectSlug), [orgSlug, projectSlug]);
@@ -128,7 +132,7 @@ function DriftContent(): ReactElement {
           official && freshness ? (
             <>
               Reporte oficial de <span className="id">{official.branch ?? '(rama desconocida)'}</span> · commit{' '}
-              <span className="id">{shortSha(official.headSha)}</span> ·{' '}
+              <ShaRef sha={official.headSha} repository={repository} /> ·{' '}
               <Tooltip text={freshness.absolute}>
                 <span>{freshness.relative}</span>
               </Tooltip>
@@ -334,16 +338,19 @@ function DriftContent(): ReactElement {
                       key={report.id}
                       className={styles.historyRow}
                       tabIndex={0}
-                      onClick={() => setReportId(report.id)}
+                      onClick={(event) => {
+                        if (isInteractiveTarget(event.target)) return;
+                        setReportId(report.id);
+                      }}
                       onKeyDown={(event) => {
-                        if (!isActivationKey(event.key)) return;
+                        if (!isActivationKey(event.key) || isInteractiveTarget(event.target)) return;
                         event.preventDefault();
                         setReportId(report.id);
                       }}
                     >
                       <td className={styles.historyCell}>{formatDateTime(report.createdAt)}</td>
                       <td className={styles.historyCell}>
-                        <span className="id">{shortSha(report.headSha)}</span>
+                        <ShaRef sha={report.headSha} repository={repository} />
                       </td>
                       <td className={styles.historyCell}>{report.tokenName}</td>
                       <td className={`${styles.historyCell} ${styles.historyCellEnd}`}>{report.issueCount}</td>
