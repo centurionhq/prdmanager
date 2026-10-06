@@ -168,6 +168,30 @@ interface FeatureOrderRow {
   readonly commit: CommitDto | null;
 }
 
+/** WO-749 (SDD-105 D1): el panel es un resumen de la feature -- la lista de trabajo es la pantalla de
+ * Órdenes. El tope vive acá, en el consumidor: el `DataTable` es compartido (Órdenes, Planta, Documentos)
+ * y su paginación es otro trabajo, así que no se toca. */
+const ORDER_LIMIT = 25;
+
+/** WO-749 (SDD-105 D1): la fecha del commit de una orden en milisegundos, o `null` cuando la orden
+ * todavía no tiene commit (o su fecha no es parseable) -- esas filas van después de las fechadas. */
+function orderTime(order: FeatureOrderRow): number | null {
+  if (!order.commit) return null;
+  const parsed = Date.parse(order.commit.date);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+/** WO-749 (SDD-105 D1): las más recientes primero por fecha de commit y, sin fecha, por id descendente
+ * (el id más alto es la orden más nueva), con `numeric` para no depender del relleno con ceros. */
+function byMostRecentOrder(left: FeatureOrderRow, right: FeatureOrderRow): number {
+  const leftTime = orderTime(left);
+  const rightTime = orderTime(right);
+  if (leftTime !== null && rightTime !== null && leftTime !== rightTime) return rightTime - leftTime;
+  if (leftTime !== null && rightTime === null) return -1;
+  if (leftTime === null && rightTime !== null) return 1;
+  return right.ref.localeCompare(left.ref, undefined, { numeric: true });
+}
+
 const ORDER_COLUMNS: readonly DataTableColumn<FeatureOrderRow>[] = [
   { key: 'ref', header: 'Orden', render: (row) => <IdTag id={row.ref} /> },
   { key: 'title', header: 'Título', render: (row) => row.title },
@@ -223,12 +247,18 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
 
   // WO-459: each work order's own commit is whichever commit's `refs` names that order's id directly --
   // the trailer convention every commit in this repo already follows (`Refs: WO-xxx`).
-  const orderRows: readonly FeatureOrderRow[] = branchWorkOrders.map((node) => ({
-    ref: node.ref,
-    title: node.title,
-    status: node.status,
-    commit: commits?.items.find((commit) => commit.refs.includes(node.ref)) ?? null,
-  }));
+  const allOrderRows: readonly FeatureOrderRow[] = branchWorkOrders
+    .map((node) => ({
+      ref: node.ref,
+      title: node.title,
+      status: node.status,
+      commit: commits?.items.find((commit) => commit.refs.includes(node.ref)) ?? null,
+    }))
+    .sort(byMostRecentOrder);
+  // WO-749 (SDD-105 D1/D2): la tabla monta 25 y, si quedaron órdenes afuera, una línea dice cuántas y
+  // ofrece la cola completa. Sin recorte no hay línea: el enlace a la cola de «Trazabilidad» ya está.
+  const orderRows = allOrderRows.slice(0, ORDER_LIMIT);
+  const hiddenOrders = allOrderRows.length - orderRows.length;
 
   // WO-460: every block above is conditional on having something to show -- a document with none of
   // these (no lineage, not a feature/blueprint so no branch/code/commits) used to leave the "Trazabilidad"
@@ -327,6 +357,16 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
         <section aria-label="Órdenes de la feature">
           <h3 className={styles.sectionTitle}>Órdenes recientes</h3>
           <DataTable caption={`Órdenes de ${view.id}`} columns={ORDER_COLUMNS} rows={orderRows} getRowId={(row) => row.ref} />
+          {hiddenOrders > 0 ? (
+            <p className={styles.ordersRecorte}>
+              <span>
+                Mostrando las <span className="num">{ORDER_LIMIT}</span> órdenes más recientes de <span className="num">{allOrderRows.length}</span>
+              </span>
+              <Link to={ordersHref} className={styles.ordersLink}>
+                Ver las {allOrderRows.length} órdenes en la cola
+              </Link>
+            </p>
+          ) : null}
         </section>
       ) : null}
 
@@ -569,7 +609,14 @@ export function ProjectGraph(): ReactElement {
     return (
       <div>
         <PageHeader title="Árbol de features" />
-        <Skeleton rows={8} />
+        <div className={styles.loadingRegion}>
+          <p role="status" className={styles.loadingText}>
+            Cargando el árbol de features…
+          </p>
+          <div aria-hidden="true">
+            <Skeleton rows={8} />
+          </div>
+        </div>
       </div>
     );
   }
@@ -608,9 +655,13 @@ export function ProjectGraph(): ReactElement {
               <Button type="button" variant={sinCodigo ? 'primary' : 'secondary'} aria-pressed={sinCodigo} onClick={toggleSinCodigo}>
                 Sin código ({orphanRefs.size})
               </Button>
-              <span className={styles.treeCount} role="status">
-                {sinCodigo ? `${orphanRefs.size} ${orphanRefs.size === 1 ? 'feature' : 'features'} sin código` : ''}
-              </span>
+              {/* P3 (WO-749): el `role="status"` que existía acá quedaba vacío con el filtro apagado --
+                  una región viva muda. Ahora sólo existe cuando tiene algo que anunciar. */}
+              {sinCodigo ? (
+                <span className={styles.treeCount} role="status">
+                  {orphanRefs.size} {orphanRefs.size === 1 ? 'feature' : 'features'} sin código
+                </span>
+              ) : null}
             </div>
           ) : null}
           <div className={styles.treeHeaderRow}>
@@ -649,7 +700,16 @@ export function ProjectGraph(): ReactElement {
           )}
         </div>
         <div>
-          {nodeQuery.status === 'cargando' ? <Skeleton rows={6} /> : null}
+          {nodeQuery.status === 'cargando' ? (
+            <div className={styles.loadingRegion}>
+              <p role="status" className={styles.loadingText}>
+                Cargando las órdenes y la trazabilidad de <span className="id">{selectedRef}</span>…
+              </p>
+              <div aria-hidden="true">
+                <Skeleton rows={6} />
+              </div>
+            </div>
+          ) : null}
           {nodeQuery.status === 'error' ? <ErrorState title="No pudimos cargar el nodo" body={errorMessage(nodeQuery.error)} onRetry={nodeQuery.retry} /> : null}
           {detail ? (
             <TraceabilityPanel

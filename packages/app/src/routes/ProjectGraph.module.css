@@ -28,6 +28,20 @@
   color: var(--apagado);
 }
 
+/* WO-749 (D4): la carga deja de ser muda -- cada región dice qué está cargando, con la forma real
+   debajo. `.loadingText` es la línea visible con `role="status"`; las barras van `aria-hidden`. */
+.loadingRegion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.loadingText {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
 .panel {
   display: flex;
   flex-direction: column;
@@ -107,6 +121,18 @@
 .ordersLink {
   font-size: var(--text-sm);
   color: var(--cianotipo);
+}
+
+/* WO-749 (D2): la línea del recorte -- el total y el enlace a la cola, debajo de la tabla. */
+.ordersRecorte {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
 }
 
 .checkList {
