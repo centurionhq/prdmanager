@@ -110,6 +110,8 @@ import {
   type ScannedFile,
   type ScanResult,
   type TransactionOptions,
+  DatabaseBusyError,
+  StatementTimedOutError,
   type WorkOrderUpdate,
 } from '@prdm/core';
 import { formatDocId, readProjectLastReport, schema, seedIdCounterAtLeast, withTenantTx, writeProjectLastReport, type PgDatabase } from '@prdm/db';
@@ -252,6 +254,34 @@ export interface PgProjectEngineOptions {
   onLiveDocSyncError?: (err: unknown) => void;
 }
 
+const DB_ERROR_CAUSE_DEPTH = 3;
+
+/** Walks `err` and its `cause` chain (up to 3 levels) looking for a pg-pool connect timeout or a Postgres
+ * `statement_timeout` cancel (SQLSTATE 57014); anything else is `undefined` and gets re-thrown untouched. */
+function classifyDbTimeout(err: unknown): 'busy' | 'statement' | undefined {
+  let current: unknown = err;
+  for (let depth = 0; depth < DB_ERROR_CAUSE_DEPTH && current instanceof Error; depth++) {
+    if (/timeout exceeded when trying to connect/.test(current.message)) return 'busy';
+    if ((current as { code?: unknown }).code === '57014' && /statement timeout/i.test(current.message)) return 'statement';
+    current = current.cause;
+  }
+  return undefined;
+}
+
+/** Translates a pool/statement timeout into the typed core error (cause kept), logging the driver's
+ * message + code to stderr; every other error propagates unchanged. */
+async function translatingDbTimeouts<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    const kind = classifyDbTimeout(err);
+    if (!kind) throw err;
+    const cause = err as { message?: string; code?: string };
+    process.stderr.write(`PgProjectEngine: database ${kind === 'busy' ? 'pool timeout' : 'statement timeout'}: ${cause.message ?? String(err)} (code: ${cause.code ?? 'n/a'})\n`);
+    throw kind === 'busy' ? new DatabaseBusyError(undefined, { cause: err }) : new StatementTimedOutError(undefined, { cause: err });
+  }
+}
+
 function defaultProjectionErrorHandler(err: unknown): void {
   process.stderr.write(`PgProjectEngine: graph projection failed, will retry on next write/recover(): ${(err as Error)?.message ?? String(err)}\n`);
 }
@@ -336,14 +366,14 @@ export class PgProjectEngine implements ProjectEngine {
   }
 
   scan(): Promise<ScanResult> {
-    return withTenantTx(this.pool, this.orgId, (tx) => loadScanState(tx, this.projectId));
+    return translatingDbTimeouts(() => withTenantTx(this.pool, this.orgId, (tx) => loadScanState(tx, this.projectId)));
   }
 
   /** Read-only, saved state; nunca recomputa (SDD-007: "estado guardado, nunca dispara refresh"). WO-604:
    * devuelve el último `RefreshReport` que `refresh()` persistió en `project_code_state.last_report`, o
    * `null` si nunca hubo uno. */
   async lastReport(): Promise<RefreshReport | null> {
-    return withTenantTx(this.pool, this.orgId, async (tx) => (await readProjectLastReport(tx, this.projectId)) as RefreshReport | null);
+    return translatingDbTimeouts(() => withTenantTx(this.pool, this.orgId, async (tx) => (await readProjectLastReport(tx, this.projectId)) as RefreshReport | null));
   }
 
   /** No local git working tree/journal to recover from a crash of the caller's *own* process (nothing
@@ -352,12 +382,12 @@ export class PgProjectEngine implements ProjectEngine {
    * exactly what `projectIfDirty()` fixes. Cheap to call on every read path (SDD-007), since it's a
    * no-op whenever the project isn't dirty. */
   async recover(): Promise<RecoverResult> {
-    const recovered = await this.projectIfDirty();
+    const recovered = await translatingDbTimeouts(() => this.projectIfDirty());
     return { recovered, warnings: [] };
   }
 
-  transaction<T>(fn: (ops: EngineOps) => Promise<T>, _options: TransactionOptions = {}): Promise<T> {
-    return this.withTx((_tx, ops) => fn(ops));
+  transaction<T>(fn: (ops: EngineOps) => Promise<T>, options: TransactionOptions = {}): Promise<T> {
+    return this.withTx((_tx, ops) => fn(ops), options);
   }
 
   refresh(): Promise<RefreshReport> {
@@ -366,7 +396,7 @@ export class PgProjectEngine implements ProjectEngine {
 
   /** Unlike `refresh()`, read-only and safe without the advisory lock (mirrors `Engine.inspect()`). */
   async inspect(): Promise<RefreshReport> {
-    return withTenantTx(this.pool, this.orgId, (tx) => this.doRefreshOrInspect(tx, false));
+    return translatingDbTimeouts(() => withTenantTx(this.pool, this.orgId, (tx) => this.doRefreshOrInspect(tx, false)));
   }
 
   acknowledge(target: string): Promise<RefreshReport> {
@@ -383,16 +413,16 @@ export class PgProjectEngine implements ProjectEngine {
     });
   }
 
-  private withTx<T>(fn: (tx: PgDatabase, ops: EngineOps) => Promise<T>): Promise<T> {
+  private withTx<T>(fn: (tx: PgDatabase, ops: EngineOps) => Promise<T>, options: Pick<TransactionOptions, 'deferProjection'> = {}): Promise<T> {
     return enqueueForProject(this.projectId, async () => {
       this.pendingLiveDocSyncs = [];
-      const result = await withTenantTx(this.pool, this.orgId, async (tx) => {
+      const result = await translatingDbTimeouts(() => withTenantTx(this.pool, this.orgId, async (tx) => {
         // Deterministic per-project lock key (SDD-007: "pg_advisory_xact_lock sobre el uuid del
         // proyecto"); hashtextextended never truncates a uuid string the way int4/int8 casts of its
         // bytes could collide more easily.
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${this.projectId}::text, ${WRITE_LOCK_SALT}))`);
         return fn(tx, this.buildOps(tx));
-      });
+      }));
       // WO-250: only now that the transaction above has actually committed can any server-managed
       // collab-field write queued during it safely reach its document's live Y.Doc — never before, the
       // same "a broadcast change can't be undone by a later rollback" invariant `writeServerManagedCollabFields`'s
@@ -412,6 +442,8 @@ export class PgProjectEngine implements ProjectEngine {
       // internal writes already collapsed into a single `graph_dirty = true`, so this is the one
       // place per outer `transaction()`/`refresh()`/`acknowledge()` call that can ever trigger a
       // projection — never once per internal `ops.refresh()`/write call.
+      // `deferProjection` (generate_work_orders): skip it — the next read path's `projectIfDirty()` covers it.
+      if (options.deferProjection === true) return result;
       try {
         await this.projectIfDirty();
       } catch (err) {

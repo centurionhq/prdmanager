@@ -187,7 +187,7 @@ export function registerRemoteWriteTools(server: McpServer, deps: PrdmDeps, auth
       const denial = denyRemoteWrite(auth, 'generate_work_orders');
       if (denial) return denial;
 
-      const result = await generateWorkOrders(deps.engine, blueprint_id);
+      const result = await generateWorkOrders(deps.engine, blueprint_id, { deferProjection: true });
       await auth.audit('mcp.generate_work_orders', blueprint_id, { created: result.created.length });
       return jsonResult({ ...result });
     }),

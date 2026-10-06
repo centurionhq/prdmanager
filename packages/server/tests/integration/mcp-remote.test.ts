@@ -315,6 +315,43 @@ describe('remote MCP endpoint (SDD-010, WO-184)', () => {
     await app.close();
   });
 
+  test('two generate_work_orders in a row over the same checklist create nothing the second time (WO-646)', async () => {
+    const { app, baseUrl } = await startApp();
+    const { org, project, secret } = await setupProject(app);
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (id, org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw, published_content_hash)
+       VALUES ($1, $2, $3, 'SDD-001', 'SDD', 'Design', 'docs/blueprints/SDD-001.md', 'generated', 'published', $4, 'h1')`,
+      [randomUUID(), org.id, project.id, '---\nid: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\nimpacts_paths: ["src/**"]\n---\n## Tareas\n- [ ] uno\n- [ ] dos\n'],
+    );
+    const countWos = async () => (await pg.ownerPool.query(`SELECT count(*)::int AS n FROM "documents" WHERE project_id = $1 AND kind = 'WO'`, [project.id])).rows[0].n as number;
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClientTransport(`${baseUrl}/mcp/${project.graphProjectId}`, secret));
+    const generate = async () => {
+      const startedAt = Date.now();
+      const res = await client.callTool({ name: 'generate_work_orders', arguments: { blueprint_id: 'SDD-001' } });
+      const elapsed = Date.now() - startedAt;
+      expect(res.isError).toBeFalsy();
+      return { body: JSON.parse((res.content as { text: string }[])[0]!.text) as { created: { id: string }[]; skipped: number }, elapsed };
+    };
+
+    const first = await generate();
+    const second = await generate();
+    console.log(`generate_work_orders timings: first=${first.elapsed}ms second=${second.elapsed}ms`);
+
+    expect(first.body.created).toHaveLength(2);
+    expect(second.body.created).toHaveLength(0);
+    expect(second.body.skipped).toBe(2);
+    expect(await countWos()).toBe(2);
+
+    const listed = await client.callTool({ name: 'list_work_orders', arguments: { blueprint_id: 'SDD-001' } });
+    const ids = (JSON.parse((listed.content as { text: string }[])[0]!.text) as { results: { id: string }[] }).results.map((r) => r.id);
+    expect(ids.sort()).toEqual(first.body.created.map((c) => c.id).sort());
+
+    await client.close();
+    await app.close();
+  });
+
   test('the rate limit counts resource and prompt calls the same way it counts tool calls, sharing one per-token budget (WO-232)', async () => {
     const { app, baseUrl } = await startApp();
     const { project, secret } = await setupProject(app, ['mcp:read']);

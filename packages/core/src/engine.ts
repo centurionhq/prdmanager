@@ -117,6 +117,24 @@ export interface RecoverResult {
 export interface TransactionOptions {
   /** Routes this transaction's file writes through a journal so any failure (incl. the final graph snapshot) rolls every write back. */
   atomic?: boolean;
+  /** PgProjectEngine no proyecta al grafo al commitear; la proyección queda para el próximo read path (que ya la cubre con `projectIfDirty()`, no-op cuando el proyecto no está dirty — SDD-007). El `Engine` local lo ignora. */
+  deferProjection?: boolean;
+}
+
+/** The pool had no free connection within its `connectionTimeoutMillis`; thrown with `{ cause: driverError }`. */
+export class DatabaseBusyError extends Error {
+  constructor(message = 'database busy', options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'DatabaseBusyError';
+  }
+}
+
+/** Postgres cancelled a statement at `statement_timeout`; thrown with `{ cause: driverError }`. */
+export class StatementTimedOutError extends Error {
+  constructor(message = 'statement timed out', options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'StatementTimedOutError';
+  }
 }
 
 export class Engine implements ProjectEngine {
