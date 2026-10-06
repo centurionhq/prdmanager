@@ -303,4 +303,30 @@ describe('impacts-paths drift/sync (WO-430)', () => {
     expect(res.statusCode).toBe(400);
     await app.close();
   });
+
+  test('POST sync rejects a removal without a reason with 400 (SDD-072, WO-643)', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await setupNarrowable();
+    const ownerCookie = await signIn(app, owner.email);
+    const base = `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/SDD-001/impacts-paths`;
+    const before = await publishedRaw(project.id, 'SDD-001');
+
+    const preview = await app.inject({ method: 'GET', url: `${base}/drift`, headers: { ...AUTH_HOST(), cookie: ownerCookie } });
+    expect(preview.statusCode).toBe(200);
+    expect(preview.json().narrowing.suggestedRemovals.map((r: { pattern: string }) => r.pattern)).toEqual(['packages/shared/**']);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `${base}/sync`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
+      payload: { expectedSuggestion: [], expectedRemovals: ['packages/shared/**'] },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(await publishedRaw(project.id, 'SDD-001')).toBe(before);
+    const { rows: auditRows } = await pg.ownerPool.query(`SELECT 1 FROM audit_log WHERE org_id = $1 AND action = 'document.impacts_paths_synced'`, [org.id]);
+    expect(auditRows).toHaveLength(0);
+
+    await app.close();
+  });
 });
