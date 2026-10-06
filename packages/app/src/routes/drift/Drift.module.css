@@ -101,15 +101,71 @@
   font-weight: 700;
 }
 
-.groupHeader {
+.group {
+  margin-bottom: var(--space-4);
+}
+
+/* summary de grupo y de subgrupo: fila clickeable, con chevron nativo */
+.groupHeader,
+.subgroupHeader {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) 0 var(--space-2);
-  border-bottom: var(--rule);
+  min-height: var(--hit-target);
+  cursor: pointer;
+  list-style: none;
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--texto-secundario);
+}
+
+.groupHeader {
+  padding: var(--space-2) 0;
+  border-bottom: var(--rule);
+}
+
+.subgroupHeader {
+  padding: var(--space-1) 0;
+  border-bottom: var(--rule-row);
+  font-weight: 500;
+}
+
+/* el marcador por defecto se reemplaza por el chevron */
+.groupHeader::-webkit-details-marker,
+.subgroupHeader::-webkit-details-marker {
+  display: none;
+}
+
+.groupHeader::before,
+.subgroupHeader::before {
+  content: '▸';
+  flex: none;
+  color: var(--apagado);
+  font-size: var(--text-xs);
+  transition: transform 120ms ease;
+}
+
+details[open] > .groupHeader::before,
+details[open] > .subgroupHeader::before {
+  transform: rotate(90deg);
+}
+
+.groupHeader:hover,
+.subgroupHeader:hover {
+  color: var(--cianotipo);
+}
+
+.subgroup {
+  margin-left: var(--space-4);
+}
+
+.subgroupLabel {
+  font-weight: 600;
+  color: var(--apagado);
+}
+
+.showMore {
+  padding: var(--space-2) 0 var(--space-3);
 }
 
 .groupCount {
