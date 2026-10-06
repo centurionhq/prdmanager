@@ -1,8 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as client from '../../src/api/client.js';
 import { PersonalTokensSettings } from '../../src/routes/PersonalTokensSettings.js';
+import { makeProjectShellContext } from './fixtures.js';
 
 const TOKEN: import('@prdm/contracts').TokenSummaryDto = {
   id: 'tok1',
@@ -16,33 +18,62 @@ const TOKEN: import('@prdm/contracts').TokenSummaryDto = {
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
+/** The organization the project shell resolved from the URL. Deliberately NOT the first one
+ * `listOrganizations()` returns, so a screen that fell back to `orgs[0]` fails these tests (WO-607/FB-083). */
+const SHELL_ORG = 'shell-org';
+
+/** The project shell resolves the organization (`/o/:orgSlug/...`) and hands it down the `AjustesLayout`
+ * outlet; that is the only organization this screen may use. Membership is the shell's business too — an
+ * organization the caller does not belong to never reaches this screen (`ProjectShell` renders
+ * "Organización no encontrada" instead), which is why this screen no longer calls `listOrganizations()`
+ * nor renders the "pertenecer a una organización" notice the canvas never had. */
+function renderPersonalTokens(orgSlug: string = SHELL_ORG): void {
+  const context = makeProjectShellContext('owner');
+  const router = createMemoryRouter(
+    [
+      {
+        path: '/ctx',
+        element: <Outlet context={{ ...context, orgSlug, currentOrg: { ...context.currentOrg, slug: orgSlug } }} />,
+        children: [{ index: true, element: <PersonalTokensSettings /> }],
+      },
+    ],
+    { initialEntries: ['/ctx'] },
+  );
+  render(<RouterProvider router={router} />);
+}
+
 describe('PersonalTokensSettings', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('shows a message when the caller belongs to no organization', async () => {
-    vi.spyOn(client, 'listOrganizations').mockResolvedValue([]);
-    render(<PersonalTokensSettings />);
-
-    expect(await screen.findByText(/pertenecer a una organización/)).toBeTruthy();
-  });
-
-  it('lists existing tokens for the default (first) organization, never showing a secret', async () => {
-    vi.spyOn(client, 'listOrganizations').mockResolvedValue([{ id: 'org1', slug: 'acme', name: 'Acme', role: 'owner' }]);
-    vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([TOKEN]);
-    render(<PersonalTokensSettings />);
+  it('takes the organization from the shell, never from listOrganizations(), and shows no organization picker', async () => {
+    const listOrganizations = vi
+      .spyOn(client, 'listOrganizations')
+      .mockResolvedValue([{ id: 'org-otra', slug: 'otra', name: 'Otra', role: 'owner' }]);
+    const listTokens = vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([TOKEN]);
+    renderPersonalTokens();
 
     expect(await screen.findByText('laptop')).toBeTruthy();
+    expect(listTokens).toHaveBeenCalledWith(SHELL_ORG);
+    expect(listOrganizations).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText('Organización')).toBeNull();
     expect(screen.getByText('prdm_pat_abcd')).toBeTruthy();
     expect(screen.queryByText(/secret/i)).toBeNull();
   });
 
-  it('creates a token, shows the secret exactly once, and lists the new token', async () => {
-    vi.spyOn(client, 'listOrganizations').mockResolvedValue([{ id: 'org1', slug: 'acme', name: 'Acme', role: 'owner' }]);
+  it('reads the tokens of whatever organization the shell resolves, without any in-screen switcher', async () => {
+    const list = vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([]);
+    renderPersonalTokens('globex');
+
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith('globex'));
+    expect(screen.queryByRole('combobox', { name: 'Organización' })).toBeNull();
+  });
+
+  it('creates a token for the shell organization, shows the secret exactly once, and lists the new token', async () => {
     vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([]);
     const create = vi.spyOn(client, 'createPersonalToken').mockResolvedValue({ token: TOKEN, secret: 'prdm_pat_abcd.SUPERSECRET' });
-    render(<PersonalTokensSettings />);
+    renderPersonalTokens();
 
     await screen.findByText(/Todavía no hay tokens/);
 
@@ -52,7 +83,9 @@ describe('PersonalTokensSettings', () => {
     await userEvent.click(screen.getByLabelText('governance:read'));
     await userEvent.click(screen.getByRole('button', { name: 'Crear token' }));
 
-    await waitFor(() => expect(create).toHaveBeenCalledWith('acme', expect.objectContaining({ name: 'laptop', scopes: ['governance:read'] })));
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith(SHELL_ORG, expect.objectContaining({ name: 'laptop', scopes: ['governance:read'] })),
+    );
     expect(await screen.findByText('prdm_pat_abcd.SUPERSECRET')).toBeTruthy();
 
     await userEvent.click(screen.getByRole('button', { name: 'Ya lo guardé' }));
@@ -60,10 +93,9 @@ describe('PersonalTokensSettings', () => {
   });
 
   it('requires at least one scope before submitting', async () => {
-    vi.spyOn(client, 'listOrganizations').mockResolvedValue([{ id: 'org1', slug: 'acme', name: 'Acme', role: 'owner' }]);
     vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([]);
     const create = vi.spyOn(client, 'createPersonalToken');
-    render(<PersonalTokensSettings />);
+    renderPersonalTokens();
 
     await screen.findByText(/Todavía no hay tokens/);
     await userEvent.click(screen.getByRole('button', { name: 'Crear token' }));
@@ -74,35 +106,20 @@ describe('PersonalTokensSettings', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('the organisation is chosen with a labelled select, and switching it reads that organisation\'s tokens', async () => {
-    vi.spyOn(client, 'listOrganizations').mockResolvedValue([
-      { id: 'org1', slug: 'acme', name: 'Acme', role: 'owner' },
-      { id: 'org2', slug: 'globex', name: 'Globex', role: 'owner' },
-    ]);
-    const list = vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([]);
-    render(<PersonalTokensSettings />);
-
-    await userEvent.selectOptions(await screen.findByLabelText('Organización'), 'globex');
-
-    await waitFor(() => expect(list).toHaveBeenLastCalledWith('globex'));
-  });
-
   it('has no second level-one heading of its own: the page already has its h1', async () => {
-    vi.spyOn(client, 'listOrganizations').mockResolvedValue([{ id: 'org1', slug: 'acme', name: 'Acme', role: 'owner' }]);
     vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([]);
-    render(<PersonalTokensSettings />);
+    renderPersonalTokens();
 
     expect(await screen.findByRole('heading', { level: 2, name: 'Tokens personales' })).toBeTruthy();
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
   });
 
-  it('revokes a token', async () => {
-    vi.spyOn(client, 'listOrganizations').mockResolvedValue([{ id: 'org1', slug: 'acme', name: 'Acme', role: 'owner' }]);
+  it('revokes a token from the shell organization', async () => {
     vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([TOKEN]);
     const revoke = vi.spyOn(client, 'revokePersonalToken').mockResolvedValue(undefined);
-    render(<PersonalTokensSettings />);
+    renderPersonalTokens();
 
     await userEvent.click(await screen.findByRole('button', { name: /^Revocar/ }));
-    await waitFor(() => expect(revoke).toHaveBeenCalledWith('acme', 'tok1'));
+    await waitFor(() => expect(revoke).toHaveBeenCalledWith(SHELL_ORG, 'tok1'));
   });
 });

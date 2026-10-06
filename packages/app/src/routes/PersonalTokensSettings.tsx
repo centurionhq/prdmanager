@@ -1,25 +1,27 @@
 /**
- * `/settings/tokens` (SDD-006 §Modelo de datos / §Permisos "Scopes de tokens", WO-119): personal API
- * tokens. Not nested under `/o/:orgSlug` (SDD-006 lists it as a top-level dashboard route), but every
- * personal-token route is still org-scoped server-side (`packages/server/src/api/tokens.ts`'s documented
- * deviation) — this screen carries its own organization picker rather than relying on `OrgShell`.
+ * `/o/:orgSlug/p/:projectSlug/ajustes/tokens-personales` (SDD-013 §"Shell y router", WO-607/FB-083):
+ * personal API tokens (SDD-006 §Permisos "Scopes de tokens"). The organization always comes from the
+ * project shell, which resolved it from the URL, and this screen is grouped under "Tu cuenta" with no
+ * organization picker of its own (canvas `AjustesTokensPersonales.dc.html`) — it must never fall back to
+ * `listOrganizations()[0]`. Membership is the shell's business too: an organization the caller does not
+ * belong to never reaches this screen (`ProjectShell` renders "Organización no encontrada" instead).
  */
 import { useEffect, useState, type ReactElement } from 'react';
-import type { CreatedTokenResponse, OrganizationSummary, TokenScopeDto, TokenSummaryDto } from '@prdm/contracts';
-import { createPersonalToken, listOrganizations, listPersonalTokens, revokePersonalToken } from '../api/client.js';
+import type { CreatedTokenResponse, TokenScopeDto, TokenSummaryDto } from '@prdm/contracts';
+import { createPersonalToken, listPersonalTokens, revokePersonalToken } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { PERSONAL_TOKEN_SCOPES } from '../auth/token-scopes.js';
-import { Button, Notice, SectionHeader, SelectField, Skeleton } from '../components/index.js';
+import { Button, SectionHeader, Skeleton } from '../components/index.js';
 import { FormError } from '../components/FormError.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { TokenCreateForm } from '../components/TokenCreateForm.js';
 import { TokenSecretPanel } from '../components/TokenSecretPanel.js';
 import { TokenTable } from '../components/TokenTable.js';
+import { useProjectShellContext } from './ProjectShell.js';
 import styles from './TokensScreen.module.css';
 
 export function PersonalTokensSettings(): ReactElement {
-  const [organizations, setOrganizations] = useState<OrganizationSummary[] | null>(null);
-  const [orgSlug, setOrgSlug] = useState<string | null>(null);
+  const { orgSlug } = useProjectShellContext();
   const [tokens, setTokens] = useState<TokenSummaryDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [justCreated, setJustCreated] = useState<CreatedTokenResponse | null>(null);
@@ -27,24 +29,22 @@ export function PersonalTokensSettings(): ReactElement {
   useDocumentTitle('Tokens personales');
 
   useEffect(() => {
-    listOrganizations()
-      .then((orgs) => {
-        setOrganizations(orgs);
-        setOrgSlug((prev) => prev ?? orgs[0]?.slug ?? null);
-      })
-      .catch((err) => setError(errorMessage(err)));
-  }, []);
-
-  useEffect(() => {
-    if (!orgSlug) return;
+    let cancelled = false;
     setTokens(null);
+    setError(null);
     listPersonalTokens(orgSlug)
-      .then(setTokens)
-      .catch((err) => setError(errorMessage(err)));
+      .then((next) => {
+        if (!cancelled) setTokens(next);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(errorMessage(err));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [orgSlug]);
 
   async function handleCreate(input: { name: string; scopes: TokenScopeDto[]; expiresAt: string }): Promise<void> {
-    if (!orgSlug) return;
     const result = await createPersonalToken(orgSlug, input);
     setJustCreated(result);
     setTokens((prev) => [...(prev ?? []), result.token]);
@@ -52,7 +52,6 @@ export function PersonalTokensSettings(): ReactElement {
   }
 
   async function handleRevoke(tokenId: string): Promise<void> {
-    if (!orgSlug) return;
     try {
       await revokePersonalToken(orgSlug, tokenId);
       setTokens((prev) => (prev ?? []).map((t) => (t.id === tokenId ? { ...t, revokedAt: new Date().toISOString() } : t)));
@@ -62,10 +61,6 @@ export function PersonalTokensSettings(): ReactElement {
   }
 
   if (error) return <FormError message={error} />;
-  if (!organizations) return <Skeleton rows={3} />;
-  if (organizations.length === 0) {
-    return <Notice>Necesitás pertenecer a una organización para crear tokens personales.</Notice>;
-  }
 
   return (
     <div className={styles.screen}>
@@ -80,10 +75,6 @@ export function PersonalTokensSettings(): ReactElement {
           )
         }
       />
-
-      <div className={styles.orgPicker}>
-        <SelectField label="Organización" value={orgSlug ?? ''} onChange={setOrgSlug} options={organizations.map((org) => ({ value: org.slug, label: org.name }))} />
-      </div>
 
       {justCreated ? <TokenSecretPanel secret={justCreated.secret} onDismiss={() => setJustCreated(null)} /> : null}
       {creating ? <TokenCreateForm availableScopes={PERSONAL_TOKEN_SCOPES} onCreate={handleCreate} onCancel={() => setCreating(false)} /> : null}
