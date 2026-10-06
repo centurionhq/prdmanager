@@ -8,6 +8,7 @@ import { can, type DocumentVersionListItem, type PermissionSubject } from '@prdm
 import { getDocumentVersionDiff, listDocumentVersions, restoreDocumentVersion, saveDocumentVersion, type DocumentVersionDiff } from '../api/versions.js';
 import { useCollabDocumentContext } from '../collab/collab-document-context.js';
 import { errorMessage } from '../api/error-message.js';
+import { formatDateTime } from '../lib/format-date.js';
 import styles from '../styles/versions-panel.module.css';
 
 export interface VersionsPanelProps {
@@ -133,7 +134,7 @@ export function VersionsPanel({ subject }: VersionsPanelProps): ReactElement {
               </span>
             </label>
             <span className={styles.meta}>
-              {REASON_LABEL[version.reason]} · {new Date(version.createdAt).toLocaleString()} · {version.contributors.join(', ') || 'sin contribuyentes'}
+              {REASON_LABEL[version.reason]} · {formatDateTime(version.createdAt)} · {version.contributors.join(', ') || 'sin contribuyentes'}
             </span>
             {canRestore &&
               (confirmingRestore === version.versionNo ? (

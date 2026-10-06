@@ -36,6 +36,9 @@ export type { OptionPlate, OptionPlatesProps } from './OptionPlates/OptionPlates
 export { CopyBlock } from './CopyBlock/CopyBlock';
 export type { CopyBlockProps } from './CopyBlock/CopyBlock';
 
+export { ShaRef } from './ShaRef/ShaRef';
+export type { ShaRefProps } from './ShaRef/ShaRef';
+
 export { SearchField } from './SearchField/SearchField';
 export type { SearchFieldProps } from './SearchField/SearchField';
 

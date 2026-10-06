@@ -2,10 +2,11 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DriftDashboardDto, DriftIssueDto, DriftReportDetailDto, DriftReportSummaryDto } from '@prdm/contracts';
+import type { DriftDashboardDto, DriftIssueDto, DriftReportDetailDto, DriftReportSummaryDto, ProjectSettings } from '@prdm/contracts';
 import * as client from '../../src/api/client.js';
 import * as graphApi from '../../src/api/graph.js';
 import { clearQueryCache } from '../../src/api/query-cache.js';
+import { formatDateTime } from '../../src/lib/format-date.js';
 import { DriftDashboard } from '../../src/routes/DriftDashboard.js';
 import { makeProjectShellContext } from './fixtures.js';
 
@@ -39,9 +40,15 @@ function fakeIssue(overrides: Partial<DriftIssueDto> = {}): DriftIssueDto {
   };
 }
 
-function renderPage(): void {
+function renderPage(settings: Partial<ProjectSettings> = {}): void {
   const router = createMemoryRouter(
-    [{ path: '/ctx', element: <Outlet context={makeProjectShellContext('owner', 'admin')} />, children: [{ index: true, element: <DriftDashboard /> }] }],
+    [
+      {
+        path: '/ctx',
+        element: <Outlet context={makeProjectShellContext('owner', 'admin', null, undefined, settings)} />,
+        children: [{ index: true, element: <DriftDashboard /> }],
+      },
+    ],
     { initialEntries: ['/ctx'] },
   );
   render(<RouterProvider router={router} />);
@@ -467,5 +474,173 @@ describe('DriftDashboard · triage (SDD-061)', () => {
     expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).toBeNull();
     expect(groupFor(issuesRegion(), 'Código fuera de sincronía')).toBeTruthy();
     expect(groupFor(issuesRegion(), 'Enlaces rotos')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------
+// SDD-069 / WO-634 — freshness of the official report: the relative age in the subtitle with the absolute
+// instant in the tooltip, the stale-report warning, and the «Actualizar reporte» re-read action.
+// ---------------------------------------------------------------------------------------------------
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const REFRESH_TITLE = 'Vuelve a leer el último reporte de CI; no dispara una corrida nueva.';
+
+/** An official report created `days` complete days ago (plus a minute, so rounding lands exactly on `days`). */
+function officialDaysAgo(days: number, overrides: Partial<DriftReportSummaryDto> = {}): DriftReportSummaryDto {
+  return fakeReport({
+    id: 'official-freshness',
+    mode: 'baseline',
+    tokenName: 'ci-pipeline',
+    branch: 'main',
+    createdAt: new Date(Date.now() - days * DAY_MS - 60_000).toISOString(),
+    ...overrides,
+  });
+}
+
+function renderOfficial(report: DriftReportSummaryDto): void {
+  vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({ official: report, previews: [], history: [] });
+  vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+  renderPage();
+}
+
+describe('DriftDashboard · frescura del reporte oficial (SDD-069)', () => {
+  beforeEach(() => clearQueryCache());
+  afterEach(() => vi.restoreAllMocks());
+
+  it('says the relative age in the subtitle and keeps the absolute instant in the tooltip', async () => {
+    const report = officialDaysAgo(8);
+    renderOfficial(report);
+
+    const age = await screen.findByText('hace 8 d');
+    const trigger = age.closest('[aria-describedby]');
+    const tooltipId = trigger?.getAttribute('aria-describedby');
+    expect(tooltipId).toBeTruthy();
+    expect(document.getElementById(tooltipId!)?.textContent).toBe(formatDateTime(report.createdAt));
+  });
+
+  it('warns that a report a week or older may no longer reflect the code', async () => {
+    renderOfficial(officialDaysAgo(8));
+
+    const notice = await screen.findByText(/Los números pueden no reflejar el código actual/);
+    expect(notice.textContent).toContain('El reporte oficial tiene 8 días');
+    expect(notice.textContent).toContain(`se renueva cuando CI reporta un push sobre main.`);
+  });
+
+  it('does not warn for a report younger than the stale threshold', async () => {
+    renderOfficial(officialDaysAgo(2));
+
+    expect(await screen.findByText('hace 2 d')).toBeTruthy();
+    expect(screen.queryByText(/Los números pueden no reflejar/)).toBeNull();
+  });
+
+  it('treats a report of exactly a week as stale: the threshold is inclusive', async () => {
+    renderOfficial(officialDaysAgo(7));
+
+    expect(await screen.findByText('hace 7 d')).toBeTruthy();
+    expect(screen.getByText(/Los números pueden no reflejar/)).toBeTruthy();
+  });
+
+  it('re-reads the last official report without triggering a new CI run', async () => {
+    const dashboardSpy = vi
+      .spyOn(client, 'getDriftDashboard')
+      .mockResolvedValue({ official: officialDaysAgo(3), previews: [], history: [] });
+    const issuesSpy = vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+    renderPage();
+    await screen.findByText('hace 3 d');
+    dashboardSpy.mockClear();
+    issuesSpy.mockClear();
+
+    const button = screen.getByRole('button', { name: REFRESH_TITLE });
+    expect(button.getAttribute('title')).toBe(REFRESH_TITLE);
+    expect(button.textContent).toContain('Actualizar reporte');
+
+    await userEvent.click(button);
+
+    await waitFor(() => expect(dashboardSpy).toHaveBeenCalled());
+    expect(issuesSpy).toHaveBeenCalled();
+    expect(await screen.findByText('Reporte releído')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------
+// SDD-069 / WO-635 — the report sha: short on screen, copyable, and linked to the commit only when the
+// project knows its own repository. A guessed URL would be a link that goes nowhere.
+// ---------------------------------------------------------------------------------------------------
+
+const COMMIT_SHA = 'd'.repeat(40);
+const REPOSITORY = 'centurionhq/prdmanager';
+
+function stubClipboard(impl: () => Promise<void>): ReturnType<typeof vi.fn> {
+  const writeText = vi.fn(impl);
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  return writeText;
+}
+
+describe('DriftDashboard · sha del reporte (SDD-069 WO-635)', () => {
+  beforeEach(() => clearQueryCache());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+  });
+
+  it('links the official report sha to its commit when the project has a repository', async () => {
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({
+      official: fakeReport({ mode: 'baseline', branch: 'main', headSha: COMMIT_SHA }),
+      previews: [],
+      history: [],
+    });
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+
+    renderPage({ github_repository: REPOSITORY });
+
+    const link = await screen.findByRole('link', { name: 'Ver el commit en GitHub' });
+    expect(link.getAttribute('href')).toBe(`https://github.com/${REPOSITORY}/commit/${COMMIT_SHA}`);
+    expect(screen.getByText(COMMIT_SHA.slice(0, 12))).toBeTruthy();
+    expect(screen.getByRole('button', { name: `Copiar el sha ${COMMIT_SHA}` })).toBeTruthy();
+  });
+
+  it('renders no commit link at all without a repository, and still offers the copy', async () => {
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({
+      official: fakeReport({ mode: 'baseline', branch: 'main', headSha: COMMIT_SHA }),
+      previews: [],
+      history: [],
+    });
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+
+    renderPage();
+
+    expect(await screen.findByText(COMMIT_SHA.slice(0, 12))).toBeTruthy();
+    expect(screen.queryAllByRole('link', { name: 'Ver el commit en GitHub' })).toHaveLength(0);
+    expect(screen.getByRole('button', { name: `Copiar el sha ${COMMIT_SHA}` })).toBeTruthy();
+  });
+
+  it('copies a history row sha without opening the report detail', async () => {
+    const writeText = stubClipboard(() => Promise.resolve());
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({
+      official: null,
+      previews: [],
+      history: [fakeReport({ id: 'h1', mode: 'baseline', branch: 'main', headSha: COMMIT_SHA, tokenName: 'ci-pipeline' })],
+    });
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+    const detail = vi.spyOn(client, 'getDriftReportDetail').mockResolvedValue({
+      id: 'h1',
+      mode: 'baseline',
+      headSha: COMMIT_SHA,
+      branch: 'main',
+      tokenName: 'ci-pipeline',
+      issueCount: 0,
+      hasBlockingIssues: false,
+      createdAt: '2026-01-02T00:00:00.000Z',
+      issues: [],
+    });
+
+    renderPage({ github_repository: REPOSITORY });
+    await screen.findByRole('heading', { name: 'Historial' });
+
+    await userEvent.click(screen.getByRole('button', { name: `Copiar el sha ${COMMIT_SHA}` }));
+
+    expect(writeText).toHaveBeenCalledWith(COMMIT_SHA);
+    expect(detail).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

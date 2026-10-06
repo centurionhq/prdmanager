@@ -11,40 +11,39 @@ import { getDriftDashboard, getDriftIssues } from '../api/client.js';
 import { acknowledgeDrift, authorizeForcePushOverride } from '../api/graph.js';
 import { errorMessage } from '../api/error-message.js';
 import { useApiQuery } from '../api/use-api-query.js';
-import { Button, ErrorState, FilterChips, PageHeader, SearchField, SelectField, Severity, Skeleton, ToastProvider, Tooltip, useToast } from '../components/index.js';
+import { Button, ErrorState, FilterChips, PageHeader, SearchField, SelectField, Severity, ShaRef, Skeleton, ToastProvider, Tooltip, useToast } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
+import { formatDateTime } from '../lib/format-date.js';
 import { useProjectShellContext } from './ProjectShell.js';
 import { AcknowledgeModal } from './drift/AcknowledgeModal.js';
 import { EMPTY_FILTERS, PROJECT_TARGET, acknowledgeableTargets, filterIssues, groupIssues, type DriftFilters } from './drift/drift-groups.js';
 import { DriftIssuesList } from './drift/DriftIssuesList.js';
 import { ForcePushOverrideModal } from './drift/ForcePushOverrideModal.js';
 import { ReportDetailModal } from './drift/ReportDetailModal.js';
+import { reportFreshness } from './drift/report-freshness.js';
 import styles from './drift/Drift.module.css';
 
 const BLUEPRINT_TIP = 'Un blueprint (SDD/ADR) es el diseño técnico que gobierna qué archivos y símbolos deben coincidir con él.';
 const REASON_TIP =
   'La razón la reporta el motor: el archivo cambió, el archivo ya no existe, cambió el diseño después de este código o cambió la feature.';
-
-function shortSha(sha: string): string {
-  return sha.slice(0, 12);
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString();
-}
-
-function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString();
-}
+const REFRESH_REPORT_TITLE = 'Vuelve a leer el último reporte de CI; no dispara una corrida nueva.';
 
 function isActivationKey(key: string): boolean {
   return key === 'Enter' || key === ' ' || key === 'Spacebar';
 }
 
+/** The history row is a click target of its own, and its commit cell now holds a copy button and a link
+ * (WO-635): acting on those must not also open the report detail. */
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('a, button') !== null;
+}
+
 function DriftContent(): ReactElement {
-  const { orgSlug, projectSlug, subject } = useProjectShellContext();
+  const { orgSlug, projectSlug, project, subject } = useProjectShellContext();
   useDocumentTitle('Drift');
   const { show } = useToast();
+  // The commit links are the project's own repository or nothing at all: a guessed URL would be a broken link.
+  const repository = project.settings.github_repository;
 
   const dashboardQuery = useApiQuery(`drift-dashboard:${orgSlug}:${projectSlug}`, () => getDriftDashboard(orgSlug, projectSlug), [orgSlug, projectSlug]);
   const issuesQuery = useApiQuery(`drift-issues:${orgSlug}:${projectSlug}`, () => getDriftIssues(orgSlug, projectSlug), [orgSlug, projectSlug]);
@@ -54,6 +53,7 @@ function DriftContent(): ReactElement {
   const [reportId, setReportId] = useState<string | undefined>(undefined);
   const [forcePushOpen, setForcePushOpen] = useState(false);
   const [forcePushSubmitting, setForcePushSubmitting] = useState(false);
+  const [refreshingReport, setRefreshingReport] = useState(false);
   const [filters, setFilters] = useState<DriftFilters>(EMPTY_FILTERS);
   const issues = issuesQuery.data ?? [];
   const filtered = useMemo(() => filterIssues(issues, filters), [issues, filters]);
@@ -67,6 +67,8 @@ function DriftContent(): ReactElement {
   }
 
   const dashboard = dashboardQuery.data ?? { official: null, previews: [], history: [] };
+  const official = dashboard.official;
+  const freshness = official ? reportFreshness(official.createdAt) : null;
   const errorCount = issues.filter((issue) => issue.severity === 'error').length;
   const warningCount = issues.filter((issue) => issue.severity === 'warning').length;
   const targets = acknowledgeableTargets(issues);
@@ -101,15 +103,39 @@ function DriftContent(): ReactElement {
     }
   }
 
+  /**
+   * Re-reads the last CI report. It never asks CI for a new run — it only reads what CI already pushed, so no
+   * report timestamp on screen comes from this action (SDD-069 D1: a refetch does not rejuvenate a report).
+   * `retry()` alone cannot be awaited (SDD-013's hook bumps a tick and returns void), so the handler awaits the
+   * same two reads to keep the button disabled until the data is actually back, then re-runs both queries so
+   * the visible data and the session cache come from the hook's own cycle.
+   */
+  async function handleRefreshReport(): Promise<void> {
+    setRefreshingReport(true);
+    try {
+      await Promise.all([getDriftDashboard(orgSlug, projectSlug), getDriftIssues(orgSlug, projectSlug)]);
+      dashboardQuery.retry();
+      issuesQuery.retry();
+      show('Reporte releído', { tone: 'success' });
+    } catch (err) {
+      show(errorMessage(err));
+    } finally {
+      setRefreshingReport(false);
+    }
+  }
+
   return (
     <div className={styles.page}>
       <PageHeader
         title="Drift"
         subtitle={
-          dashboard.official ? (
+          official && freshness ? (
             <>
-              Reporte oficial de <span className="id">{dashboard.official.branch ?? '(rama desconocida)'}</span> · commit{' '}
-              <span className="id">{shortSha(dashboard.official.headSha)}</span> · {formatTimestamp(dashboard.official.createdAt)}
+              Reporte oficial de <span className="id">{official.branch ?? '(rama desconocida)'}</span> · commit{' '}
+              <ShaRef sha={official.headSha} repository={repository} /> ·{' '}
+              <Tooltip text={freshness.absolute}>
+                <span>{freshness.relative}</span>
+              </Tooltip>
             </>
           ) : (
             'Todavía no hay un reporte oficial verificado por CI para este proyecto.'
@@ -117,6 +143,16 @@ function DriftContent(): ReactElement {
         }
         actions={
           <div className={styles.headerActions}>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={refreshingReport}
+              title={REFRESH_REPORT_TITLE}
+              aria-label={REFRESH_REPORT_TITLE}
+              onClick={() => void handleRefreshReport()}
+            >
+              Actualizar reporte
+            </Button>
             <Button
               type="button"
               variant="secondary"
@@ -133,10 +169,20 @@ function DriftContent(): ReactElement {
         }
       />
 
-      {!dashboard.official ? (
+      {!official ? (
         <div className={styles.awaitingOfficial}>
           <Severity severity="warning" />
           <span>Esperando el primer reporte de CI verificado sobre la rama por defecto.</span>
+        </div>
+      ) : null}
+
+      {official && freshness?.stale ? (
+        <div className={styles.awaitingOfficial}>
+          <Severity severity="warning" />
+          <span>
+            El reporte oficial tiene {freshness.days} días ({freshness.absolute}). Los números pueden no reflejar el código
+            actual: se renueva cuando CI reporta un push sobre {official.branch ?? '(rama desconocida)'}.
+          </span>
         </div>
       ) : null}
 
@@ -292,16 +338,19 @@ function DriftContent(): ReactElement {
                       key={report.id}
                       className={styles.historyRow}
                       tabIndex={0}
-                      onClick={() => setReportId(report.id)}
+                      onClick={(event) => {
+                        if (isInteractiveTarget(event.target)) return;
+                        setReportId(report.id);
+                      }}
                       onKeyDown={(event) => {
-                        if (!isActivationKey(event.key)) return;
+                        if (!isActivationKey(event.key) || isInteractiveTarget(event.target)) return;
                         event.preventDefault();
                         setReportId(report.id);
                       }}
                     >
-                      <td className={styles.historyCell}>{formatDate(report.createdAt)}</td>
+                      <td className={styles.historyCell}>{formatDateTime(report.createdAt)}</td>
                       <td className={styles.historyCell}>
-                        <span className="id">{shortSha(report.headSha)}</span>
+                        <ShaRef sha={report.headSha} repository={repository} />
                       </td>
                       <td className={styles.historyCell}>{report.tokenName}</td>
                       <td className={`${styles.historyCell} ${styles.historyCellEnd}`}>{report.issueCount}</td>
