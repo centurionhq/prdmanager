@@ -42,6 +42,28 @@ describe('DriftIssuesList', () => {
     expect(screen.getAllByText('SDD-008').some((el) => el.className === 'id')).toBe(true);
   });
 
+  it('shows the Spanish copy of a landed_but_open issue and not the raw engine sentence', () => {
+    render(
+      <DriftIssuesList
+        issues={[
+          fakeIssue({
+            kind: 'landed_but_open',
+            severity: 'warning',
+            nodeId: 'WO-625',
+            target: '9def4e20893f6116ae195acbdf4d07380bc3018c',
+            blueprintId: null,
+            message:
+              'WO-625 is in_progress but commit 9def4e20893f6116ae195acbdf4d07380bc3018c already references it (Refs: WO-625)',
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText(/Ya aterrizada/)).toBeTruthy();
+    expect(screen.getByText(/Completala con ese sha/)).toBeTruthy();
+    expect(document.body.textContent).not.toContain('already references it');
+  });
+
   it('falls back to the raw message with no action for an unknown kind', () => {
     const raw = 'brand new engine kind happened';
     render(<DriftIssuesList issues={[fakeIssue({ kind: 'engine_v2_novel', message: raw, blueprintId: null, target: undefined })]} />);

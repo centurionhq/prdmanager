@@ -42,7 +42,7 @@ function monoTexts(copy: { readonly tokens: readonly { readonly text: string; re
 }
 
 /**
- * The 11 `IssueKind`s, each with the exact real-format message the engine builds
+ * The 12 `IssueKind`s, each with the exact real-format message the engine builds
  * (`packages/core/src/sync/monitor.ts:195-267`, `packages/core/src/engine.ts:347`,
  * `packages/server/src/engine/pg-project-engine.ts:999`) and a distinctive Spanish fragment its copy must
  * carry. Shared by the per-kind test and the guardian test.
@@ -180,11 +180,24 @@ const KIND_CASES: readonly KindCase[] = [
     }),
     spanish: 'No se pudo escribir el estado',
   },
+  {
+    kind: 'landed_but_open',
+    issue: issue({
+      kind: 'landed_but_open',
+      severity: 'warning',
+      nodeId: 'WO-625',
+      target: '9def4e20893f6116ae195acbdf4d07380bc3018c',
+      blueprintId: null,
+      message:
+        'WO-625 is in_progress but commit 9def4e20893f6116ae195acbdf4d07380bc3018c already references it (Refs: WO-625)',
+    }),
+    spanish: 'Ya aterrizada',
+  },
 ];
 
 describe('issueCopy por kind', () => {
-  test('cubre los 11 IssueKind con copy en español y una acción sugerida', () => {
-    expect(KIND_CASES).toHaveLength(11);
+  test('cubre los 12 IssueKind con copy en español y una acción sugerida', () => {
+    expect(KIND_CASES).toHaveLength(12);
     for (const { kind, issue: sample, spanish } of KIND_CASES) {
       expect(KIND_COPY[kind], `KIND_COPY must know "${kind}"`).toBeDefined();
       const copy = issueCopy(sample);
@@ -245,6 +258,31 @@ describe('code_out_of_sync: razón extraída y traducida', () => {
     expect(copy.headline).not.toContain('undefined');
     expect(copy.headline).toContain(raw);
     expect(copy.headline).toContain('SDD-008');
+    expect(copy.action).not.toBeNull();
+  });
+});
+
+describe('landed_but_open', () => {
+  const FULL_SHA = '9def4e20893f6116ae195acbdf4d07380bc3018c';
+  const RAW = `WO-625 is in_progress but commit ${FULL_SHA} already references it (Refs: WO-625)`;
+
+  test('nombra el sha corto, no el completo, y sugiere una acción', () => {
+    const copy = issueCopy(
+      issue({ kind: 'landed_but_open', nodeId: 'WO-625', target: FULL_SHA, blueprintId: null, message: RAW }),
+    );
+    expect(copy.headline).toBe('Ya aterrizada: el commit 9def4e2 la referencia en main');
+    expect(copy.headline).not.toContain(FULL_SHA);
+    expect(copy.action).toBe('Completala con ese sha');
+    expect(copy.headline).not.toContain('Refs:');
+    expect(copy.headline).not.toBe(RAW);
+  });
+
+  test('sin target no imprime undefined y sigue en español', () => {
+    const copy = issueCopy(
+      issue({ kind: 'landed_but_open', nodeId: 'WO-625', target: undefined, blueprintId: null, message: RAW }),
+    );
+    expect(copy.headline).toBe('Ya aterrizada: un commit del reporte la referencia en main');
+    expect(copy.headline).not.toContain('undefined');
     expect(copy.action).not.toBeNull();
   });
 });
@@ -315,9 +353,10 @@ describe('guardián: nada del texto crudo del motor en el copy humanizado', () =
     'changed since its last acknowledged version',
     'uses deprecated field',
     'was completed against an older version of its blueprint',
+    'already references it',
   ] as const;
 
-  test('los 11 kinds no filtran fragmentos en inglés del motor', () => {
+  test('los 12 kinds no filtran fragmentos en inglés del motor', () => {
     for (const { kind, issue: sample } of KIND_CASES) {
       const copy = issueCopy(sample);
       const haystack = [
