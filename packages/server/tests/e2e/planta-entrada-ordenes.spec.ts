@@ -31,6 +31,14 @@
  * spec's own run reproduced it: publish stayed blocked with "is justified, but not by a BC"). Fixed by
  * inserting a BC between the FB and the PRD: the FB justifies the BC, the BC is published, and the PRD's
  * `justified_by` points at the BC instead of the FB directly.
+ *
+ * WO-614 (SDD-064 WO-D, gate): the Órdenes part of the journey is extended with the integrated result of
+ * that blueprint — the URL as source of truth for the filters, a server-side bounded page next to the
+ * real total, archiving from the drawer, and «Asignada a: mí» — plus real-browser screenshots at 1440 and
+ * 375 px on that same screen, under the same failing `securitypolicyviolation` listener. So that the
+ * padrón is big enough to page through for real, the SDD checklist below carries more than one item: a
+ * blueprint's `## Tareas` is exactly what `generate_work_orders` turns into work orders, so this stays
+ * the real governance pipeline, never a seeded fixture.
  */
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +48,17 @@ import { PASSWORD, startJourney, stopJourney, type Journey } from './harness.js'
 let journey: Journey;
 
 const ALICE_HANDLE = 'alice-e2e-line-board';
+
+/** Screenshots for the 1440/375 px checks (WO-614) — the same gitignored dir the WO-623 test writes to. */
+const SHOTS_DIR = fileURLToPath(new URL('../../test-results/', import.meta.url));
+
+/**
+ * WO-614: how many work orders the journey's SDD generates. `ORDENES_PAGE_SIZE` is 25, so 26 is the
+ * smallest checklist that makes «one bounded page next to the real total» a real assertion instead of a
+ * tautology (page 1 covers 25 of them, page 2 the leftover). The first item keeps its WO-368 wording
+ * because the journey still waits for that exact body on the server before publishing.
+ */
+const SDD_TASKS = ['Wire the real line-board station transitions', ...Array.from({ length: 25 }, (_, i) => `Tarea E2E ${String(i + 2).padStart(2, '0')}`)];
 
 test.beforeAll(async () => {
   journey = await startJourney();
@@ -159,8 +178,15 @@ async function installCspViolationListener(page: Page): Promise<void> {
   });
 }
 
+/** Reads what {@link installCspViolationListener} has collected on the *current* page so far. */
+async function cspViolations(page: Page): Promise<string[]> {
+  return page.evaluate(() => (globalThis as unknown as { __cspViolations: string[] }).__cspViolations);
+}
+
 test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviolation listener (WO-368)', async ({ browser }) => {
-  test.setTimeout(150_000);
+  // WO-614 raises this journey's own budget: the SDD below now publishes 26 checklist items (one work
+  // order each) and the Órdenes steps page through them, on top of the original PRD/BC/FB authoring.
+  test.setTimeout(300_000);
   const { baseUrl, org, project, alice } = journey;
 
   const context = await browser.newContext();
@@ -293,7 +319,10 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await expect(row).toBeVisible();
     await expect(row.getByText('Sin triar')).toBeVisible();
 
-    await row.getByRole('button', { name: 'Enlazar a feature' }).click();
+    // WO-614: the row control's accessible name carries its item id since WO-622 (`Enlazar FB-002 a
+    // una feature`); the old bare `Enlazar a feature` no longer matches anything, which is why this
+    // journey was red on `main` before this work order — the WO-623 test below already uses the new name.
+    await row.getByRole('button', { name: /^Enlazar FB-\d+ a una feature$/ }).click();
     const linkDialog = page.getByRole('dialog', { name: 'Enlazar a feature' });
     await expect(linkDialog.getByText(prdDocId).first()).toBeVisible();
     await linkDialog.getByRole('button', { name: 'Enlazar' }).click();
@@ -302,8 +331,9 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
   });
 
   let workOrderId = '';
+  let secondWorkOrderId = '';
 
-  await test.step('Planta: publishing an architecting SDD (with its generated work order) moves the PRD to Planificación', async () => {
+  await test.step('Planta: publishing an architecting SDD (with its generated work orders) moves the PRD to Planificación', async () => {
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents`);
     await createDocument(page, 'SDD', 'Line Board System Design');
     const sddLink = page.getByRole('link', { name: /^SDD-\d+$/ });
@@ -314,7 +344,8 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await fillTitle(page, 'Line Board System Design');
 
     const impactedPath = 'packages/app/src/e2e/line-board.ts';
-    const tasksBody = '## Tareas\n\n- [ ] Wire the real line-board station transitions';
+    // WO-614: a checklist with one item per work order the Órdenes steps need to page through.
+    const tasksBody = `## Tareas\n\n${SDD_TASKS.map((task) => `- [ ] ${task}`).join('\n')}`;
     await page.getByLabel('Arquitecta a').fill(prdDocId);
     await page.getByLabel('Arquitecta a').blur();
     await page.getByLabel('Rutas impactadas').fill(impactedPath);
@@ -324,20 +355,30 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     const sddUrl = `${baseUrl}/o/${org.slug}/p/${project.slug}/documents/${sddDocId}`;
     await waitForFieldOnServer(context, sddUrl, 'Arquitecta a', prdDocId);
     await waitForFieldOnServer(context, sddUrl, 'Rutas impactadas', impactedPath);
-    await waitForBodyOnServer(context, sddUrl, 'Wire the real line-board station transitions');
+    // WO-614: the checklist is long enough that waiting only for its first item can still resolve while
+    // the tail is in flight — and publishing then generates work orders from a partial checklist. Yjs
+    // applies a document's updates in order, so seeing the *last* item on a probe page proves every
+    // earlier one is persisted server-side too.
+    await waitForBodyOnServer(context, sddUrl, SDD_TASKS[0]!);
+    await waitForBodyOnServer(context, sddUrl, SDD_TASKS[SDD_TASKS.length - 1]!);
 
     await switchToValidationTab(page);
     await page.getByRole('button', { name: 'Solicitar revisión' }).click();
     await expect(page.locator('p', { hasText: /in_review/ })).toBeVisible();
     await publishFromReview(page);
     await expect(page.locator('p', { hasText: /published/ })).toBeVisible();
-    await expect(page.getByText(/Work orders generados: 1/)).toBeVisible();
+    await expect(page.getByText(new RegExp(`Work orders generados: ${SDD_TASKS.length}`))).toBeVisible();
 
     const res = await page.request.get(`${baseUrl}/api/app/organizations/${org.slug}/projects/${project.slug}/documents?kind=WO`);
     expect(res.ok()).toBe(true);
-    const body = (await res.json()) as { documents: { docId: string; workflowState: string }[] };
-    expect(body.documents).toHaveLength(1);
-    workOrderId = body.documents[0]!.docId;
+    const body = (await res.json()) as { documents: { docId: string; title: string; workflowState: string }[] };
+    expect(body.documents).toHaveLength(SDD_TASKS.length);
+    // `planWorkOrders` walks the checklist in order and hands out ids sequentially, so the two lowest ids
+    // are the first two tasks' work orders: the first one is what the UI claims below, the second the
+    // pending one the archive step takes out of the queue.
+    const woIds = body.documents.map((document) => document.docId).sort((a, b) => a.localeCompare(b));
+    workOrderId = woIds[0]!;
+    secondWorkOrderId = woIds[1]!;
 
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
     // Same WO-443 collapse as the earlier station check -- the row is keyed on the BC, not the PRD.
@@ -365,10 +406,118 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await drawer.getByRole('button', { name: 'Cerrar' }).click();
   });
 
+  await test.step('Órdenes: el servidor devuelve una página acotada junto al total real (WO-614)', async () => {
+    const apiBase = `${baseUrl}/api/app/organizations/${org.slug}/projects/${project.slug}`;
+    const envelopeRes = await page.request.get(`${apiBase}/graph/work-orders?limit=25&offset=0`);
+    expect(envelopeRes.ok()).toBe(true);
+    const envelope = (await envelopeRes.json()) as { items: unknown[]; total: number; statusCounts: { all: number } };
+    // SDD-064 D2/D8/R2: the screen's own endpoint answers one bounded page plus the real total — never the
+    // whole padrón. Neither number is hardcoded: they come from the same response the UI consumes.
+    expect(envelope.total).toBe(SDD_TASKS.length);
+    expect(envelope.items).toHaveLength(25);
+    expect(envelope.statusCounts.all).toBe(SDD_TASKS.length);
+
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/ordenes`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Órdenes de trabajo' })).toBeVisible();
+    await expect(page.locator('p', { hasText: `Mostrando 25 de ${envelope.total} órdenes` })).toBeVisible();
+    await expect(page.getByText('Página 1 de 2')).toBeVisible();
+    // One header row plus exactly the 25 rows of this page.
+    await expect(page.getByRole('row')).toHaveCount(26);
+
+    await page.getByRole('button', { name: 'Página siguiente' }).click();
+    await expect(page).toHaveURL(/page=2/);
+    await expect(page.locator('p', { hasText: `Mostrando ${envelope.total} de ${envelope.total} órdenes` })).toBeVisible();
+    // The page is bounded, not the padrón: the second page carries only the leftover row.
+    await expect(page.getByRole('row')).toHaveCount(2);
+
+    await page.getByRole('button', { name: 'Página anterior' }).click();
+    await expect(page).not.toHaveURL(/page=2/);
+  });
+
+  await test.step('Órdenes: un filtro vive en la URL y un reload reproduce la vista (WO-614)', async () => {
+    await page.getByRole('radio', { name: /En curso/ }).click();
+    await expect(page).toHaveURL(/status=in_progress/);
+    // The order claimed above is the only in-progress one.
+    await expect(page.locator('p', { hasText: 'Mostrando 1 de 1 órdenes' })).toBeVisible();
+    await expect(page.getByRole('row', { name: new RegExp(workOrderId) })).toBeVisible();
+
+    // Reload, never re-click: the URL alone has to reproduce the filtered view (SDD-064 D6).
+    await page.reload();
+    await expect(page.getByRole('radio', { name: /En curso/ })).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('p', { hasText: 'Mostrando 1 de 1 órdenes' })).toBeVisible();
+    await expect(page.getByRole('row', { name: new RegExp(workOrderId) })).toBeVisible();
+
+    await page.getByRole('radio', { name: /Todas/ }).click();
+    await expect(page).not.toHaveURL(/status=/);
+    await expect(page.locator('p', { hasText: `Mostrando 25 de ${SDD_TASKS.length} órdenes` })).toBeVisible();
+  });
+
+  await test.step('Órdenes: «Asignada a: mí» filtra la propia cola con el handle de la sesión (WO-614)', async () => {
+    await page.getByRole('combobox', { name: 'Asignada a' }).selectOption('mio');
+    await expect(page).toHaveURL(/actor=mio/);
+    await expect(page.locator('p', { hasText: 'Mostrando 1 de 1 órdenes' })).toBeVisible();
+    const mine = page.getByRole('row', { name: new RegExp(workOrderId) });
+    await expect(mine).toBeVisible();
+    // Filtered by the real `dev:<handle>` of the session (SDD-064 D4), not by account class.
+    await expect(mine).toContainText(`dev:${ALICE_HANDLE}`);
+
+    await page.getByRole('combobox', { name: 'Asignada a' }).selectOption('todos');
+    await expect(page).not.toHaveURL(/actor=mio/);
+  });
+
+  await test.step('Órdenes: archivar una orden elegible la saca de la cola y su estado queda visible (WO-614)', async () => {
+    await expect(page.locator('p', { hasText: `Mostrando 25 de ${SDD_TASKS.length} órdenes` })).toBeVisible();
+
+    await page.getByRole('row', { name: new RegExp(secondWorkOrderId) }).click();
+    const drawer = page.getByRole('dialog');
+    await drawer.getByRole('button', { name: 'Archivar' }).click();
+
+    const modal = page.getByRole('dialog', { name: 'Archivar orden' });
+    await modal.getByLabel('Motivo (opcional)').fill('Quedó obsoleta: la cubre otra orden');
+    await modal.getByRole('button', { name: 'Archivar' }).click();
+    await expect(modal).toBeHidden();
+    await expect(page.getByText('Orden archivada')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cerrar' }).click();
+    // Archived orders leave the default «Todas» view (SDD-064 D3)...
+    const restantes = SDD_TASKS.length - 1;
+    await expect(page.locator('p', { hasText: `Mostrando ${restantes} de ${restantes} órdenes` })).toBeVisible();
+    await expect(page.getByRole('row', { name: new RegExp(secondWorkOrderId) })).toHaveCount(0);
+
+    // ...and stay reachable through their own chip, with the muted «Archivada» badge.
+    await page.getByRole('radio', { name: /Archivadas/ }).click();
+    await expect(page).toHaveURL(/status=archived/);
+    const archived = page.getByRole('row', { name: new RegExp(secondWorkOrderId) });
+    await expect(archived).toBeVisible();
+    await expect(archived.getByText('Archivada', { exact: true })).toBeVisible();
+  });
+
   await test.step('Planta: claiming the work order moves the PRD to the real Construcción station', async () => {
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
     // Same WO-443 collapse as the earlier station checks -- the row is keyed on the BC, not the PRD.
     await expect(page.getByRole('link', { name: new RegExp(`${bcDocId} .*estación Construcción`) })).toBeVisible();
+  });
+
+  await test.step('Órdenes a 1440 px: captura y cero violaciones de CSP (WO-614)', async () => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/ordenes`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Órdenes de trabajo' })).toBeVisible();
+    await expect(page.getByRole('row').first()).toBeVisible();
+    expect(await cspViolations(page)).toEqual([]);
+    mkdirSync(SHOTS_DIR, { recursive: true });
+    await page.screenshot({ path: `${SHOTS_DIR}ordenes-1440.png`, fullPage: true });
+  });
+
+  await test.step('Órdenes a 375 px: captura y cero violaciones de CSP (WO-614)', async () => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/ordenes`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Órdenes de trabajo' })).toBeVisible();
+    // The filters are still reachable at 375 px, and the table still shows real rows (stacked layout).
+    await expect(page.getByRole('radio', { name: /Todas/ })).toBeVisible();
+    await expect(page.getByRole('row').first()).toBeVisible();
+    expect(await cspViolations(page)).toEqual([]);
+    mkdirSync(SHOTS_DIR, { recursive: true });
+    await page.screenshot({ path: `${SHOTS_DIR}ordenes-375.png`, fullPage: true });
   });
 
   await test.step('Zero CSP violations fired during the whole journey', async () => {
