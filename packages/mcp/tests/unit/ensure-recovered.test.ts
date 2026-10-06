@@ -50,6 +50,10 @@ function trackedDeps(calls: string[]): PrdmDeps {
       calls.push('store.metricsRaw');
       return { governedTotal: 0, governedSynced: 0, featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, workOrders: [] };
     },
+    untracedCommits: async () => {
+      calls.push('store.untracedCommits');
+      return { total: 0, danglingRefs: 0, truncated: false, items: [] };
+    },
   };
 
   const engine = {
@@ -123,8 +127,12 @@ describe('ensureRecovered is called before every read tool/resource serves data 
 
     const recoverCount = calls.filter((c) => c === 'engine.recover').length;
     expect(recoverCount).toBe(6);
-    // Every recover happens right before its matching store call.
-    for (let i = 0; i < calls.length; i += 2) expect(calls[i]).toBe('engine.recover');
+    // `get_metrics` hace dos lecturas: cada recover abre un grupo y ninguna lectura queda fuera de uno.
+    expect(calls[0]).toBe('engine.recover');
+    calls.forEach((call, i) => {
+      if (call === 'engine.recover') expect(calls[i + 1]).toMatch(/^store\./);
+      else expect(calls[i - 1]).toMatch(/^(engine\.recover|store\.)/);
+    });
   });
 
   test('get_project and list_drafts (authoring read tools) recover before reading', async () => {

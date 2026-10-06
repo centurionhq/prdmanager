@@ -1,5 +1,5 @@
 import { ageDaysFrom } from '../graph/work-order-age.js';
-import type { GraphStore, MetricsRaw, OrphanFeature } from '../graph/types.js';
+import type { GraphStore, MetricsRaw, OrphanFeature, UntracedCommits } from '../graph/types.js';
 
 const COMPLETED_STATUSES = new Set(['done', 'out_of_sync']);
 const MS_PER_HOUR = 3_600_000;
@@ -38,6 +38,7 @@ export interface Traceability {
   commitsWithRefs: number;
   commitsTraced: number;
   commitPercent: number | null;
+  untracedCommits: UntracedCommits;
 }
 
 export interface PendingQueue {
@@ -114,7 +115,8 @@ function computePendingQueue(workOrders: MetricsRaw['workOrders']): PendingQueue
   };
 }
 
-export function computeMetrics(raw: MetricsRaw): SuccessMetrics {
+/** `untraced` es obligatorio a propósito: un default vacío taparía el bug que esta lista viene a mostrar. */
+export function computeMetrics(raw: MetricsRaw, untraced: UntracedCommits): SuccessMetrics {
   return {
     agentHumanEfficiency: computeEfficiency(raw.workOrders),
     systemIntegrity: {
@@ -131,11 +133,13 @@ export function computeMetrics(raw: MetricsRaw): SuccessMetrics {
       commitsWithRefs: raw.commitsWithRefs,
       commitsTraced: raw.commitsTraced,
       commitPercent: percent(raw.commitsTraced, raw.commitsTotal),
+      untracedCommits: untraced,
     },
     pendingQueue: computePendingQueue(raw.workOrders),
   };
 }
 
-export async function getMetrics(store: Pick<GraphStore, 'metricsRaw'>): Promise<SuccessMetrics> {
-  return computeMetrics(await store.metricsRaw());
+export async function getMetrics(store: Pick<GraphStore, 'metricsRaw' | 'untracedCommits'>): Promise<SuccessMetrics> {
+  const [raw, untraced] = await Promise.all([store.metricsRaw(), store.untracedCommits()]);
+  return computeMetrics(raw, untraced);
 }

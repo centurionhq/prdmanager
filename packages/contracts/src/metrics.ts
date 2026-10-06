@@ -40,6 +40,22 @@ export const orphanFeatureSchema = z.object({
   status: z.string(),
 });
 
+export const untracedCommitSchema = z.object({
+  sha: z.string().min(1),
+  subject: z.string(),
+  author: z.string(),
+  date: z.string(),
+  files: z.array(z.string()),
+  gap: z.enum(['no_refs', 'dangling_refs']),
+});
+
+export const untracedCommitsSchema = z.object({
+  total: z.number().int().min(0),
+  danglingRefs: z.number().int().min(0),
+  truncated: z.boolean(),
+  items: z.array(untracedCommitSchema),
+});
+
 export const traceabilitySchema = z.object({
   featuresTotal: z.number().int().min(0),
   featuresTraced: z.number().int().min(0),
@@ -49,6 +65,7 @@ export const traceabilitySchema = z.object({
   commitsWithRefs: z.number().int().min(0),
   commitsTraced: z.number().int().min(0),
   commitPercent: z.number().nullable(),
+  untracedCommits: untracedCommitsSchema,
 });
 
 export const successMetricsSchema = z.object({

@@ -9,7 +9,7 @@ describe('successMetricsSchema', () => {
   const valid = {
     agentHumanEfficiency: { completedWorkOrders: 4, measuredWorkOrders: 3, avgResolutionHours: 2.5, medianResolutionHours: 2, unmeasured: { total: 1, workOrders: [{ id: 'WO-009', status: 'done', reason: 'missing_claim', claimedAt: null, completedAt: '2026-01-01T00:00:00.000Z' }] } },
     systemIntegrity: { governedTotal: 10, governedSynced: 8, syncedPercent: 80 },
-    traceability: { featuresTotal: 5, featuresTraced: 4, orphanFeatures: [{ id: 'BC-004', kind: 'BC', title: 'Árbol', status: 'approved' }], featurePercent: 80, commitsTotal: 6, commitsWithRefs: 5, commitsTraced: 5, commitPercent: 83.3 },
+    traceability: { featuresTotal: 5, featuresTraced: 4, orphanFeatures: [{ id: 'BC-004', kind: 'BC', title: 'Árbol', status: 'approved' }], featurePercent: 80, commitsTotal: 6, commitsWithRefs: 5, commitsTraced: 5, commitPercent: 83.3, untracedCommits: { total: 1, danglingRefs: 0, truncated: false, items: [{ sha: 'abc123', subject: 'fix: x', author: 'dev', date: '2026-01-01T00:00:00Z', files: ['a.ts'], gap: 'no_refs' }] } },
   };
 
   test('accepts a full metrics payload', () => {
@@ -20,7 +20,7 @@ describe('successMetricsSchema', () => {
     const empty = {
       agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, unmeasured: { total: 0, workOrders: [] } },
       systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
-      traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null },
+      traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
     };
     expect(successMetricsSchema.parse(empty)).toEqual(empty);
   });
@@ -40,6 +40,14 @@ describe('successMetricsSchema', () => {
   test('rejects an unknown unmeasured reason', () => {
     const bad = { ...valid.agentHumanEfficiency, unmeasured: { total: 1, workOrders: [{ ...valid.agentHumanEfficiency.unmeasured.workOrders[0]!, reason: 'because' }] } };
     expect(() => successMetricsSchema.parse({ ...valid, agentHumanEfficiency: bad })).toThrow();
+  });
+
+  test('requires traceability.untracedCommits and a valid gap on each item', () => {
+    const { untracedCommits: _untraced, ...withoutUntraced } = valid.traceability;
+    expect(() => successMetricsSchema.parse({ ...valid, traceability: withoutUntraced })).toThrow();
+    const item = { ...valid.traceability.untracedCommits.items[0]!, gap: 'otro' };
+    const badGap = { ...valid.traceability, untracedCommits: { ...valid.traceability.untracedCommits, items: [item] } };
+    expect(() => successMetricsSchema.parse({ ...valid, traceability: badGap })).toThrow();
   });
 
   test('rejects a missing section', () => {

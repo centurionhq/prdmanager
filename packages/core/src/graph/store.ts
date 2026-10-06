@@ -4,7 +4,7 @@ import { assertProjectId, type ProjectRef } from '../project/types.js';
 import { CLEAR_PROJECT, PROJECT_FINGERPRINT_CHECK } from './queries.js';
 import * as reads from './store-read.js';
 import { ProjectFingerprintMismatch, writeSnapshot } from './store-write.js';
-import type { GraphSnapshot, GraphStore, MetricsRaw, NodeDetail, SearchHit, Subgraph, WorkOrderContextRaw, WorkOrderPage, WorkOrderQueryFilter, WorkOrderSummary } from './types.js';
+import type { GraphSnapshot, GraphStore, MetricsRaw, NodeDetail, SearchHit, Subgraph, UntracedCommits, WorkOrderContextRaw, WorkOrderPage, WorkOrderQueryFilter, WorkOrderSummary } from './types.js';
 
 /**
  * Project-scoped `GraphStore` (ADR-002 D1): every method is bound to one `ProjectRef` and every query it runs is
@@ -72,5 +72,9 @@ export class Neo4jGraphStore implements GraphStore {
 
   async metricsRaw(): Promise<MetricsRaw> {
     return reads.metricsRaw(this.driver, this.database, this.project.id);
+  }
+
+  async untracedCommits(): Promise<UntracedCommits> {
+    return reads.untracedCommits(this.driver, this.database, this.project.id);
   }
 }

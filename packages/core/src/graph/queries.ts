@@ -211,6 +211,28 @@ export const METRICS_RAW = `
   }
   RETURN governedTotal, governedSynced, featuresTotal, featuresTraced, orphanFeatures, commitsTotal, commitsWithRefs, commitsTraced, workOrders`;
 
+/**
+ * Commits sin trazar (SDD-080 WO-A): los que NO cierran `RESOLVES→WorkOrder→IMPLEMENTS→Blueprint→ARCHITECTS→Feature`.
+ * El predicado es el mismo, carácter por carácter, que `commitsTraced` en METRICS_RAW, así que
+ * `total == commitsTotal - commitsTraced` y `danglingRefs == commitsWithRefs - commitsTraced` valen por construcción.
+ * `total`/`danglingRefs` salen de la agregación (exactos); `items` va capado por `$limit`. Si no hay commits sin trazar
+ * el subquery no devuelve filas y la consulta entera devuelve 0 filas (el lector lo mapea al caso vacío).
+ */
+export const UNTRACED_COMMITS = `
+  MATCH (c:Commit {project_id: $projectId})
+  WITH c, size(c.refs) > 0 AS hasRefs
+  WHERE NOT EXISTS { (c)-[:RESOLVES]->(:WorkOrder)-[:IMPLEMENTS]->(:Blueprint)-[:ARCHITECTS]->(:Feature) }
+  WITH count(*) AS total, coalesce(sum(CASE WHEN hasRefs THEN 1 ELSE 0 END), 0) AS danglingRefs
+  CALL () {
+    MATCH (c:Commit {project_id: $projectId})
+    WITH c, size(c.refs) > 0 AS hasRefs
+    WHERE NOT EXISTS { (c)-[:RESOLVES]->(:WorkOrder)-[:IMPLEMENTS]->(:Blueprint)-[:ARCHITECTS]->(:Feature) }
+    RETURN {sha: c.sha, subject: coalesce(c.subject, ''), author: coalesce(c.author, ''), date: coalesce(c.date, ''), files: coalesce(c.files, []), gap: CASE WHEN hasRefs THEN 'dangling_refs' ELSE 'no_refs' END} AS item
+    ORDER BY c.date DESC, c.sha ASC
+    LIMIT $limit
+  }
+  RETURN total, danglingRefs, collect(item) AS items`;
+
 export const CLEAR_PROJECT = `
   MATCH (n) WHERE (n:Node OR n:CodeRef OR n:Commit OR n:Actor) AND n.project_id = $projectId
   CALL (n) { DETACH DELETE n } IN TRANSACTIONS OF 1000 ROWS`;
@@ -236,5 +258,6 @@ export const SCOPED_QUERIES: readonly string[] = [
   QUERY_WORK_ORDERS,
   WORK_ORDER_CONTEXT,
   METRICS_RAW,
+  UNTRACED_COMMITS,
   CLEAR_PROJECT,
 ];

@@ -3,8 +3,8 @@ import type { NodeLabel } from '../domain/schema.js';
 import { buildScopedLuceneQuery } from './lucene.js';
 import { mirrorPathFor } from './paths.js';
 import { ageDaysFrom } from './work-order-age.js';
-import { BRANCH, FULL_GRAPH, GET_NODE, LIST_WORK_ORDERS, METRICS_RAW, QUERY_WORK_ORDERS, MAX_DEPTH, SEARCH, UP_FILTER, DOWN_FILTER, WORK_ORDER_CONTEXT } from './queries.js';
-import type { MetricsRaw, NodeDetail, SearchHit, Subgraph, WorkOrderContextRaw, WorkOrderPage, WorkOrderQueryFilter, WorkOrderSummary } from './types.js';
+import { BRANCH, FULL_GRAPH, GET_NODE, LIST_WORK_ORDERS, METRICS_RAW, QUERY_WORK_ORDERS, MAX_DEPTH, SEARCH, UNTRACED_COMMITS, UP_FILTER, DOWN_FILTER, WORK_ORDER_CONTEXT } from './queries.js';
+import type { MetricsRaw, NodeDetail, SearchHit, Subgraph, UntracedCommits, WorkOrderContextRaw, WorkOrderPage, WorkOrderQueryFilter, WorkOrderSummary } from './types.js';
 
 async function read<T>(driver: Driver, database: string, query: string, params: Record<string, unknown> = {}): Promise<T[]> {
   const { records } = await driver.executeQuery(query, params, { database, routing: neo4j.routing.READ });
@@ -96,4 +96,16 @@ export async function metricsRaw(driver: Driver, database: string, projectId: st
   const row = rows[0];
   if (!row) throw new Error('metrics query returned no rows');
   return row;
+}
+
+/** Tope de `untracedCommits.items`: el conteo (`total`) sigue exacto aunque la lista se corte. */
+export const UNTRACED_COMMITS_LIMIT = 200;
+
+export async function untracedCommits(driver: Driver, database: string, projectId: string, limit = UNTRACED_COMMITS_LIMIT): Promise<UntracedCommits> {
+  const rows = await read<Omit<UntracedCommits, 'truncated'>>(driver, database, UNTRACED_COMMITS, { projectId, limit: neo4j.int(limit) });
+  const row = rows[0];
+  // Sin commits sin trazar el subquery no devuelve filas: es el caso sano, no un error.
+  if (!row) return { total: 0, danglingRefs: 0, truncated: false, items: [] };
+  const total = Number(row.total);
+  return { total, danglingRefs: Number(row.danglingRefs), truncated: total > row.items.length, items: row.items };
 }

@@ -75,6 +75,18 @@ function formatUnmeasured({ total, workOrders }: SuccessMetrics['agentHumanEffic
     .map(({ reason, ids }) => `  ordenes sin medicion: ${total} (${UNMEASURED_REASON_COPY[reason]}: ${ids.join(', ')})`);
 }
 
+const UNTRACED_ROWS_SHOWN = 20;
+
+function formatUntracedCommits(traceability: SuccessMetrics['traceability']): string[] {
+  const { untracedCommits: untraced, commitsWithRefs, commitsTraced } = traceability;
+  return [
+    `  commits untraced: ${untraced.total} (with refs ${commitsWithRefs}, traced ${commitsTraced}, dangling ${untraced.danglingRefs})`,
+    ...(untraced.items.length === 0 ? ['    untraced commits: 0 (ninguno sin trazar)'] : []),
+    ...untraced.items.slice(0, UNTRACED_ROWS_SHOWN).map((c) => `    ${c.sha}  ${c.subject}`),
+    ...(untraced.truncated || untraced.items.length > UNTRACED_ROWS_SHOWN ? [`    mostrando los primeros ${UNTRACED_ROWS_SHOWN} de ${untraced.total} (truncado)`] : []),
+  ];
+}
+
 export function formatMetrics(metrics: SuccessMetrics): string {
   const { agentHumanEfficiency: efficiency, systemIntegrity: integrity, traceability, pendingQueue: queue } = metrics;
   return [
@@ -93,6 +105,7 @@ export function formatMetrics(metrics: SuccessMetrics): string {
     `  features traced: ${traceability.featuresTraced}/${traceability.featuresTotal} (${formatPercent(traceability.featurePercent)})`,
     ...formatOrphanFeatures(traceability.orphanFeatures),
     `  commits traced: ${traceability.commitsTraced}/${traceability.commitsTotal} (${formatPercent(traceability.commitPercent)}), with refs: ${traceability.commitsWithRefs}`,
+    ...formatUntracedCommits(traceability),
   ].join('\n');
 }
 
