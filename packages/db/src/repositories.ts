@@ -82,11 +82,19 @@ export interface ProjectsRepository {
   /** Full replacement of the `settings` jsonb column (WO-107: the settings screen always submits the
    * complete, validated settings object back, never a partial patch). */
   updateSettings(id: string, settings: Record<string, unknown>): Promise<ProjectRecord>;
+  /** Sets or clears `projects.archived_at` (SDD-078 D3/D4, WO-661). Archiving writes a date,
+   * unarchiving writes `null`; no other column is touched — memberships, tokens and the graph are
+   * deliberately left alone. */
+  setArchived(id: string, at: Date | null): Promise<ProjectRecord>;
 }
 
 export interface MembersRepository {
   /** Every project membership a given user holds within this org (across all of its projects). */
   listForUser(userId: string): Promise<ProjectMemberRecord[]>;
+  /** One grouped count of `project_members` rows per project in this org (SDD-078 D5, WO-661): the
+   * overview must never issue one query per row. A project with no members is simply absent from the
+   * returned map, never present with `0`. */
+  countByProject(): Promise<Record<string, number>>;
 }
 
 const DEFAULT_AUDIT_LOG_LIST_LIMIT = 50;
@@ -193,6 +201,12 @@ function buildProjectsRepository(pool: Pool, orgId: string): ProjectsRepository 
         if (!row) throw new Error(`project ${id} not found while updating settings`);
         return row;
       }),
+    setArchived: (id, at) =>
+      withTenantTx(pool, orgId, async (tx) => {
+        const [row] = await tx.update(projects).set({ archivedAt: at }).where(eq(projects.id, id)).returning();
+        if (!row) throw new Error(`project ${id} not found while setting archived`);
+        return row;
+      }),
   };
 }
 
@@ -200,6 +214,14 @@ function buildMembersRepository(pool: Pool, orgId: string): MembersRepository {
   return {
     listForUser: (userId) =>
       withTenantTx(pool, orgId, (tx) => tx.select().from(projectMembers).where(eq(projectMembers.userId, userId))),
+    countByProject: () =>
+      withTenantTx(pool, orgId, async (tx) => {
+        const rows = await tx
+          .select({ projectId: projectMembers.projectId, count: sql<number>`count(*)::int` })
+          .from(projectMembers)
+          .groupBy(projectMembers.projectId);
+        return Object.fromEntries(rows.map((r) => [r.projectId, r.count]));
+      }),
   };
 }
 

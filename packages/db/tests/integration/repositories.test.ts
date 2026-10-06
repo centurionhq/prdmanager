@@ -94,4 +94,38 @@ describe('createTenantDb(pool).forOrg(orgId) (WO-100)', () => {
     await expect(dbAsOrgB.members.listForUser(user.id)).resolves.toEqual([]);
     await expect(dbAsOrgB.forProject(projectA.id).members.list()).resolves.toEqual([]);
   });
+
+  test('projects.setArchived writes a date, null clears it, and an unknown id rejects', async () => {
+    const org = await createOrganizationFixture(pg);
+    const db = createTenantDb(pg.appPool).forOrg(org.id);
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    const at = new Date('2026-01-02T03:04:05.000Z');
+
+    const archived = await db.projects.setArchived(project.id, at);
+    expect(archived.archivedAt).toEqual(at);
+    expect((await db.projects.findById(project.id))?.archivedAt).toEqual(at);
+
+    const restored = await db.projects.setArchived(project.id, null);
+    expect(restored.archivedAt).toBeNull();
+    expect((await db.projects.findById(project.id))?.archivedAt).toBeNull();
+
+    await expect(db.projects.setArchived('00000000-0000-0000-0000-000000000000', at)).rejects.toThrow();
+  });
+
+  test('members.countByProject returns one grouped count per project and omits projects without members', async () => {
+    const org = await createOrganizationFixture(pg);
+    const db = createTenantDb(pg.appPool).forOrg(org.id);
+    const p1 = await createProjectFixture(pg, { orgId: org.id });
+    const p2 = await createProjectFixture(pg, { orgId: org.id });
+    const p3 = await createProjectFixture(pg, { orgId: org.id });
+    const [u1, u2] = [await createUserFixture(pg), await createUserFixture(pg)];
+
+    await db.forProject(p1.id).members.upsert({ userId: u1.id, role: 'editor' });
+    await db.forProject(p2.id).members.upsert({ userId: u1.id, role: 'viewer' });
+    await db.forProject(p2.id).members.upsert({ userId: u2.id, role: 'viewer' });
+
+    const counts = await db.members.countByProject();
+    expect(counts).toEqual({ [p1.id]: 1, [p2.id]: 2 });
+    expect(p3.id in counts).toBe(false);
+  });
 });

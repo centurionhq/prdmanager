@@ -321,4 +321,87 @@ describe('/api/app/organizations/:orgSlug/projects/* (WO-107)', () => {
 
     await app.close();
   });
+
+  describe('POST .../archive and .../unarchive (WO-661)', () => {
+    async function setup(projectRole?: 'editor') {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const user = await seedUser(env, pg.appPool, PASSWORD);
+      const org = await createOrganizationFixture(pg);
+      await createMemberFixture(pg, { organizationId: org.id, userId: user.id, role: projectRole === undefined ? 'owner' : 'member' });
+      const project = await createProjectFixture(pg, { orgId: org.id });
+      return { app, user, org, project, cookie: await signIn(app, user.email) };
+    }
+
+    const post = async (ctx: Awaited<ReturnType<typeof setup>>, action: 'archive' | 'unarchive') =>
+      ctx.app.inject({
+        method: 'POST',
+        url: `/api/app/organizations/${ctx.org.slug}/projects/${ctx.project.slug}/${action}`,
+        headers: await mutationHeaders(ctx.app, AUTH_HOST, ORIGIN, ctx.cookie),
+      });
+
+    const auditRows = async (projectId: string, action: string) =>
+      (await pg.ownerPool.query(`SELECT target, metadata FROM audit_log WHERE project_id = $1 AND action = $2`, [projectId, action])).rows;
+
+    test('archive writes archived_at and records exactly one project.archived audit row', async () => {
+      const ctx = await setup();
+      const res = await post(ctx, 'archive');
+      expect(res.statusCode).toBe(200);
+      expect(res.json().project.archivedAt).not.toBeNull();
+
+      const { rows } = await pg.ownerPool.query(`SELECT archived_at FROM projects WHERE id = $1`, [ctx.project.id]);
+      expect(rows[0].archived_at).not.toBeNull();
+      const audit = await auditRows(ctx.project.id, 'project.archived');
+      expect(audit).toHaveLength(1);
+      expect(audit[0].target).toBe(ctx.project.id);
+      expect(audit[0].metadata.slug).toBe(ctx.project.slug);
+      await ctx.app.close();
+    });
+
+    test('archiving twice is idempotent: same archivedAt and a single audit row', async () => {
+      const ctx = await setup();
+      const first = await post(ctx, 'archive');
+      const second = await post(ctx, 'archive');
+      expect(second.statusCode).toBe(200);
+      expect(second.json().project.archivedAt).toBe(first.json().project.archivedAt);
+      expect(await auditRows(ctx.project.id, 'project.archived')).toHaveLength(1);
+      await ctx.app.close();
+    });
+
+    test('unarchive clears archived_at with an audit row; unarchiving an active project is a silent no-op', async () => {
+      const ctx = await setup();
+      await pg.ownerPool.query(`UPDATE projects SET archived_at = now() WHERE id = $1`, [ctx.project.id]);
+
+      const res = await post(ctx, 'unarchive');
+      expect(res.statusCode).toBe(200);
+      expect(res.json().project.archivedAt).toBeNull();
+      const { rows } = await pg.ownerPool.query(`SELECT archived_at FROM projects WHERE id = $1`, [ctx.project.id]);
+      expect(rows[0].archived_at).toBeNull();
+      expect(await auditRows(ctx.project.id, 'project.unarchived')).toHaveLength(1);
+
+      const again = await post(ctx, 'unarchive');
+      expect(again.statusCode).toBe(200);
+      expect(again.json().project.archivedAt).toBeNull();
+      expect(await auditRows(ctx.project.id, 'project.unarchived')).toHaveLength(1);
+      await ctx.app.close();
+    });
+
+    test('a project editor lacks the archive permission: 403 on both routes', async () => {
+      const ctx = await setup('editor');
+      await pg.ownerPool.query(`INSERT INTO "project_members" (project_id, user_id, org_id, role) VALUES ($1, $2, $3, 'editor')`, [
+        ctx.project.id,
+        ctx.user.id,
+        ctx.org.id,
+      ]);
+      expect((await post(ctx, 'archive')).statusCode).toBe(403);
+      expect((await post(ctx, 'unarchive')).statusCode).toBe(403);
+      await ctx.app.close();
+    });
+
+    test('an org member without a project_members row gets 404 on both routes', async () => {
+      const ctx = await setup('editor');
+      expect((await post(ctx, 'archive')).statusCode).toBe(404);
+      expect((await post(ctx, 'unarchive')).statusCode).toBe(404);
+      await ctx.app.close();
+    });
+  });
 });

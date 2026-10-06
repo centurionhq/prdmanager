@@ -123,4 +123,53 @@ describe('GET .../organizations/:orgSlug/projects/overview (WO-336)', () => {
     scanSpy.mockRestore();
     await app.close();
   });
+
+  test('memberCount comes from one grouped query: A=1, B=3, C=0', async () => {
+    const app = buildApp();
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    const org = await createOrganizationFixture(pg);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    const [a, b, c] = [await createProjectFixture(pg, { orgId: org.id }), await createProjectFixture(pg, { orgId: org.id }), await createProjectFixture(pg, { orgId: org.id })];
+    for (const project of [a, b, c]) {
+      const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: `saas://project/${project.id}` });
+      await store.clear();
+    }
+    const users = [await seedUser(env, pg.appPool, PASSWORD), await seedUser(env, pg.appPool, PASSWORD), await seedUser(env, pg.appPool, PASSWORD)];
+    const memberships: [string, string][] = [[a.id, users[0]!.id], [b.id, users[0]!.id], [b.id, users[1]!.id], [b.id, users[2]!.id]];
+    for (const [projectId, userId] of memberships) {
+      await pg.ownerPool.query(`INSERT INTO "project_members" (project_id, user_id, org_id, role) VALUES ($1, $2, $3, 'viewer')`, [projectId, userId, org.id]);
+    }
+
+    const ownerCookie = await signIn(app, owner.email);
+    // Tenant transactions run on a client from `pool.connect()`, so the statements are observed there.
+    const statements: string[] = [];
+    const wrapped = new WeakSet<object>();
+    const originalConnect = pg.appPool.connect.bind(pg.appPool) as (...args: unknown[]) => Promise<{ query: (...args: unknown[]) => unknown }>;
+    const connectSpy = vi.spyOn(pg.appPool, 'connect').mockImplementation((async (...args: unknown[]) => {
+      const client = await originalConnect(...args);
+      // Pooled clients are reused across connects: wrap each one only once or statements get counted twice.
+      if (wrapped.has(client)) return client;
+      wrapped.add(client);
+      const originalQuery = client.query.bind(client);
+      client.query = (...queryArgs: unknown[]) => {
+        const first = queryArgs[0];
+        statements.push(typeof first === 'string' ? first : String((first as { text?: string })?.text ?? ''));
+        return originalQuery(...queryArgs);
+      };
+      return client;
+    }) as never);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/app/organizations/${org.slug}/projects/overview`,
+      headers: { ...AUTH_HOST(), cookie: ownerCookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { projects: { id: string; memberCount: number }[] };
+    const countOf = (id: string) => body.projects.find((p) => p.id === id)?.memberCount;
+    expect([countOf(a.id), countOf(b.id), countOf(c.id)]).toEqual([1, 3, 0]);
+    expect(statements.filter((sql) => /group by/i.test(sql) && /project_members/i.test(sql))).toHaveLength(1);
+
+    connectSpy.mockRestore();
+    await app.close();
+  });
 });

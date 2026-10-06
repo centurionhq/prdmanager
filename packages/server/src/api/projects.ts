@@ -189,6 +189,56 @@ export function registerProjectRoutes(app: FastifyInstance, opts: RegisterProjec
     return { project: toProjectSummary(updated) };
   });
 
+  app.post<{ Params: ProjectRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/archive', { config: { access: { kind: 'session' } } }, async (req) => {
+    const session = await requireAppSession(auth, req, env.publicUrl);
+    const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+    const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+    if (!can(subject, 'archive')) throw new ForbiddenError();
+
+    // Idempotent: when already in the requested state nothing is written and nothing is audited.
+    const tenantDb = createTenantDb(pool).forOrg(org.id);
+    const updated = project.archivedAt ? project : await tenantDb.projects.setArchived(project.id, new Date());
+    if (updated !== project) {
+      await tenantDb.auditLog.record({
+        projectId: project.id,
+        actorType: 'user',
+        actorId: session.user.id,
+        action: 'project.archived',
+        target: project.id,
+        metadata: { slug: project.slug },
+        ip: req.ip,
+        userAgent: userAgentOf(req),
+      });
+    }
+
+    return { project: toProjectSummary(updated) };
+  });
+
+  app.post<{ Params: ProjectRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/unarchive', { config: { access: { kind: 'session' } } }, async (req) => {
+    const session = await requireAppSession(auth, req, env.publicUrl);
+    const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+    const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+    if (!can(subject, 'archive')) throw new ForbiddenError();
+
+    // Idempotent: when already in the requested state nothing is written and nothing is audited.
+    const tenantDb = createTenantDb(pool).forOrg(org.id);
+    const updated = project.archivedAt ? await tenantDb.projects.setArchived(project.id, null) : project;
+    if (updated !== project) {
+      await tenantDb.auditLog.record({
+        projectId: project.id,
+        actorType: 'user',
+        actorId: session.user.id,
+        action: 'project.unarchived',
+        target: project.id,
+        metadata: { slug: project.slug },
+        ip: req.ip,
+        userAgent: userAgentOf(req),
+      });
+    }
+
+    return { project: toProjectSummary(updated) };
+  });
+
   app.get<{ Params: ProjectRouteParams }>('/api/app/organizations/:orgSlug/projects/:projectSlug/members', { config: { access: { kind: 'session' } } }, async (req) => {
     const session = await requireAppSession(auth, req, env.publicUrl);
     const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
