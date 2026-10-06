@@ -5,7 +5,7 @@ import type { EngineOps, ProjectEngine, ProjectSettings, RecoverResult, RefreshR
 import type { FieldValue } from '../../src/parser/frontmatter-edit.js';
 import type { ScanResult } from '../../src/parser/scan.js';
 import type { GraphStore } from '../../src/graph/types.js';
-import { closeFeedback, dismissFeedback, markDuplicate, triageFeedback, triageFeedbackBatch } from '../../src/feedback/link.js';
+import { closeFeedback, dismissFeedback, linkFeedback, markDuplicate, triageFeedback, triageFeedbackBatch } from '../../src/feedback/link.js';
 
 const prd = (): ParsedDoc => doc('id: PRD-001\ntype: PRD\ntitle: Product');
 const fb = (status = 'new'): ParsedDoc => doc(`id: FB-001\ntype: FB\ntitle: Feedback\nstatus: ${status}`);
@@ -240,6 +240,100 @@ describe('closeFeedback', () => {
     const engine = new FakeEngine([fb('triaged')], new Set(['FB-001']));
     const result = await closeFeedback(engine, 'FB-001', 'agent:x', { now });
     expect(result.applied).toBe('deferred');
+  });
+});
+
+describe('linkFeedback', () => {
+  const prd2 = (): ParsedDoc => doc('id: PRD-002\ntype: PRD\ntitle: Second', 'body', 'docs/PRD-002.md');
+  const fbWith = (extra: string, status = 'new'): ParsedDoc => doc(`id: FB-001\ntype: FB\ntitle: Feedback\nstatus: ${status}\n${extra}`);
+
+  test('requires informs or root', async () => {
+    const engine = new FakeEngine([fb(), prd()]);
+    await expect(linkFeedback(engine, 'FB-001', 'dev:tano', {})).rejects.toThrow(/informs.*root/);
+  });
+
+  test('rejects a missing id and a target that is not Feedback', async () => {
+    await expect(linkFeedback(new FakeEngine([prd()]), 'FB-404', 'dev:tano', { root: true })).rejects.toThrow(/not found/);
+    await expect(linkFeedback(new FakeEngine([prd()]), 'PRD-001', 'dev:tano', { root: true })).rejects.toThrow(/is not Feedback/);
+  });
+
+  test('rejects an invalid actor', async () => {
+    await expect(linkFeedback(new FakeEngine([fb(), prd()]), 'FB-001', 'nope', { informs: ['PRD-001'] })).rejects.toThrow(/invalid actor/);
+  });
+
+  test('merges informs without overwriting what the feedback already had, and never duplicates', async () => {
+    const engine = new FakeEngine([fbWith('informs: [PRD-002]'), prd(), prd2()]);
+    const result = await linkFeedback(engine, 'FB-001', 'dev:tano', { informs: ['PRD-001', 'PRD-001'] });
+    expect([...result.linkedTo].sort()).toEqual(['PRD-001', 'PRD-002']);
+    expect((statusOf(engine, 'FB-001').informs as string[]).sort()).toEqual(['PRD-001', 'PRD-002']);
+  });
+
+  test('never changes the status of a triaged feedback', async () => {
+    const engine = new FakeEngine([fb('triaged'), prd()]);
+    const result = await linkFeedback(engine, 'FB-001', 'dev:tano', { informs: ['PRD-001'] });
+    expect(result.status).toBe('triaged');
+    expect(statusOf(engine, 'FB-001').status).toBe('triaged');
+  });
+
+  test('links a closed feedback keeping its status and close trace intact', async () => {
+    const closed = fbWith('close_reason: entregado\nresolved_by: [WO-624]\nclosed_by: dev:tano', 'closed');
+    const engine = new FakeEngine([closed, prd()]);
+    const result = await linkFeedback(engine, 'FB-001', 'dev:tano', { informs: ['PRD-001'] });
+    expect(result).toMatchObject({ id: 'FB-001', status: 'closed', linkedTo: ['PRD-001'], linkedBy: 'dev:tano' });
+    expect(statusOf(engine, 'FB-001')).toMatchObject({ status: 'closed', close_reason: 'entregado', resolved_by: ['WO-624'], informs: ['PRD-001'] });
+  });
+
+  test('accepts a new feedback (linking does not require prior triage)', async () => {
+    const engine = new FakeEngine([fb(), prd()]);
+    const result = await linkFeedback(engine, 'FB-001', 'dev:tano', { informs: ['PRD-001'] });
+    expect(result.status).toBe('new');
+  });
+
+  test('root: true without informs sets root and leaves informs intact', async () => {
+    const engine = new FakeEngine([fbWith('informs: [PRD-002]'), prd2()]);
+    const result = await linkFeedback(engine, 'FB-001', 'dev:tano', { root: true });
+    expect(result).toMatchObject({ root: true, linkedTo: ['PRD-002'] });
+    expect(statusOf(engine, 'FB-001')).toMatchObject({ root: true, informs: ['PRD-002'] });
+  });
+
+  test('rejects an informs target that is not a Feature', async () => {
+    const engine = new FakeEngine([fb(), doc('id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-999]')]);
+    await expect(linkFeedback(engine, 'FB-001', 'dev:tano', { informs: ['SDD-001'] })).rejects.toThrow(/must be a Feature/);
+  });
+
+  test('reports applied: immediate normally and deferred for a collab-origin document', async () => {
+    const immediate = await linkFeedback(new FakeEngine([fb(), prd()]), 'FB-001', 'dev:tano', { informs: ['PRD-001'] });
+    expect(immediate.applied).toBe('immediate');
+    const deferred = await linkFeedback(new FakeEngine([fb(), prd()], new Set(['FB-001'])), 'FB-001', 'dev:tano', { informs: ['PRD-001'] });
+    expect(deferred.applied).toBe('deferred');
+  });
+
+  test('D3: with neither informs nor root the error names the links the feedback already has', async () => {
+    const closed = fbWith('informs: [PRD-001]\nroot: true\nclose_reason: entregado\nresolved_by: [WO-624]\nclosed_by: dev:tano', 'closed');
+    const bc = doc('id: BC-020\ntype: BC\ntitle: Caso\njustified_by: [FB-001]', 'body', 'docs/BC-020.md');
+    const engine = new FakeEngine([closed, prd(), bc]);
+    const err = await linkFeedback(engine, 'FB-001', 'dev:tano', {}).then(
+      () => new Error('expected rejection'),
+      (e: unknown) => e as Error,
+    );
+    expect(err.message).toBe(
+      [
+        'link_feedback requires "informs" (one or more feature ids) or "root: true". FB-001 already has:',
+        '  - informs: [PRD-001]',
+        '  - root: true',
+        '  - cited by: [BC-020] (justified_by)',
+        '  - status: closed (close_reason: "entregado"; closed_by: dev:tano; resolved_by: [WO-624])',
+      ].join('\n'),
+    );
+  });
+
+  test('D3: a bare new feedback gets the simple one-line message', async () => {
+    const err = await linkFeedback(new FakeEngine([fb()]), 'FB-001', 'dev:tano', {}).then(
+      () => new Error('expected rejection'),
+      (e: unknown) => e as Error,
+    );
+    expect(err.message).toBe('link_feedback requires "informs" (one or more feature ids) or "root: true"');
+    expect(err.message).not.toContain('already has');
   });
 });
 

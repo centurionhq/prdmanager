@@ -48,6 +48,7 @@ const NEVER_REMOTE_TOOLS = [
   'submit_feedback',
   'close_feedback',
   'dismiss_feedback',
+  'link_feedback',
 ];
 
 let root: string;
@@ -252,7 +253,7 @@ describe('remote MCP profile: unpublished documents via the documents port (WO-6
   });
 });
 
-describe('remote MCP profile: close_feedback / dismiss_feedback (WO-708)', () => {
+describe('remote MCP profile: close_feedback / dismiss_feedback (WO-708) / link_feedback (WO-727)', () => {
   const auditCalls: { action: string; target: string; metadata: unknown }[] = [];
   const opened: { client: Client; server: McpServer }[] = [];
 
@@ -328,9 +329,43 @@ describe('remote MCP profile: close_feedback / dismiss_feedback (WO-708)', () =>
     expect(auditCalls).toContainEqual(expect.objectContaining({ action: 'mcp.dismiss_feedback', target: id }));
   });
 
-  test('without mcp:write both tools answer missing_scope', async () => {
+  test('link_feedback links a triaged feedback without touching its status, and audits it', async () => {
+    const id = await seedTriaged('Falta vincular este pedido');
+
+    const linked = await callOn(writer, 'link_feedback', { id, informs: ['PRD-001'] });
+    expect(linked.isError).toBeFalsy();
+    expect(JSON.parse(linked.text)).toMatchObject({ id, status: 'triaged', linkedTo: ['PRD-001'], linkedBy: 'dev:tester' });
+
+    const fm = await frontmatterOf(id);
+    expect(fm.informs).toContain('PRD-001');
+    expect(fm.status).toBe('triaged');
+    expect(auditCalls).toContainEqual(expect.objectContaining({ action: 'mcp.link_feedback', target: id }));
+  });
+
+  test('link_feedback links an already closed feedback and leaves it closed', async () => {
+    const id = await seedTriaged('Cerrado pero sin vinculo');
+    await callOn(writer, 'close_feedback', { id, reason: 'entregado' });
+
+    const linked = await callOn(writer, 'link_feedback', { id, informs: ['PRD-001'] });
+    expect(linked.isError).toBeFalsy();
+    const fm = await frontmatterOf(id);
+    expect(fm).toMatchObject({ status: 'closed', close_reason: 'entregado' });
+    expect(fm.informs).toContain('PRD-001');
+  });
+
+  test('link_feedback with neither informs nor root fails naming the link the feedback already has', async () => {
+    const id = await seedTriaged('Ya tiene vinculo');
+    await callOn(writer, 'link_feedback', { id, informs: ['PRD-001'] });
+
+    const empty = await callOn(writer, 'link_feedback', { id });
+    expect(empty.isError).toBe(true);
+    expect(empty.text).toContain('already has');
+    expect(empty.text).toContain('PRD-001');
+  });
+
+  test('without mcp:write the tools answer missing_scope', async () => {
     const reader = await connect({ projectRole: 'editor' }, ['mcp:read']);
-    for (const [name, args] of [['close_feedback', { id: 'FB-001', reason: 'x' }], ['dismiss_feedback', { id: 'FB-001' }]] as const) {
+    for (const [name, args] of [['close_feedback', { id: 'FB-001', reason: 'x' }], ['dismiss_feedback', { id: 'FB-001' }], ['link_feedback', { id: 'FB-001', informs: ['PRD-001'] }]] as const) {
       const result = await callOn(reader, name, args);
       expect(JSON.parse(result.text)).toMatchObject({ error: 'missing_scope' });
     }
@@ -338,7 +373,7 @@ describe('remote MCP profile: close_feedback / dismiss_feedback (WO-708)', () =>
 
   test('a developer role (no edit_document) answers insufficient_role', async () => {
     const dev = await connect({ projectRole: 'developer' }, ['mcp:write']);
-    for (const [name, args] of [['close_feedback', { id: 'FB-001', reason: 'x' }], ['dismiss_feedback', { id: 'FB-001' }]] as const) {
+    for (const [name, args] of [['close_feedback', { id: 'FB-001', reason: 'x' }], ['dismiss_feedback', { id: 'FB-001' }], ['link_feedback', { id: 'FB-001', informs: ['PRD-001'] }]] as const) {
       const result = await callOn(dev, name, args);
       expect(JSON.parse(result.text)).toMatchObject({ error: 'insufficient_role' });
     }
