@@ -50,7 +50,7 @@
       <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;">
         <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
           <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em; white-space: nowrap;">Órdenes de trabajo</h1>
-          <div style="font-size: 14px; color: #565D63;">40 órdenes en 16 blueprints</div>
+          <div style="font-size: 14px; color: #565D63;">41 órdenes en 16 blueprints</div>
         </div>
         <div style="flex: none; width: 200px; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; color: #565D63; font-size: 14px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
@@ -60,7 +60,7 @@
 
       <section style="display: flex; flex-direction: column; gap: 12px;">
         <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-          <sc-for list="{{ chips }}" as="chip" hint-placeholder-count="6">
+          <sc-for list="{{ chips }}" as="chip" hint-placeholder-count="7">
             <button type="button" onClick="{{ chip.pick }}" style="{{ chip.style }}">{{ chip.label }} <span class="num" style="{{ chip.countStyle }}">{{ chip.count }}</span></button>
           </sc-for>
         </div>
@@ -171,6 +171,7 @@
 
       <div style="display: flex; gap: 12px; padding: 16px 24px 24px; border-top: 1px solid #DDE1DF;">
         <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Retomar orden</div>
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Archivar</div>
         <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Ver blueprint</div>
       </div>
     </aside>
@@ -191,6 +192,7 @@ class Component extends DCLogic {
       { key: 'in_progress', label: 'En curso', count: 9, total: 9 },
       { key: 'out_of_sync', label: 'Fuera de sincronía', count: 3, total: 3 },
       { key: 'done', label: 'Hechas', count: 2, total: 2 },
+      { key: 'archived', label: 'Archivadas', count: 1, total: 1 },
       { key: 'mine', label: 'Tomadas por mí', count: 0, total: 0 }
     ];
 
@@ -204,7 +206,8 @@ class Component extends DCLogic {
       { id: 'WO-275', title: 'Router con createBrowserRouter y AppShell con sidebar desktop, barra inferior mobile, skip link y título por ruta, con tests', blueprint: 'SDD-011', status: 'pending', assignee: '', updated: 'hace 3 h' },
       { id: 'WO-267', title: 'tokens.css con color, tipografía, espaciado, radios y motion…', blueprint: 'SDD-011', status: 'pending', assignee: '', updated: 'hace 3 h' },
       { id: 'WO-301', title: 'Tabla de hashes por archivo en Postgres', blueprint: 'SDD-012', status: 'done', assignee: 'agent:claude', updated: '12/09/2026' },
-      { id: 'WO-302', title: 'Detección de archivos borrados', blueprint: 'SDD-012', status: 'done', assignee: 'agent:deepseek', updated: '11/09/2026' }
+      { id: 'WO-302', title: 'Detección de archivos borrados', blueprint: 'SDD-012', status: 'done', assignee: 'agent:deepseek', updated: '11/09/2026' },
+      { id: 'WO-215', title: 'Consolidación de permisos de proyecto en un único módulo', blueprint: 'SDD-006', status: 'archived', assignee: 'dev:martin', updated: '14/09/2026' }
     ];
 
     const badgeBase = 'height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap;';
@@ -212,12 +215,13 @@ class Component extends DCLogic {
       pending: { label: 'Pendiente', style: badgeBase + ' color: #33383D;', mark: 'width: 8px; height: 8px; border: 1.5px solid #565D63;' },
       in_progress: { label: 'En curso', style: badgeBase + ' color: #1F4FA0;', mark: 'width: 8px; height: 8px; background: #1F4FA0;' },
       out_of_sync: { label: 'Fuera de sincronía', style: badgeBase + ' color: #B8322A;', mark: 'width: 8px; height: 8px; background: #B8322A;' },
-      done: { label: 'Hecha', style: badgeBase + ' color: #1E7F4F;', mark: 'width: 8px; height: 8px; background: #1E7F4F;' }
+      done: { label: 'Hecha', style: badgeBase + ' color: #1E7F4F;', mark: 'width: 8px; height: 8px; background: #1E7F4F;' },
+      archived: { label: 'Archivada', style: badgeBase + ' color: #565D63; background: #F1F3F2; border-color: #DDE1DF;', mark: 'width: 8px; height: 8px; background: #C9CFCD;' }
     };
 
     const current = filters.find((f) => f.key === this.state.filter) || filters[0];
     const matches = (order) => {
-      if (current.key === 'all') return true;
+      if (current.key === 'all') return order.status !== 'archived';
       if (current.key === 'mine') return false;
       return order.status === current.key;
     };

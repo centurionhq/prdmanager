@@ -1,9 +1,9 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkOrderContextDto } from '@prdm/contracts';
-import type { WorkOrderSummary } from '@prdm/core';
+import type { WorkOrderPage, WorkOrderStatusCounts, WorkOrderSummary } from '@prdm/core';
 import * as client from '../../src/api/client.js';
 import { ApiClientError } from '../../src/api/api-client-error.js';
 import { clearQueryCache } from '../../src/api/query-cache.js';
@@ -11,10 +11,10 @@ import { Ordenes } from '../../src/routes/Ordenes.js';
 import { makeProjectShellContext } from './fixtures.js';
 
 const ORDERS: WorkOrderSummary[] = [
-  { id: 'WO-304', title: 'Escaneo incremental por hash', status: 'in_progress', assignedTo: 'agent:claude', blueprints: ['SDD-012'], sourcePath: 'docs/work-orders/WO-304.md' },
-  { id: 'WO-310', title: 'Resumen del importador', status: 'pending', assignedTo: null, blueprints: ['SDD-012'], sourcePath: 'docs/work-orders/WO-310.md' },
-  { id: 'WO-301', title: 'Tabla de hashes', status: 'done', assignedTo: 'dev:martin', blueprints: ['SDD-013'], sourcePath: 'docs/work-orders/WO-301.md' },
-  { id: 'WO-320', title: 'Índice de búsqueda incremental', status: 'archived', assignedTo: null, blueprints: ['SDD-013'], sourcePath: 'docs/work-orders/WO-320.md' },
+  { id: 'WO-304', title: 'Escaneo incremental por hash', status: 'in_progress', assignedTo: 'agent:claude', blueprints: ['SDD-012'], sourcePath: 'docs/work-orders/WO-304.md', mirrorPath: '.prdm/remote/docs/WO-304.md' },
+  { id: 'WO-310', title: 'Resumen del importador', status: 'pending', assignedTo: null, blueprints: ['SDD-012'], sourcePath: 'docs/work-orders/WO-310.md', mirrorPath: '.prdm/remote/docs/WO-310.md' },
+  { id: 'WO-301', title: 'Tabla de hashes', status: 'done', assignedTo: 'dev:martin', blueprints: ['SDD-013'], sourcePath: 'docs/work-orders/WO-301.md', mirrorPath: '.prdm/remote/docs/WO-301.md' },
+  { id: 'WO-320', title: 'Índice de búsqueda incremental', status: 'archived', assignedTo: null, blueprints: ['SDD-013'], sourcePath: 'docs/work-orders/WO-320.md', mirrorPath: '.prdm/remote/docs/WO-320.md' },
 ];
 
 function fakeContext(overrides: Partial<WorkOrderContextDto['workOrder']> = {}): WorkOrderContextDto {
@@ -25,6 +25,7 @@ function fakeContext(overrides: Partial<WorkOrderContextDto['workOrder']> = {}):
       status: 'pending',
       assignedTo: null,
       sourcePath: 'docs/work-orders/WO-310.md',
+      mirrorPath: '.prdm/remote/docs/WO-310.md',
       body: 'Al terminar una importación, la CLI muestra un resumen.',
       acceptanceCriteria: ['El resumen separa archivos nuevos, modificados y borrados'],
       ...overrides,
@@ -39,20 +40,28 @@ function fakeContext(overrides: Partial<WorkOrderContextDto['workOrder']> = {}):
   };
 }
 
-function renderPage(): void {
+function page(items: WorkOrderSummary[], total = items.length, counts: Partial<WorkOrderStatusCounts> = {}): WorkOrderPage {
+  return { items, total, statusCounts: { all: 0, pending: 0, in_progress: 0, out_of_sync: 0, done: 0, archived: 0, ...counts } };
+}
+
+function renderPage(initialEntries: string[] = ['/ctx']) {
   const router = createMemoryRouter(
     [{ path: '/ctx', element: <Outlet context={makeProjectShellContext('owner', 'admin')} />, children: [{ index: true, element: <Ordenes /> }] }],
-    { initialEntries: ['/ctx'] },
+    { initialEntries },
   );
   render(<RouterProvider router={router} />);
+  return router;
 }
 
 describe('Ordenes', () => {
-  beforeEach(() => clearQueryCache());
+  beforeEach(() => {
+    clearQueryCache();
+    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null, workProfile: null });
+  });
   afterEach(() => vi.restoreAllMocks());
 
   it('lists every work order for the project', async () => {
-    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
     renderPage();
 
     expect(await screen.findByText('WO-304')).toBeTruthy();
@@ -60,55 +69,125 @@ describe('Ordenes', () => {
     expect(screen.getByText('WO-301')).toBeTruthy();
   });
 
-  it('shows an empty state when the project has no work orders at all', async () => {
-    vi.spyOn(client, 'listWorkOrders').mockResolvedValue([]);
+  it('shows the project-empty state with no filters, and "Quitar filtros" when filters match nothing', async () => {
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page([]));
     renderPage();
-
     expect(await screen.findByText('Todavía no hay órdenes de trabajo para este proyecto')).toBeTruthy();
+    list.mockResolvedValue(page([], 0));
+    cleanup();
+    clearQueryCache();
+    renderPage(['/ctx?status=done']);
+
+    expect(await screen.findByText('Ninguna orden coincide con estos filtros')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Quitar filtros' })).toBeTruthy();
   });
 
-  it('filters by estado chip and offers "Quitar filtros" when nothing matches', async () => {
-    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
-    renderPage();
+  it('asks the server for one page with the active filters', async () => {
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page([ORDERS[2]!]));
+    renderPage(['/ctx?status=done']);
+
+    expect(await screen.findByText('WO-301')).toBeTruthy();
+    expect(list).toHaveBeenCalledWith('acme', 'web', expect.objectContaining({ status: 'done', limit: 25, offset: 0 }));
+    expect(list.mock.calls.every(([, , filter]) => filter?.limit === 25 && filter?.offset === 0)).toBe(true);
+  });
+
+  it('reads every filter from the URL', async () => {
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    renderPage(['/ctx?status=done&blueprint=SDD-012&actor=agentes&q=hash']);
+
+    await screen.findByText('WO-304');
+    expect(list).toHaveBeenCalledWith('acme', 'web', {
+      status: 'done',
+      blueprint: 'SDD-012',
+      actorKind: 'agent',
+      assignedTo: undefined,
+      q: 'hash',
+      limit: 25,
+      offset: 0,
+    });
+  });
+
+  it('writes the estado chip to the URL and re-queries from the first page', async () => {
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    const router = renderPage(['/ctx?page=2']);
     await screen.findByText('WO-304');
 
     await userEvent.click(screen.getByRole('radio', { name: /Hechas/ }));
-    expect(screen.getByText('WO-301')).toBeTruthy();
-    expect(screen.queryByText('WO-304')).toBeNull();
 
-    await userEvent.type(screen.getByLabelText('Buscar órdenes'), 'no existe ninguna orden así');
-    expect(screen.getByText('Ninguna orden coincide con estos filtros')).toBeTruthy();
-
-    await userEvent.click(screen.getByRole('button', { name: 'Quitar filtros' }));
-    expect(await screen.findByText('WO-304')).toBeTruthy();
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith('acme', 'web', expect.objectContaining({ status: 'done', offset: 0 })));
+    expect(router.state.location.search).toBe('?status=done');
   });
 
-  it('filters the visible rows by search, by id or title', async () => {
-    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
-    renderPage();
+  it('sends the search text to the server, replacing history', async () => {
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    const router = renderPage();
     await screen.findByText('WO-304');
 
     await userEvent.type(screen.getByLabelText('Buscar órdenes'), 'hashes');
 
-    expect(screen.getByText('WO-301')).toBeTruthy();
-    expect(screen.queryByText('WO-304')).toBeNull();
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith('acme', 'web', expect.objectContaining({ q: 'hashes' })));
+    expect(router.state.location.search).toBe('?q=hashes');
+    expect(router.state.historyAction).toBe('REPLACE');
   });
 
-  it('shows archived orders only under the "Archivadas" chip, never mixed into "Todas"', async () => {
-    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+  it('pages against the real server total', async () => {
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS, 60));
+    renderPage();
+
+    expect(await screen.findByText((_, el) => el?.tagName === 'P' && el.textContent === 'Mostrando 4 de 60 órdenes')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Página anterior' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('Página 1 de 3')).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Página siguiente' }));
+
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith('acme', 'web', expect.objectContaining({ offset: 25 })));
+    expect(await screen.findByText((_, el) => el?.tagName === 'P' && el.textContent === 'Mostrando 29 de 60 órdenes')).toBeTruthy();
+  });
+
+  it('shows the server status counts on the estado chips', async () => {
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS, 4, { all: 12, pending: 7 }));
     renderPage();
     await screen.findByText('WO-304');
 
-    expect(screen.queryByText('WO-320')).toBeNull();
+    expect(within(screen.getByRole('radio', { name: /Pendientes/ })).getByText('7')).toBeTruthy();
+    expect(within(screen.getByRole('radio', { name: /Todas/ })).getByText('12')).toBeTruthy();
+  });
 
-    await userEvent.click(screen.getByRole('radio', { name: /Archivadas/ }));
+  it('filters "Asignada a: mí" by the session handle', async () => {
+    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: 'martin', workProfile: null });
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    renderPage();
+    await screen.findByText('WO-304');
+    await waitFor(() => expect((screen.getByRole('option', { name: 'Asignada a: mí' }) as HTMLOptionElement).disabled).toBe(false));
 
-    expect(screen.getByText('WO-320')).toBeTruthy();
-    expect(screen.queryByText('WO-304')).toBeNull();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Asignada a' }), 'Asignada a: mí');
+
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith('acme', 'web', expect.objectContaining({ assignedTo: 'dev:martin', actorKind: undefined })));
+  });
+
+  it('disables "Asignada a: mí" and explains why when the session has no handle', async () => {
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    renderPage();
+    await screen.findByText('WO-304');
+
+    const option = await screen.findByRole('option', { name: /Asignada a: mí/ });
+    expect((option as HTMLOptionElement).disabled).toBe(true);
+    expect(await screen.findByText('Definí tu handle en Ajustes › Perfil')).toBeTruthy();
+  });
+
+  it('falls back to the defaults on invalid URL values', async () => {
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    renderPage(['/ctx?status=no-existe&page=0&actor=raro']);
+
+    expect(await screen.findByText('WO-304')).toBeTruthy();
+    const filter = list.mock.calls[0]![2]!;
+    expect(filter.status).toBeUndefined();
+    expect(filter.actorKind).toBeUndefined();
+    expect(filter.offset).toBe(0);
   });
 
   it('opens the drawer with the real context and claims a pending order', async () => {
-    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
     vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(fakeContext());
     const claim = vi.spyOn(client, 'claimWorkOrder').mockResolvedValue({ ...ORDERS[1]!, status: 'in_progress', assignedTo: 'dev:ana' });
     renderPage();
@@ -123,7 +202,7 @@ describe('Ordenes', () => {
   });
 
   it('completes an in-progress order with a commit sha', async () => {
-    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
     vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(fakeContext({ id: 'WO-304', status: 'in_progress', assignedTo: 'agent:claude' }));
     const complete = vi.spyOn(client, 'completeWorkOrder').mockResolvedValue({ ...ORDERS[0]!, status: 'done' });
     renderPage();
@@ -139,7 +218,7 @@ describe('Ordenes', () => {
   });
 
   it('explains a 409 commit_not_verified_by_ci instead of a generic error', async () => {
-    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
     vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(fakeContext({ id: 'WO-304', status: 'in_progress', assignedTo: 'agent:claude' }));
     vi.spyOn(client, 'completeWorkOrder').mockRejectedValue(new ApiClientError(409, 'unknown', 'commit not verified by CI'));
     renderPage();
@@ -154,7 +233,7 @@ describe('Ordenes', () => {
   });
 
   it('archives a pending order with an optional reason, toasts and refreshes the list', async () => {
-    const list = vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
     vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(fakeContext());
     const archive = vi
       .spyOn(client, 'archiveWorkOrder')
@@ -174,7 +253,7 @@ describe('Ordenes', () => {
   });
 
   it('archives without a reason (an empty motive is a valid archive)', async () => {
-    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
     vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(fakeContext());
     const archive = vi
       .spyOn(client, 'archiveWorkOrder')
@@ -193,7 +272,7 @@ describe('Ordenes', () => {
     ['done', 'done'],
     ['archived', 'archived'],
   ])('never offers Archivar on a %s order', async (_label, status) => {
-    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
     vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(
       fakeContext({ id: 'WO-301', status, assignedTo: 'dev:martin' }),
     );
@@ -206,7 +285,7 @@ describe('Ordenes', () => {
   });
 
   it('surfaces the server\'s own message when the session lacks archive_work_order', async () => {
-    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
     vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(fakeContext());
     vi.spyOn(client, 'archiveWorkOrder').mockRejectedValue(
       new ApiClientError(403, 'forbidden', 'No tenés permiso para archivar órdenes en este proyecto.'),

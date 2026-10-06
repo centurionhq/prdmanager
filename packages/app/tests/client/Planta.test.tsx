@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Subgraph } from '@prdm/core';
 import type { LineBoardDto, SuccessMetricsDto } from '@prdm/contracts';
 import * as client from '../../src/api/client.js';
 import { clearQueryCache } from '../../src/api/query-cache.js';
@@ -61,12 +62,41 @@ const LINE_BOARD: LineBoardDto = {
       title: 'Persistencia de borradores',
       status: 'in_progress',
       station: 'entregado',
+      // WO-680: a second stopped initiative, and NOT the project-wide andon (BC-001), stopped at an
+      // earlier station than where it currently sits -- the D2 case the old board could not show.
+      andonStation: 'diseno_tecnico',
       progress: { done: 4, total: 4, stopped: 0 },
       children: [],
     },
   ],
   andon: { featureId: 'BC-001', station: 'construccion' },
 };
+
+/** WO-681: a feature branch with three work orders (one in a status the app does not know) and a
+ * non-order node that must not be listed. */
+const BRANCH: Subgraph = {
+  nodes: [
+    { ref: 'WO-401', label: 'WorkOrder', kind: null, title: 'Escaneo incremental', status: 'done' },
+    { ref: 'WO-402', label: 'WorkOrder', kind: null, title: 'Reintento de subida', status: 'in_progress' },
+    { ref: 'WO-403', label: 'WorkOrder', kind: null, title: 'Informe de parada', status: 'en_revision' },
+    { ref: 'SDD-084', label: 'Blueprint', kind: 'SDD', title: 'La línea accionable', status: 'active' },
+  ],
+  edges: [],
+};
+
+const BC_001_BUTTON = 'BC-001 Importador incremental de repos: ver órdenes';
+
+async function openBc001(): Promise<HTMLElement> {
+  const button = (await screen.findAllByRole('button', { name: BC_001_BUTTON }))[0]!;
+  await userEvent.click(button);
+  return button;
+}
+
+function mockBoard(branch: () => Promise<Subgraph> = () => Promise.resolve(BRANCH)): void {
+  vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+  vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+  vi.spyOn(client, 'getFeatureBranch').mockImplementation(branch);
+}
 
 function renderPlanta(overrides: Parameters<typeof makeProjectOverview>[0] = {}) {
   const context = makeProjectShellContext('owner');
@@ -80,6 +110,7 @@ function renderPlanta(overrides: Parameters<typeof makeProjectOverview>[0] = {})
           { index: true, element: <Planta /> },
           { path: 'arbol/:id', element: <p>arbol screen</p> },
           { path: 'drift', element: <p>drift screen</p> },
+          { path: 'ordenes', element: <p>ordenes screen</p> },
         ],
       },
     ],
@@ -99,8 +130,9 @@ describe('Planta', () => {
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
-    expect(await screen.findByText('BC-001')).toBeTruthy();
-    expect(screen.getByText('Importador incremental de repos')).toBeTruthy();
+    // WO-680: the stopped initiatives are named in the notice too, so their id/title now appear twice.
+    expect((await screen.findAllByText('BC-001')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Importador incremental de repos').length).toBeGreaterThan(0);
     // The 375px layout (`LineBoard.module.css`'s `@media (max-width: 767px)`) renders a second, CSS-only
     // hidden copy of a row's own current station next to the desktop rail -- real browsers exclude
     // `display: none` content from the accessibility tree, but jsdom doesn't apply external stylesheet
@@ -116,7 +148,7 @@ describe('Planta', () => {
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
-    await screen.findByText('BC-001');
+    await screen.findAllByText('BC-001');
 
     // The old inline phrasing (which rendered glued to the title) is gone entirely.
     expect(screen.queryByText('Llegó sin evaluar')).toBeNull();
@@ -136,7 +168,7 @@ describe('Planta', () => {
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
-    await screen.findByText('BC-001');
+    await screen.findAllByText('BC-001');
     expect(screen.getByText('PRD-010')).toBeTruthy();
     expect(screen.queryAllByRole('link').some((link) => link.textContent?.startsWith('PRD-010'))).toBe(false);
   });
@@ -166,7 +198,7 @@ describe('Planta', () => {
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
-    expect(await screen.findByText('FR-001')).toBeTruthy();
+    expect((await screen.findAllByText('FR-001')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('sin caso de negocio').length).toBeGreaterThan(0);
   });
 
@@ -180,6 +212,25 @@ describe('Planta', () => {
     expect(screen.getByText('100 %')).toBeTruthy();
     expect(screen.getByText('66,4 %')).toBeTruthy();
     expect(screen.getByText('70 %')).toBeTruthy();
+  });
+
+  it('renders the 5 KPIs in product order, with the two commit KPIs adjacent (WO-648)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    const strip = await screen.findByRole('region', { name: 'Indicadores de la planta' });
+    const cells = [...strip.children];
+    expect(cells.map((cell) => cell.firstElementChild?.textContent)).toEqual([
+      'Resolución mediana de una orden',
+      'Código sincronizado',
+      'Features trazadas',
+      'Commits trazados',
+      'Commits con Refs',
+    ]);
+    // Same order, each cell paired with its own number: "Commits con Refs" is commitsWithRefs/commitsTotal
+    // (7/10 = 70 %), not the commitPercent (66,4 %) its neighbour "Commits trazados" shows.
+    expect(cells.map((cell) => cell.lastElementChild?.textContent)).toEqual(['5 min', '99,6 %', '100 %', '66,4 %', '70 %']);
   });
 
   it('keeps "Commits trazados" and "Commits con Refs" as two distinct KPIs when their numbers differ (WO-606)', async () => {
@@ -220,17 +271,63 @@ describe('Planta', () => {
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
-    await userEvent.click(await screen.findByRole('link', { name: /FR-001/ }));
+    // WO-680: two links now mention FR-001 (the row and the notice); click the row, by its own name.
+    await userEvent.click(await screen.findByRole('link', { name: /FR-001 Persistencia de borradores, estación Entregado/ }));
     expect(await screen.findByText('arbol screen')).toBeTruthy();
   });
 
-  it('shows the andon on the BC row and clicking it navigates to the drift screen filtered by that feature', async () => {
+  it('the notice lists every stopped initiative, earliest station first, each linked to its own drift (WO-680, SDD-084 D1/D4)', async () => {
     vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
     renderPlanta();
 
-    expect(await screen.findByText(/línea detenida en construcción/i)).toBeTruthy();
-    await userEvent.click(await screen.findByRole('link', { name: /paradas/ }));
+    const notice = await screen.findByRole('list', { name: 'Iniciativas detenidas' });
+    // FR-001 is stopped at Diseño técnico (earlier) and BC-001 at Construcción (later): earliest first,
+    // even though the project-wide andon is BC-001. Both are named and linked -- not just the earliest.
+    const links = within(notice).getAllByRole('link');
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '/o/acme/p/web/drift?feature=FR-001',
+      '/o/acme/p/web/drift?feature=BC-001',
+    ]);
+    expect(within(notice).getByText('FR-001')).toBeTruthy();
+    expect(within(notice).getByText('Persistencia de borradores')).toBeTruthy();
+    expect(within(notice).getByText('BC-001')).toBeTruthy();
+    expect(within(notice).getByText('Importador incremental de repos')).toBeTruthy();
+    // Each row names its stopped station in text, not only by color.
+    expect(within(notice).getAllByText(/detenida en diseño técnico/i).length).toBeGreaterThan(0);
+    expect(within(notice).getAllByText(/detenida en construcción/i).length).toBeGreaterThan(0);
+  });
+
+  it('marks every stopped row with text and an accessible name, not just the project andon (WO-680, SDD-084 D2)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    // FR-001 is stopped at Diseño técnico but is NOT the project-wide andon: it must still be marked.
+    const frRow = await screen.findByRole('link', { name: /FR-001 Persistencia de borradores, estación Entregado, línea detenida en Diseño técnico/ });
+    expect(within(frRow).getByText(/detenida en diseño técnico/i)).toBeTruthy();
+
+    const bcRow = screen.getByRole('link', { name: /BC-001 Importador incremental de repos, estación Construcción, línea detenida en Construcción/ });
+    expect(within(bcRow).getByText(/detenida en construcción/i)).toBeTruthy();
+  });
+
+  it('keeps the drift destination only in the notice: the station cell is no longer a link to drift (WO-680, SDD-084 D4)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    const notice = await screen.findByRole('list', { name: 'Iniciativas detenidas' });
+    const driftLinks = screen.getAllByRole('link').filter((link) => (link.getAttribute('href') ?? '').includes('/drift?feature='));
+    expect(driftLinks).toHaveLength(2);
+    for (const link of driftLinks) expect(notice.contains(link)).toBe(true);
+  });
+
+  it('clicking an andon notice row navigates to the drift screen filtered by that initiative', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    await userEvent.click(await screen.findByRole('link', { name: /BC-001 Importador incremental de repos, línea detenida en Construcción\. Ver drift\./ }));
     expect(await screen.findByText('drift screen')).toBeTruthy();
   });
 
@@ -248,5 +345,93 @@ describe('Planta', () => {
     renderPlanta();
 
     expect(await screen.findByText(/no pudimos cargar la planta/i)).toBeTruthy();
+  });
+
+  it('la celda de la estación es un button con aria-expanded y aria-controls (WO-681, SDD-084 D3)', async () => {
+    mockBoard();
+    renderPlanta();
+
+    const buttons = await screen.findAllByRole('button', { name: BC_001_BUTTON });
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const button of buttons) {
+      expect(button.getAttribute('aria-expanded')).toBe('false');
+      expect(button.getAttribute('aria-controls')).toBeTruthy();
+    }
+    await userEvent.click(buttons[0]!);
+    expect(buttons[0]!.getAttribute('aria-expanded')).toBe('true');
+    expect(document.getElementById(buttons[0]!.getAttribute('aria-controls')!)).toBeTruthy();
+  });
+
+  it('al abrir lista las órdenes del branch con su estado (WO-681)', async () => {
+    mockBoard();
+    renderPlanta();
+    await openBc001();
+
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText('WO-401')).toBeTruthy();
+    expect(within(dialog).getByText('Escaneo incremental')).toBeTruthy();
+    expect(within(dialog).getByText('Hecha')).toBeTruthy();
+    expect(within(dialog).getByText('WO-402')).toBeTruthy();
+    expect(within(dialog).getByText('En curso')).toBeTruthy();
+    expect(within(dialog).queryByText('SDD-084')).toBeNull();
+  });
+
+  it('una orden sin estado conocido no se inventa (WO-681)', async () => {
+    mockBoard();
+    renderPlanta();
+    await openBc001();
+
+    const row = (await screen.findByText('WO-403')).closest('li')!;
+    expect(within(row).queryByText(/^(Hecha|Pendiente|En curso|Fuera de sincronía|Archivada)$/)).toBeNull();
+    expect(within(row).getByText('en_revision')).toBeTruthy();
+  });
+
+  it('cada fila enlaza a ordenes?q=<id> (WO-681)', async () => {
+    mockBoard();
+    renderPlanta();
+    await openBc001();
+
+    const link = await screen.findByRole('link', { name: 'WO-401 Escaneo incremental' });
+    expect(link.getAttribute('href')).toBe('/o/acme/p/web/ordenes?q=WO-401');
+  });
+
+  it('Escape cierra y el foco vuelve a la celda (WO-681)', async () => {
+    mockBoard();
+    renderPlanta();
+    const button = await openBc001();
+
+    const dialog = await screen.findByRole('dialog');
+    act(() => {
+      dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
+    });
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(button);
+  });
+
+  it('con branch vacío, el vacío se declara (WO-681)', async () => {
+    mockBoard(() => Promise.resolve({ nodes: [], edges: [] }));
+    renderPlanta();
+    await openBc001();
+
+    expect(await screen.findByText(/todavía no hay órdenes/i)).toBeTruthy();
+  });
+
+  it('si branch falla, mensaje propio sin romper el tablero (WO-681)', async () => {
+    mockBoard(() => Promise.reject(new Error('branch down')));
+    renderPlanta();
+    await openBc001();
+
+    expect(await screen.findByText(/no pudimos cargar las órdenes/i)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'La línea' })).toBeTruthy();
+  });
+
+  it('el encabezado usa el progress de la fila (WO-681)', async () => {
+    mockBoard();
+    renderPlanta();
+    await openBc001();
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('22 órdenes · 14 hechas · 3 paradas')).toBeTruthy();
   });
 });

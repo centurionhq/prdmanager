@@ -45,6 +45,12 @@
   box-shadow: var(--focus-ring);
 }
 
+.orgName {
+  color: var(--grafito);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
 .nav {
   display: flex;
   gap: var(--space-4);
@@ -60,6 +66,14 @@
 
 .nav a:hover {
   color: var(--cianotipo);
+}
+
+/* SDD-077 D3: the current destination is told apart by weight AND colour, never by colour alone.
+   `--cianotipo` on `--superficie` is 7.6:1, past AA for this 14px label. */
+.nav a.active,
+.nav a.active:hover {
+  color: var(--cianotipo);
+  font-weight: 600;
 }
 
 .signOutButton {
@@ -146,7 +160,8 @@
   }
 
   /* A long organisation name must shrink inside the header, not push the whole page sideways. */
-  .orgSwitcher {
+  .orgSwitcher,
+  .orgName {
     flex: 1 1 100%;
     min-width: 0;
     max-width: 100%;

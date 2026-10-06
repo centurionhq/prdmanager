@@ -15,6 +15,8 @@ export * from './graph/migrations.js';
 export * from './graph/store.js';
 export * from './graph/tree.js';
 export * from './graph/types.js';
+export * from './graph/paths.js';
+export * from './graph/work-order-age.js';
 export * from './import/normalize-path.js';
 export * from './migrate/docs.js';
 export * from './sync/baseline.js';

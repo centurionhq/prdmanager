@@ -9,10 +9,12 @@ import { randomUUID } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { Neo4jGraphDatabase } from '@prdm/core';
-import { createCiToken, upsertReportedCommits } from '@prdm/db';
+import { createCiToken, createTenantDb, upsertReportedCommits } from '@prdm/db';
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
+import { buildRemoteDocumentsPort } from '../../src/documents/remote-documents-port.js';
+import { resolvePgProjectEngine } from '../../src/engine/resolve-pg-project-engine.js';
 import { FakeMailer } from '../../src/mailer.js';
 import { mutationHeaders } from '../helpers/csrf.js';
 import { seedUser } from '../helpers/seed-auth.js';
@@ -93,7 +95,7 @@ describe('remote create_document / update_document / publish_document (SDD-020)'
     const editorCookie = await signIn(app, editorUser.email);
     const ownerSecret = await mintToken(app, ownerCookie, org.slug, 'owner token');
     const editorSecret = await mintToken(app, editorCookie, org.slug, 'editor token');
-    return { org, project, ownerSecret, editorSecret };
+    return { org, project, ownerId: owner.id, ownerSecret, editorSecret };
   }
 
   function buildClient(url: string, secret: string) {
@@ -364,5 +366,88 @@ describe('remote create_document / update_document / publish_document (SDD-020)'
 
     await client.close();
     await app.close();
+  });
+
+  describe('RemoteDocumentsPort lectura (WO-628)', () => {
+    async function portFor(orgId: string, projectId: string) {
+      const projectRecord = await createTenantDb(pg.appPool).forOrg(orgId).projects.findById(projectId);
+      const engine = resolvePgProjectEngine(pg.appPool, neo4j, orgId, projectRecord!);
+      return buildRemoteDocumentsPort(pg.appPool, orgId, projectRecord!, engine);
+    }
+
+    async function seedDocument(orgId: string, projectId: string, docId: string, kind: string, workflowState: string, folder: string) {
+      const content = `---\nid: "${docId}"\ntitle: "Seeded ${docId}"\n---\n\nbody\n`;
+      await pg.ownerPool.query(
+        `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+         VALUES ($1, $2, $3, $4, $5, $6, 'collab', $7, $8)`,
+        [orgId, projectId, docId, kind, `Seeded ${docId}`, `docs/${folder}/${docId}.md`, workflowState, workflowState === 'published' ? content : null],
+      );
+    }
+
+    test('list() returns every workflow state (WO included) and list({kind}) / list({workflowState}) filter in the database', async () => {
+      const { app } = await startApp();
+      const { org, project, ownerId } = await setupProject(app);
+      const port = await portFor(org.id, project.id);
+
+      const art = await port.createAndSubmit('ART', 'Notas de llamada', ownerId);
+      await seedDocument(org.id, project.id, 'PRD-001', 'PRD', 'published', 'prd');
+      await seedDocument(org.id, project.id, 'SDD-001', 'SDD', 'draft', 'sdd');
+      await seedDocument(org.id, project.id, 'FB-001', 'FB', 'archived', 'feedback');
+      await seedDocument(org.id, project.id, 'WO-001', 'WO', 'published', 'work-orders');
+
+      const ids = (docs: { docId: string }[]) => docs.map((d) => d.docId).sort();
+      expect(ids(await port.list())).toEqual([art.document.docId, 'FB-001', 'PRD-001', 'SDD-001', 'WO-001'].sort());
+      expect(ids(await port.list({}))).toHaveLength(5);
+      expect(ids(await port.list({ kind: 'PRD' }))).toEqual(['PRD-001']);
+      expect(ids(await port.list({ kind: 'WO' }))).toEqual(['WO-001']);
+      expect(ids(await port.list({ workflowState: 'draft' }))).toEqual(['SDD-001']);
+      expect(ids(await port.list({ workflowState: 'in_review' }))).toEqual([art.document.docId]);
+      expect(ids(await port.list({ workflowState: 'archived' }))).toEqual(['FB-001']);
+
+      await app.close();
+    });
+
+    test('get() returns the full body of an unpublished (in_review) document, and null for an unknown id (FB-095)', async () => {
+      const { app } = await startApp();
+      const { org, project, ownerId } = await setupProject(app);
+      const port = await portFor(org.id, project.id);
+
+      const art = await port.createAndSubmit('ART', 'Notas de llamada', ownerId);
+      const found = await port.get(art.document.docId);
+      expect(found).not.toBeNull();
+      expect(found!.document.workflowState).toBe('in_review');
+      expect(found!.document.kind).toBe('ART');
+      expect(found!.latestVersion!.renderedMarkdown).toContain('Notas de llamada');
+      expect(found!.latestVersion!.renderedMarkdown).toContain(`id: "${art.document.docId}"`);
+      // `createDraft` stores `frontmatter: {}` for version 1 (packages/db/src/documents-repository.ts:123),
+      // so the empty snapshot on a freshly created document is expected, not a port bug. One save on top of
+      // it is enough to prove the DTO really exposes the stored snapshot.
+      await port.saveDraftVersion(art.document.docId, { fields: { source: 'call' }, createdBy: ownerId });
+      const afterUpdate = await port.get(art.document.docId);
+      expect(afterUpdate!.latestVersion!.frontmatter.id).toBe(art.document.docId);
+      expect(found!.latestVersion!.versionNo).toBeGreaterThanOrEqual(1);
+      expect(found!.latestVersion!.contentHash).not.toBe('');
+      expect(await port.get('ART-999')).toBeNull();
+
+      await app.close();
+    });
+
+    test('a docId that only exists in another project of the same org does not leak through get() or list()', async () => {
+      const { app } = await startApp();
+      const { org, project, ownerId } = await setupProject(app);
+      const projectB = await createProjectFixture(pg, { orgId: org.id });
+      const portA = await portFor(org.id, project.id);
+      const portB = await portFor(org.id, projectB.id);
+
+      const art = await portA.createAndSubmit('ART', 'Solo en A', ownerId);
+      await seedDocument(org.id, projectB.id, 'PRD-777', 'PRD', 'published', 'prd');
+
+      expect(await portA.get('PRD-777')).toBeNull();
+      expect((await portA.list()).map((d) => d.docId)).not.toContain('PRD-777');
+      expect(await portB.get(art.document.docId)).toBeNull();
+      expect((await portB.list()).map((d) => d.docId)).toEqual(['PRD-777']);
+
+      await app.close();
+    });
   });
 });

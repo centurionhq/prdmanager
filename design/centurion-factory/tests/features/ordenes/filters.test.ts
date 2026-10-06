@@ -14,6 +14,7 @@ describe('parseStatusFilter', () => {
     expect(parseStatusFilter('pending')).toBe('pending');
     expect(parseStatusFilter('mias')).toBe('mias');
     expect(parseStatusFilter('todas')).toBe('todas');
+    expect(parseStatusFilter('archived')).toBe('archived');
   });
 
   it('falls back to "todas" for null, empty or an unknown value (WO-318)', () => {
@@ -46,6 +47,7 @@ const ORDERS: readonly WorkOrder[] = [
   order({ id: 'WO-002', status: 'in_progress', blueprintId: 'SDD-002', featureId: 'PRD-002', assignedTo: 'agent:claude', title: 'Escaneo incremental' }),
   order({ id: 'WO-003', status: 'out_of_sync', blueprintId: 'SDD-002', featureId: 'PRD-002', assignedTo: 'dev:martin' }),
   order({ id: 'WO-004', status: 'done', blueprintId: 'SDD-001', featureId: 'PRD-001', assignedTo: 'dev:martin' }),
+  order({ id: 'WO-005', status: 'archived', blueprintId: 'SDD-001', featureId: 'PRD-001', assignedTo: 'dev:martin' }),
 ];
 
 function filters(overrides: Partial<OrdenesFilters> = {}): OrdenesFilters {
@@ -55,6 +57,14 @@ function filters(overrides: Partial<OrdenesFilters> = {}): OrdenesFilters {
 describe('filterWorkOrders', () => {
   it('returns every order for the default filters', () => {
     expect(filterWorkOrders(ORDERS, filters())).toHaveLength(4);
+  });
+
+  it('"todas" is the active queue: it leaves out the archived order', () => {
+    expect(filterWorkOrders(ORDERS, filters()).map((o) => o.id)).not.toContain('WO-005');
+  });
+
+  it('"archived" lists only archived orders', () => {
+    expect(filterWorkOrders(ORDERS, filters({ status: 'archived' })).map((o) => o.id)).toEqual(['WO-005']);
   });
 
   it('filters by status', () => {
@@ -105,7 +115,14 @@ describe('statusCounts', () => {
     expect(counts.in_progress).toBe(1);
     expect(counts.out_of_sync).toBe(1);
     expect(counts.done).toBe(0);
+    expect(counts.archived).toBe(0);
     expect(counts.mias).toBe(0);
+  });
+
+  it('counts the archived order under its own chip but not under "todas"', () => {
+    const counts = statusCounts(ORDERS, filters());
+    expect(counts.todas).toBe(4);
+    expect(counts.archived).toBe(1);
   });
 });
 
@@ -113,5 +130,6 @@ describe('statusTotal', () => {
   it('counts a status across the whole set, ignoring blueprint/assignee/search', () => {
     expect(statusTotal(ORDERS, 'todas')).toBe(4);
     expect(statusTotal(ORDERS, 'out_of_sync')).toBe(1);
+    expect(statusTotal(ORDERS, 'archived')).toBe(1);
   });
 });

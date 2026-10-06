@@ -6,29 +6,34 @@
  * `PgProjectEngine`/tenant scope.
  *
  * Maps every `@prdm/db` record explicitly onto `@prdm/mcp`'s portable DTO shape (never returns a raw
- * `DocumentRecord`/`DocumentVersionRecord`) — structural pass-through isn't an option here since
- * `DocumentRecord.kind` is `DocumentKind` (includes `'WO'`), while the portable port's `kind` is the
- * narrower `DraftKind`; a document reaching this port is never a WO (WO is always machine-generated,
- * never authored, local or remote), so the narrowing cast below is safe by construction, not just by type.
+ * `DocumentRecord`/`DocumentVersionRecord`).
+ *
+ * Read side (SDD-067, WO-628): `list`/`get` expose unpublished documents with their full body. No
+ * permission check here by design — `view` is evaluated in `../api/mcp-remote.ts` before this port is
+ * built, and `scope` is already tied to one org+project, so isolation between projects is structural.
  */
 import { parseDocument, setFrontmatterFields, sha256, type DraftKind, type FieldValue } from '@prdm/core';
 import type { DocumentRecord, DocumentVersionRecord, DocumentWithLatestVersion, ProjectRecord } from '@prdm/db';
 import { createTenantDb } from '@prdm/db';
-import type { RemoteDocumentSummary, RemoteDocumentVersionSummary, RemoteDocumentWithVersion, RemoteDocumentsPort, RemoteImpactsPathsDrift } from '@prdm/mcp/lib';
+import type { RemoteDocumentDetailVersion, RemoteDocumentSummary, RemoteDocumentVersionSummary, RemoteDocumentWithVersion, RemoteDocumentsPort, RemoteImpactsPathsDrift } from '@prdm/mcp/lib';
 import type { Pool } from 'pg';
 import { ConflictError, NotFoundError } from '../errors.js';
-import { computeImpactsPathsDrift } from '../engine/impacts-paths-drift.js';
+import { computeImpactsPathsDrift, computeImpactsPathsNarrowing } from '../engine/impacts-paths-drift.js';
 import type { PgProjectEngine } from '../engine/pg-project-engine.js';
 import { buildProjectSettings } from '../engine/pg-project-settings.js';
 import { createAndSubmitDocument } from './create-and-submit.js';
 import { publishDocumentVersion } from './publish.js';
 
 function toSummary(document: DocumentRecord): RemoteDocumentSummary {
-  return { docId: document.docId, kind: document.kind as DraftKind, title: document.title, workflowState: document.workflowState, sourcePath: document.sourcePath };
+  return { docId: document.docId, kind: document.kind, title: document.title, workflowState: document.workflowState, sourcePath: document.sourcePath };
 }
 
 function toVersionSummary(version: DocumentVersionRecord | null): RemoteDocumentVersionSummary | null {
   return version ? { id: version.id, versionNo: version.versionNo, contentHash: version.contentHash } : null;
+}
+
+function toDetailVersion(version: DocumentVersionRecord): RemoteDocumentDetailVersion {
+  return { id: version.id, versionNo: version.versionNo, contentHash: version.contentHash, renderedMarkdown: version.renderedMarkdown, frontmatter: version.frontmatter as Record<string, unknown> };
 }
 
 function toWithVersion({ document, latestVersion }: DocumentWithLatestVersion): RemoteDocumentWithVersion {
@@ -56,6 +61,17 @@ export function buildRemoteDocumentsPort(pool: Pool, orgId: string, project: Pro
     async createAndSubmit(kind, title, createdBy) {
       const created = await createAndSubmitDocument(scope, { kind, title, createdBy, submitForReview: true });
       return toWithVersion(created);
+    },
+
+    async list(filter) {
+      const documents = await scope.documents.list({ kind: filter?.kind, workflowState: filter?.workflowState });
+      return documents.map(toSummary);
+    },
+
+    async get(docId) {
+      const found = await scope.documents.findByDocId(docId);
+      if (!found) return null;
+      return { document: toSummary(found.document), latestVersion: found.latestVersion ? toDetailVersion(found.latestVersion) : null };
     },
 
     async findByDocId(docId) {
@@ -119,7 +135,10 @@ export function buildRemoteDocumentsPort(pool: Pool, orgId: string, project: Pro
 
     async getImpactsPathsDrift(blueprintId): Promise<RemoteImpactsPathsDrift | null> {
       const scan = await engine.scan();
-      return computeImpactsPathsDrift(pool, orgId, project.id, scan.docs, blueprintId);
+      const drift = await computeImpactsPathsDrift(pool, orgId, project.id, scan.docs, blueprintId);
+      if (!drift) return null;
+      const narrowing = await computeImpactsPathsNarrowing(pool, orgId, project.id, scan.docs, blueprintId);
+      return { ...drift, suggestedRemovals: narrowing?.suggestedRemovals ?? [] };
     },
   };
 }

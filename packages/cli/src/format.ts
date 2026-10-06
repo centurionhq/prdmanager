@@ -51,13 +51,21 @@ function formatPercent(value: number | null): string {
   return value === null ? 'n/a' : `${value}%`;
 }
 
+function formatAge(value: number | null): string {
+  return value === null ? 'n/a' : `${value}d`;
+}
+
 export function formatMetrics(metrics: SuccessMetrics): string {
-  const { agentHumanEfficiency: efficiency, systemIntegrity: integrity, traceability } = metrics;
+  const { agentHumanEfficiency: efficiency, systemIntegrity: integrity, traceability, pendingQueue: queue } = metrics;
   return [
     'Agent-Human Efficiency:',
     `  completed work orders: ${efficiency.completedWorkOrders} (measured: ${efficiency.measuredWorkOrders})`,
     `  avg resolution: ${formatHours(efficiency.avgResolutionHours)}`,
     `  median resolution: ${formatHours(efficiency.medianResolutionHours)}`,
+    'Pending Queue:',
+    `  total: ${queue.total} (unassigned: ${queue.unassigned})`,
+    `  oldest: ${formatAge(queue.oldestDays)}`,
+    `  over 7 days: ${queue.over7Days}`,
     'System Integrity:',
     `  governed: ${integrity.governedSynced}/${integrity.governedTotal} synced (${formatPercent(integrity.syncedPercent)})`,
     'Traceability:',

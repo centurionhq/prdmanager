@@ -1,7 +1,10 @@
-import type { CSSProperties, ReactElement } from 'react';
+import { useState, type CSSProperties, type ReactElement } from 'react';
+import { Link } from 'react-router';
 import { STATIONS, STATION_LABELS } from '../../data';
-import { buildLineRows, findAndon } from './lineboard-data';
-import { LineBoardRow } from './LineBoardRow';
+import { buildLineRows, findStopped, stationIndex } from './lineboard-data';
+import type { LineRow } from './lineboard-data';
+import { LineBoardRow, ordersPanelId } from './LineBoardRow';
+import { LineOrdersDrawer } from './LineOrdersDrawer';
 import styles from './LineBoard.module.css';
 
 function joinClasses(...values: (string | null | undefined | false)[]): string {
@@ -11,21 +14,41 @@ function joinClasses(...values: (string | null | undefined | false)[]): string {
 /**
  * The dark grafito band: six station columns and one row per in-progress feature (WO-280).
  * Runs the orchestrated reveal once per mount (WO-281), guarded by prefers-reduced-motion in CSS.
+ *
+ * WO-680 (SDD-084 D1/D4): the notice is a list, one row per stopped initiative, each naming its id,
+ * title and station and linking to that initiative's drift; the station cell is no longer that link.
+ * WO-681 (SDD-084 D3/D6): the station cell (and its mobile mirror) is a button opening that initiative's orders.
  */
 export function LineBoard(): ReactElement {
   const rows = buildLineRows();
-  const andon = findAndon(rows);
+  // The drawer stays mounted after closing so `Drawer` can hand focus back to the cell.
+  const [orders, setOrders] = useState<{ readonly row: LineRow | null; readonly open: boolean }>({ row: null, open: false });
+  const toggleOrders = (row: LineRow): void =>
+    setOrders((prev) => (prev.open && prev.row?.feature.id === row.feature.id ? { ...prev, open: false } : { row, open: true }));
+  const stopped = findStopped(rows);
+  const andonStation = stopped[0]?.feature.station;
 
   return (
     <section className={styles.band} data-reveal="line-board" aria-label="La línea">
       <div className={styles.heading}>
         <h2 className={styles.boardTitle}>La línea</h2>
-        {andon ? (
-          <p className={styles.andonSummary}>
-            <span className={styles.andonDot} aria-hidden="true" />
-            Línea detenida en {STATION_LABELS[andon.station]}: {andon.row.progress.stopped} órdenes fuera de sincronía en{' '}
-            <span className="id">{andon.row.feature.id}</span>
-          </p>
+        {stopped.length > 0 ? (
+          <ul className={styles.andon} aria-label="Iniciativas detenidas">
+            {stopped.map((row) => (
+              <li key={row.feature.id}>
+                <Link
+                  to={`/drift?feature=${row.feature.id}`}
+                  className={styles.andonLink}
+                  aria-label={`${row.feature.id} ${row.feature.title}, línea detenida en ${STATION_LABELS[row.feature.station]}. Ver drift.`}
+                >
+                  <span className={styles.andonDot} aria-hidden="true" />
+                  <span className="id">{row.feature.id}</span>
+                  <span className={styles.andonTitle}>{row.feature.title}</span>
+                  <span className={styles.andonStation}>detenida en {STATION_LABELS[row.feature.station]}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         ) : null}
       </div>
 
@@ -34,7 +57,7 @@ export function LineBoard(): ReactElement {
         {STATIONS.map((station, index) => (
           <span
             key={station}
-            className={joinClasses(styles.stationHeader, station === andon?.station ? styles.stationHeaderAndon : null)}
+            className={joinClasses(styles.stationHeader, station === andonStation ? styles.stationHeaderAndon : null)}
             style={{ '--station-delay': `${index * 120}ms` } as CSSProperties}
           >
             {STATION_LABELS[station]}
@@ -44,9 +67,25 @@ export function LineBoard(): ReactElement {
 
       <ul className={styles.rows}>
         {rows.map((row, index) => (
-          <LineBoardRow key={row.feature.id} row={row} index={index} andonStationIndex={andon?.stationIndex ?? -1} />
+          <LineBoardRow
+            key={row.feature.id}
+            row={row}
+            index={index}
+            andonStationIndex={andonStation === undefined ? -1 : stationIndex(andonStation)}
+            isOrdersOpen={orders.open && orders.row?.feature.id === row.feature.id}
+            onOpenOrders={toggleOrders}
+          />
         ))}
       </ul>
+
+      {orders.row ? (
+        <LineOrdersDrawer
+          row={orders.row}
+          open={orders.open}
+          panelId={ordersPanelId(orders.row.feature.id)}
+          onClose={() => setOrders((prev) => ({ ...prev, open: false }))}
+        />
+      ) : null}
     </section>
   );
 }

@@ -162,7 +162,7 @@ describe('Engine + Neo4jGraphStore', () => {
     expect(metrics.featuresTraced).toBe(2);
     expect(metrics.commitsTotal).toBe(2);
     expect(metrics.commitsTraced).toBe(2);
-    expect(metrics.workOrders).toEqual([{ id: 'WO-001', status: 'done', claimedAt: '2026-09-10T10:00:00.000Z', completedAt: '2026-09-10T14:00:00.000Z' }]);
+    expect(metrics.workOrders).toEqual([{ id: 'WO-001', status: 'done', assignedTo: 'agent:claude', createdAt: null, claimedAt: '2026-09-10T10:00:00.000Z', completedAt: '2026-09-10T14:00:00.000Z' }]);
   });
 });
 

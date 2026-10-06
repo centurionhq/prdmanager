@@ -1,6 +1,6 @@
 .strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   border-top: var(--rule);
   border-bottom: var(--rule);
 }
@@ -50,6 +50,12 @@
 
   .item:nth-child(even) {
     padding-right: 0;
+  }
+
+  /* WO-648 (D3): with 5 cells in 2 columns the 5th would sit alone in a half-empty row; it closes the
+     band as a full-width row instead (2+2+1), which is why the odd last child spans the whole track. */
+  .item:nth-child(odd):last-child {
+    grid-column: 1 / -1;
   }
 
   .value {

@@ -1,6 +1,6 @@
 /**
  * Filler work orders (WO-270): a spread of plausible sample orders under the other real features
- * so the 40 mock rows cover every WorkOrderStatus with a believable distribution. All
+ * so the 41 mock rows cover every WorkOrderStatus with a believable distribution. All
  * `sample: true`, even when they hang off a real feature or blueprint. Split out of
  * workOrdersSample.ts to keep every data file under the 400-line budget.
  */
@@ -377,6 +377,27 @@ export const FILLER_WORK_ORDERS: readonly WorkOrder[] = [
     updatedAt: '2026-09-15T09:05:00.000Z',
     claimedAt: '2026-09-15T07:30:00.000Z',
     completedAt: '2026-09-15T09:05:00.000Z',
+    sample: true,
+  },
+  {
+    id: 'WO-215',
+    title: 'Consolidación de permisos de proyecto en un único módulo',
+    status: 'archived',
+    blueprintId: 'SDD-006',
+    featureId: 'PRD-005',
+    assignedTo: 'dev:martin',
+    objective: 'Unificar en un solo módulo la resolución de permisos de proyecto que hoy vive duplicada.',
+    criteria: [
+      { text: 'Un único módulo resuelve los permisos de los cinco roles de proyecto', done: false },
+      { text: 'Ningún consumidor queda usando la copia vieja del cálculo', done: false },
+      { text: 'Commit con el trailer Refs: WO-215', done: false },
+    ],
+    governedPaths: ['packages/server/src/auth/permissions.ts'],
+    commitShas: [],
+    updatedAt: '2026-09-14T09:00:00.000Z',
+    archivedAt: '2026-09-14T09:00:00.000Z',
+    archivedBy: 'dev:martin',
+    archiveReason: 'Duplicaba el alcance de WO-106; se archivó para no dejarla abierta.',
     sample: true,
   },
 ];

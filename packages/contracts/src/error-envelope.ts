@@ -11,6 +11,8 @@ export const ERROR_CODES = [
   'not_found',
   'conflict',
   'rate_limited',
+  // Request body too large, rejected by the route's bodyLimit — 413.
+  'payload_too_large',
   'internal_error',
 ] as const;
 

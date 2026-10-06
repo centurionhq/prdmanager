@@ -10,4 +10,4 @@ export { denyRemoteWrite, registerRemoteWriteTools, REMOTE_WRITE_TOOL_NAMES, typ
 export { REMOTE_AUTHORING_TOOL_NAMES, registerRemoteAuthoringTools } from './tools-remote-authoring.js';
 export { escapeFenceChars, fenceTag } from './prompts.js';
 export { requireAuthoring, requireDocumentsPort, type PrdmDeps } from './deps.js';
-export type { RemoteDocumentSummary, RemoteDocumentVersionSummary, RemoteDocumentWithVersion, RemoteDocumentsPort, RemoteImpactsPathsDrift } from './documents-port.js';
+export type { RemoteDocumentDetail, RemoteDocumentDetailVersion, RemoteDocumentListFilter, RemoteDocumentSummary, RemoteDocumentVersionSummary, RemoteDocumentWithVersion, RemoteDocumentWorkflowState, RemoteDocumentsPort, RemoteImpactsPathsDrift } from './documents-port.js';

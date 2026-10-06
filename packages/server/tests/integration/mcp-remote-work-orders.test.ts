@@ -322,6 +322,31 @@ describe('remote claim_work_order / complete_work_order (WO-186)', () => {
     await app.close();
   });
 
+  test('close_feedback closes a triaged feedback over the remote route and is audit-logged as mcp.close_feedback', async () => {
+    const { app, baseUrl } = await startApp();
+    const { project, org, secret } = await setupProjectWithWorkOrder(app);
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (id, org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw, published_content_hash)
+       VALUES ($1, $2, $3, 'FB-001', 'FB', 'Feedback', 'docs/feedback/FB-001.md', 'generated', 'published', $4, 'h3')`,
+      [randomUUID(), org.id, project.id, '---\nid: FB-001\ntype: FB\ntitle: Feedback\nstatus: triaged\n---\nbody\n'],
+    );
+
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await client.connect(buildClient(`${baseUrl}/mcp/${project.graphProjectId}`, secret));
+
+    const result = await client.callTool({ name: 'close_feedback', arguments: { id: 'FB-001', reason: 'entregado', resolved_by: ['WO-708'] } });
+    expect(result.isError).toBeFalsy();
+    const body = JSON.parse((result.content as { text: string }[])[0]!.text) as { id: string; status: string };
+    expect(body).toMatchObject({ id: 'FB-001', status: 'closed' });
+
+    const { rows } = await pg.ownerPool.query(`SELECT target FROM audit_log WHERE org_id = $1 AND action = 'mcp.close_feedback'`, [org.id]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].target).toBe('FB-001');
+
+    await client.close();
+    await app.close();
+  });
+
   test('archive_work_order requires an admin project role: a developer-role token is denied with insufficient_role', async () => {
     const { app, baseUrl } = await startApp();
     const owner = await seedUser(env, pg.appPool, PASSWORD);
@@ -397,6 +422,8 @@ describe('remote claim_work_order / complete_work_order (WO-186)', () => {
       { name: 'generate_work_orders', arguments: { blueprint_id: 'SDD-001' } },
       { name: 'add_blueprint_task', arguments: { blueprint_id: 'SDD-001', task: 'x' } },
       { name: 'archive_work_order', arguments: { id: 'WO-001', reason: 'x' } },
+      { name: 'close_feedback', arguments: { id: 'FB-001', reason: 'x' } },
+      { name: 'dismiss_feedback', arguments: { id: 'FB-001', reason: 'x' } },
     ]) {
       const result = await client.callTool(call);
       expect(result.isError).toBe(true);

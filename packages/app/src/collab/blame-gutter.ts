@@ -150,20 +150,36 @@ export const blameGutter = gutter({
  * default when a gutter's only content is decorative line numbers -- but `aria-hidden` on an ancestor
  * hides every focusable descendant from assistive tech regardless of that descendant's own attributes
  * (confirmed via axe-core's `aria-hidden-focus` rule), and this extension's markers are real, focusable
- * `<button>`s. There's no CodeMirror facet to opt a specific gutter out of the parent's `aria-hidden`, so
- * this clears it directly on mount and on every update (CodeMirror doesn't appear to re-assert it after
- * the initial render, but re-checking each update costs one attribute read/write and is cheap insurance
- * against a future CodeMirror version doing so). */
+ * `<button>`s. There's no CodeMirror facet to opt a specific gutter out of the parent's `aria-hidden`.
+ *
+ * A `ViewPlugin` `constructor`/`update` pair (this WO's first attempt) fixed it in isolation
+ * (`blame-gutter.dom.test.tsx`'s own minimal `EditorView`) but still intermittently failed inside the
+ * real app (`accessibility-screens.spec.ts`): `.cm-gutters` is built by `@codemirror/view`'s own internal
+ * gutter machinery, whose exact ordering relative to a user-supplied plugin's `constructor` isn't a
+ * documented contract this extension controls -- with the app's fuller extension set (`yCollab`,
+ * `markdown()`, `commentHighlightExtension`, ...) that ordering evidently isn't always "gutters DOM exists
+ * before this plugin's constructor runs" the way it is in a minimal test view. A `MutationObserver` on
+ * `view.dom` (which always exists synchronously in the constructor, unlike `.cm-gutters`) sidesteps the
+ * ordering question entirely: it fires the instant CodeMirror sets the attribute on `.cm-gutters`
+ * *whenever* that happens, first render or not, and also catches the element being replaced outright. */
 const gutterAccessibilityFix = ViewPlugin.fromClass(
   class {
+    private readonly observer: MutationObserver;
+
     constructor(view: EditorView) {
       this.fix(view);
+      this.observer = new MutationObserver(() => this.fix(view));
+      this.observer.observe(view.dom, { attributes: true, attributeFilter: ['aria-hidden'], subtree: true, childList: true });
     }
     update(update: { view: EditorView }): void {
       this.fix(update.view);
     }
+    destroy(): void {
+      this.observer.disconnect();
+    }
     private fix(view: EditorView): void {
-      view.dom.querySelector('.cm-gutters')?.removeAttribute('aria-hidden');
+      const gutters = view.dom.querySelector('.cm-gutters');
+      if (gutters?.getAttribute('aria-hidden') === 'true') gutters.removeAttribute('aria-hidden');
     }
   },
 );

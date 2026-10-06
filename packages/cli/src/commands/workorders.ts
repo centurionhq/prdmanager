@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { Command } from 'commander';
 import { InvalidArgumentError } from 'commander';
@@ -57,22 +59,33 @@ async function runGenerate(deps: CliDeps, blueprintId: string): Promise<void> {
   });
 }
 
-function formatWorkOrderLine(wo: WorkOrderSummary): string {
-  return `${wo.id}  ${wo.status}  ${wo.assignedTo ?? '-'}  ${wo.blueprints.join(',') || '-'}  ${wo.title}`;
+/**
+ * The document path that exists on disk (SDD-074 D3): the `.prdm/remote` mirror when `prdm sync` left it in the
+ * checkout, else the canonical published path (which may not exist locally — D4, the server never guesses).
+ * The other path is declared with its mark.
+ */
+export function formatWorkOrderDocPaths(root: string, wo: Pick<WorkOrderSummary, 'sourcePath' | 'mirrorPath'>): string {
+  if (existsSync(join(root, wo.mirrorPath))) return `${wo.mirrorPath}  ${wo.sourcePath} (canonica)`;
+  return `${wo.sourcePath}  ${wo.mirrorPath} (sin copia local)`;
+}
+
+export function formatWorkOrderLine(wo: WorkOrderSummary, root: string): string {
+  return `${wo.id}  ${wo.status}  ${wo.assignedTo ?? '-'}  ${wo.blueprints.join(',') || '-'}  ${formatWorkOrderDocPaths(root, wo)}  ${wo.title}`;
 }
 
 async function runList(deps: CliDeps, options: { status?: WorkOrderStatus; blueprint?: string; json?: boolean }): Promise<void> {
   await withContext(deps, async (ctx) => {
     const list = await ctx.store.listWorkOrders({ status: options.status, blueprint: options.blueprint });
     if (options.json) deps.stdout(JSON.stringify(list, null, 2));
-    else for (const wo of list) deps.stdout(formatWorkOrderLine(wo));
+    else for (const wo of list) deps.stdout(formatWorkOrderLine(wo, deps.root));
   });
 }
 
-function formatWorkOrderContext(context: WorkOrderContext): string {
+export function formatWorkOrderContext(context: WorkOrderContext, root: string): string {
   const { workOrder } = context;
   return [
     `${workOrder.id}: ${workOrder.title} (${workOrder.status})`,
+    `document: ${formatWorkOrderDocPaths(root, workOrder)}`,
     `assigned to: ${workOrder.assignedTo ?? '-'}`,
     `blueprints: ${context.blueprints.map((b) => `${b.id} (${b.status})`).join(', ') || '(none)'}`,
     `lineage: ${context.featureLineage.map((f) => `${f.id} <${f.kind}>`).join(', ') || '(none)'}`,
@@ -90,7 +103,7 @@ async function runContext(deps: CliDeps, id: string, options: { json?: boolean }
   await withContext(deps, async (ctx) => {
     const context = await getWorkOrderContext(ctx.store, id);
     if (!context) throw new CliError(`unknown work order: ${id}`);
-    deps.stdout(options.json ? JSON.stringify(context, null, 2) : formatWorkOrderContext(context));
+    deps.stdout(options.json ? JSON.stringify(context, null, 2) : formatWorkOrderContext(context, deps.root));
   });
 }
 

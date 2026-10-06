@@ -1,6 +1,6 @@
 /** Data selection for the Planta KPI strip and the "Drift reciente" / "Órdenes en curso" preview lists (WO-282). */
 import { DRIFT_ISSUES, METRICS, WORK_ORDERS } from '../../data';
-import type { DriftIssue, WorkOrder } from '../../data';
+import type { DriftIssue, Metrics, WorkOrder } from '../../data';
 import { formatMedianResolution, formatPercent } from './planta-format';
 
 export interface PlantaKpi {
@@ -8,12 +8,22 @@ export interface PlantaKpi {
   readonly value: string;
 }
 
+/**
+ * Mirrors core's `percent()` (and the app's own helper): no commits means "Sin datos", never a
+ * fabricated 0 % — and never the *other* commit field's number, which is what WO-648 fixed here.
+ */
+function formatCommitRefsPercent(traceability: Metrics['traceability']): string {
+  return traceability.commitsTotal === 0 ? 'Sin datos' : formatPercent((traceability.commitsWithRefs / traceability.commitsTotal) * 100);
+}
+
+/** The 5 KPIs, left→right in product order (WO-648): the two commit KPIs stay adjacent, refs last. */
 export function buildKpis(metrics = METRICS): readonly PlantaKpi[] {
   return [
     { label: 'Resolución mediana de una orden', value: formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours) },
     { label: 'Código sincronizado', value: formatPercent(metrics.systemIntegrity.syncedPercent) },
     { label: 'Features trazadas', value: formatPercent(metrics.traceability.featurePercent) },
-    { label: 'Commits con Refs', value: formatPercent(metrics.traceability.commitPercent) },
+    { label: 'Commits trazados', value: formatPercent(metrics.traceability.commitPercent) },
+    { label: 'Commits con Refs', value: formatCommitRefsPercent(metrics.traceability) },
   ];
 }
 

@@ -66,6 +66,8 @@ describe('ProjectShell', () => {
     renderShell('/o/acme/p/nope');
 
     expect(await screen.findByText('Proyecto no encontrado')).toBeTruthy();
+    expect(screen.getByText('Centurion Factory')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Ver los proyectos de Acme' }).getAttribute('href')).toBe('/o/acme');
   });
 
   it('shows the API error message on failure', async () => {

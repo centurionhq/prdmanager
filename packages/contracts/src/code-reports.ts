@@ -19,9 +19,14 @@ const DOC_ID_PATTERN = /^(MRD|PRD|FR|SDD|ADR|WO|ART|FB)-\d{3,9}$/;
 const HASH64_PATTERN = /^[0-9a-f]{64}$/;
 
 /** Route-level `bodyLimit` for `POST .../code-reports` (applied in `packages/server`, not by zod
- * itself) — a judgment call, generous enough for any realistic report, well short of exhausting a
- * request handler's memory. */
-export const MAX_CODE_REPORT_BODY_BYTES = 2 * 1024 * 1024;
+ * itself). The original 2 MiB fell short in practice: a baseline report enumerates the WHOLE governed
+ * state (`governed[]`, ~8.4k refs in this repo) plus up to `git.maxCommits` (500) commits, each with
+ * its own `files[]` — a real 62-commit push already blew past it (a 500 `internal_error`, WO-624).
+ * 16 MiB is still an operational, bounded cap — far from exhausting a request handler's memory. The
+ * report's collections are deliberately NOT trimmed to fit: the server needs the full state
+ * (`replaceProjectCodeRefs` replaces per blueprint, `upsertReportedCommits` feeds the commit ledger and
+ * `isHeadRegression` walks the real `parents` chain), so a trimmed report would corrupt baseline/drift. */
+export const MAX_CODE_REPORT_BODY_BYTES = 16 * 1024 * 1024;
 
 /** SDD-010 doesn't pin an exact header name for "the GitHub Actions OIDC token is attached" — a
  * judgment call for WO-180/WO-195, shared here (rather than declared separately by the server route and

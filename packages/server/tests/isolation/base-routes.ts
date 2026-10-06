@@ -354,6 +354,12 @@ export function registerBaseIsolationRoutes(): void {
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, woId: 'WO-001' }, body: { reason: 'probe' } })),
   });
 
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/work-orders/batch', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug }, body: { action: 'archive', ids: ['WO-001'] } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug }, body: { action: 'archive', ids: ['WO-001'] } })),
+  });
+
   // WO-339: feedback submit/inbox/candidates/triage, same tenant-scoped resolution as every other
   // .../projects/:projectSlug/* route.
   registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback', {
@@ -376,6 +382,26 @@ export function registerBaseIsolationRoutes(): void {
     mutating: true,
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' }, body: { root: true } })),
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' }, body: { root: true } })),
+  });
+
+  // SDD-065 (WO-619): same tenant-scoped resolution as triage above -- dismiss, duplicate and the
+  // batch endpoint all resolve the project from the URL before any permission or body check.
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback/:docId/dismiss', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' }, body: { reason: 'probe' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' }, body: { reason: 'probe' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback/:docId/duplicate', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' }, body: { duplicateOf: 'FB-002' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' }, body: { duplicateOf: 'FB-002' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback/triage-batch', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug }, body: { action: 'dismiss', ids: ['FB-001'] } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug }, body: { action: 'dismiss', ids: ['FB-001'] } })),
   });
 
   registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/drift', {

@@ -1,6 +1,8 @@
 import neo4j, { type Driver } from 'neo4j-driver';
 import type { NodeLabel } from '../domain/schema.js';
 import { buildScopedLuceneQuery } from './lucene.js';
+import { mirrorPathFor } from './paths.js';
+import { ageDaysFrom } from './work-order-age.js';
 import { BRANCH, FULL_GRAPH, GET_NODE, LIST_WORK_ORDERS, METRICS_RAW, QUERY_WORK_ORDERS, MAX_DEPTH, SEARCH, UP_FILTER, DOWN_FILTER, WORK_ORDER_CONTEXT } from './queries.js';
 import type { MetricsRaw, NodeDetail, SearchHit, Subgraph, WorkOrderContextRaw, WorkOrderPage, WorkOrderQueryFilter, WorkOrderSummary } from './types.js';
 
@@ -11,7 +13,9 @@ async function read<T>(driver: Driver, database: string, query: string, params: 
 
 export async function getNode(driver: Driver, database: string, projectId: string, id: string): Promise<NodeDetail | null> {
   const rows = await read<NodeDetail>(driver, database, GET_NODE, { projectId, id });
-  return rows[0] ?? null;
+  const detail = rows[0];
+  if (!detail) return null;
+  return { ...detail, node: { ...detail.node, mirrorPath: mirrorPathFor(detail.node.id) } };
 }
 
 export async function search(
@@ -49,8 +53,16 @@ export async function listWorkOrders(
   projectId: string,
   filter: { status?: string; blueprint?: string } = {},
 ): Promise<WorkOrderSummary[]> {
-  return read<WorkOrderSummary>(driver, database, LIST_WORK_ORDERS, { projectId, status: filter.status ?? null, blueprint: filter.blueprint ?? null });
+  const rows = await read<WorkOrderRow>(driver, database, LIST_WORK_ORDERS, { projectId, status: filter.status ?? null, blueprint: filter.blueprint ?? null });
+  return rows.map(withDates);
 }
+
+type WorkOrderRow = Omit<WorkOrderSummary, 'mirrorPath' | 'ageDays'>;
+
+const withMirrorPath = (row: WorkOrderRow): WorkOrderSummary => ({ ...row, mirrorPath: mirrorPathFor(row.id) });
+
+/** Sólo `listWorkOrders` trae fechas; `queryWorkOrders` no debe inventar `ageDays` (SDD-075 D1). */
+const withDates = (row: WorkOrderRow): WorkOrderSummary => ({ ...withMirrorPath(row), ageDays: ageDaysFrom(row.createdAt ?? null) });
 
 const DEFAULT_WORK_ORDER_LIMIT = 25;
 const MAX_WORK_ORDER_LIMIT = 200;
@@ -58,7 +70,7 @@ const MAX_WORK_ORDER_LIMIT = 200;
 export async function queryWorkOrders(driver: Driver, database: string, projectId: string, filter: WorkOrderQueryFilter = {}): Promise<WorkOrderPage> {
   const limit = Math.min(Math.max(filter.limit ?? DEFAULT_WORK_ORDER_LIMIT, 1), MAX_WORK_ORDER_LIMIT);
   const offset = Math.max(filter.offset ?? 0, 0);
-  const rows = await read<WorkOrderPage>(driver, database, QUERY_WORK_ORDERS, {
+  const rows = await read<Omit<WorkOrderPage, 'items'> & { items: WorkOrderRow[] }>(driver, database, QUERY_WORK_ORDERS, {
     projectId,
     status: filter.status ?? null,
     blueprint: filter.blueprint ?? null,
@@ -71,7 +83,7 @@ export async function queryWorkOrders(driver: Driver, database: string, projectI
   });
   // Los tres CALL agregan, así que siempre hay exactamente una fila.
   if (!rows[0]) throw new Error('work orders query returned no rows');
-  return rows[0];
+  return { ...rows[0], items: rows[0].items.map(withMirrorPath) };
 }
 
 export async function workOrderContext(driver: Driver, database: string, projectId: string, id: string): Promise<WorkOrderContextRaw | null> {

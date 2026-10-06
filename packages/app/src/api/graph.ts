@@ -5,7 +5,7 @@
  * org/project, so `@prdm/ui`'s components (which only take injected fetcher props, never call a
  * concrete backend themselves) work unchanged here.
  */
-import type { NodeDetail, RefreshReport, Subgraph, TreeNode, WorkOrderStatus, WorkOrderSummary } from '@prdm/core';
+import type { NodeDetail, RefreshReport, Subgraph, TreeNode, WorkOrderPage, WorkOrderQueryFilter, WorkOrderStatus, WorkOrderSummary } from '@prdm/core';
 import type { SearchHitDto, SearchResultDto } from '@prdm/contracts';
 import { request } from './request.js';
 import { buildQuery } from './build-query.js';
@@ -37,6 +37,23 @@ export function getNode(orgSlug: string, projectSlug: string, id: string): Promi
 
 export function listWorkOrders(orgSlug: string, projectSlug: string, filter: WorkOrdersFilter = {}): Promise<WorkOrderSummary[]> {
   return request<WorkOrderSummary[]>(`${graphBase(orgSlug, projectSlug)}/work-orders${buildQuery({ status: filter.status, blueprint: filter.blueprint })}`);
+}
+
+/** Paginated work-order query of SDD-064 (WO-611 envelope); used by the Órdenes screen. */
+export function queryWorkOrders(
+  orgSlug: string,
+  projectSlug: string,
+  filter: WorkOrderQueryFilter = {},
+): Promise<WorkOrderPage> {
+  return request<WorkOrderPage>(`${graphBase(orgSlug, projectSlug)}/work-orders${buildQuery({
+    status: filter.status,
+    blueprint: filter.blueprint,
+    actorKind: filter.actorKind,
+    assignedTo: filter.assignedTo,
+    q: filter.q,
+    limit: filter.limit !== undefined ? String(filter.limit) : undefined,
+    offset: filter.offset !== undefined ? String(filter.offset) : undefined,
+  })}`);
 }
 
 export function getDrift(orgSlug: string, projectSlug: string): Promise<RefreshReport> {

@@ -21,13 +21,57 @@
   font-stretch: var(--stretch-wide);
 }
 
+/* WO-680 (SDD-084 D1): the notice is now a list, one row per stopped initiative, each a link to that
+ * initiative's drift. Right-aligned in the band header on desktop; a full-width andon banner at 375px. */
 .andon {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
   margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
   font-size: var(--text-sm);
   color: var(--linea-texto);
+}
+
+.andonLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.andonLink:hover {
+  color: var(--acero);
+  text-decoration: underline;
+}
+
+.andonLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.andonId {
+  flex: none;
+  color: var(--linea-apagado);
+}
+
+.andonTitle {
+  min-width: 0;
+  max-width: 420px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.andonStation {
+  flex: none;
+  color: var(--andon);
 }
 
 .andonDot {
@@ -107,7 +151,7 @@
 }
 
 .row {
-  height: 52px;
+  min-height: 52px;
   align-items: center;
   border-top: 1px solid var(--linea-regla);
 }
@@ -149,6 +193,24 @@
   text-overflow: ellipsis;
 }
 
+/* WO-680 (SDD-084 D2): the stopped station spelled out next to the row, next to its own andon marker,
+ * so the stop never reads as a bare color. */
+.rowStop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--andon);
+}
+
+.rowStopMarker {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--andon);
+}
+
 .cell {
   height: 100%;
   display: flex;
@@ -159,10 +221,6 @@
 
 .cellAndonTint {
   background: var(--linea-tinte-andon);
-}
-
-.cellLink {
-  text-decoration: none;
 }
 
 .cellRail {
@@ -205,6 +263,48 @@
 }
 
 @media (max-width: 767px) {
+  .header {
+    flex-wrap: wrap;
+  }
+
+  /* WO-680 (SDD-084 D1/D6): at 375px the notice is a full-width andon banner, one line per stopped
+   * initiative (mirrors `PlantaMobile.dc.html`). */
+  .andon {
+    align-items: stretch;
+    width: 100%;
+    gap: 0;
+    margin-top: var(--space-2);
+    background: var(--andon);
+    color: var(--grafito);
+  }
+
+  .andon > li + li {
+    border-top: 1px solid var(--grafito);
+  }
+
+  .andonLink {
+    align-items: flex-start;
+    padding: var(--space-3);
+    color: var(--grafito);
+    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  .andonLink:hover {
+    color: var(--grafito);
+  }
+
+  .andonId,
+  .andonStation {
+    color: inherit;
+  }
+
+  .andonDot {
+    margin-top: 3px;
+    border-radius: 0;
+    background: var(--grafito);
+  }
+
   .grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -274,4 +374,95 @@
   .mobileProgress .cellMarkerAndon {
     background: var(--andon);
   }
+}
+
+/* WO-681 (SDD-084 D3/D6): the current-station cell (and its 375px mirror) is a button. */
+.cellButton,
+.mobileStationButton {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+
+.cellButton {
+  padding-left: var(--space-3);
+}
+
+.cellButton:focus-visible,
+.mobileStationButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.mobileStationButton {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+@media (max-width: 767px) {
+  .mobileStationButton {
+    min-height: var(--hit-target);
+  }
+}
+
+/* The drawer sits on the light surface, not on the dark band: light tokens only. */
+.ordersBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ordersSummary {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--texto-secundario);
+}
+
+.orderList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.orderRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--hit-target);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--regla-fila);
+  color: inherit;
+  text-decoration: none;
+}
+
+.orderRow:hover .orderTitle {
+  text-decoration: underline;
+}
+
+.orderRow:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.orderTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-md);
+}
+
+.orderStatusRaw {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.ordersEmpty {
+  margin: 0;
+  color: var(--apagado);
 }

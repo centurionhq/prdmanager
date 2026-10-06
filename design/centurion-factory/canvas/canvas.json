@@ -128,6 +128,15 @@
       "page": "page-1"
     },
     {
+      "file": "Ordenes-Archivar.dc.html",
+      "title": "Órdenes · archivar orden (motivo opcional)",
+      "x": 0,
+      "y": 3360,
+      "w": 1440,
+      "h": 960,
+      "page": "page-1"
+    },
+    {
       "file": "SalaDeControl.dc.html",
       "title": "B · Sala de control (descartada)",
       "x": 0,

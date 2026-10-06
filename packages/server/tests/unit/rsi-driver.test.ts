@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import type { StartGuardResult } from '../../../../scripts/rsi/start-guard.d.mts';
 import {
   computeDelayMs,
   defaultState,
@@ -12,6 +13,21 @@ import {
   runCycleOnce,
   writeState,
 } from '../../../../scripts/rsi/driver-lib.mjs';
+import { main } from '../../../../scripts/rsi/driver.mjs';
+
+function guardResult(overrides: Partial<StartGuardResult> = {}): StartGuardResult {
+  return {
+    ok: false,
+    expectedBranch: 'main',
+    currentBranch: 'main',
+    dirtyFiles: [],
+    unpushedCount: 0,
+    hasUpstream: true,
+    problems: [],
+    warnings: [],
+    ...overrides,
+  };
+}
 
 // WO-588 / SDD-057: `driver.mjs` orchestrates a real `claude -p` invocation forever, far too expensive to
 // exercise here. These tests cover the pure guard/circuit-breaker/pacing/parsing logic in `driver-lib.mjs`
@@ -233,5 +249,15 @@ describe('runCycleOnce', () => {
       });
     }
     expect(last?.state.pausedReason).not.toBeNull();
+  });
+});
+
+// WO-610 / SDD-063: si la guarda de partida reproducible falla, el driver aborta antes de cualquier ciclo.
+describe('main (start guard)', () => {
+  test('returns 1 without entering the loop when the guard fails', async () => {
+    const code = await main({
+      enforceGuard: () => guardResult({ problems: ['working tree is not clean'] }),
+    });
+    expect(code).toBe(1);
   });
 });

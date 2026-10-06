@@ -5,11 +5,14 @@ import {
   docId,
   getMetrics,
   getWorkOrderContext,
+  LABEL_BY_KIND,
+  mirrorPathFor,
   NODE_LABELS,
   renderMermaid,
   renderText,
   triageText,
   WORK_ORDER_STATUSES,
+  type NodeDetail,
   type Subgraph,
 } from '@prdm/core';
 import type { PrdmDeps } from './deps.js';
@@ -24,18 +27,44 @@ function renderSubgraph(subgraph: Subgraph, format: Format): string {
   return format === 'mermaid' ? renderMermaid(forest) : renderText(forest);
 }
 
+/** SDD-067 D2: the graph only holds published documents, so a draft/in_review one is looked up through the
+ * documents port (remote profile only). `null` when there is no port or the port doesn't see the document. */
+async function unpublishedNode(deps: PrdmDeps, id: string): Promise<NodeDetail | null> {
+  if (!deps.documents) return null;
+  const found = await deps.documents.get(id);
+  if (!found) return null;
+  const { document, latestVersion } = found;
+  return {
+    node: {
+      id: document.docId,
+      label: LABEL_BY_KIND[document.kind],
+      kind: document.kind,
+      title: document.title,
+      status: document.workflowState,
+      body: latestVersion?.renderedMarkdown ?? '',
+      tags: [],
+      source_path: document.sourcePath,
+      mirrorPath: mirrorPathFor(document.docId),
+      created_at: null,
+      workflowState: document.workflowState,
+      indexed: false,
+    },
+    links: [],
+  };
+}
+
 export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
   server.registerTool(
     'get_node',
     {
       title: 'Get node',
       description:
-        'Fetches a single graph node by id (MRD/PRD/FR/SDD/ADR/WO/ART/FB) with its title, body, status and every incoming/outgoing relationship. Use this when you already know an id and need its full detail.',
+        'Fetches a single graph node by id (MRD/PRD/FR/SDD/ADR/WO/ART/FB) with its title, body, status and every incoming/outgoing relationship. Use this when you already know an id and need its full detail. If the id is not in the graph, falls back to the project\'s unpublished documents: a draft/in_review document comes back with its real workflowState, indexed: false and no links. Each node publishes source_path (the canonical published path; it may not exist on disk because in remote mode docs/ only ships model/) and mirrorPath (the readable copy that prdm sync leaves in the checkout, .prdm/remote/docs/<ID>.md).',
       inputSchema: { id: docId },
       annotations: { title: 'Get node', ...READ_ONLY },
     },
     safeReadTool(deps, async ({ id }: { id: string }) => {
-      const node = await deps.store.getNode(id);
+      const node = (await deps.store.getNode(id)) ?? (await unpublishedNode(deps, id));
       if (!node) throw new Error(`node ${id} not found`);
       return jsonResult({ ...node });
     }),
@@ -46,7 +75,7 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
     {
       title: 'Search nodes',
       description:
-        'Full-text search across all graph nodes (title + body), optionally filtered by label. Use it to discover ids before calling get_node or get_feature_branch.',
+        'Full-text search across all graph nodes (title + body), optionally filtered by label. Only indexes published documents: a draft/in_review document does not appear here, fetch it by id with get_node instead. Use it to discover ids before calling get_node or get_feature_branch.',
       inputSchema: {
         query: z.string().min(1).max(300),
         label: z.enum(NODE_LABELS).optional(),
@@ -98,7 +127,7 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
     {
       title: 'List work orders',
       description:
-        'Lists Work Orders, optionally filtered by status (pending/in_progress/done/out_of_sync) and/or the Blueprint id they implement. Use this to find work to claim.',
+        'Lists Work Orders, optionally filtered by status (pending/in_progress/done/out_of_sync) and/or the Blueprint id they implement. Use this to find work to claim. Each item publishes sourcePath (the canonical published path; it may not exist on disk because in remote mode docs/ only ships model/) and mirrorPath (the readable copy that prdm sync leaves in the checkout, .prdm/remote/docs/<ID>.md). Each item also publishes createdAt and claimedAt exactly as the node has them (null when the node has no such date) and ageDays (complete days since createdAt, computed at read time; null without a date). assignedTo is null while nobody has taken the order: in remote mode a pending order is not assigned and no owner is invented; it only carries one once someone claims it.',
       inputSchema: { status: z.enum(WORK_ORDER_STATUSES).optional(), blueprint_id: docId.optional() },
       annotations: { title: 'List work orders', ...READ_ONLY },
     },

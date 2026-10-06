@@ -18,7 +18,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { Auth } from '../auth/build-auth.js';
 import { resolvePgProjectEngine, requireNeo4j } from '../engine/resolve-pg-project-engine.js';
-import { computeImpactsPathsDrift } from '../engine/impacts-paths-drift.js';
+import { computeImpactsPathsDrift, computeImpactsPathsNarrowing } from '../engine/impacts-paths-drift.js';
 import type { ServerEnv } from '../env.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { requireAppSession } from './app-session.js';
@@ -54,9 +54,10 @@ export function registerImpactsPathsSyncRoutes(app: FastifyInstance, opts: Regis
       const engine = resolvePgProjectEngine(pool, neo4j, org.id, project);
       const { docs } = await engine.scan();
       const drift = await computeImpactsPathsDrift(pool, org.id, project.id, docs, req.params.docId);
-      if (!drift) throw new NotFoundError();
+      const narrowing = await computeImpactsPathsNarrowing(pool, org.id, project.id, docs, req.params.docId);
+      if (!drift || !narrowing) throw new NotFoundError();
 
-      return { drift };
+      return { drift, narrowing };
     },
   );
 
@@ -76,16 +77,23 @@ export function registerImpactsPathsSyncRoutes(app: FastifyInstance, opts: Regis
       const engine = resolvePgProjectEngine(pool, neo4j, org.id, project);
       const { docs } = await engine.scan();
       const drift = await computeImpactsPathsDrift(pool, org.id, project.id, docs, req.params.docId);
-      if (!drift) throw new NotFoundError();
+      const narrowing = await computeImpactsPathsNarrowing(pool, org.id, project.id, docs, req.params.docId);
+      if (!drift || !narrowing) throw new NotFoundError();
 
       const currentSuggestion = [...drift.suggestedAdditions].sort();
       const expected = [...parsed.data.expectedSuggestion].sort();
       if (JSON.stringify(currentSuggestion) !== JSON.stringify(expected)) {
         throw new ConflictError(`${req.params.docId}'s suggested impacts_paths additions changed since you last fetched them; reload and try again`);
       }
-      if (currentSuggestion.length === 0) throw new ConflictError(`${req.params.docId} has no suggested impacts_paths additions to apply`);
 
-      const nextImpactsPaths = [...new Set([...drift.currentPatterns, ...drift.suggestedAdditions])].sort();
+      const currentRemovals = narrowing.suggestedRemovals.map((r) => r.pattern).sort();
+      const expectedRemovals = [...parsed.data.expectedRemovals].sort();
+      if (JSON.stringify(currentRemovals) !== JSON.stringify(expectedRemovals)) {
+        throw new ConflictError(`${req.params.docId}'s suggested impacts_paths removals changed since you last fetched them; reload and try again`);
+      }
+      if (currentSuggestion.length === 0 && expectedRemovals.length === 0) throw new ConflictError(`${req.params.docId} has no suggested impacts_paths additions to apply`);
+
+      const nextImpactsPaths = [...new Set([...drift.currentPatterns, ...drift.suggestedAdditions])].filter((p) => !expectedRemovals.includes(p)).sort();
       const applied = await engine.applyCiSuggestedImpactsPaths(req.params.docId, nextImpactsPaths);
 
       await createTenantDb(pool)
@@ -96,7 +104,7 @@ export function registerImpactsPathsSyncRoutes(app: FastifyInstance, opts: Regis
           actorId: session.user.id,
           action: 'document.impacts_paths_synced',
           target: req.params.docId,
-          metadata: { reason: parsed.data.reason, added: drift.suggestedAdditions, nextImpactsPaths },
+          metadata: { reason: parsed.data.reason, added: drift.suggestedAdditions, removed: expectedRemovals, nextImpactsPaths },
           ip: req.ip,
           userAgent: userAgentOf(req),
         });

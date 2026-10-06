@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as client from '../../src/api/client.js';
@@ -24,11 +24,73 @@ describe('app router', () => {
     expect(await screen.findByRole('heading', { name: 'Entrá a tu organización' })).toBeTruthy();
   });
 
-  it('shows a 404 page for an unknown path', async () => {
+  it('shows a branded 404 with a way home for an unknown path', async () => {
     const router = createMemoryRouter(routes, { initialEntries: ['/does-not-exist'] });
     render(<RouterProvider router={router} />);
 
-    expect(await screen.findByRole('heading', { name: 'Página no encontrada' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Esta dirección no existe' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Volver al inicio' }).getAttribute('href')).toBe('/');
+  });
+
+  describe('SDD-071 404 inside the chrome', () => {
+    const SECTION_404 = /Esta sección no existe/;
+
+    beforeEach(() => {
+      vi.spyOn(client, 'listOrganizations').mockResolvedValue([makeOrgSummary()]);
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProjectOverview()]);
+      vi.spyOn(client, 'getSession').mockResolvedValue(null);
+      vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null, workProfile: null });
+    });
+
+    it('an unknown org-level path renders the org 404 inside the org header', async () => {
+      const router = createMemoryRouter(routes, { initialEntries: ['/o/acme/drift'] });
+      render(<RouterProvider router={router} />);
+
+      expect(await screen.findByRole('heading', { name: 'Esta sección no existe en Acme' })).toBeTruthy();
+      // SDD-077 D1: con una sola organización el header muestra el nombre como texto, sin switcher.
+      expect(screen.queryByRole('combobox', { name: 'Organización' })).toBeNull();
+      expect(screen.getByText('Acme')).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Ver los proyectos de Acme' }).getAttribute('href')).toBe('/o/acme');
+    });
+
+    it('an unknown project-level path renders the project 404 inside the project sidebar', async () => {
+      const router = createMemoryRouter(routes, { initialEntries: ['/o/acme/p/web/nope'] });
+      render(<RouterProvider router={router} />);
+
+      expect(await screen.findByRole('heading', { name: 'Esta pantalla no existe en Web' })).toBeTruthy();
+      expect(screen.queryByRole('heading', { name: SECTION_404 })).toBeNull();
+      const destinos = within(screen.getByRole('navigation', { name: 'Destinos del proyecto' }));
+      for (const label of ['Planta', 'Árbol de features', 'Documentos', 'Órdenes de trabajo', 'Drift', 'Bandeja de entrada']) {
+        const link = destinos.getByRole('link', { name: label });
+        expect(link).toBeTruthy();
+        expect(link.getAttribute('aria-current')).toBeNull();
+      }
+    });
+
+    it('a real project sibling (drift) is won by ProjectShell, not by the org splat', async () => {
+      const router = createMemoryRouter(routes, { initialEntries: ['/o/acme/p/web/drift'] });
+      render(<RouterProvider router={router} />);
+
+      expect(await screen.findByRole('navigation', { name: 'Navegación principal' })).toBeTruthy();
+      expect(screen.queryByRole('heading', { name: SECTION_404 })).toBeNull();
+      expect(screen.queryByRole('heading', { name: /Esta pantalla no existe/ })).toBeNull();
+    });
+
+    it('the legacy .../graph redirect still wins over the project splat', async () => {
+      const router = createMemoryRouter(routes, { initialEntries: ['/o/acme/p/web/graph'] });
+      render(<RouterProvider router={router} />);
+
+      await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme/p/web/arbol'));
+    });
+
+    it('a nested ajustes route is won by AjustesLayout, not by a 404', async () => {
+      const router = createMemoryRouter(routes, { initialEntries: ['/o/acme/p/web/ajustes/general'] });
+      render(<RouterProvider router={router} />);
+
+      const group = await screen.findByRole('group', { name: 'Proyecto' });
+      expect(within(group).getByText('Web')).toBeTruthy();
+      expect(screen.queryByRole('heading', { name: SECTION_404 })).toBeNull();
+    });
   });
 
   describe('SDD-013 ADR-008 redirects', () => {

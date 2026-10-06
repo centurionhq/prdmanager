@@ -1,15 +1,18 @@
 /**
  * "La línea" — the Centurion Factory line board's seven-station band (originally SDD-012 "Centurion
  * Factory conectado al backend SaaS", WO-354; rebuilt as a design-system component and expanded to seven
- * stations plus BC/PRD row nesting by SDD-024/PRD-011 §4.3-§4.5, WO-445). Approved canvas:
- * `design/centurion-factory/canvas/Main.dc.html` (desktop) / `PlantaMobile.dc.html` (375px) — both render
- * the same DOM, toggled by `LineBoard.module.css`'s `@media (max-width: 767px)` rather than two branches
- * of JSX, the same convention `DataTable` already uses for its own mobile stack.
+ * stations plus BC/PRD row nesting by SDD-024/PRD-011 §4.3-§4.5, WO-445; notice rewritten by WO-680,
+ * SDD-084). Approved canvas: `design/centurion-factory/canvas/Main.dc.html` (desktop) /
+ * `PlantaMobile.dc.html` (375px) — both render the same DOM, toggled by `LineBoard.module.css`'s
+ * `@media (max-width: 767px)` rather than two branches of JSX, the same convention `DataTable` already
+ * uses for its own mobile stack. WO-681 (SDD-084 D3/D6): the current-station cell, desktop and mobile, is
+ * a button that opens a `Drawer` with the initiative's work orders (`StationOrdersDrawer`).
  */
-import { type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { Link } from 'react-router';
 import { STATIONS, type FeatureLineDto, type LineBoardDto, type Station } from '@prdm/contracts';
 import { Tooltip } from '../Tooltip/Tooltip';
+import { StationOrdersDrawer } from './StationOrdersDrawer';
 import styles from './LineBoard.module.css';
 
 interface StationMeta {
@@ -35,11 +38,46 @@ function stationIndex(station: Station): number {
   return STATIONS.indexOf(station);
 }
 
+const ordersPanelId = (id: string): string => `linea-ordenes-${id}`;
+
+const ordersButtonLabel = (feature: FeatureLineDto): string => `${feature.id} ${feature.title}: ver órdenes`;
+
 function rowLabel(feature: FeatureLineDto): string {
   const { progress } = feature;
   if (progress.total === 0) return 'Sin órdenes activas';
   const base = `${progress.done}/${progress.total}`;
   return progress.stopped > 0 ? `${base} · ${progress.stopped} ${progress.stopped === 1 ? 'parada' : 'paradas'}` : base;
+}
+
+/** WO-680 (SDD-084 D2): a row is stopped when the DTO carries `andonStation` for it, whether or not it is
+ * the project-wide `andon` (`lineBoard.andon`). Before this WO only `andon.featureId === feature.id`
+ * counted, so a second stopped initiative was invisible/inerte. */
+function isStoppedFeature(feature: FeatureLineDto): boolean {
+  return feature.andonStation !== undefined;
+}
+
+/** WO-680 (SDD-084 D2): the row's accessible name names the stopped station in text, so the stop never
+ * depends on the column tint (WCAG 1.4.1). */
+function rowAccessibleName(feature: FeatureLineDto): string {
+  const base = `${feature.id} ${feature.title}, estación ${STATION_META[feature.station].label}`;
+  return feature.andonStation === undefined ? base : `${base}, línea detenida en ${STATION_META[feature.andonStation].label}`;
+}
+
+/** WO-680 (SDD-084 D1): the initiatives the line is stopped on, read from the per-feature
+ * `andonStation` core already ships (`issue-attribution.ts:97-102`, propagated recursively into a BC's
+ * nested children) — the app used to ignore it entirely. Nested children are listed even though the
+ * board draws no row for them: for a collapsed PRD the notice is its only way in. */
+interface StoppedInitiative {
+  readonly feature: FeatureLineDto;
+  readonly station: Station;
+}
+
+function collectStopped(features: readonly FeatureLineDto[], acc: StoppedInitiative[] = []): StoppedInitiative[] {
+  for (const feature of features) {
+    if (feature.andonStation !== undefined) acc.push({ feature, station: feature.andonStation });
+    collectStopped(feature.children, acc);
+  }
+  return acc;
 }
 
 interface SecondaryLine {
@@ -63,16 +101,17 @@ function secondaryLine(feature: FeatureLineDto): SecondaryLine | null {
 }
 
 interface StationCellProps {
-  readonly orgSlug: string;
-  readonly projectSlug: string;
   readonly feature: FeatureLineDto;
   readonly station: Station;
   readonly cellIndex: number;
   readonly isAndonColumn: boolean;
-  readonly isAndonFeature: boolean;
+  readonly isAndonRow: boolean;
+  readonly isOpen: boolean;
+  readonly panelId: string;
+  readonly onToggle: (feature: FeatureLineDto) => void;
 }
 
-function StationCell({ orgSlug, projectSlug, feature, station, cellIndex, isAndonColumn, isAndonFeature }: StationCellProps): ReactElement {
+function StationCell({ feature, station, cellIndex, isAndonColumn, isAndonRow, isOpen, panelId, onToggle }: StationCellProps): ReactElement {
   const ownIndex = stationIndex(feature.station);
   const cellClassName = isAndonColumn ? `${styles.cell} ${styles.cellAndonTint}` : styles.cell;
 
@@ -89,56 +128,61 @@ function StationCell({ orgSlug, projectSlug, feature, station, cellIndex, isAndo
   }
 
   const done = feature.progress.done === feature.progress.total && feature.progress.total > 0;
-  const markerClassName = [styles.cellMarker, isAndonFeature ? styles.cellMarkerAndon : done ? styles.cellMarkerDone : null].filter(Boolean).join(' ');
-  const textClassName = isAndonFeature ? `${styles.cellText} ${styles.cellTextAndon}` : styles.cellText;
-  const content = (
-    <>
+  const markerClassName = [styles.cellMarker, isAndonRow ? styles.cellMarkerAndon : done ? styles.cellMarkerDone : null].filter(Boolean).join(' ');
+  const textClassName = isAndonRow ? `${styles.cellText} ${styles.cellTextAndon}` : styles.cellText;
+
+  // WO-680 (SDD-084 D4): the cell is no longer the drift link — that destination moved to the notice
+  // above. WO-681 (SDD-084 D3): it is the button that opens the initiative's work orders.
+  return (
+    <button
+      type="button"
+      key={station}
+      className={[cellClassName, styles.cellButton].filter(Boolean).join(' ')}
+      aria-expanded={isOpen}
+      aria-controls={panelId}
+      aria-label={ordersButtonLabel(feature)}
+      onClick={() => onToggle(feature)}
+    >
       <span aria-hidden="true" className={markerClassName} />
       <span className={`num ${textClassName}`}>{rowLabel(feature)}</span>
-    </>
-  );
-
-  if (isAndonFeature) {
-    return (
-      <Link
-        key={station}
-        to={`/o/${orgSlug}/p/${projectSlug}/drift?feature=${encodeURIComponent(feature.id)}`}
-        className={`${cellClassName} ${styles.cellLink}`}
-        aria-label={`${feature.id} ${feature.title}, línea detenida en ${STATION_META[station].label}: ${rowLabel(feature)}. Ver drift.`}
-      >
-        {content}
-      </Link>
-    );
-  }
-
-  return (
-    <span key={station} className={cellClassName}>
-      {content}
-    </span>
+    </button>
   );
 }
 
 interface MobileStationProps {
   readonly feature: FeatureLineDto;
-  readonly isAndonFeature: boolean;
+  readonly isAndonRow: boolean;
+  readonly isOpen: boolean;
+  readonly panelId: string;
+  readonly onToggle: (feature: FeatureLineDto) => void;
 }
 
 /** The 375px layout's left column (`PlantaMobile.dc.html`): current station + pillar, replacing the
  * desktop rail's seven cells — CSS-only toggle, see this component's own doc comment. */
-function MobileStation({ feature, isAndonFeature }: MobileStationProps): ReactElement {
+function MobileStation({ feature, isAndonRow, isOpen, panelId, onToggle }: MobileStationProps): ReactElement {
   const meta = STATION_META[feature.station];
   const done = feature.progress.done === feature.progress.total && feature.progress.total > 0;
-  const markerClassName = [styles.cellMarker, isAndonFeature ? styles.cellMarkerAndon : done ? styles.cellMarkerDone : null].filter(Boolean).join(' ');
-  const labelClassName = isAndonFeature ? `${styles.mobileStationLabel} ${styles.mobileStationLabelAndon}` : styles.mobileStationLabel;
+  const markerClassName = [styles.cellMarker, isAndonRow ? styles.cellMarkerAndon : done ? styles.cellMarkerDone : null].filter(Boolean).join(' ');
+  const labelClassName = isAndonRow ? `${styles.mobileStationLabel} ${styles.mobileStationLabelAndon}` : styles.mobileStationLabel;
 
   return (
     <div className={styles.mobileStation}>
-      <span className={labelClassName}>{meta.label}</span>
-      {meta.pillar ? <span className={styles.mobileStationPillar}>{meta.pillar}</span> : null}
-      <span className={styles.mobileProgress}>
-        <span aria-hidden="true" className={markerClassName} />
-        <span className={`num ${styles.cellText}`}>{rowLabel(feature)}</span>
-      </span>
+      {/* WO-681 (SDD-084 D6): the same control as the desktop cell, wrapping the station's own content. */}
+      <button
+        type="button"
+        className={styles.mobileStationButton}
+        aria-expanded={isOpen}
+        aria-controls={panelId}
+        aria-label={ordersButtonLabel(feature)}
+        onClick={() => onToggle(feature)}
+      >
+        <span className={labelClassName}>{meta.label}</span>
+        {meta.pillar ? <span className={styles.mobileStationPillar}>{meta.pillar}</span> : null}
+        <span className={styles.mobileProgress}>
+          <span aria-hidden="true" className={markerClassName} />
+          <span className={`num ${styles.cellText}`}>{rowLabel(feature)}</span>
+        </span>
+      </button>
     </div>
   );
 }
@@ -155,18 +199,39 @@ export interface LineBoardProps {
  * the Negocio/Producto/Tecnología pillar band.
  */
 export function LineBoard({ orgSlug, projectSlug, lineBoard }: LineBoardProps): ReactElement {
-  const andon = lineBoard.andon;
-  const andonStationIndex = andon ? stationIndex(andon.station) : -1;
+  const andonStationIndex = lineBoard.andon === null ? -1 : stationIndex(lineBoard.andon.station);
+  // WO-680 (SDD-084 D1): earliest stop first, the same criterion core uses to pick the project-wide
+  // andon (`issue-attribution.ts:104-110`); `sort` is stable, so equal stations keep their board order.
+  // The drawer stays mounted after closing (`open: false`) so `Drawer` can hand focus back to the cell.
+  const [orders, setOrders] = useState<{ readonly feature: FeatureLineDto | null; readonly open: boolean }>({ feature: null, open: false });
+  const toggleOrders = (feature: FeatureLineDto): void =>
+    setOrders((prev) => (prev.open && prev.feature?.id === feature.id ? { ...prev, open: false } : { feature, open: true }));
+  const stopped = collectStopped(lineBoard.features).sort((a, b) => stationIndex(a.station) - stationIndex(b.station));
 
   return (
     <section aria-label="La línea" className={styles.band}>
       <div className={styles.header}>
         <h2 className={styles.title}>La línea</h2>
-        {andon ? (
-          <p className={styles.andon}>
-            <span aria-hidden="true" className={styles.andonDot} />
-            Línea detenida en {STATION_META[andon.station].label}
-          </p>
+        {/* WO-680 (SDD-084 D1/D4): the notice names and links *every* stopped initiative (id + title +
+          * station) instead of printing only the station. It carries the `drift?feature=` destination
+          * the andon cell used to own. */}
+        {stopped.length > 0 ? (
+          <ul className={styles.andon} aria-label="Iniciativas detenidas">
+            {stopped.map(({ feature, station }) => (
+              <li key={feature.id}>
+                <Link
+                  to={`/o/${orgSlug}/p/${projectSlug}/drift?feature=${encodeURIComponent(feature.id)}`}
+                  className={styles.andonLink}
+                  aria-label={`${feature.id} ${feature.title}, línea detenida en ${STATION_META[station].label}. Ver drift.`}
+                >
+                  <span aria-hidden="true" className={styles.andonDot} />
+                  <span className={`id ${styles.andonId}`}>{feature.id}</span>
+                  <span className={styles.andonTitle}>{feature.title}</span>
+                  <span className={styles.andonStation}>detenida en {STATION_META[station].label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         ) : null}
       </div>
 
@@ -197,38 +262,60 @@ export function LineBoard({ orgSlug, projectSlug, lineBoard }: LineBoardProps): 
 
       <ul className={styles.rows}>
         {lineBoard.features.map((feature) => {
-          const isAndonFeature = andon?.featureId === feature.id;
+          const isStopped = isStoppedFeature(feature);
           const secondary = secondaryLine(feature);
+          const isOpen = orders.open && orders.feature?.id === feature.id;
+          const panelId = ordersPanelId(feature.id);
           return (
             <li key={feature.id} className={`${styles.grid} ${styles.row}`}>
               <Link
                 to={`/o/${orgSlug}/p/${projectSlug}/arbol/${feature.id}`}
                 className={styles.rowLead}
-                aria-label={`${feature.id} ${feature.title}, estación ${STATION_META[feature.station].label}`}
+                aria-label={rowAccessibleName(feature)}
               >
                 <span className={styles.rowLeadLine}>
                   <span className={`id ${styles.rowId}`}>{feature.id}</span>
                   <span className={styles.rowTitle}>{feature.title}</span>
                 </span>
+                {/* WO-680 (SDD-084 D2): the stopped station is spelled out next to the row, so the stop
+                  * is readable without relying on the andon tint. */}
+                {feature.andonStation !== undefined ? (
+                  <span className={styles.rowStop}>
+                    <span aria-hidden="true" className={styles.rowStopMarker} />
+                    detenida en {STATION_META[feature.andonStation].label}
+                  </span>
+                ) : null}
                 {secondary ? <span className={secondary.mono ? `id ${styles.rowSecondary}` : styles.rowSecondary}>{secondary.text}</span> : null}
               </Link>
-              <MobileStation feature={feature} isAndonFeature={isAndonFeature} />
+              <MobileStation feature={feature} isAndonRow={isStopped} isOpen={isOpen} panelId={panelId} onToggle={toggleOrders} />
               {STATIONS.map((station, cellIndex) => (
                 <StationCell
                   key={station}
-                  orgSlug={orgSlug}
-                  projectSlug={projectSlug}
                   feature={feature}
                   station={station}
                   cellIndex={cellIndex}
                   isAndonColumn={cellIndex === andonStationIndex}
-                  isAndonFeature={isAndonFeature && cellIndex === stationIndex(feature.station)}
+                  isAndonRow={isStopped && cellIndex === stationIndex(feature.station)}
+                  isOpen={isOpen}
+                  panelId={panelId}
+                  onToggle={toggleOrders}
                 />
               ))}
             </li>
           );
         })}
       </ul>
+
+      {orders.feature ? (
+        <StationOrdersDrawer
+          orgSlug={orgSlug}
+          projectSlug={projectSlug}
+          feature={orders.feature}
+          open={orders.open}
+          panelId={ordersPanelId(orders.feature.id)}
+          onClose={() => setOrders((prev) => ({ ...prev, open: false }))}
+        />
+      ) : null}
     </section>
   );
 }

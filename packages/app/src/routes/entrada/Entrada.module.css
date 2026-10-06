@@ -61,3 +61,106 @@
 .customer {
   color: var(--apagado);
 }
+
+.date {
+  white-space: nowrap;
+  color: var(--texto-secundario);
+}
+
+.searchWrapper {
+  flex: 1 1 220px;
+  min-width: 200px;
+}
+
+.automaticGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--regla);
+}
+
+.automaticToggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  padding: 0 var(--space-3);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+  color: var(--grafito);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.automaticToggle:hover {
+  background: var(--relleno);
+}
+
+.automaticToggle:focus-visible {
+  outline: none;
+  border-color: var(--cianotipo);
+  box-shadow: var(--focus-ring);
+}
+
+.truncatedNote {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+/* 44 px hit targets on the mobile stacked layout (design package rule 6). */
+@media (max-width: 640px) {
+  .automaticToggle {
+    min-height: var(--hit-target);
+  }
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.checkbox {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.checkbox:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.batchBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+}
+
+.batchCount {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  margin-right: auto;
+}
+
+@media (max-width: 640px) {
+  .checkbox {
+    width: var(--hit-target);
+    height: var(--hit-target);
+  }
+
+  .rowActions > button,
+  .batchBar > button {
+    min-height: var(--hit-target);
+  }
+}

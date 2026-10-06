@@ -19,7 +19,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import fg from 'fast-glob';
+import { glob } from 'tinyglobby';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const PROJECTS = ['unit-node', 'unit-jsdom', 'db'];
@@ -42,7 +42,9 @@ function listProjectFiles(project) {
 }
 
 async function main() {
-  const allTestFiles = await fg('packages/*/tests/**/*.test.{ts,tsx}', { cwd: ROOT, absolute: true });
+  // `expandDirectories: false` mirrors fast-glob (tinyglobby's default would turn this pattern into
+  // `packages/*/tests/**/*.test.{ts,tsx}/**`, matching nothing).
+  const allTestFiles = await glob('packages/*/tests/**/*.test.{ts,tsx}', { cwd: ROOT, absolute: true, expandDirectories: false });
   const byFile = new Map(allTestFiles.map((file) => [resolve(file), []]));
 
   for (const project of PROJECTS) {

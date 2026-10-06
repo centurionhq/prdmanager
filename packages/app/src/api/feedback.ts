@@ -3,7 +3,17 @@
  * conectado al backend SaaS", WO-339): submit raw feedback text, list the triage inbox, and — for one
  * inbox item — fetch its linking candidates and act on them.
  */
-import type { CandidateDto, InboxItemDto, SubmitFeedbackInput } from '@prdm/contracts';
+import type {
+  CandidateDto,
+  DismissFeedbackInputDto,
+  DismissFeedbackResultDto,
+  InboxResponseDto,
+  MarkDuplicateInputDto,
+  MarkDuplicateResultDto,
+  SubmitFeedbackInput,
+  TriageBatchInputDto,
+  TriageBatchResultDto,
+} from '@prdm/contracts';
 import { buildQuery } from './build-query.js';
 import { request } from './request.js';
 
@@ -23,12 +33,30 @@ export function submitFeedback(orgSlug: string, projectSlug: string, input: Subm
 
 export interface InboxFilters {
   readonly status?: string;
+  readonly kind?: 'FB' | 'ART';
+  readonly source?: string;
+  readonly q?: string;
+  readonly limit?: number;
+  readonly offset?: number;
 }
 
-export function listInbox(orgSlug: string, projectSlug: string, filters: InboxFilters = {}): Promise<InboxItemDto[]> {
-  return request<{ items: InboxItemDto[] }>(
-    `${projectBase(orgSlug, projectSlug)}/inbox${buildQuery({ status: filters.status })}`,
-  ).then((r) => r.items);
+/**
+ * `GET /inbox` (SDD-065 D3): the endpoint now pages/filters server-side and answers with the
+ * `{items,total}` envelope, so callers get the real count behind the current page. The app screen
+ * fetches with `limit` (bounded by `MAX_INBOX_LIMIT`) and paginates in the client, because it sorts by
+ * título/id — a sort the endpoint does not expose.
+ */
+export function listInbox(orgSlug: string, projectSlug: string, filters: InboxFilters = {}): Promise<InboxResponseDto> {
+  return request<InboxResponseDto>(
+    `${projectBase(orgSlug, projectSlug)}/inbox${buildQuery({
+      status: filters.status,
+      kind: filters.kind,
+      source: filters.source,
+      q: filters.q,
+      limit: filters.limit === undefined ? undefined : String(filters.limit),
+      offset: filters.offset === undefined ? undefined : String(filters.offset),
+    })}`,
+  );
 }
 
 export function getFeedbackCandidates(orgSlug: string, projectSlug: string, docId: string): Promise<CandidateDto[]> {
@@ -58,4 +86,37 @@ export function triageFeedback(
     method: 'POST',
     body: input,
   });
+}
+
+/** `POST .../feedback/:docId/dismiss` (SDD-065 D5): the item leaves «Sin triar» but stays in the graph. */
+export function dismissFeedback(
+  orgSlug: string,
+  projectSlug: string,
+  docId: string,
+  input: DismissFeedbackInputDto,
+): Promise<DismissFeedbackResultDto> {
+  return request<{ result: DismissFeedbackResultDto }>(
+    `${projectBase(orgSlug, projectSlug)}/feedback/${encodeURIComponent(docId)}/dismiss`,
+    { method: 'POST', body: input },
+  ).then((r) => r.result);
+}
+
+export function markDuplicate(
+  orgSlug: string,
+  projectSlug: string,
+  docId: string,
+  input: MarkDuplicateInputDto,
+): Promise<MarkDuplicateResultDto> {
+  return request<{ result: MarkDuplicateResultDto }>(
+    `${projectBase(orgSlug, projectSlug)}/feedback/${encodeURIComponent(docId)}/duplicate`,
+    { method: 'POST', body: input },
+  ).then((r) => r.result);
+}
+
+/** `POST .../feedback/triage-batch`: answers per item, so a partial failure is data, not an exception. */
+export function triageBatch(orgSlug: string, projectSlug: string, input: TriageBatchInputDto): Promise<TriageBatchResultDto> {
+  return request<{ result: TriageBatchResultDto }>(`${projectBase(orgSlug, projectSlug)}/feedback/triage-batch`, {
+    method: 'POST',
+    body: input,
+  }).then((r) => r.result);
 }

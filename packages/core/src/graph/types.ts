@@ -19,6 +19,8 @@ export interface NodeView {
   body: string;
   tags: string[];
   source_path: string;
+  /** Readable copy `prdm sync` leaves in the checkout; derived on read, never persisted (SDD-074). */
+  mirrorPath: string;
   created_at: string | null;
   [prop: string]: unknown;
 }
@@ -72,6 +74,15 @@ export interface WorkOrderSummary {
   assignedTo: string | null;
   blueprints: string[];
   sourcePath: string;
+  /** Derived on read, never persisted; `sourcePath` stays the canonical published path (SDD-074). */
+  mirrorPath: string;
+  /** Publicado por `listWorkOrders` (LIST_WORK_ORDERS), SDD-075 D1. La proyección paginada de
+   * `queryWorkOrders` (PRD-042 R2 / SDD-064) queda congelada y por eso los deja sin definir. */
+  createdAt?: string | null;
+  /** ISO de la reclamación; `null` mientras nadie la tomó (el modo remoto no inventa dueño). */
+  claimedAt?: string | null;
+  /** Días completos desde `createdAt` calculados al leer; `null` cuando la WO no tiene fecha. */
+  ageDays?: number | null;
 }
 
 export type WorkOrderActorKind = 'agent' | 'dev' | 'unassigned';
@@ -121,7 +132,14 @@ export interface MetricsRaw {
   commitsTotal: number;
   commitsWithRefs: number;
   commitsTraced: number;
-  workOrders: { id: string; status: string; claimedAt: string | null; completedAt: string | null }[];
+  workOrders: {
+    id: string;
+    status: string;
+    assignedTo: string | null;
+    createdAt: string | null;
+    claimedAt: string | null;
+    completedAt: string | null;
+  }[];
 }
 
 export interface ProjectRecord {

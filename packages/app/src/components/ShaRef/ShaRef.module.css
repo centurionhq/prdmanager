@@ -1,0 +1,19 @@
+/* WO-635 (SDD-069): a literal sha with its copy shortcut and, when the project knows its repository, the
+   link to the commit. Inline by design: it sits inside a text subtitle and inside a table cell. The button
+   is the design system's own (variants/sizes/hit targets), so it is not restyled here. */
+.ref {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  vertical-align: middle;
+}
+
+.link {
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.failed {
+  font-size: var(--text-xs);
+  color: var(--texto-secundario);
+}
