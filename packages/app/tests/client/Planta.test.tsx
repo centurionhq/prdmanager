@@ -331,6 +331,45 @@ describe('Planta', () => {
     expect(await screen.findByText('drift screen')).toBeTruthy();
   });
 
+  it('collapses the stopped initiatives behind a counted summary, closed by default', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    const summary = await screen.findByText('2 iniciativas detenidas');
+    const details = summary.closest('details');
+    expect(details).not.toBeNull();
+    expect(details?.open).toBe(false);
+
+    await userEvent.click(summary);
+    expect(details?.open).toBe(true);
+    expect(screen.getByRole('link', { name: /BC-001 Importador incremental de repos, línea detenida en Construcción\. Ver drift\./ })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /FR-001 Persistencia de borradores, línea detenida en Diseño técnico\. Ver drift\./ })).toBeTruthy();
+  });
+
+  it('uses the singular in the summary when a single initiative is stopped', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue({
+      ...LINE_BOARD,
+      features: LINE_BOARD.features.map((feature) => (feature.id === 'FR-001' ? { ...feature, andonStation: undefined } : feature)),
+    });
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    expect(await screen.findByText('1 iniciativa detenida')).toBeTruthy();
+  });
+
+  it('renders no stopped summary when nothing is stopped', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue({
+      ...LINE_BOARD,
+      features: LINE_BOARD.features.map((feature) => ({ ...feature, andonStation: undefined })),
+    });
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    await screen.findByText('Commits con Refs');
+    expect(screen.queryByText(/iniciativas? detenidas?$/)).toBeNull();
+  });
+
   it('shows an empty state when there are no features on the line', async () => {
     vi.spyOn(client, 'getLineBoard').mockResolvedValue({ features: [], andon: null });
     vi.spyOn(client, 'getMetrics').mockResolvedValue(EMPTY_METRICS);
