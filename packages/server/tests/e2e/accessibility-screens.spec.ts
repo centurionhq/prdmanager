@@ -89,6 +89,29 @@ test.describe('Accessibility gate: ported frontend screens (WO-369)', () => {
     }
   });
 
+  // SDD-083 WO-B (e): el Árbol alcanzado por link con `?q=`. El buscador vive en la URL (D1), así que este
+  // es el estado que comparte un link. Ojo con el alcance: el harness de este suite levanta un proyecto
+  // SIN features (`harness.ts` limpia el grafo), así que acá la pantalla muestra su vacío de «Todavía no
+  // hay features» y no el vacío propio de la búsqueda (D3) ni las reglas que sólo aparecen con filas
+  // reales — eso va como FB aparte, no es parte del rework de WO-678. Lo que este caso cubre es que el
+  // `?q=` en la URL no rompe el render ni trae violaciones nuevas a 1440 ni a 375 px.
+  test('the Árbol screen with ?q= is clean at 1440 and 375 (SDD-083 WO-B)', async ({ page }) => {
+    const { baseUrl, org, project, alice } = journey;
+    await login(page, baseUrl, alice.email);
+
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) {
+      await page.setViewportSize(viewport);
+
+      await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/arbol?q=arbol`);
+      await expect(page.getByRole('heading', { level: 1, name: 'Árbol de features' })).toBeVisible();
+      await expectNoViolations(page, `Árbol ?q=arbol @${viewport.width}`);
+
+      await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/arbol?q=sin-coincidencias`);
+      await expect(page.getByRole('heading', { level: 1, name: 'Árbol de features' })).toBeVisible();
+      await expectNoViolations(page, `Árbol ?q=sin-coincidencias @${viewport.width}`);
+    }
+  });
+
   test('the documents list, its "Nuevo documento" modal, and a document detail page are clean', async ({ page }) => {
     const { baseUrl, org, project, alice } = journey;
     await login(page, baseUrl, alice.email);

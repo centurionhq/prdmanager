@@ -49,6 +49,37 @@ const FOREST: TreeNode[] = [
   },
 ];
 
+/** Rework de WO-678: dos subárboles independientes, para reproducir «tipear sobre un filtro ya activo» —
+ * con el bosque filtrado cambiando sin remount. */
+const DEEP_FOREST: TreeNode[] = [
+  {
+    ref: 'MRD-001', label: 'Feature', kind: 'MRD', title: 'Mercado: contexto de producto', status: 'approved',
+    via: null, edgeStatus: null, reviewNeeded: false, repeated: false,
+    children: [
+      {
+        ref: 'PRD-020', label: 'Feature', kind: 'PRD', title: 'Panel de salud de cuenta', status: 'approved',
+        via: 'EVOLVES_FROM', edgeStatus: 'synced', reviewNeeded: false, repeated: false,
+        children: [
+          { ref: 'FR-030', label: 'Feature', kind: 'FR', title: 'Alertas de churn', status: 'approved', via: 'EVOLVES_FROM', edgeStatus: 'synced', reviewNeeded: false, repeated: false, children: [] },
+        ],
+      },
+    ],
+  },
+  {
+    ref: 'MRD-002', label: 'Feature', kind: 'MRD', title: 'Mercado: expansión', status: 'approved',
+    via: null, edgeStatus: null, reviewNeeded: false, repeated: false,
+    children: [
+      {
+        ref: 'PRD-021', label: 'Feature', kind: 'PRD', title: 'Exportación de reportes', status: 'approved',
+        via: 'EVOLVES_FROM', edgeStatus: 'synced', reviewNeeded: false, repeated: false,
+        children: [
+          { ref: 'FR-031', label: 'Feature', kind: 'FR', title: 'Reporte csv', status: 'approved', via: 'EVOLVES_FROM', edgeStatus: 'synced', reviewNeeded: false, repeated: false, children: [] },
+        ],
+      },
+    ],
+  },
+];
+
 function nodeDetailFor(ref: string): NodeDetail {
   if (ref === 'FR-001') {
     return {
@@ -588,6 +619,62 @@ describe('ProjectGraph (árbol de features)', () => {
       expect(await screen.findByText(/Mercado/, { selector: 'h1, h2, h3' })).toBeTruthy();
       expect(screen.getByRole('treeitem', { name: /MRD-001/ }).ariaSelected).toBe('true');
     });
+  });
+
+  it('mantiene «N resultados» igual a las filas visibles al tipear sobre un filtro ya activo (rework WO-678)', async () => {
+    // D2: la N del header siempre es el número de filas visibles, aunque el término se tipee sobre un filtro ya activo.
+    vi.spyOn(client, 'getTree').mockResolvedValue({ forest: DEEP_FOREST });
+    vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+    vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
+    renderPage(undefined, ['owner', 'admin'], '?q=churn');
+    await screen.findByRole('treeitem', { name: /FR-030/ });
+    expect(screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === '3 resultados de 6 features')).toBeTruthy();
+
+    const field = screen.getByLabelText('Buscar por id o título');
+    await userEvent.clear(field);
+    await userEvent.type(field, 'reporte', { delay: 20 });
+
+    expect(await screen.findByRole('treeitem', { name: /FR-031/ })).toBeTruthy();
+    expect(screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === '3 resultados de 6 features')).toBeTruthy();
+    const rows = screen.getAllByRole('treeitem');
+    expect(rows).toHaveLength(3);
+    expect(rows.map((row) => /(MRD|PRD|FR)-\d+/.exec(row.textContent ?? '')?.[0])).toEqual(['MRD-002', 'PRD-021', 'FR-031']);
+    expect(screen.getByRole('treeitem', { name: /MRD-002/ }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.queryByRole('treeitem', { name: /FR-030/ })).toBeNull();
+  });
+
+  it('conserva ?q= al clickear una fila (rework WO-678, D1)', async () => {
+    mockTree();
+    const router = renderPage(undefined, ['owner', 'admin'], '?q=FR-001');
+    await userEvent.click(await screen.findByRole('treeitem', { name: /FR-001/ }));
+
+    expect(router.state.location.pathname).toBe('/o/acme/p/web/arbol/FR-001');
+    expect(router.state.location.search).toBe('?q=FR-001');
+    expect((screen.getByLabelText('Buscar por id o título') as HTMLInputElement).value).toBe('FR-001');
+    expect(screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === '2 resultados de 3 features')).toBeTruthy();
+    expect(screen.queryByRole('treeitem', { name: /FR-002/ })).toBeNull();
+  });
+
+  it('conserva ?q= al seleccionar con Enter (rework WO-678, D1)', async () => {
+    mockTree();
+    const router = renderPage(undefined, ['owner', 'admin'], '?q=FR-001');
+    const root = await screen.findByRole('treeitem', { name: /MRD-001/ });
+    root.focus();
+    await userEvent.keyboard('{Enter}');
+
+    expect(router.state.location.search).toBe('?q=FR-001');
+    expect((screen.getByLabelText('Buscar por id o título') as HTMLInputElement).value).toBe('FR-001');
+  });
+
+  it('conserva ?sinCodigo=1 al clickear una fila (rework WO-678)', async () => {
+    mockTree();
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(ONE_ORPHAN);
+    const router = renderPage(undefined, ['owner', 'admin'], '?sinCodigo=1');
+    await userEvent.click(await screen.findByRole('treeitem', { name: /FR-002/ }));
+
+    expect(router.state.location.pathname).toBe('/o/acme/p/web/arbol/FR-002');
+    expect(router.state.location.search).toBe('?sinCodigo=1');
+    expect(screen.getByRole('button', { name: 'Sin código (1)' }).getAttribute('aria-pressed')).toBe('true');
   });
 
   it('the "Sin código" chip filters the tree to the orphan features and announces the count (SDD-079)', async () => {

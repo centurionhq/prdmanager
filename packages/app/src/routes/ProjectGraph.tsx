@@ -642,7 +642,9 @@ export function ProjectGraph(): ReactElement {
               driftRefs={driftRefs}
               orphanRefs={orphanRefs}
               collapseSignal={collapseSignal}
-              onSelect={(ref) => navigate(`/o/${orgSlug}/p/${projectSlug}/arbol/${ref}`)}
+              onSelect={(ref) =>
+                navigate({ pathname: `/o/${orgSlug}/p/${projectSlug}/arbol/${ref}`, search: searchParams.toString() })
+              }
             />
           )}
         </div>
