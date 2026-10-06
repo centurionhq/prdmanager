@@ -25,6 +25,7 @@ import { addProjectMember, removeProjectMember, updateProjectMemberRole } from '
 import { errorMessage } from '../api/error-message.js';
 import { Button, DataTable, Modal, SectionHeader, SelectField, type DataTableColumn } from '../components/index.js';
 import { FormError } from '../components/FormError.js';
+import { projectRoleLabel } from '../lib/role-labels.js';
 import { PersonCell } from './miembros/PersonCell.js';
 import styles from './ProjectMembersSection.module.css';
 
@@ -41,7 +42,7 @@ const ROLE_MATRIX_ROWS: readonly { label: string; action: PermissionAction }[] =
   { label: 'Gestionar miembros', action: 'manage_members' },
 ];
 
-const ROLE_OPTIONS = PROJECT_ROLES.map((role) => ({ value: role, label: role }));
+const ROLE_OPTIONS = PROJECT_ROLES.map((role) => ({ value: role, label: projectRoleLabel(role) }));
 
 type MatrixRow = (typeof ROLE_MATRIX_ROWS)[number];
 
@@ -50,7 +51,7 @@ const MATRIX_COLUMNS: readonly DataTableColumn<MatrixRow>[] = [
   ...PROJECT_ROLES.map(
     (role): DataTableColumn<MatrixRow> => ({
       key: role,
-      header: role,
+      header: projectRoleLabel(role),
       align: 'end',
       render: (row) => (can({ projectRole: role }, row.action) ? 'Sí' : 'No'),
     }),
@@ -145,7 +146,7 @@ export function ProjectMembersSection({
         canManage ? (
           <SelectField label={`Rol de ${member.email}`} hideLabel value={member.role} options={ROLE_OPTIONS} onChange={(value) => void handleRoleChange(member.userId, value as ProjectRole)} />
         ) : (
-          member.role
+          projectRoleLabel(member.role)
         ),
     },
     ...(canManage

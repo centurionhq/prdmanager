@@ -31,6 +31,7 @@ import {
 } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { isOrgAdmin } from '../auth/org-role.js';
+import { orgRoleLabel } from '../lib/role-labels.js';
 import { Button, DataTable, Modal, Notice, PageHeader, SelectField, Skeleton, type DataTableColumn } from '../components/index.js';
 import { FormError } from '../components/FormError.js';
 import { formatDate } from '../lib/format-date.js';
@@ -139,7 +140,7 @@ export function OrgMembersSettings(): ReactElement {
   if (error) return <FormError message={error} />;
   if (!data) return <Skeleton rows={4} />;
 
-  const ROLE_OPTIONS = ORG_ROLES.map((r) => ({ value: r, label: r }));
+  const ROLE_OPTIONS = ORG_ROLES.map((r) => ({ value: r, label: orgRoleLabel(r) }));
 
   const memberColumns: readonly DataTableColumn<OrganizationMember>[] = [
     { key: 'person', header: 'Persona', render: (member) => <PersonCell name={member.name} email={member.email} you={member.userId === data.currentUserId} />, sortValue: (member) => member.name },
@@ -150,7 +151,7 @@ export function OrgMembersSettings(): ReactElement {
         canManage ? (
           <SelectField label={`Rol de ${member.email}`} hideLabel value={member.role} options={ROLE_OPTIONS} onChange={(value) => void handleRoleChange(member.userId, value as OrgRole)} />
         ) : (
-          member.role
+          orgRoleLabel(member.role)
         ),
     },
     { key: 'projects', header: 'Proyectos', align: 'end', render: (member) => data.projectCountByUserId.get(member.userId) ?? 0 },
@@ -175,7 +176,7 @@ export function OrgMembersSettings(): ReactElement {
 
   const invitationColumns: readonly DataTableColumn<InvitationSummary>[] = [
     { key: 'email', header: 'Email', render: (invitation) => invitation.email },
-    { key: 'role', header: 'Rol', render: (invitation) => invitation.role },
+    { key: 'role', header: 'Rol', render: (invitation) => orgRoleLabel(invitation.role) },
     { key: 'status', header: 'Estado', render: (invitation) => invitation.status },
     { key: 'expires', header: 'Vence', render: (invitation) => formatDate(invitation.expiresAt) },
     {

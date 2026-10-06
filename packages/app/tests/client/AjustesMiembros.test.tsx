@@ -90,8 +90,8 @@ describe('AjustesMiembros', () => {
     renderAjustesMiembros('admin');
 
     await screen.findByRole('heading', { name: 'Qué puede hacer cada rol' });
-    expect(screen.getByRole('columnheader', { name: 'admin' })).toBeTruthy();
-    expect(screen.getByRole('columnheader', { name: 'viewer' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Administrador' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Lector' })).toBeTruthy();
     expect(screen.getByRole('row', { name: /Gestionar miembros/ })).toBeTruthy();
   });
 });

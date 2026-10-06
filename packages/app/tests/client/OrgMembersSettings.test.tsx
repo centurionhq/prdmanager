@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -48,6 +48,25 @@ describe('OrgMembersSettings', () => {
     expect(screen.queryByText('Invitaciones pendientes')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Invitar' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Invitar persona' })).toBeNull();
+  });
+
+  it('shows roles in Spanish, never the raw enum, in the member and invitation rows', async () => {
+    vi.spyOn(client, 'listOrganizationMembers').mockResolvedValue(MEMBERS);
+    vi.spyOn(client, 'listOrganizationInvitations').mockResolvedValue(INVITATIONS);
+    renderPage('admin');
+
+    const ownerRow = within((await screen.findByText('owner@example.test')).closest('tr')!);
+    const memberRow = within((await screen.findByText('member@example.test')).closest('tr')!);
+    const invitationRow = within((await screen.findByText('pending@example.test')).closest('tr')!);
+
+    expect(ownerRow.getByText('Dueño')).toBeTruthy();
+    expect(memberRow.getByText('Miembro')).toBeTruthy();
+    expect(invitationRow.getByText('Miembro')).toBeTruthy();
+    for (const row of [ownerRow, memberRow, invitationRow]) {
+      expect(row.queryByText('owner')).toBeNull();
+      expect(row.queryByText('member')).toBeNull();
+      expect(row.queryByText('admin')).toBeNull();
+    }
   });
 
   it('lets an admin change a role, remove a member, and revoke an invitation', async () => {

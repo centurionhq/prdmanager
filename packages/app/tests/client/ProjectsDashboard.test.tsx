@@ -61,7 +61,7 @@ describe('ProjectsDashboard', () => {
     expect(screen.getByText('Ystream')).toBeTruthy();
     expect(screen.getByText('2 errores')).toBeTruthy();
     expect(screen.getByText('1 aviso')).toBeTruthy();
-    expect(screen.getByText('Viewer')).toBeTruthy();
+    expect(screen.getByText('Lector')).toBeTruthy();
   });
 
   it('shows "Esperando primer reporte de CI" instead of a fabricated drift number', async () => {

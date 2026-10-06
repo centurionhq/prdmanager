@@ -5,6 +5,7 @@
  */
 import { useState, type FormEvent, type ReactElement } from 'react';
 import { ORG_ROLES, PROJECT_ROLES, type OrgRole, type ProjectInvitationGrant, type ProjectRole, type ProjectSummary } from '@prdm/contracts';
+import { orgRoleLabel, projectRoleLabel } from '../lib/role-labels.js';
 import { createOrganizationInvitation } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { Button, SelectField, TextField } from '../components/index.js';
@@ -19,8 +20,8 @@ interface GrantDraft {
   role: ProjectRole;
 }
 
-const orgRoleOptions = (roles: readonly OrgRole[]) => roles.map((r) => ({ value: r, label: r }));
-const projectRoleOptions = PROJECT_ROLES.map((r) => ({ value: r, label: r }));
+const orgRoleOptions = (roles: readonly OrgRole[]) => roles.map((r) => ({ value: r, label: orgRoleLabel(r) }));
+const projectRoleOptions = PROJECT_ROLES.map((r) => ({ value: r, label: projectRoleLabel(r) }));
 
 export function InviteMemberForm({
   orgSlug,

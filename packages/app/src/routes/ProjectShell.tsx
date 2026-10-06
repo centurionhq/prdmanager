@@ -23,7 +23,7 @@ import { LoadingState } from '@prdm/ui';
 import { getProfile, getProjectsOverview, getSession, listOrganizations, setWorkProfile } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { AppShell, type AppShellData } from '../components/shell/AppShell.js';
-import { projectRoleLabel } from '../components/shell/project-nav.js';
+import { projectRoleLabel } from '../lib/role-labels.js';
 import { FormError } from '../components/FormError.js';
 import { FormNotice } from '../components/FormNotice.js';
 import { NotFoundPanel } from '../components/NotFoundPanel/NotFoundPanel.js';
