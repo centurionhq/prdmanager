@@ -18,7 +18,11 @@
     .num { font-variant-numeric: tabular-nums; }
   </style>
 </helmet>
-<!-- 375×812. Todo control táctil respeta el mínimo de 44px. Ajustes se llega desde "Más". -->
+<!-- SDD-090 (WO-701) · 375×812. Toda control táctil respeta el mínimo de 44 px. Ajustes se llega desde "Más".
+     Los siete grupos son los mismos del artboard de 1440 (mismas etiquetas) y las carpetas por tipo de
+     documento son un input por fila: a 375 px no hay dos columnas ni scroll horizontal. El marco muestra el
+     arranque de la página (identidad, rama oficial —con el campo inválido y su mensaje— y el comienzo de las
+     carpetas), como AjustesTokensMobile: la página sigue hacia abajo. -->
 <div style="width: 375px; height: 812px; display: flex; flex-direction: column; background: #E9ECEB; overflow: hidden;">
   <header style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #C9CFCD; background: #E9ECEB;">
     <div style="display: flex; flex-direction: column; min-width: 0;">
@@ -27,17 +31,48 @@
     </div>
   </header>
   <nav aria-label="Ajustes" style="display: flex; overflow-x: auto; border-bottom: 1px solid #C9CFCD; background: #E9ECEB; padding: 0 2px;"><div style="flex: none; height: 44px; display: flex; align-items: center; padding: 0 14px; font-size: 14px; font-weight: 600; color: #17191C; white-space: nowrap; border-bottom: 2px solid #17191C;">General</div><div style="flex: none; height: 44px; display: flex; align-items: center; padding: 0 14px; font-size: 14px; color: #33383D; white-space: nowrap; border-bottom: 2px solid transparent;">Miembros</div><div style="flex: none; height: 44px; display: flex; align-items: center; padding: 0 14px; font-size: 14px; color: #33383D; white-space: nowrap; border-bottom: 2px solid transparent;">Tokens de CI</div><div style="flex: none; height: 44px; display: flex; align-items: center; padding: 0 14px; font-size: 14px; color: #33383D; white-space: nowrap; border-bottom: 2px solid transparent;">Auditoría</div><div style="flex: none; height: 44px; display: flex; align-items: center; padding: 0 14px; font-size: 14px; color: #33383D; white-space: nowrap; border-bottom: 2px solid transparent;">Perfil</div><div style="flex: none; height: 44px; display: flex; align-items: center; padding: 0 14px; font-size: 14px; color: #33383D; white-space: nowrap; border-bottom: 2px solid transparent;">Tokens personales</div></nav>
-  <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 16px; padding: 16px;">
+  <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 14px; padding: 16px;">
     <div style="display: flex; flex-direction: column; gap: 4px;">
       <h1 style="margin: 0; font-size: 28px; line-height: 1.1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">General</h1>
       <span style="font-size: 14px; color: #565D63;">Datos del proyecto y su rama oficial.</span>
     </div>
-    <div style="display: flex; flex-direction: column; gap: 16px; padding: 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
-      <div style="display: flex; flex-direction: column; gap: 6px;"><label style="font-size: 14px; font-weight: 600;">Proyecto</label><div style="min-height: 44px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;">prdmanager</div></div>
-      <div style="display: flex; flex-direction: column; gap: 6px;"><label style="font-size: 14px; font-weight: 600;">Identificador</label><div style="min-height: 44px; display: flex; align-items: center; padding: 0 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #565D63;"><span class="id">prdmanager</span></div><span style="font-size: 13px; color: #565D63; line-height: 1.4;">Es el que usás en los comandos.</span></div>
-      <div style="display: flex; flex-direction: column; gap: 6px;"><label style="font-size: 14px; font-weight: 600;">Organización</label><div style="min-height: 44px; display: flex; align-items: center; padding: 0 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #565D63;">Centurion HQ</div></div>
-      <div style="display: flex; flex-direction: column; gap: 6px;"><label style="font-size: 14px; font-weight: 600;">Rama por defecto</label><div style="min-height: 44px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"><span class="id">main</span></div><span style="font-size: 13px; color: #565D63; line-height: 1.4;">La baseline oficial de drift se calcula sobre esta rama.</span></div>
-      <div style="min-height: 44px; display: flex; align-items: center; justify-content: center; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Guardar</div>
+    <div style="display: flex; flex-direction: column; gap: 14px; padding: 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+
+      <!-- 1 · Identidad del proyecto (sólo lectura), una columna -->
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <h2 style="margin: 0; font-size: 16px; font-weight: 700;">Identidad del proyecto</h2>
+          <span style="font-size: 13px; line-height: 1.35; color: #565D63;">De dónde es el proyecto. Se ve acá; no se edita.</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;"><span style="font-size: 14px; font-weight: 600;">Proyecto</span><div style="min-height: 44px; display: flex; align-items: center; padding: 8px 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">prdmanager</div></div>
+        <div style="display: flex; flex-direction: column; gap: 6px;"><span style="font-size: 14px; font-weight: 600;">Organización</span><div style="min-height: 44px; display: flex; align-items: center; padding: 8px 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">Centurion HQ</div></div>
+        <div style="display: flex; flex-direction: column; gap: 6px;"><span style="font-size: 14px; font-weight: 600;">Identificador</span><div style="min-height: 44px; display: flex; align-items: center; padding: 8px 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;"><span class="id">prdmanager</span></div><span style="font-size: 13px; line-height: 1.4; color: #565D63;">Es el que usás en los comandos.</span></div>
+      </div>
+
+      <!-- 2 · Rama oficial. Campo inválido: borde --paro y mensaje role="alert" (el mismo estado del de 1440). -->
+      <div style="display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid #DDE1DF;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <h2 style="margin: 0; font-size: 16px; font-weight: 700;">Rama oficial</h2>
+          <span style="font-size: 13px; line-height: 1.35; color: #565D63;">Cuál es la rama oficial del proyecto.</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label style="font-size: 14px; font-weight: 600;">Rama por defecto</label>
+          <div style="min-height: 44px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #B8322A; border-radius: 4px; font-size: 14px; color: #17191C;"></div>
+          <span style="font-size: 13px; line-height: 1.4; color: #565D63;">La baseline oficial de drift se calcula sobre esta rama.</span>
+          <p role="alert" style="margin: 0; font-size: 14px; color: #B8322A;">Escribí el nombre de la rama.</p>
+        </div>
+      </div>
+
+      <!-- 3 · Carpetas por tipo de documento: un input por fila (sin columnas a 375 px). -->
+      <div style="display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid #DDE1DF;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <h2 style="margin: 0; font-size: 16px; font-weight: 700;">Carpetas por tipo de documento</h2>
+          <span style="font-size: 13px; line-height: 1.35; color: #565D63;">La carpeta de cada tipo dentro del proyecto.</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;"><label style="font-size: 14px; font-weight: 600;">Mercado (MRD)</label><div style="min-height: 44px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"><span class="id">docs/mrd</span></div></div>
+        <div style="display: flex; flex-direction: column; gap: 6px;"><label style="font-size: 14px; font-weight: 600;">Producto (PRD)</label><div style="min-height: 44px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"><span class="id">docs/prd</span></div></div>
+        <div style="display: flex; flex-direction: column; gap: 6px;"><label style="font-size: 14px; font-weight: 600;">Feature request (FR)</label><div style="min-height: 44px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"><span class="id">docs/fr</span></div></div>
+      </div>
     </div>
   </div>
   <nav aria-label="Navegación principal" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid #C9CFCD; background: #FBFCFB; padding: 4px 0;">

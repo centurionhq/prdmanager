@@ -14,15 +14,35 @@
     a { color: #1F4FA0; } a:hover { color: #173C7A; }
     .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
     * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
   </style>
 </helmet>
-<div style="position: relative; width: 1440px; height: 960px; overflow: hidden; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+<!-- SDD-090 (WO-701) · 1440. Ajustes/General deja de ser un formulario de un solo campo: muestra y edita
+     la configuración completa del proyecto (projectSettingsSchema) en siete grupos, en el orden de D2.
+     El alto del artboard es el del contenido (una página de ajustes larga es una página que scrollea):
+     los demás artboards son de 960 px porque sus pantallas entran en 960; esta, medida, son 2066.
+
+     Tres estados, en el mismo marco, como en AjustesMiembros y AjustesSSO:
+     (a) por defecto, todos los campos con los valores y defaults reales de packages/contracts/src/project-settings.ts;
+     (b) un campo inválido — «Rama por defecto» vacía, con el borde en --paro y el mensaje role="alert" que hoy
+         ya usa AjustesGeneral.tsx; cualquier campo reusa ese mismo tratamiento (borde + mensaje, nunca sólo rojo);
+     (c) «Guardado.» junto a Guardar, el role="status" que la pantalla ya muestra tras guardar. El estado de
+         guardado sobrevive a la próxima edición (saved sólo se limpia al volver a enviar), así que (b) y (c)
+         conviven sin contradicción.
+
+     Grupos 3 a 6 son inputs (superficie clara + borde, texto grafito): eso es lo que el FR-021 agrega.
+     Grupos 1 y 7 son de sólo lectura (relleno --relleno, texto --texto-secundario) y SIEMPRE con su motivo.
+     Los valores son los defaults reales del contrato (folders, git, triage, default_branch, hash_algo_version);
+     los patrones de «Archivos ignorados» y el vínculo con GitHub son datos de muestra, como en el resto del canvas.
+     Las carpetas son las ocho del subconjunto del dashboard (contracts DOC_KINDS): BC no está en
+     projectSettingsSchema —incluirlo rompería el strictObject del PATCH— y por eso no se dibuja acá. -->
+<div style="position: relative; width: 1440px; height: 2066px; overflow: hidden; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
 
   <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
     <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
       <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
     </div>
-    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 52px; margin-top: -8px; padding: 0 10px 0 12px; border: 1px solid #C9CFCD; border-radius: 2px; cursor: pointer;">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 52px; margin-top: -8px; padding: 0 10px 0 12px; border: 1px solid #C9CFCD; border-radius: 2px;">
       <div style="display: flex; flex-direction: column; min-width: 0;"><span style="font-size: 12px; color: #565D63;">Centurion HQ</span><span style="font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">prdmanager</span></div>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"></path></svg>
     </div>
@@ -68,39 +88,212 @@
           <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; border-radius: 2px; font-size: 14px; white-space: nowrap; border: 1px solid transparent; color: #33383D;">Tokens personales</div>
         </div>
       </aside>
-      
-      <section style="display: flex; flex-direction: column; gap: 24px; min-width: 0; max-width: 560px;">
+
+      <section style="display: flex; flex-direction: column; gap: 24px; min-width: 0; max-width: 900px;">
         <div style="display: flex; flex-direction: column; gap: 6px;">
           <h2 style="margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700;">General</h2>
           <div style="font-size: 14px; color: #565D63;">Datos del proyecto y su rama oficial.</div>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 18px; padding: 20px 24px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
-          
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 14px; font-weight: 600;">Proyecto</label>
-          <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;">prdmanager</div>
-          
-        </div>
-          
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 14px; font-weight: 600;">Identificador</label>
-          <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #565D63;"><span class="id">prdmanager</span></div>
-          <span style="font-size: 13px; color: #565D63;">Es el que usás en los comandos: prdm link centurionhq/prdmanager.</span>
-        </div>
-          
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 14px; font-weight: 600;">Organización</label>
-          <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #565D63;">Centurion HQ</div>
-          
-        </div>
-          
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 14px; font-weight: 600;">Rama por defecto</label>
-          <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"><span class="id">main</span></div>
-          <span style="font-size: 13px; color: #565D63;">La baseline oficial de drift se calcula sobre esta rama.</span>
-        </div>
-          <div style="display: flex; align-items: center; justify-content: flex-end; gap: 14px;">
-            <span style="font-size: 13px; color: #19703F;">Guardado</span>
+
+        <!-- Un solo panel con las siete secciones separadas por reglas de fila (--regla-fila): la jerarquía es
+             banda a sangre, tabla plana, overlay. Nada de siete tarjetas idénticas con la misma sombra.
+             El título y la bajada de cada sección van en la columna de 232 px (patrón de fila de ajustes que ya
+             usa AjustesSSO.dc.html) y los controles en la columna de la derecha. -->
+        <div style="display: flex; flex-direction: column; padding: 20px 24px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+
+          <!-- 1 · Identidad del proyecto (sólo lectura, como hoy) -->
+          <div style="display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 32px; padding: 12px 0;">
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+              <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Identidad del proyecto</h3>
+              <p style="margin: 0; font-size: 14px; line-height: 20px; color: #565D63;">De dónde es el proyecto. Se ve acá; no se edita.</p>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0;">
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <span style="font-size: 14px; font-weight: 600;">Proyecto</span>
+                <div style="min-height: 40px; display: flex; align-items: center; padding: 8px 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">prdmanager</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <span style="font-size: 14px; font-weight: 600;">Organización</span>
+                <div style="min-height: 40px; display: flex; align-items: center; padding: 8px 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">Centurion HQ</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0; grid-column: 1 / -1;">
+                <span style="font-size: 14px; font-weight: 600;">Identificador</span>
+                <div style="min-height: 40px; display: flex; align-items: center; padding: 8px 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;"><span class="id">prdmanager</span></div>
+                <span style="font-size: 13px; line-height: 1.4; color: #565D63;">Es el que usás en los comandos: prdm link centurionhq/prdmanager.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2 · Rama oficial. Campo inválido: vacío, borde --paro y el mensaje role="alert" del TextField. -->
+          <div style="display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 32px; padding: 20px 0 12px; border-top: 1px solid #DDE1DF;">
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+              <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Rama oficial</h3>
+              <p style="margin: 0; font-size: 14px; line-height: 20px; color: #565D63;">Cuál es la rama oficial del proyecto.</p>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0; max-width: 320px;">
+              <label style="font-size: 14px; font-weight: 600;">Rama por defecto</label>
+              <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #B8322A; border-radius: 4px; font-size: 14px; color: #17191C;"></div>
+              <span style="font-size: 13px; line-height: 1.4; color: #565D63;">La baseline oficial de drift se calcula sobre esta rama.</span>
+              <p role="alert" style="margin: 0; font-size: 14px; color: #B8322A;">Escribí el nombre de la rama.</p>
+            </div>
+          </div>
+
+          <!-- 3 · Carpetas por tipo de documento. Los ocho campos de `folders`, cada uno con su default visible.
+               Los inputs van en claro (superficie + regla) y el valor, que es una ruta, en mono. -->
+          <div style="display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 32px; padding: 20px 0 12px; border-top: 1px solid #DDE1DF;">
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+              <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Carpetas por tipo de documento</h3>
+              <p style="margin: 0; font-size: 14px; line-height: 20px; color: #565D63;">La carpeta de cada tipo dentro del proyecto.</p>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; min-width: 0;">
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Mercado (MRD)</label>
+                <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"><span class="id">docs/mrd</span></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Producto (PRD)</label>
+                <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"><span class="id">docs/prd</span></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Feature request (FR)</label>
+                <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"><span class="id">docs/fr</span></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Blueprint (SDD)</label>
+                <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"><span class="id">docs/sdd</span></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Decisión (ADR)</label>
+                <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"><span class="id">docs/adr</span></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Orden de trabajo (WO)</label>
+                <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"><span class="id">docs/work-orders</span></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Artefacto (ART)</label>
+                <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"><span class="id">docs/artifacts</span></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Feedback (FB)</label>
+                <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"><span class="id">docs/feedback</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4 · Archivos ignorados. Un patrón por línea; el control es multilínea y los patrones van en mono. -->
+          <div style="display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 32px; padding: 20px 0 12px; border-top: 1px solid #DDE1DF;">
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+              <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Archivos ignorados</h3>
+              <p style="margin: 0; font-size: 14px; line-height: 20px; color: #565D63;">Lo que el escáner saltea al buscar documentos.</p>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+              <label style="font-size: 14px; font-weight: 600;">Patrones ignorados</label>
+              <div style="min-height: 96px; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px;">
+                <span class="id" style="color: #17191C;">docs/**/borradores/**</span>
+                <span class="id" style="color: #17191C;">**/*.md.bak</span>
+              </div>
+              <span style="font-size: 13px; line-height: 1.4; color: #565D63;">Un patrón por línea. Se comparan como glob contra la ruta de cada archivo.</span>
+            </div>
+          </div>
+
+          <!-- 5 · Reglas de git. max_commits y enforce_refs_since son inputs; enforce_refs es la casilla. -->
+          <div style="display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 32px; padding: 20px 0 12px; border-top: 1px solid #DDE1DF;">
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+              <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Reglas de git</h3>
+              <p style="margin: 0; font-size: 14px; line-height: 20px; color: #565D63;">Qué se exige a los commits que tocan el proyecto.</p>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0;">
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Commits a mirar</label>
+                <div class="num" style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;">500</div>
+                <span style="font-size: 13px; line-height: 1.4; color: #565D63;">Cuántos commits hacia atrás mira el escaneo.</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Exigir el trailer desde</label>
+                <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;"></div>
+                <span style="font-size: 13px; line-height: 1.4; color: #565D63;">Un sha de 7 a 40 caracteres hexadecimales. Vacío = se exige desde siempre; con un sha, los commits anteriores quedan exentos.</span>
+              </div>
+              <div style="display: flex; align-items: flex-start; gap: 12px; min-width: 0; grid-column: 1 / -1;">
+                <span role="checkbox" aria-checked="true" style="flex: none; margin-top: 1px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; background: #17191C; border: 1px solid #17191C; border-radius: 2px;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+                </span>
+                <span style="font-size: 14px; line-height: 20px; color: #17191C;">Exigir el trailer <span class="id">Refs:</span> en cada commit que toca una ruta gobernada.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6 · Triaje automático. Los cuatro umbrales, cada uno con la frase de qué cambia al moverlo. -->
+          <div style="display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 32px; padding: 20px 0 12px; border-top: 1px solid #DDE1DF;">
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+              <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Triaje automático</h3>
+              <p style="margin: 0; font-size: 14px; line-height: 20px; color: #565D63;">Cuándo un feedback se enlaza solo a una feature.</p>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0;">
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Puntaje mínimo del candidato</label>
+                <div class="num" style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;">0.5</div>
+                <span style="font-size: 13px; line-height: 1.4; color: #565D63;">El mejor candidato tiene que llegar a este puntaje para enlazarse solo. Más alto = menos enlaces automáticos.</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Ventaja sobre el segundo</label>
+                <div class="num" style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;">1.05</div>
+                <span style="font-size: 13px; line-height: 1.4; color: #565D63;">Cuántas veces tiene que superar el primero al segundo. Más alto = sólo enlaza si hay un ganador claro.</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Candidatas a comparar</label>
+                <div class="num" style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;">5</div>
+                <span style="font-size: 13px; line-height: 1.4; color: #565D63;">Cuántas features se buscan por cada texto. Más alto = más opciones para elegir a mano.</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <label style="font-size: 14px; font-weight: 600;">Términos en común</label>
+                <div class="num" style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #17191C;">2</div>
+                <span style="font-size: 13px; line-height: 1.4; color: #565D63;">Cuántos términos del texto tiene que compartir el candidato para confirmar el enlace. Más alto = más exigente.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 7 · Lo que decide otro proceso. Sólo lectura y SIEMPRE con el motivo: un campo que no se puede editar
+               y no dice por qué es peor que no mostrarlo. La nota «No se edita acá» va dentro de la caja, como el
+               `note` de ReadOnlyField (el motivo, más largo, va en el hint debajo). -->
+          <div style="display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 32px; padding: 20px 0 12px; border-top: 1px solid #DDE1DF;">
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+              <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Lo que decide otro proceso</h3>
+              <p style="margin: 0; font-size: 14px; line-height: 20px; color: #565D63;">Se ve acá para entender el proyecto; no se edita desde el dashboard.</p>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0;">
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0; grid-column: 1 / -1;">
+                <span style="font-size: 14px; font-weight: 600;">Documentos exentos del baseline</span>
+                <div style="min-height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;"><span>Ninguno</span><span style="font-size: 12px; color: #565D63;">No se edita acá</span></div>
+                <span style="font-size: 13px; line-height: 1.4; color: #565D63;">Lo escribe el re-baseline de drift cuando exime un documento del baseline oficial.</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0; grid-column: 1 / -1;">
+                <span style="font-size: 14px; font-weight: 600;">Repositorio de GitHub</span>
+                <div style="min-height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;"><span class="id">centurionhq/prdmanager</span><span style="font-size: 12px; color: #565D63;">No se edita acá</span></div>
+                <span style="font-size: 13px; line-height: 1.4; color: #565D63;">Lo escribe la vinculación con GitHub (la app de GitHub), no el dashboard.</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <span style="font-size: 14px; font-weight: 600;">Id del repositorio</span>
+                <div style="min-height: 40px; display: flex; align-items: center; padding: 8px 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;"><span class="id">1187234567</span></div>
+                <span style="font-size: 13px; line-height: 1.4; color: #565D63;">Lo escribe la vinculación con GitHub.</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <span style="font-size: 14px; font-weight: 600;">Id del dueño en GitHub</span>
+                <div style="min-height: 40px; display: flex; align-items: center; padding: 8px 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;"><span class="id">98765432</span></div>
+                <span style="font-size: 13px; line-height: 1.4; color: #565D63;">Lo escribe la vinculación con GitHub.</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <span style="font-size: 14px; font-weight: 600;">Versión del algoritmo de hash</span>
+                <div class="num" style="min-height: 40px; display: flex; align-items: center; padding: 8px 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">1</div>
+                <span style="font-size: 13px; line-height: 1.4; color: #565D63;">Lo fija el pipeline al calcular el hash de cada documento.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Estado de guardado: el mismo role="status" en --senal-texto que AjustesGeneral.tsx ya muestra
+               junto a Guardar. El envío es un reemplazo total del objeto (`{ settings }`), igual que hoy. -->
+          <div style="display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #C9CFCD;">
+            <p role="status" style="margin: 0; font-size: 14px; color: #19703F;">Guardado.</p>
             <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Guardar</div>
           </div>
         </div>
