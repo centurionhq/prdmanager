@@ -19,6 +19,8 @@ export interface NodeView {
   body: string;
   tags: string[];
   source_path: string;
+  /** Readable copy `prdm sync` leaves in the checkout; derived on read, never persisted (SDD-074). */
+  mirrorPath: string;
   created_at: string | null;
   [prop: string]: unknown;
 }
@@ -72,6 +74,8 @@ export interface WorkOrderSummary {
   assignedTo: string | null;
   blueprints: string[];
   sourcePath: string;
+  /** Derived on read, never persisted; `sourcePath` stays the canonical published path (SDD-074). */
+  mirrorPath: string;
 }
 
 export type WorkOrderActorKind = 'agent' | 'dev' | 'unassigned';

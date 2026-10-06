@@ -52,7 +52,7 @@ const FOREST: TreeNode[] = [
 function nodeDetailFor(ref: string): NodeDetail {
   if (ref === 'FR-001') {
     return {
-      node: { id: 'FR-001', label: 'Feature', kind: 'FR', title: 'Persistencia de borradores', status: 'approved', body: '', tags: [], source_path: '', created_at: null },
+      node: { id: 'FR-001', label: 'Feature', kind: 'FR', title: 'Persistencia de borradores', status: 'approved', body: '', tags: [], source_path: '', mirrorPath: '.prdm/remote/docs/FR-001.md', created_at: null },
       links: [
         { type: 'ARCHITECTS', direction: 'in', ref: 'SDD-005', title: 'SDD-005', props: {} },
         { type: 'JUSTIFIED_BY', direction: 'out', ref: 'FB-004', title: 'FB-004', props: {} },
@@ -61,7 +61,7 @@ function nodeDetailFor(ref: string): NodeDetail {
   }
   if (ref === 'SDD-005') {
     return {
-      node: { id: 'SDD-005', label: 'Blueprint', kind: 'SDD', title: 'Diseño de persistencia', status: 'published', body: '', tags: [], source_path: '', created_at: null },
+      node: { id: 'SDD-005', label: 'Blueprint', kind: 'SDD', title: 'Diseño de persistencia', status: 'published', body: '', tags: [], source_path: '', mirrorPath: '.prdm/remote/docs/SDD-005.md', created_at: null },
       links: [
         { type: 'ARCHITECTS', direction: 'out', ref: 'FR-001', title: 'FR-001', props: {} },
         { type: 'IMPLEMENTS', direction: 'in', ref: 'WO-100', title: 'WO-100', props: {} },
@@ -69,7 +69,7 @@ function nodeDetailFor(ref: string): NodeDetail {
     };
   }
   return {
-    node: { id: ref, label: 'Feature', kind: 'MRD', title: 'Mercado: contexto de producto', status: 'approved', body: '', tags: [], source_path: '', created_at: null },
+    node: { id: ref, label: 'Feature', kind: 'MRD', title: 'Mercado: contexto de producto', status: 'approved', body: '', tags: [], source_path: '', mirrorPath: `.prdm/remote/docs/${ref}.md`, created_at: null },
     links: [],
   };
 }
@@ -159,7 +159,7 @@ const RAW_MIXED_FOREST: TreeNode[] = [
 ];
 
 function nodeDetailForMixed(ref: string): NodeDetail {
-  return { node: { id: ref, label: 'Feature', kind: ref.split('-')[0] ?? '', title: ref, status: 'approved', body: '', tags: [], source_path: '', created_at: null }, links: [] };
+  return { node: { id: ref, label: 'Feature', kind: ref.split('-')[0] ?? '', title: ref, status: 'approved', body: '', tags: [], source_path: '', mirrorPath: `.prdm/remote/docs/${ref}.md`, created_at: null }, links: [] };
 }
 
 function renderPage(id?: string, subject: Parameters<typeof makeProjectShellContext> = ['owner', 'admin']) {
@@ -432,7 +432,7 @@ describe('ProjectGraph (árbol de features)', () => {
     vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => {
       if (ref === 'WO-999') {
         return Promise.resolve({
-          node: { id: 'WO-999', label: 'WorkOrder', kind: 'WO', title: 'Orden suelta', status: 'pending', body: '', tags: [], source_path: '', created_at: null },
+          node: { id: 'WO-999', label: 'WorkOrder', kind: 'WO', title: 'Orden suelta', status: 'pending', body: '', tags: [], source_path: '', mirrorPath: '.prdm/remote/docs/WO-999.md', created_at: null },
           links: [],
         });
       }

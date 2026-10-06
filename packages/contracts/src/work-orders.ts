@@ -39,6 +39,7 @@ export const workOrderContextDtoSchema = z.object({
     status: z.string(),
     assignedTo: z.string().nullable(),
     sourcePath: z.string(),
+    mirrorPath: z.string(),
     body: z.string(),
     acceptanceCriteria: z.array(z.string()),
   }),
