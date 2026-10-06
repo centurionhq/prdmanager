@@ -89,3 +89,6 @@ export type { TooltipProps } from './Tooltip/Tooltip';
 
 export { FeatureTree } from './FeatureTree/FeatureTree';
 export type { FeatureTreeProps } from './FeatureTree/FeatureTree';
+
+export { NotFoundPanel } from './NotFoundPanel/NotFoundPanel';
+export type { NotFoundPanelAction, NotFoundPanelDestination, NotFoundPanelProps } from './NotFoundPanel/NotFoundPanel';

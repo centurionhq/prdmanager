@@ -24,7 +24,7 @@ import { DriftDashboard } from './routes/DriftDashboard.js';
 import { Entrada } from './routes/Entrada.js';
 import { InviteAccept } from './routes/InviteAccept.js';
 import { Login } from './routes/Login.js';
-import { NotFound } from './routes/NotFound.js';
+import { NotFound, OrgNotFound, ProjectNotFound } from './routes/NotFound.js';
 import { Ordenes } from './routes/Ordenes.js';
 import { OrgAjustesAuditoria } from './routes/OrgAjustesAuditoria.js';
 import { OrgMembersSettings } from './routes/OrgMembersSettings.js';
@@ -52,6 +52,7 @@ export const routes: RouteObject[] = [
       { index: true, element: <ProjectsDashboard /> },
       { path: 'ajustes/miembros', element: <OrgMembersSettings /> },
       { path: 'ajustes/auditoria', element: <OrgAjustesAuditoria /> },
+      { path: '*', element: <OrgNotFound /> },
     ],
   },
   {
@@ -83,6 +84,7 @@ export const routes: RouteObject[] = [
       },
       { path: 'settings', element: <Navigate to="../ajustes/general" replace /> },
       { path: 'graph', element: <Navigate to="../arbol" replace /> },
+      { path: '*', element: <ProjectNotFound /> },
     ],
   },
   { path: '*', element: <NotFound /> },
