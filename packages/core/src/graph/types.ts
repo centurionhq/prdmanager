@@ -136,6 +136,26 @@ export interface OrphanFeature {
   status: string;
 }
 
+/** `no_refs`: el commit no trae `Refs`; `dangling_refs`: trae `Refs` pero ninguna cierra la cadena hasta una Feature. */
+export type UntracedCommitGap = 'no_refs' | 'dangling_refs';
+
+export interface UntracedCommit {
+  sha: string;
+  subject: string;
+  author: string;
+  date: string;
+  files: string[];
+  gap: UntracedCommitGap;
+}
+
+/** `total`/`danglingRefs` son exactos; `items` va capado (`truncated` avisa si el grafo tiene más). */
+export interface UntracedCommits {
+  total: number;
+  danglingRefs: number;
+  truncated: boolean;
+  items: UntracedCommit[];
+}
+
 export interface MetricsRaw {
   governedTotal: number;
   governedSynced: number;
@@ -210,4 +230,5 @@ export interface GraphStore {
   queryWorkOrders(filter?: WorkOrderQueryFilter): Promise<WorkOrderPage>;
   workOrderContext(id: string): Promise<WorkOrderContextRaw | null>;
   metricsRaw(): Promise<MetricsRaw>;
+  untracedCommits(): Promise<UntracedCommits>;
 }

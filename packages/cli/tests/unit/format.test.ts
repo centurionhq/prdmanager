@@ -67,7 +67,7 @@ function metrics(overrides: Partial<SuccessMetrics> = {}): SuccessMetrics {
   return {
     agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, unmeasured: { total: 0, workOrders: [] } },
     systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
-    traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null },
+    traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
     pendingQueue: { total: 0, unassigned: 0, oldestDays: null, over7Days: 0 },
     ...overrides,
   };
@@ -152,5 +152,57 @@ describe('formatSearchHits', () => {
   test('renders each hit with its score', () => {
     const text = formatSearchHits([{ id: 'PRD-001', label: 'Feature', title: 'Graph Engine', status: 'approved', score: 1.5 }]);
     expect(text).toBe('PRD-001 <Feature> Graph Engine (approved) score=1.50');
+  });
+});
+
+describe('formatMetrics untraced commits', () => {
+  const commit = (n: number): SuccessMetrics['traceability']['untracedCommits']['items'][number] => ({
+    sha: `sha${String(n).padStart(3, '0')}`,
+    subject: `subject ${n}`,
+    author: 'dev',
+    date: '2026-01-01T00:00:00Z',
+    files: [],
+    gap: 'no_refs',
+  });
+  const withUntraced = (items: ReturnType<typeof commit>[], extra: { total?: number; danglingRefs?: number; truncated?: boolean } = {}) => {
+    const base = metrics();
+    return formatMetrics(
+      metrics({
+        traceability: {
+          ...base.traceability,
+          commitsTotal: 9,
+          commitsWithRefs: 5,
+          commitsTraced: 2,
+          untracedCommits: { total: items.length, danglingRefs: 3, truncated: false, items, ...extra },
+        },
+      }),
+    );
+  };
+
+  test('prints the exact header with the numbers and one row per commit', () => {
+    const text = withUntraced([commit(1), commit(2)]);
+    expect(text).toContain('  commits untraced: 2 (with refs 5, traced 2, dangling 3)');
+    expect(text).toContain('    sha001  subject 1');
+    expect(text).toContain('    sha002  subject 2');
+    expect(text).not.toContain('truncado');
+    expect(text).not.toContain('ninguno sin trazar');
+  });
+
+  test('caps at 20 rows and says it was truncated', () => {
+    const text = withUntraced(Array.from({ length: 25 }, (_, i) => commit(i + 1)), { total: 25 });
+    expect(text).toContain('    sha020  subject 20');
+    expect(text).not.toContain('sha021');
+    expect(text).toContain('    mostrando los primeros 20 de 25 (truncado)');
+  });
+
+  test('flags truncation when the graph has more than the items it returned', () => {
+    const text = withUntraced([commit(1)], { total: 300, truncated: true });
+    expect(text).toContain('mostrando los primeros 20 de 300 (truncado)');
+  });
+
+  test('prints the honest line when the list is empty', () => {
+    const text = withUntraced([], { total: 0, danglingRefs: 0 });
+    expect(text).toContain('  commits untraced: 0 (with refs 5, traced 2, dangling 0)');
+    expect(text).toContain('    untraced commits: 0 (ninguno sin trazar)');
   });
 });

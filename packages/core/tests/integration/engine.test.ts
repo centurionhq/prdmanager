@@ -189,7 +189,7 @@ describe('SDD-079 orphanFeatures', () => {
     expect(raw.featuresTotal).toBe(0);
     expect(raw.featuresTraced).toBe(0);
     expect(raw.orphanFeatures).toEqual([]);
-    expect(computeMetrics(raw).traceability.featurePercent).toBeNull();
+    expect(computeMetrics(raw, await store.untracedCommits()).traceability.featurePercent).toBeNull();
     expect(raw.featuresTraced + raw.orphanFeatures.length).toBe(raw.featuresTotal);
   });
 
@@ -198,7 +198,7 @@ describe('SDD-079 orphanFeatures', () => {
     expect(raw.featuresTotal).toBe(3);
     expect(raw.featuresTraced).toBe(0);
     expect(raw.orphanFeatures.map((f) => f.id)).toEqual(['BC-001', 'MRD-001', 'PRD-001']);
-    expect(computeMetrics(raw).traceability.featurePercent).toBe(0);
+    expect(computeMetrics(raw, await store.untracedCommits()).traceability.featurePercent).toBe(0);
     expect(raw.featuresTraced + raw.orphanFeatures.length).toBe(raw.featuresTotal);
   });
 

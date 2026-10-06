@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { computeMetrics, type GraphStore } from '@prdm/core';
+import { getMetrics, type GraphStore } from '@prdm/core';
 
 export interface MetricsRouteDeps {
   store: GraphStore;
@@ -7,5 +7,5 @@ export interface MetricsRouteDeps {
 
 /** `GET /api/metrics` (SDD-005 "Contrato HTTP"): the same three success-metric sections the MCP `get_metrics` tool reports. */
 export function registerMetricsRoute(app: FastifyInstance, deps: MetricsRouteDeps): void {
-  app.get('/api/metrics', async () => computeMetrics(await deps.store.metricsRaw()));
+  app.get('/api/metrics', async () => getMetrics(deps.store));
 }

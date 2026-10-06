@@ -221,6 +221,9 @@ describe('prdm-graph MCP tools', () => {
     expect(metrics).toHaveProperty('systemIntegrity');
     expect(metrics).toHaveProperty('traceability');
     expect(Array.isArray((metrics as { traceability: { orphanFeatures: unknown } }).traceability.orphanFeatures)).toBe(true);
+    const { untracedCommits } = (metrics as { traceability: { untracedCommits: { total: unknown; items: unknown } } }).traceability;
+    expect(Array.isArray(untracedCommits.items)).toBe(true);
+    expect(typeof untracedCommits.total).toBe('number');
   });
 
   test('errors come back as isError with a plain message and no stack trace', async () => {

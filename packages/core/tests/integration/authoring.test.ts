@@ -10,7 +10,7 @@ import { Engine } from '../../src/engine.js';
 import { sha256 } from '../../src/util/hash.js';
 import { graphStaleMarkerExists, writeJournalForTest } from '../../src/util/journal.js';
 import type { Neo4jGraphDatabase } from '../../src/graph/database.js';
-import type { GraphSnapshot, GraphStore, MetricsRaw, NodeDetail, SearchHit, Subgraph, WorkOrderContextRaw, WorkOrderPage, WorkOrderQueryFilter, WorkOrderSummary } from '../../src/graph/types.js';
+import type { GraphSnapshot, GraphStore, MetricsRaw, NodeDetail, SearchHit, Subgraph, UntracedCommits, WorkOrderContextRaw, WorkOrderPage, WorkOrderQueryFilter, WorkOrderSummary } from '../../src/graph/types.js';
 import type { NodeLabel } from '../../src/domain/schema.js';
 import { createFixtureRepo, makeTmpDir, openTestDb, removeDir, testConfig } from '@prdm/testkit';
 
@@ -166,6 +166,9 @@ class FlakyStore implements GraphStore {
   }
   metricsRaw(): Promise<MetricsRaw> {
     return this.inner.metricsRaw();
+  }
+  untracedCommits(): Promise<UntracedCommits> {
+    return this.inner.untracedCommits();
   }
 }
 
