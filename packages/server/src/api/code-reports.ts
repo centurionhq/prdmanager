@@ -202,7 +202,7 @@ export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCod
         const scannedDocs = await scannedDocsCache.get(pool, resolved.orgId, resolved.projectId, project.graphVersion);
         const baseline = await loadBaseline(pool, resolved.orgId, resolved.projectId);
 
-        const input = codeReportToDriftInput(report, scannedDocs, baseline);
+        const input = codeReportToDriftInput(report, scannedDocs, baseline, settings.lifecycle);
         const drift = detectDrift(input);
 
         const result: CodeReportResponse = {
