@@ -89,7 +89,10 @@
 
         <div style="display: flex; flex-direction: column; gap: 6px;">
           <label style="font-size: 14px; font-weight: 600;">Nombre</label>
-          <div style="height: 40px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px;">Ana Ríos</div>
+          <div style="height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #565D63;">
+            Ana Ríos
+            <span style="font-size: 12px;">No se puede cambiar</span>
+          </div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -115,8 +118,6 @@
           </div>
           <button type="button" style="height: 36px; padding: 0 12px; background: #FFFFFF; border: 1px solid #C9CFCD; border-radius: 2px; font-family: inherit; font-size: 14px; font-weight: 600; color: #17191C; cursor: pointer;">Activar</button>
         </div>
-
-        <button type="button" onClick="{{ onSave }}" style="align-self: flex-start; height: 40px; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; border: 0; border-radius: 2px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">Guardar</button>
       </section>
     </div>
   </main>
@@ -126,7 +127,7 @@
 <script data-dc-script data-props='{}'>
 class Component extends DCLogic {
   renderVals() {
-    return { onSave: () => {} };
+    return {};
   }
 }
 </script>
