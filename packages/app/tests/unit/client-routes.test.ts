@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as requestModule from '../../src/api/request.js';
 import {
   archiveWorkOrder,
+  batchWorkOrders,
   claimWorkOrder,
   completeWorkOrder,
   createDocument,
@@ -156,6 +157,39 @@ describe('archiveWorkOrder', () => {
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/work-orders/WO-001/archive', {
       method: 'POST',
       body: { reason: 'ya no aplica' },
+    });
+  });
+});
+
+describe('batchWorkOrders', () => {
+  it('POSTs the batch input and returns the per-item envelope as-is (no { result } unwrapping)', async () => {
+    const result = {
+      results: [
+        { id: 'WO-001', ok: true },
+        { id: 'WO-002', ok: false, error: 'la orden no está en un estado archivable' },
+      ],
+      archived: 1,
+      claimed: 0,
+    };
+    const spy = spyOnRequest().mockResolvedValue(result);
+
+    await expect(
+      batchWorkOrders('acme', 'factory', { action: 'archive', ids: ['WO-001', 'WO-002'], reason: 'ya no aplica' }),
+    ).resolves.toEqual(result);
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/work-orders/batch', {
+      method: 'POST',
+      body: { action: 'archive', ids: ['WO-001', 'WO-002'], reason: 'ya no aplica' },
+    });
+  });
+
+  it('POSTs a claim batch with the chosen assignee', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ results: [], archived: 0, claimed: 0 });
+
+    await batchWorkOrders('acme', 'factory', { action: 'claim', ids: ['WO-001'], assignee: 'agent:claude' });
+
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/work-orders/batch', {
+      method: 'POST',
+      body: { action: 'claim', ids: ['WO-001'], assignee: 'agent:claude' },
     });
   });
 });

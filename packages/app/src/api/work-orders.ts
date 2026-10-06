@@ -3,12 +3,16 @@
  * conectado al backend SaaS", WO-338): the context an agent/developer needs before picking up a work
  * order, plus claiming and completing it.
  */
-import type { ArchiveWorkOrderInput, ClaimWorkOrderInput, CompleteWorkOrderInput, WorkOrderContextDto } from '@prdm/contracts';
+import type { ArchiveWorkOrderInput, BatchWorkOrdersInput, ClaimWorkOrderInput, CompleteWorkOrderInput, WorkOrderContextDto } from '@prdm/contracts';
 import type { ArchiveResult, ClaimResult, CompleteResult } from '@prdm/core';
 import { request } from './request.js';
 
+function projectWorkOrdersBase(orgSlug: string, projectSlug: string): string {
+  return `/api/app/organizations/${encodeURIComponent(orgSlug)}/projects/${encodeURIComponent(projectSlug)}/work-orders`;
+}
+
 function workOrderBase(orgSlug: string, projectSlug: string, workOrderId: string): string {
-  return `/api/app/organizations/${encodeURIComponent(orgSlug)}/projects/${encodeURIComponent(projectSlug)}/work-orders/${encodeURIComponent(workOrderId)}`;
+  return `${projectWorkOrdersBase(orgSlug, projectSlug)}/${encodeURIComponent(workOrderId)}`;
 }
 
 export function getWorkOrderContext(orgSlug: string, projectSlug: string, workOrderId: string): Promise<WorkOrderContextDto> {
@@ -54,4 +58,37 @@ export function archiveWorkOrder(
     method: 'POST',
     body: input,
   }).then((r) => r.result);
+}
+
+/** One item's own outcome of the batch: a partial failure is data, never an exception. */
+export interface BatchWorkOrderItemResult {
+  readonly id: string;
+  readonly ok: boolean;
+  readonly error?: string;
+}
+
+/**
+ * Mirrors the server's own `{ results, archived, claimed }` answer (SDD-086 §D4, hand-synced with
+ * `packages/server/src/api/project-work-orders.ts`). Unlike claim/complete/archive, this route answers
+ * with the envelope *itself* rather than under `{ result }`.
+ */
+export interface BatchWorkOrdersResult {
+  readonly results: BatchWorkOrderItemResult[];
+  readonly archived: number;
+  readonly claimed: number;
+}
+
+/**
+ * `POST .../work-orders/batch` (SDD-086 §D4/D6): archives or claims 1..200 orders best-effort — a failing
+ * item comes back as `ok: false` with the server's own message and never aborts the rest.
+ */
+export function batchWorkOrders(
+  orgSlug: string,
+  projectSlug: string,
+  input: BatchWorkOrdersInput,
+): Promise<BatchWorkOrdersResult> {
+  return request<BatchWorkOrdersResult>(`${projectWorkOrdersBase(orgSlug, projectSlug)}/batch`, {
+    method: 'POST',
+    body: input,
+  });
 }
