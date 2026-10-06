@@ -211,6 +211,71 @@ describe('prdm CLI: work orders, feedback, artifacts', () => {
     expect(stdout.join('\n')).toContain('FR-001');
   });
 
+  async function addFeedback(text: string): Promise<string> {
+    const { code, stdout } = await run(['feedback', 'add', '--text', text, '--source', 'email', '--json']);
+    expect(code).toBe(0);
+    return (JSON.parse(stdout.join('\n')) as { id: string }).id;
+  }
+
+  test('feedback close records the reason and resolving references as JSON', async () => {
+    const id = await addFeedback('cierre de feedback con referencias uno');
+    const { code, stdout } = await run([
+      'feedback', 'close', id, '--reason', 'resuelto', '--resolved-by', 'WO-709', '--resolved-by', 'PR #1', '--by', 'agent:cli', '--json',
+    ]);
+    expect(code).toBe(0);
+    const result = JSON.parse(stdout.join('\n')) as { status: string; reason: string; resolvedBy: string[] };
+    expect(result.status).toBe('closed');
+    expect(result.reason).toBe('resuelto');
+    expect(result.resolvedBy).toEqual(['WO-709', 'PR #1']);
+  });
+
+  test('feedback close prints a human line with the references', async () => {
+    const id = await addFeedback('cierre de feedback con salida humana dos');
+    const { code, stdout } = await run(['feedback', 'close', id, '--reason', 'ok', '--resolved-by', 'WO-709', '--by', 'agent:cli']);
+    expect(code).toBe(0);
+    expect(stdout.join('\n')).toContain(`${id}: closed`);
+    expect(stdout.join('\n')).toContain('resolved by WO-709');
+  });
+
+  test('feedback close rejects an already terminal feedback with the valid-path message', async () => {
+    const id = await addFeedback('cierre repetido de feedback tres');
+    const args = ['feedback', 'close', id, '--reason', 'resuelto', '--by', 'agent:cli'];
+    expect((await run(args)).code).toBe(0);
+    const { code, stderr } = await run(args);
+    expect(code).not.toBe(0);
+    expect(stderr.join('\n')).toContain('only new or triaged feedback can be closed');
+  });
+
+  test('feedback close requires --reason', async () => {
+    const id = await addFeedback('cierre sin motivo de feedback cuatro');
+    const { code } = await run(['feedback', 'close', id, '--by', 'agent:cli']);
+    expect(code).not.toBe(0);
+  });
+
+  test('feedback close requires an actor', async () => {
+    const id = await addFeedback('cierre sin actor de feedback cinco');
+    const { code, stderr } = await run(['feedback', 'close', id, '--reason', 'x']);
+    expect(code).not.toBe(0);
+    expect(stderr.join('\n')).toContain('an actor is required');
+  });
+
+  test('feedback dismiss records the reason as JSON', async () => {
+    const id = await addFeedback('descarte de feedback seis');
+    const { code, stdout } = await run(['feedback', 'dismiss', id, '--reason', 'no aplica', '--json']);
+    expect(code).toBe(0);
+    const result = JSON.parse(stdout.join('\n')) as { status: string; reason: string };
+    expect(result.status).toBe('dismissed');
+    expect(result.reason).toBe('no aplica');
+  });
+
+  test('feedback dismiss rejects an already dismissed feedback', async () => {
+    const id = await addFeedback('descarte repetido de feedback siete');
+    expect((await run(['feedback', 'dismiss', id])).code).toBe(0);
+    const { code, stderr } = await run(['feedback', 'dismiss', id]);
+    expect(code).not.toBe(0);
+    expect(stderr.join('\n')).toContain('only new or triaged feedback can be dismissed');
+  });
+
   test('ingest artifact normalizes a vtt transcript and links it via triage', async () => {
     writeFiles(root, {
       'inbox/call.vtt':

@@ -238,7 +238,7 @@ describe('feedback title, dismiss, duplicate and batch (SDD-065)', () => {
     await dismissFeedback(engine, id, { reason: 'ruido repetido' });
     expect(await frontmatterOf(id)).toMatchObject({ status: 'dismissed', dismiss_reason: 'ruido repetido' });
     expect((await store.getNode(id))?.node).toMatchObject({ status: 'dismissed' });
-    await expect(dismissFeedback(engine, id)).rejects.toThrow(/only new feedback can be dismissed/);
+    await expect(dismissFeedback(engine, id)).rejects.toThrow(/only new or triaged feedback can be dismissed/);
   });
 
   test('markDuplicate persists duplicate_of and rejects an unknown target', async () => {
@@ -250,11 +250,12 @@ describe('feedback title, dismiss, duplicate and batch (SDD-065)', () => {
     await expect(markDuplicate(engine, c, { duplicateOf: 'FB-404' })).rejects.toThrow(/not found/);
   });
 
-  test('triageFeedbackBatch reports per item when one feedback is already triaged', async () => {
+  test('triageFeedbackBatch reports per item and dismisses a triaged feedback', async () => {
     const [a, b, c] = [await fresh('lote de prueba alfa'), await fresh('lote de prueba beta'), await fresh('lote de prueba gamma')] as [string, string, string];
     await triageFeedback(engine, b, { root: true });
-    const result = await triageFeedbackBatch(engine, { action: 'dismiss', ids: [a, b, c], reason: 'lote' });
-    expect(result).toMatchObject({ action: 'dismiss', ok: 2, failed: 1 });
-    expect(result.results.map((r) => [r.id, r.ok])).toEqual([[a, true], [b, false], [c, true]]);
+    const result = await triageFeedbackBatch(engine, { action: 'dismiss', ids: [a, b, c, 'FB-404'], reason: 'lote' });
+    expect(result).toMatchObject({ action: 'dismiss', ok: 3, failed: 1 });
+    expect(result.results.map((r) => [r.id, r.ok])).toEqual([[a, true], [b, true], [c, true], ['FB-404', false]]);
+    expect(await frontmatterOf(b)).toMatchObject({ status: 'dismissed' });
   });
 });

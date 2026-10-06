@@ -5,7 +5,7 @@ import type { EngineOps, ProjectEngine, ProjectSettings, RecoverResult, RefreshR
 import type { FieldValue } from '../../src/parser/frontmatter-edit.js';
 import type { ScanResult } from '../../src/parser/scan.js';
 import type { GraphStore } from '../../src/graph/types.js';
-import { dismissFeedback, markDuplicate, triageFeedback, triageFeedbackBatch } from '../../src/feedback/link.js';
+import { closeFeedback, dismissFeedback, markDuplicate, triageFeedback, triageFeedbackBatch } from '../../src/feedback/link.js';
 
 const prd = (): ParsedDoc => doc('id: PRD-001\ntype: PRD\ntitle: Product');
 const fb = (status = 'new'): ParsedDoc => doc(`id: FB-001\ntype: FB\ntitle: Feedback\nstatus: ${status}`);
@@ -148,8 +148,17 @@ describe('dismissFeedback', () => {
     expect(result.applied).toBe('deferred');
   });
 
-  test('rejects an already-triaged, missing or non-feedback target', async () => {
-    await expect(dismissFeedback(new FakeEngine([fb('triaged')]), 'FB-001')).rejects.toThrow(/only new feedback can be dismissed/);
+  test('dismisses a triaged feedback', async () => {
+    const engine = new FakeEngine([fb('triaged')]);
+    await dismissFeedback(engine, 'FB-001');
+    expect(statusOf(engine, 'FB-001')).toMatchObject({ status: 'dismissed' });
+  });
+
+  test.each(['closed', 'dismissed', 'duplicate'])('rejects a %s feedback', async (status) => {
+    await expect(dismissFeedback(new FakeEngine([fb(status)]), 'FB-001')).rejects.toThrow(/only new or triaged feedback can be dismissed/);
+  });
+
+  test('rejects a missing or non-feedback target', async () => {
     await expect(dismissFeedback(new FakeEngine([prd()]), 'FB-404')).rejects.toThrow(/not found/);
     await expect(dismissFeedback(new FakeEngine([prd()]), 'PRD-001')).rejects.toThrow(/is not Feedback/);
   });
@@ -170,11 +179,67 @@ describe('markDuplicate', () => {
     expect(statusOf(engine, 'FB-001').duplicate_of).toBe('FB-002');
   });
 
-  test('rejects bad targets, self-duplicates and already-triaged feedback', async () => {
+  test('marks a triaged feedback as a duplicate', async () => {
+    const engine = new FakeEngine([fb('triaged'), fb2()]);
+    await markDuplicate(engine, 'FB-001', { duplicateOf: 'FB-002' });
+    expect(statusOf(engine, 'FB-001')).toMatchObject({ status: 'duplicate', duplicate_of: 'FB-002' });
+  });
+
+  test.each(['closed', 'dismissed', 'duplicate'])('rejects a %s feedback', async (status) => {
+    await expect(markDuplicate(new FakeEngine([fb(status), fb2()]), 'FB-001', { duplicateOf: 'FB-002' })).rejects.toThrow(
+      /only new or triaged feedback can be marked as duplicate/,
+    );
+  });
+
+  test('rejects bad targets and self-duplicates', async () => {
     await expect(markDuplicate(new FakeEngine([fb()]), 'FB-001', { duplicateOf: 'FB-404' })).rejects.toThrow(/not found/);
     await expect(markDuplicate(new FakeEngine([fb(), prd()]), 'FB-001', { duplicateOf: 'PRD-001' })).rejects.toThrow(/is not Feedback/);
     await expect(markDuplicate(new FakeEngine([fb()]), 'FB-001', { duplicateOf: 'FB-001' })).rejects.toThrow(/duplicate of itself/);
-    await expect(markDuplicate(new FakeEngine([fb('triaged'), fb2()]), 'FB-001', { duplicateOf: 'FB-002' })).rejects.toThrow(/only new feedback can be marked as duplicate/);
+  });
+});
+
+describe('closeFeedback', () => {
+  const now = new Date('2026-01-02T03:04:05.000Z');
+
+  test('closes a triaged feedback with a reason and references', async () => {
+    const engine = new FakeEngine([fb('triaged')]);
+    const result = await closeFeedback(engine, 'FB-001', 'agent:x', { reason: 'entregado', resolvedBy: ['WO-707', 'PR #66'], now });
+    expect(result).toEqual({ id: 'FB-001', status: 'closed', reason: 'entregado', resolvedBy: ['WO-707', 'PR #66'], closedAt: now.toISOString(), applied: 'immediate' });
+    expect(statusOf(engine, 'FB-001')).toMatchObject({ status: 'closed', closed_by: 'agent:x', close_reason: 'entregado' });
+  });
+
+  test('closes a new feedback without reason or references and writes neither field', async () => {
+    const engine = new FakeEngine([fb()]);
+    const result = await closeFeedback(engine, 'FB-001', 'agent:x', { now });
+    expect(result).toMatchObject({ reason: null, resolvedBy: [], status: 'closed' });
+    expect(statusOf(engine, 'FB-001')).not.toHaveProperty('close_reason');
+    expect(statusOf(engine, 'FB-001')).not.toHaveProperty('resolved_by');
+  });
+
+  test.each(['closed', 'dismissed', 'duplicate'])('rejects a %s feedback naming the valid path', async (status) => {
+    await expect(closeFeedback(new FakeEngine([fb(status)]), 'FB-001', 'agent:x')).rejects.toThrow(/only new or triaged feedback can be closed/);
+  });
+
+  test('rejects an invalid actor, a missing id and a non-feedback target', async () => {
+    await expect(closeFeedback(new FakeEngine([fb()]), 'FB-001', 'nope')).rejects.toThrow(/invalid actor/);
+    await expect(closeFeedback(new FakeEngine([prd()]), 'FB-404', 'agent:x')).rejects.toThrow(/not found/);
+    await expect(closeFeedback(new FakeEngine([prd()]), 'PRD-001', 'agent:x')).rejects.toThrow(/is not Feedback/);
+  });
+
+  test('closing fields do not change the content hash or the label', () => {
+    const closed = doc(
+      'id: FB-001\ntype: FB\ntitle: Feedback\nstatus: closed\nclosed_at: 2026-01-02T03:04:05.000Z\nclosed_by: agent:x\nclose_reason: entregado\nresolved_by: [WO-707]',
+    );
+    const open = fb();
+    expect(closed.node.contentHash).toBe(open.node.contentHash);
+    expect(closed.node.label).toBe('Feedback');
+    for (const key of ['close_reason', 'closed_at', 'closed_by', 'resolved_by']) expect(open.frontmatter).not.toHaveProperty(key);
+  });
+
+  test('reports applied: deferred for a collab-origin document', async () => {
+    const engine = new FakeEngine([fb('triaged')], new Set(['FB-001']));
+    const result = await closeFeedback(engine, 'FB-001', 'agent:x', { now });
+    expect(result.applied).toBe('deferred');
   });
 });
 

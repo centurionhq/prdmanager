@@ -183,6 +183,12 @@ export const feedbackSchema = base.extend({
   duplicate_of: docId.optional(),
   /** SDD-065 D5: free-form reason recorded when a feedback is dismissed. Optional, no default. */
   dismiss_reason: z.string().max(2000).optional(),
+  /** SDD-092: lifecycle-written when a feedback is closed (`closeFeedback`). All optional, no default (hash-neutral). */
+  close_reason: z.string().max(2000).optional(),
+  /** Free references (`WO-xxx`, `PR #nn`, a sha) — deliberately not `SHA_PATTERN`: a FB can close by a PR or a decision. */
+  resolved_by: z.array(z.string().min(1).max(300)).max(20).optional(),
+  closed_at: optionalTimestamp,
+  closed_by: z.string().regex(ACTOR_PATTERN, 'closed_by must look like agent:name or dev:name').optional(),
 });
 
 export const frontmatterSchema = z.preprocess(

@@ -10,8 +10,11 @@ import { z } from 'zod';
 const DOC_ID = z.string().regex(/^(MRD|PRD|FR|BC|SDD|ADR|WO|ART|FB)-\d{3,9}$/, 'invalid document id (expected e.g. PRD-001)');
 
 /** Documentary only (SDD-065 D5/D7): `inboxItemSchema.status` stays a free string. */
-export const FEEDBACK_STATUSES = ['new', 'triaged', 'dismissed', 'duplicate'] as const;
+export const FEEDBACK_STATUSES = ['new', 'triaged', 'closed', 'dismissed', 'duplicate'] as const;
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
+
+/** SDD-092: cap on the free-form references (`WO-xxx`, `PR #nn`, a sha) a closed Feedback can record. */
+export const MAX_CLOSE_RESOLVED_BY = 20;
 
 export const MAX_INBOX_LIMIT = 200;
 export const DEFAULT_INBOX_LIMIT = 25;
@@ -49,6 +52,12 @@ export type InboxQueryDto = z.infer<typeof inboxQuerySchema>;
 
 export const dismissFeedbackInputSchema = z.object({ reason: z.string().max(2000).optional() });
 export type DismissFeedbackInputDto = z.infer<typeof dismissFeedbackInputSchema>;
+
+export const closeFeedbackInputSchema = z.object({
+  reason: z.string().max(2000).optional(),
+  resolvedBy: z.array(z.string().min(1).max(300)).max(MAX_CLOSE_RESOLVED_BY).optional(),
+});
+export type CloseFeedbackInputDto = z.infer<typeof closeFeedbackInputSchema>;
 
 export const markDuplicateInputSchema = z.object({ duplicateOf: DOC_ID });
 export type MarkDuplicateInputDto = z.infer<typeof markDuplicateInputSchema>;

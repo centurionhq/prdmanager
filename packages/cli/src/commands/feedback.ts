@@ -1,6 +1,16 @@
 import { stat, readFile } from 'node:fs/promises';
 import type { Command } from 'commander';
-import { createFeatureRequest, submitFeedback, triageText, type SubmitFeedbackResult, type TriageResult } from '@prdm/core';
+import { InvalidArgumentError } from 'commander';
+import {
+  ACTOR_PATTERN,
+  closeFeedback,
+  createFeatureRequest,
+  dismissFeedback,
+  submitFeedback,
+  triageText,
+  type SubmitFeedbackResult,
+  type TriageResult,
+} from '@prdm/core';
 import { formatSearchHits } from '../format.js';
 import { CliError, messageOf } from '../errors.js';
 import { withContext, type CliDeps } from '../program.js';
@@ -73,6 +83,55 @@ async function runTriage(deps: CliDeps, options: { text: string; json?: boolean 
   });
 }
 
+function parseActor(value: string): string {
+  if (!ACTOR_PATTERN.test(value)) throw new InvalidArgumentError('actor must look like agent:name or dev:name');
+  return value;
+}
+
+function resolveActor(as: string | undefined): string {
+  const actor = as ?? process.env.PRDM_ACTOR;
+  if (!actor) throw new CliError('an actor is required: pass --by or set PRDM_ACTOR');
+  if (!ACTOR_PATTERN.test(actor)) throw new CliError(`invalid PRDM_ACTOR: ${actor} (expected agent:name or dev:name)`);
+  return actor;
+}
+
+function collectRef(value: string, previous: string[]): string[] {
+  return [...previous, value];
+}
+
+interface CloseOptions {
+  reason: string;
+  resolvedBy: string[];
+  by?: string;
+  json?: boolean;
+}
+
+async function runClose(deps: CliDeps, id: string, options: CloseOptions): Promise<void> {
+  assertLocalMutationAllowed(deps.root, 'feedback close');
+  const by = resolveActor(options.by);
+  await withContext(deps, async (ctx) => {
+    const result = await closeFeedback(ctx.engine, id, by, { reason: options.reason, resolvedBy: options.resolvedBy });
+    if (options.json) {
+      deps.stdout(JSON.stringify(result, null, 2));
+      return;
+    }
+    const refs = result.resolvedBy.length > 0 ? ` (resolved by ${result.resolvedBy.join(', ')})` : '';
+    deps.stdout(`${result.id}: closed at ${result.closedAt} by ${by}${refs}`);
+  });
+}
+
+async function runDismiss(deps: CliDeps, id: string, options: { reason?: string; json?: boolean }): Promise<void> {
+  assertLocalMutationAllowed(deps.root, 'feedback dismiss');
+  await withContext(deps, async (ctx) => {
+    const result = await dismissFeedback(ctx.engine, id, { reason: options.reason });
+    if (options.json) {
+      deps.stdout(JSON.stringify(result, null, 2));
+      return;
+    }
+    deps.stdout(`${result.id}: dismissed${result.reason ? ` (${result.reason})` : ''}`);
+  });
+}
+
 interface FrCreateOptions {
   title: string;
   parent: string;
@@ -114,6 +173,24 @@ export function register(program: Command, deps: CliDeps): void {
     .requiredOption('--text <text>', 'text to triage')
     .option('--json', 'print the result as JSON')
     .action((options: { text: string; json?: boolean }) => runTriage(deps, options));
+
+  feedback
+    .command('close')
+    .description('close a new or triaged feedback as resolved')
+    .argument('<id>', 'feedback id')
+    .requiredOption('--reason <text>', 'why the feedback is closed')
+    .option('--resolved-by <ref>', 'resolving reference (WO, PR, ...); repeatable', collectRef, [])
+    .option('--by <actor>', 'actor closing it (agent:name or dev:name); defaults to $PRDM_ACTOR', parseActor)
+    .option('--json', 'print the result as JSON')
+    .action((id: string, options: CloseOptions) => runClose(deps, id, options));
+
+  feedback
+    .command('dismiss')
+    .description('dismiss a new or triaged feedback')
+    .argument('<id>', 'feedback id')
+    .option('--reason <text>', 'why the feedback is dismissed')
+    .option('--json', 'print the result as JSON')
+    .action((id: string, options: { reason?: string; json?: boolean }) => runDismiss(deps, id, options));
 
   const fr = program.command('fr').description('manage feature requests');
 

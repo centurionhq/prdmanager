@@ -12,6 +12,7 @@ import {
   paginate,
   parseEntradaQuery,
   sortInbox,
+  statusLabel,
   toEntradaSearchParams,
   type EntradaQuery,
 } from '../../src/routes/entrada/entrada-filters.js';
@@ -260,5 +261,26 @@ describe('formatReceivedDate', () => {
   it('passes an unrecognized value through unchanged', () => {
     expect(formatReceivedDate('sin fecha')).toBe('sin fecha');
     expect(formatReceivedDate('')).toBe('');
+  });
+});
+
+describe('estado «closed» (SDD-092 D7)', () => {
+  it('reads closed as a valid estado and round-trips it through the URL', () => {
+    expect(parseEntradaQuery(new URLSearchParams({ estado: 'closed' })).estado).toBe('closed');
+    expect(toEntradaSearchParams(query({ estado: 'closed' })).get('estado')).toBe('closed');
+  });
+
+  it('filters the inbox down to the closed items', () => {
+    const items = [item({ id: 'FB-001', status: 'closed' }), item({ id: 'FB-002', status: 'dismissed' })];
+    expect(filterInbox(items, query({ estado: 'closed' })).map((i) => i.id)).toEqual(['FB-001']);
+  });
+
+  it('labels closed as «Cerrado» and keeps passing the unknown values through', () => {
+    expect(statusLabel('closed')).toBe('Cerrado');
+    expect(statusLabel('new')).toBe('Sin triar');
+    expect(statusLabel('triaged')).toBe('Triado');
+    expect(statusLabel('dismissed')).toBe('Descartado');
+    expect(statusLabel('duplicate')).toBe('Duplicado');
+    expect(statusLabel('archived')).toBe('archived');
   });
 });
