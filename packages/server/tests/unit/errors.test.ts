@@ -31,6 +31,7 @@ function buildTestApp() {
   app.get('/api/rate-limited', async () => {
     throw new RateLimitedError();
   });
+  app.post('/api/small-body', { bodyLimit: 16 }, async () => ({ ok: true }));
   app.get('/api/ok', async () => ({ ok: true }));
   setErrorHandler(app);
   setNotFoundHandler(app);
@@ -50,6 +51,16 @@ describe('setErrorHandler', () => {
     const res = await app.inject({ method: 'GET', url });
     expect(res.statusCode).toBe(status);
     expect(res.json()).toEqual({ error: { code, message } });
+    await app.close();
+  });
+
+  test('maps a body over the route bodyLimit to 413 payload_too_large, not a 500', async () => {
+    const app = buildTestApp();
+    const res = await app.inject({ method: 'POST', url: '/api/small-body', payload: { pad: 'x'.repeat(64) } });
+    expect(res.statusCode).toBe(413);
+    expect(res.json()).toEqual({
+      error: { code: 'payload_too_large', message: 'request body exceeds the allowed limit for this endpoint' },
+    });
     await app.close();
   });
 

@@ -12,6 +12,7 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
   not_found: 404,
   conflict: 409,
   rate_limited: 429,
+  payload_too_large: 413,
   internal_error: 500,
 };
 
@@ -80,6 +81,12 @@ function isCsrfError(err: unknown): boolean {
   return typeof err === 'object' && err !== null && 'code' in err && typeof (err as { code: unknown }).code === 'string' && (err as { code: string }).code.startsWith('FST_CSRF_');
 }
 
+/** Fastify's built-in `FST_ERR_CTP_BODY_TOO_LARGE` (a route's `bodyLimit` was exceeded) — recognized by
+ * code, not `instanceof`, same as `isCsrfError`: the core doesn't export the error class. */
+function isBodyTooLargeError(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === 'FST_ERR_CTP_BODY_TOO_LARGE';
+}
+
 /**
  * Single central error handler (SDD-006 §Arquitectura): any `HttpError` subclass maps to its own status
  * and message; anything else is logged in full server-side and reported to the client as a fixed
@@ -94,6 +101,10 @@ export function setErrorHandler(app: FastifyInstance): void {
     }
     if (isCsrfError(err)) {
       sendError(reply, 'forbidden', 'invalid csrf token');
+      return;
+    }
+    if (isBodyTooLargeError(err)) {
+      sendError(reply, 'payload_too_large', 'request body exceeds the allowed limit for this endpoint');
       return;
     }
     request.log.error({ err }, 'unhandled error in packages/server');

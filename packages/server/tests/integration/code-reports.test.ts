@@ -3,6 +3,7 @@
  * `(project_id, token_id, Idempotency-Key)`, preview-by-default, and a real-concurrency front-running
  * test proving exactly one request ever writes.
  */
+import { MAX_CODE_REPORT_BODY_BYTES } from '@prdm/contracts';
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, openTestPg, truncateAll, type PgTestDb } from '@prdm/testkit';
 import type { Pool } from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
@@ -87,6 +88,51 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports (WO-180)', () => {
     expect(body.mode).toBe('preview');
     expect(body.headSha).toBe('a'.repeat(40));
     expect(Array.isArray(body.issues)).toBe(true);
+
+    await app.close();
+  });
+
+  test('accepts a large but valid report above the old 2 MiB limit (WO-624)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { project, secret } = await seedOwnerAndCiToken(app);
+
+    const governed = [1, 2, 3].map((n) => ({
+      blueprintId: `SDD-${String(n).padStart(3, '0')}`,
+      refs: Array.from({ length: 1000 }, (_, i) => ({
+        key: `${i.toString().padStart(6, '0')}${'k'.repeat(400)}`,
+        path: `${'p'.repeat(900)}/${i}`,
+        symbol: null,
+        hash: null,
+      })),
+    }));
+    const payload = baseReport({ governed });
+    const bytes = Buffer.byteLength(JSON.stringify(payload));
+    expect(bytes).toBeGreaterThan(2 * 1024 * 1024);
+    expect(bytes).toBeLessThanOrEqual(MAX_CODE_REPORT_BODY_BYTES);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'key-large' },
+      payload,
+    });
+    expect(res.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  test('rejects a body above MAX_CODE_REPORT_BODY_BYTES with 413 payload_too_large (WO-624)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { project, secret } = await seedOwnerAndCiToken(app);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'key-huge' },
+      payload: { pad: 'x'.repeat(MAX_CODE_REPORT_BODY_BYTES) },
+    });
+    expect(res.statusCode).toBe(413);
+    expect(res.json().error.code).toBe('payload_too_large');
 
     await app.close();
   });
