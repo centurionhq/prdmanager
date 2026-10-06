@@ -12,7 +12,7 @@ import { buildKpis } from '../../../src/features/planta/planta-overview-data';
  * WO-669: the commit KPIs show n/total and open a drawer with the untraced list.
  */
 const METRICS_FIXTURE: Metrics = {
-  agentHumanEfficiency: { completedWorkOrders: 10, measuredWorkOrders: 10, avgResolutionHours: 0.1, medianResolutionHours: 0.083 },
+  agentHumanEfficiency: { completedWorkOrders: 10, measuredWorkOrders: 10, avgResolutionHours: 0.1, medianResolutionHours: 0.083, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 100, governedSynced: 99, syncedPercent: 99.6 },
   traceability: {
     featuresTotal: 4,
@@ -103,5 +103,54 @@ describe('PlantaKpiStrip', () => {
     const withRefs = await screen.findByRole('dialog');
     expect(within(withRefs).queryByText('ref colgante')).toBeNull();
     expect(within(withRefs).getByText('Se muestran los primeros 4 de 84.')).toBeTruthy();
+  });
+
+  it('shows the scoped error with its own retry, and never the page copy (SDD-085 D2)', async () => {
+    let retries = 0;
+    render(<PlantaKpiStrip estado="error" onRetry={() => (retries += 1)} />);
+
+    const strip = screen.getByRole('region', { name: 'Indicadores de la planta' });
+    expect(within(strip).getByText('No pudimos cargar los indicadores')).toBeTruthy();
+    expect(screen.queryByText(/no pudimos cargar la planta/i)).toBeNull();
+    await userEvent.click(within(strip).getByRole('button', { name: 'Reintentar' }));
+    expect(retries).toBe(1);
+  });
+
+  it('collapses into one line with a link to connect while awaiting the first report (SDD-085 D3)', () => {
+    render(<PlantaKpiStrip estado="primer_reporte" />);
+
+    expect(screen.getAllByText('Todavía no hay reporte de CI: los indicadores llegan con el primero')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Conectar mi entorno' })).toBeTruthy();
+    for (const label of EXPECTED_LABELS) expect(screen.queryByText(label)).toBeNull();
+  });
+
+  it('draws five skeleton cells while loading, with no labels or values', () => {
+    render(<PlantaKpiStrip estado="cargando" />);
+
+    const strip = screen.getByRole('region', { name: 'Indicadores de la planta' });
+    expect(strip.children).toHaveLength(5);
+    expect(strip.textContent).toBe('');
+  });
+
+  it('says how many orders have no measurement, with a closed details listing one row each (WO-672)', async () => {
+    render(<PlantaKpiStrip />);
+
+    expect(screen.getByText('4 de 486 órdenes sin medición')).toBeTruthy();
+    const summary = screen.getByText('Ver las 4 órdenes');
+    const details = summary.closest('details')!;
+    expect(details.open).toBe(false);
+    await userEvent.click(summary);
+    const list = within(details).getByRole('list', { name: 'Órdenes sin medición' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(4);
+    for (const copy of ['sin fecha de reclamo', 'sin fecha de cierre', 'fecha inválida', 'cierre anterior al reclamo']) {
+      expect(within(list).getByText(copy)).toBeTruthy();
+    }
+    expect(within(list).getAllByText('reclamo — · cierre —')).toHaveLength(2);
+  });
+
+  it('adds no note when nothing is unmeasured or the field is missing', () => {
+    expect(buildKpis({ ...METRICS_FIXTURE })[0]!.note).toBeUndefined();
+    const { unmeasured: _omitted, ...legacy } = METRICS_FIXTURE.agentHumanEfficiency;
+    expect(buildKpis({ ...METRICS_FIXTURE, agentHumanEfficiency: legacy as Metrics['agentHumanEfficiency'] })[0]!.note).toBeUndefined();
   });
 });

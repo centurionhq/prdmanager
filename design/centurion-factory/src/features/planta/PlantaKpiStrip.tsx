@@ -1,6 +1,7 @@
 import { useId, useState, type ReactElement } from 'react';
 import { Drawer } from '../../components/Drawer/Drawer';
-import { buildKpis, type PlantaKpi, type PlantaKpiDetail } from './planta-overview-data';
+import { ErrorState } from '../../components/ErrorState/ErrorState';
+import { buildKpis, type PlantaKpi, type PlantaKpiDetail, type PlantaKpiNote } from './planta-overview-data';
 import styles from './PlantaKpiStrip.module.css';
 
 const COMMITS_DRAWER_WIDTH = 640;
@@ -74,9 +75,79 @@ function CommitsKpi({ kpi, detail }: { readonly kpi: PlantaKpi; readonly detail:
   );
 }
 
+/** WO-672 (SDD-081 D7): how many completed orders the median leaves out, with the list behind a details. */
+function UnmeasuredNote({ note }: { readonly note: PlantaKpiNote }): ReactElement {
+  return (
+    <>
+      <span className={styles.label}>{note.context}</span>
+      <details className={styles.unmeasuredDetails}>
+        <summary className={styles.unmeasuredSummary}>{note.summary}</summary>
+        <ul className={styles.unmeasuredList} aria-label="Órdenes sin medición">
+          {note.rows.map((row) => (
+            <li key={row.id} className={styles.unmeasuredRow}>
+              <a className={`id ${styles.unmeasuredId}`} href="#">
+                {row.id}
+              </a>
+              <span>{row.reason}</span>
+              <span className={styles.unmeasuredDates}>{row.dates}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </>
+  );
+}
+
+/** SDD-085: the strip's own states, mirrored from the app (`routes/Planta.tsx`). */
+export type PlantaKpiStripState = 'listo' | 'cargando' | 'error' | 'primer_reporte';
+
+export interface PlantaKpiStripProps {
+  readonly estado?: PlantaKpiStripState;
+  readonly onRetry?: () => void;
+}
+
+const NOOP = (): void => undefined;
+const SKELETON_CELLS = [0, 1, 2, 3, 4] as const;
+
 /** The 5-up KPI strip separated by rules, from canvas/Main.dc.html. */
-export function PlantaKpiStrip(): ReactElement {
+export function PlantaKpiStrip({ estado = 'listo', onRetry = NOOP }: PlantaKpiStripProps = {}): ReactElement {
   const kpis = buildKpis();
+
+  if (estado === 'error') {
+    return (
+      <section className={styles.strip} aria-label="Indicadores de la planta">
+        <div className={styles.plate}>
+          <ErrorState title="No pudimos cargar los indicadores" body="El servidor no respondió. La línea y las órdenes siguen en pie." onRetry={onRetry} />
+        </div>
+      </section>
+    );
+  }
+
+  if (estado === 'primer_reporte') {
+    return (
+      <section className={styles.strip} aria-label="Indicadores de la planta">
+        <div className={styles.plate}>
+          <p className={styles.firstReport}>Todavía no hay reporte de CI: los indicadores llegan con el primero</p>
+          <a className={styles.firstReportLink} href="#">
+            Conectar mi entorno
+          </a>
+        </div>
+      </section>
+    );
+  }
+
+  if (estado === 'cargando') {
+    return (
+      <section className={styles.strip} aria-label="Indicadores de la planta" aria-busy="true">
+        {SKELETON_CELLS.map((cell) => (
+          <div key={cell} className={styles.item} aria-hidden="true">
+            <span className={styles.skeletonBar} />
+            <span className={`${styles.skeletonBar} ${styles.skeletonValue}`} />
+          </div>
+        ))}
+      </section>
+    );
+  }
 
   return (
     <section className={styles.strip} aria-label="Indicadores de la planta">
@@ -91,6 +162,7 @@ export function PlantaKpiStrip(): ReactElement {
               {kpi.percent ? <span className={styles.percent}>{kpi.percent}</span> : null}
             </>
           )}
+          {kpi.note ? <UnmeasuredNote note={kpi.note} /> : null}
         </div>
       ))}
     </section>

@@ -33,7 +33,8 @@
       "y": 0,
       "w": 1440,
       "h": 960,
-      "page": "page-1"
+      "page": "page-1",
+      "is_interactive": true
     },
     {
       "file": "Arbol.dc.html",
@@ -107,7 +108,8 @@
       "y": 2240,
       "w": 390,
       "h": 844,
-      "page": "page-1"
+      "page": "page-1",
+      "is_interactive": true
     },
     {
       "file": "DocumentoMobile.dc.html",

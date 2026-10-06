@@ -106,6 +106,90 @@
   color: var(--andon-texto);
 }
 
+/* SDD-085: full-width plate for the first-report line and the scoped error. */
+.plate {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: var(--space-4) 0;
+}
+
+.firstReport {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.firstReportLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hit-target);
+}
+
+.firstReportLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.skeletonBar {
+  display: block;
+  height: var(--space-3);
+  width: 70%;
+  background: var(--regla-fila);
+}
+
+.skeletonValue {
+  height: var(--space-6);
+  width: 45%;
+}
+
+/* WO-672 (SDD-081 D7): the unmeasured-orders detail lives inside the first item, under the value. */
+.unmeasuredDetails {
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.unmeasuredSummary {
+  cursor: pointer;
+}
+
+.unmeasuredSummary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.unmeasuredList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+  max-height: min(40vh, 320px);
+  overflow-y: auto;
+}
+
+.unmeasuredRow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.unmeasuredId {
+  color: inherit;
+}
+
+.unmeasuredId:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.unmeasuredDates {
+  font-size: var(--text-xs);
+}
+
 @media (max-width: 767px) {
   .strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
