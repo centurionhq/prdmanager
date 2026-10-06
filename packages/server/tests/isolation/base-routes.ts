@@ -457,6 +457,25 @@ export function registerBaseIsolationRoutes(): void {
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'SDD-001' }, body: { expectedSuggestion: ['probe.ts'], reason: 'probe' } })),
   });
 
+  // SDD-099 WO-D: access requests — same tenant-scoped resolution as the invitations routes above.
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/access-requests', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/access-requests/:requestId/approve', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, requestId: '00000000-0000-0000-0000-000000000000' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/access-requests/:requestId/reject', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, requestId: '00000000-0000-0000-0000-000000000000' } })),
+  });
+
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/access-requests', {
+    skip: 'public by design (SDD-099 §D2: responds the same whether or not the organization exists; rate-limited per IP, behind the /api/app CSRF double-submit)',
+  });
+
   registerIsolationProbe('POST', '/api/app/invitations/:id/accept', {
     skip: 'public (SDD-006: authenticated by the invitation\'s own one-time secret, not by org/project membership)',
   });
