@@ -112,13 +112,29 @@ describe('remote MCP profile tool/prompt allow-list (WO-184)', () => {
     const result = await client.callTool({ name: 'get_drift_report', arguments: {} });
     expect(result.isError).toBeFalsy();
     const content = result.content as { type: string; text: string }[];
-    const body = JSON.parse(content[0]!.text) as { hasReport?: boolean };
+    const body = JSON.parse(content[0]!.text) as {
+      hasReport?: boolean;
+      issues: { total: number; items: unknown[] };
+      governed: { total: number; items?: unknown };
+      workOrderUpdates: { items: unknown[] };
+    };
     // In this in-memory suite `Engine.lastReport()` is already populated by the `beforeAll` refresh, so
     // the remote profile must return that pre-existing report (not `hasReport: false`, which is only for
     // a project with no report) and must never recompute it. Note this suite cannot detect a
     // `PgProjectEngine.lastReport()` stub returning null: that is covered by
     // `packages/server/tests/integration/mcp-remote-drift-report.test.ts` (WO-605).
     expect(body.hasReport).not.toBe(false);
+    expect(typeof body.issues.total).toBe('number');
+    expect(Array.isArray(body.issues.items)).toBe(true);
+    expect(typeof body.governed.total).toBe('number');
+    expect(body.governed.items).toBeUndefined();
+    expect(Array.isArray(body.workOrderUpdates.items)).toBe(true);
+
+    const filtered = await client.callTool({ name: 'get_drift_report', arguments: { kind: 'blueprint_changed' } });
+    expect(filtered.isError).toBeFalsy();
+    const filteredBody = JSON.parse((filtered.content as { text: string }[])[0]!.text) as { issues: { matched: number; items: { kind: string }[] } };
+    expect(typeof filteredBody.issues.matched).toBe('number');
+    expect(filteredBody.issues.items.every((i) => i.kind === 'blueprint_changed')).toBe(true);
   });
 });
 

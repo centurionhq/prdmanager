@@ -156,6 +156,20 @@ describe('prdm-graph MCP tools', () => {
   test('get_drift_report reports blueprint_changed after an edit, acknowledge_sync clears it', async () => {
     const clean = json(await client.callTool({ name: 'get_drift_report', arguments: {} }));
     expect(clean.hasBlockingIssues).toBe(false);
+    expect(typeof clean.documents).toBe('number');
+    expect(clean.issues.total).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(clean.issues.items)).toBe(true);
+    expect(clean.issues.limit).toBe(25);
+    expect(clean.issues.offset).toBe(0);
+    expect(typeof clean.issues.bySeverity.error).toBe('number');
+    expect(typeof clean.issues.bySeverity.warning).toBe('number');
+    expect(clean.governed.total).toBeGreaterThan(0);
+    expect(clean.governed.synced + clean.governed.outOfSync).toBe(clean.governed.total);
+    expect(clean.governed.items).toBeUndefined();
+    expect(typeof clean.workOrderUpdates.total).toBe('number');
+    expect(Array.isArray(clean.workOrderUpdates.items)).toBe(true);
+    expect(typeof clean.errors.total).toBe('number');
+    expect(Array.isArray(clean.errors.items)).toBe(true);
 
     const sddPath = `${root}/docs/blueprints/SDD-001.md`;
     writeFiles(root, { 'docs/blueprints/SDD-001.md': readFileSync(sddPath, 'utf8').replace('compara hashes', 'compara hashes y firmas') });
@@ -184,6 +198,50 @@ describe('prdm-graph MCP tools', () => {
     expect(acked.hasBlockingIssues).toBe(false);
   });
 
+  test('get_drift_report filters and paginates the bounded summary (SDD-082)', async () => {
+    const call = async (args: Record<string, unknown>) => json(await client.callTool({ name: 'get_drift_report', arguments: args }));
+
+    // Own drift: the previous test acknowledged SDD-001, so edit it again here and re-baseline at the end.
+    const sddPath = `${root}/docs/blueprints/SDD-001.md`;
+    writeFiles(root, { 'docs/blueprints/SDD-001.md': readFileSync(sddPath, 'utf8').replace('compara hashes y firmas', 'compara hashes y firmas otra vez') });
+    try {
+      const byKind = await call({ kind: 'blueprint_changed', limit: 1, offset: 0 });
+      expect(byKind.issues.items.every((i: { kind: string }) => i.kind === 'blueprint_changed')).toBe(true);
+      expect(byKind.issues.matched).toBeGreaterThanOrEqual(1);
+      expect(byKind.issues.byKind.blueprint_changed).toBeGreaterThanOrEqual(byKind.issues.matched);
+      if (byKind.issues.matched > 1) {
+        expect(byKind.issues.nextOffset).toBe(1);
+        expect(byKind.issues.truncated).toBe(true);
+      } else {
+        expect(byKind.issues.nextOffset).toBeNull();
+      }
+
+      const errors = await call({ severity: 'error', limit: 50 });
+      expect(errors.issues.items.every((i: { severity: string }) => i.severity === 'error')).toBe(true);
+      if (errors.issues.matched <= 50) expect(errors.issues.bySeverity.error).toBe(errors.issues.matched);
+
+      const keyOf = (i: { kind: string; nodeId: string; message: string }) => `${i.kind}|${i.nodeId}|${i.message}`;
+      const first = await call({ limit: 1, offset: 0 });
+      const second = await call({ limit: 1, offset: 1 });
+      if (first.issues.matched === 1) expect(second.issues.items).toEqual([]);
+      else expect(keyOf(second.issues.items[0])).not.toBe(keyOf(first.issues.items[0]));
+
+      for (const bad of [{ limit: 51 }, { kind: 'no_existe' }, { severity: 'fatal' }]) {
+        const result = (await client.callTool({ name: 'get_drift_report', arguments: bad })) as CallToolResult;
+        expect(result.isError).toBe(true);
+      }
+
+      const { tools } = await client.listTools();
+      const tool = tools.find((t) => t.name === 'get_drift_report')!;
+      for (const term of ['truncated', 'kind', 'limit', '64 KiB']) expect(tool.description).toContain(term);
+      const schema = JSON.stringify(tool.inputSchema);
+      expect(schema).toContain('limit');
+      expect(schema).toContain('offset');
+    } finally {
+      const acked = await engine.acknowledge('SDD-001');
+      for (const i of acked.issues) if (i.kind === 'work_order_out_of_sync') await engine.acknowledge(i.nodeId);
+    }
+  });
   test('submit_feedback triages by score, triage_feedback proposes, create_feature_request promotes it', async () => {
     const linked = json(
       await client.callTool({
