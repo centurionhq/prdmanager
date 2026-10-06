@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import fastGlob from 'fast-glob';
+import { glob } from 'tinyglobby';
 import { describe, expect, test } from 'vitest';
 
 const CORE_SRC = resolve(import.meta.dirname, '../../src');
@@ -8,7 +8,7 @@ const FORBIDDEN_IMPORTS = [/from\s+['"]commander['"]/, /from\s+['"]chokidar['"]/
 
 describe('architecture guard', () => {
   test('@prdm/core never imports the CLI or MCP frameworks', async () => {
-    const files = await fastGlob('**/*.ts', { cwd: CORE_SRC, absolute: true });
+    const files = await glob('**/*.ts', { cwd: CORE_SRC, absolute: true, expandDirectories: false });
     expect(files.length).toBeGreaterThan(0);
 
     const offenders = files.flatMap((file) => {

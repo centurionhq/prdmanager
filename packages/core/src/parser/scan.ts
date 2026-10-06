@@ -1,4 +1,4 @@
-import fg from 'fast-glob';
+import { glob } from 'tinyglobby';
 import { ID_PATTERN, type ParsedDoc } from '../domain/schema.js';
 import { findNestedProjectRoots } from '../project/discover.js';
 import { safeReadFile } from '../util/safe-fs.js';
@@ -74,7 +74,18 @@ export function scanContents(files: readonly ScannedFile[]): ScanResult {
 export async function scanDocuments(root: string, ignore: string[]): Promise<ScanResult> {
   const nestedRoots = await findNestedProjectRoots(root, ignore);
   const effectiveIgnore = [...ignore, ...nestedRoots.map((rel) => `${rel}/**`)];
-  const files = (await fg.glob('**/*.md', { cwd: root, ignore: effectiveIgnore, onlyFiles: true, dot: false, followSymbolicLinks: false })).sort();
+  // `expandDirectories: false` keeps tinyglobby's traversal identical to the fast-glob call this replaces
+  // (which never expanded a bare directory pattern into `<dir>/**`).
+  const files = (
+    await glob('**/*.md', {
+      cwd: root,
+      ignore: effectiveIgnore,
+      onlyFiles: true,
+      dot: false,
+      followSymbolicLinks: false,
+      expandDirectories: false,
+    })
+  ).sort();
 
   const readable: ScannedFile[] = [];
   const readErrors = new Map<string, string>();

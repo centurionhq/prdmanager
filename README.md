@@ -21,7 +21,7 @@ Arquitectura: SDD-001 a SDD-014, ADR-001 a ADR-009, MRD-001 — todos consultabl
 | MCP | @modelcontextprotocol/sdk | 1.30.0 |
 | Config | yaml | 2.9.1 |
 | Validación | zod | 4.6.3 |
-| Parsing | gray-matter, fast-glob | 4.0.3, 3.3.3 |
+| Parsing | gray-matter, tinyglobby | 4.0.3, 0.2.17 |
 | Símbolos | web-tree-sitter (WASM, sin bindings nativos), tree-sitter-wasms | 0.25.10, 0.1.13 |
 | CLI | commander, chokidar, dotenv | 14.0.3, 5.0.0, 17.4.2 |
 | Herramientas | tsx | 4.23.13 |

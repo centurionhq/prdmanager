@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import fg from 'fast-glob';
+import { glob } from 'tinyglobby';
 import { afterEach, describe, expect, test } from 'vitest';
 import { scanContents, scanDocuments } from '../../src/parser/scan.js';
 import { makeTmpDir, removeDir, writeFiles } from '@prdm/testkit';
@@ -67,7 +67,7 @@ describe('scanContents equivalence with scanDocuments (WO-123)', () => {
 
     const viaScanDocuments = await scanDocuments(root, ['node_modules/**']);
 
-    const files = (await fg.glob('**/*.md', { cwd: root, ignore: ['node_modules/**'], onlyFiles: true, dot: false })).sort();
+    const files = (await glob('**/*.md', { cwd: root, ignore: ['node_modules/**'], onlyFiles: true, dot: false, expandDirectories: false })).sort();
     const contents = await Promise.all(files.map(async (path) => ({ path, content: await readFile(`${root}/${path}`, 'utf8') })));
     const viaScanContents = scanContents(contents);
 

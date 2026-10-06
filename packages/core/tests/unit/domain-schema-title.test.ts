@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import fg from 'fast-glob';
+import { glob } from 'tinyglobby';
 import matter from 'gray-matter';
 import { describe, expect, test } from 'vitest';
 import { parseDocument } from '../../src/parser/frontmatter.js';
@@ -36,7 +36,7 @@ describe('title control-character guard (prompt fence breakout, WO-025)', () => 
   });
 
   test('every real document in the frozen governance-docs corpus has a title that satisfies TITLE_PATTERN', async () => {
-    const files = await fg.glob(['**/*.md'], { cwd: CORPUS_ROOT, onlyFiles: true, dot: false });
+    const files = await glob(['**/*.md'], { cwd: CORPUS_ROOT, onlyFiles: true, dot: false, expandDirectories: false });
     const offenders: string[] = [];
     let checked = 0;
 

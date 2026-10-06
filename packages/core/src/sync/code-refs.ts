@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import fg from 'fast-glob';
+import { glob, isDynamicPattern } from 'tinyglobby';
 import { findNestedProjectRoots } from '../project/discover.js';
 import { normalizeText, sha256 } from '../util/hash.js';
 import { resolveInside } from '../util/paths.js';
@@ -97,11 +97,20 @@ export async function resolveGoverned(
     // so it always hashed to `null`, and a "missing" governed ref only ever resolves through a commit
     // touching that exact path (`evaluateGoverned`, `monitor.ts`), which a directory can never be. Expand
     // it the way any author would expect instead of leaving it a permanently unresolvable "missing".
-    const dynamic = fg.isDynamicPattern(rel);
+    const dynamic = isDynamicPattern(rel);
     const isStaticDir = !dynamic && (await isDirectory(root, rel));
     const files =
       dynamic || isStaticDir
-        ? (await fg.glob(isStaticDir ? `${rel}/**` : rel, { cwd: root, ignore: effectiveIgnore, onlyFiles: true, dot: false, followSymbolicLinks: false })).sort()
+        ? (
+            await glob(isStaticDir ? `${rel}/**` : rel, {
+              cwd: root,
+              ignore: effectiveIgnore,
+              onlyFiles: true,
+              dot: false,
+              followSymbolicLinks: false,
+              expandDirectories: false,
+            })
+          ).sort()
         : [rel];
     if (files.length === 0) warnings.push(`impacts_paths pattern "${pattern}" matches no files`);
 
