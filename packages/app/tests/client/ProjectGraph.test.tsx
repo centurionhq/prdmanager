@@ -578,8 +578,9 @@ describe('ProjectGraph (árbol de features)', () => {
     renderPage();
 
     const row = await screen.findByRole('treeitem', { name: /FR-001/ });
-    await waitFor(() => expect(within(row).getByTitle('Drift activo')).toBeTruthy());
-    expect(within(screen.getByRole('treeitem', { name: /MRD-001/ })).queryByTitle('Drift activo')).toBeNull();
+    // WO-751 (T4): el punto ya no es el único portador -- el texto accesible acompaña al punto andon.
+    await waitFor(() => expect(within(row).getByText('Drift abierto')).toBeTruthy());
+    expect(within(screen.getByRole('treeitem', { name: /MRD-001/ })).queryByText('Drift abierto')).toBeNull();
   });
 
   function mockTree(): void {
@@ -905,6 +906,47 @@ describe('ProjectGraph (árbol de features)', () => {
       const status = await screen.findByRole('status');
       expect(status.textContent).toBe('Cargando el árbol de features…');
       expect(document.querySelector('[data-skeleton-bar]')).toBeTruthy();
+    });
+  });
+
+  describe('los títulos se leen (WO-751, SDD-105 D5)', () => {
+    const MARKDOWN_TITLE = '**WO-B (app: el panel)** — D5 en `packages/app/src/routes/Planta.tsx:263-300` (lectura defensiva)';
+    const PLAIN_TITLE = 'WO-B (app: el panel) — D5 en packages/app/src/routes/Planta.tsx:263-300 (lectura defensiva)';
+
+    function mockOrders(): void {
+      vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+      vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+      vi.spyOn(client, 'getFeatureBranch').mockResolvedValue({
+        nodes: [
+          { ref: 'SDD-005', label: 'Blueprint', kind: 'SDD', title: 'Diseño', status: 'published' },
+          { ref: 'WO-200', label: 'WorkOrder', kind: 'WO', title: MARKDOWN_TITLE, status: 'pending' },
+        ],
+        edges: [],
+      });
+      vi.spyOn(client, 'listCommits').mockResolvedValue({ items: [], nextCursor: null });
+      vi.spyOn(client, 'listCodeRefs').mockResolvedValue([]);
+    }
+
+    it('la columna «Título» del panel muestra el markdown inline, sin backticks crudos (T1)', async () => {
+      mockOrders();
+
+      renderPage('FR-001');
+
+      const row = await screen.findByRole('row', { name: /WO-200/ });
+      expect(row.textContent).not.toContain('`');
+      expect(row.textContent).not.toContain('**');
+      expect(within(row).getByText(/WO-B \(app: el panel\)/)).toBeTruthy();
+    });
+
+    it('el código en línea se ve como pieza mono y el texto completo viaja en el `title` (T1/T2)', async () => {
+      mockOrders();
+
+      renderPage('FR-001');
+
+      const row = await screen.findByRole('row', { name: /WO-200/ });
+      const code = within(row).getByText('packages/app/src/routes/Planta.tsx:263-300');
+      expect(code.tagName).toBe('CODE');
+      expect(code.closest('[title]')?.getAttribute('title')).toBe(PLAIN_TITLE);
     });
   });
 });

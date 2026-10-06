@@ -3,14 +3,24 @@
   flex-direction: column;
 }
 
+/* WO-751 (SDD-105 D5, T2/T3): la fila mantiene su alto fijo (40 px, como el comp) con el título a dos
+   líneas; la sangría pasa a 12 px por nivel con tope de 4 niveles — `--depth` llega topeado desde el TSX y
+   el nivel real vive en `aria-level`. */
 .row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  height: 36px;
-  padding-left: calc(8px + var(--depth, 0) * 20px);
+  min-height: 40px;
+  padding-left: calc(8px + var(--depth, 0) * 12px);
   border-radius: var(--radius-plate);
   cursor: pointer;
+}
+
+/* El punto de la calidad del diseño: 44 px de alto en móvil (igual que `.m .fila` del comp). */
+@media (max-width: 767px) {
+  .row {
+    min-height: var(--hit-target);
+  }
 }
 
 .rowClosed:not(.rowSelected) {
@@ -27,11 +37,19 @@
   color: var(--apagado);
 }
 
+/* WO-751 (T2): dos líneas como máximo, con el texto completo en el `title` de la fila; la fila no cambia
+   de alto por un título largo (el corte es de este plano, no del markup — D6). */
 .rowTitle {
+  flex: 1;
+  min-width: 0;
   font-size: var(--text-sm);
-  white-space: nowrap;
+  line-height: 20px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .drift {

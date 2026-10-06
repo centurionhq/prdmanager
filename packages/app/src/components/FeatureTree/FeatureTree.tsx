@@ -7,9 +7,13 @@
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactElement } from 'react';
 import type { TreeNode } from '@prdm/core';
+import { toPlainTitle } from '../../lib/wo-title.js';
 import styles from './FeatureTree.module.css';
 
 const MOVE_KEYS = new Set(['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End']);
+
+/** WO-751 (T3): la sangría del árbol topea a cuatro niveles (48 px); `aria-level` conserva el nivel real. */
+const MAX_INDENT_LEVELS = 4;
 
 interface VisibleRow {
   readonly node: TreeNode;
@@ -147,6 +151,9 @@ export function FeatureTree({ forest, selectedRef, driftRefs, orphanRefs, collap
         const isSelected = row.node.ref === selectedRef;
         const isClosed = row.node.status === 'closed';
         const rowClassName = [styles.row, isClosed ? styles.rowClosed : null, isSelected ? styles.rowSelected : null].filter((value): value is string => Boolean(value)).join(' ');
+        // WO-751 (SDD-105 D5/T2/T3): el `title` lleva la primera línea en texto plano -- el corte a dos
+        // líneas es CSS y el nombre accesible del treeitem sigue entero (D6) -- y la sangría se topea a
+        // cuatro niveles sin tocar `aria-level`, que conserva el nivel real.
         return (
           <div
             key={row.node.ref}
@@ -161,14 +168,17 @@ export function FeatureTree({ forest, selectedRef, driftRefs, orphanRefs, collap
             onClick={() => onSelect(row.node.ref)}
             onFocus={() => setFocusedRef(row.node.ref)}
             className={rowClassName}
-            style={{ '--depth': row.depth } as CSSProperties}
+            title={toPlainTitle(row.node.title)}
+            style={{ '--depth': Math.min(row.depth, MAX_INDENT_LEVELS) } as CSSProperties}
           >
             <span className={`id ${styles.rowId}`}>{row.node.ref}</span>
             <span className={styles.rowTitle}>{row.node.title}</span>
             {orphanRefs.has(row.node.ref) ? <span className={styles.orphanBadge}>Sin código</span> : null}
             {driftRefs.has(row.node.ref) ? (
-              <span title="Drift activo" className={styles.drift}>
-                <span className={styles.driftDot} />
+              <span className={styles.drift}>
+                <span aria-hidden="true" className={styles.driftDot} />
+                {/* WO-751 (T4): el punto no es el único portador -- el texto accesible lo acompaña. */}
+                <span className="visually-hidden">Drift abierto</span>
               </span>
             ) : null}
           </div>
