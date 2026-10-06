@@ -115,4 +115,88 @@ describe('Login', () => {
       expect(text).toContain('El acceso es por invitación: si todavía no tenés cuenta, pedile a quien te compartió el enlace que te invite.');
     });
   });
+
+  describe('pedir acceso', () => {
+    const NEXT = buildLoginRedirectUrl('/o/centurionhq/p/prdmanager/planta');
+
+    async function openRequestStep() {
+      renderLogin(NEXT);
+      await userEvent.click(screen.getByRole('button', { name: 'Pedir acceso a centurionhq' }));
+      await screen.findByRole('heading', { name: 'Pedí acceso a centurionhq' });
+    }
+
+    it('offers the action only with a known organization', () => {
+      renderLogin(NEXT);
+      expect(screen.getByRole('button', { name: 'Pedir acceso a centurionhq' })).toBeTruthy();
+    });
+
+    it.each([
+      ['no next', '/login'],
+      ['an absolute next', '/login?next=https%3A%2F%2Fevil.com%2Fo%2Fcenturionhq'],
+      ['a protocol-relative next', '/login?next=%2F%2Fevil.com%2Fo%2Fcenturionhq'],
+    ])('has no access action with %s', (_label, entry) => {
+      renderLogin(entry);
+      expect(screen.queryByRole('button', { name: /Pedir acceso/ })).toBeNull();
+    });
+
+    it('shows a confirmation that never promises an email reply', async () => {
+      const create = vi.spyOn(client, 'createAccessRequest').mockResolvedValue({ ok: true });
+      await openRequestStep();
+
+      await userEvent.type(screen.getByLabelText('Email'), 'nueva@example.test');
+      await userEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+      await waitFor(() => expect(create).toHaveBeenCalledWith('centurionhq', { email: 'nueva@example.test' }));
+      const status = await screen.findByRole('status');
+      expect(status.textContent).toContain('quedó registrado');
+      expect(status.textContent).toContain('Ajustes → Miembros');
+      expect(status.textContent).not.toMatch(/te escrib|respuesta por email|plazo/i);
+      expect(status.textContent).not.toContain('nueva@example.test');
+    });
+
+    it('sends name and message only when they have content', async () => {
+      const create = vi.spyOn(client, 'createAccessRequest').mockResolvedValue({ ok: true });
+      await openRequestStep();
+
+      await userEvent.type(screen.getByLabelText('Email'), 'nueva@example.test');
+      await userEvent.type(screen.getByLabelText('Nombre (opcional)'), 'Nueva Persona');
+      await userEvent.type(screen.getByLabelText('Mensaje (opcional)'), 'Necesito entrar');
+      await userEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+      await waitFor(() =>
+        expect(create).toHaveBeenCalledWith('centurionhq', { email: 'nueva@example.test', name: 'Nueva Persona', message: 'Necesito entrar' }),
+      );
+    });
+
+    it('does not call the API with an invalid email', async () => {
+      const create = vi.spyOn(client, 'createAccessRequest').mockResolvedValue({ ok: true });
+      await openRequestStep();
+
+      await userEvent.type(screen.getByLabelText('Email'), 'no-es-un-email');
+      await userEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+      expect(await screen.findByText('Ingresá un email válido.')).toBeTruthy();
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('shows the server error tied to the form and keeps what was typed', async () => {
+      vi.spyOn(client, 'createAccessRequest').mockRejectedValue(new client.ApiClientError(500, 'unknown', 'no pudimos registrar tu pedido'));
+      await openRequestStep();
+
+      await userEvent.type(screen.getByLabelText('Email'), 'nueva@example.test');
+      await userEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+      const alert = await screen.findByRole('alert');
+      expect(alert.textContent).toBe('no pudimos registrar tu pedido');
+      expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe('nueva@example.test');
+    });
+
+    it('goes back to the credentials step with "Volver"', async () => {
+      await openRequestStep();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Volver' }));
+
+      expect(await screen.findByRole('button', { name: 'Entrar' })).toBeTruthy();
+    });
+  });
 });

@@ -184,9 +184,9 @@
             <div style="display: flex; flex-direction: column; gap: var(--space-3);">
               <div>
                 <div class="label">¿Todavía no tenés acceso?</div>
-                <div class="muted">Pedíselo a los administradores de Centurion HQ. Lo revisan y te avisan por email.</div>
+                <div class="muted">Pedíselo a los administradores de centurionhq.</div>
               </div>
-              <button type="button" class="btn btn-secondary" onClick="{{ goRequest }}">Pedir acceso a Centurion HQ</button>
+              <button type="button" class="btn btn-secondary" onClick="{{ goRequest }}">Pedir acceso a centurionhq</button>
             </div>
           </section>
         </sc-if>
@@ -215,8 +215,8 @@
         <sc-if value="{{ isRequest }}" hint-placeholder-val="{{ false }}">
           <section class="panel" aria-labelledby="t-req">
             <div style="display: flex; flex-direction: column; gap: var(--space-2);">
-              <button type="button" class="link-btn" onClick="{{ goLogin }}" style="align-self: flex-start; padding-left: 0;">Volver a entrar</button>
-              <h1 id="t-req" class="h1">Pedí acceso a Centurion HQ</h1>
+              <button type="button" class="link-btn" onClick="{{ goLogin }}" style="align-self: flex-start; padding-left: 0;">Volver</button>
+              <h1 id="t-req" class="h1">Pedí acceso a centurionhq</h1>
               <div class="muted">Un administrador de la organización va a revisar tu pedido. No necesitás tener cuenta todavía.</div>
             </div>
             <sc-if value="{{ hasRequestError }}" hint-placeholder-val="{{ false }}">
@@ -249,7 +249,7 @@
           <section class="panel" aria-labelledby="t-sent">
             <h1 id="t-sent" class="h1">Pedido enviado</h1>
             <div role="status" class="ok">
-              <span><b>Quedó registrado para los administradores de Centurion HQ.</b> Cuando lo revisen te escriben a <span style="font-weight: 600;">tomas@centurionhq.com</span>.</span>
+              <span><b>El pedido quedó registrado.</b> Un administrador de centurionhq lo ve en Ajustes → Miembros.</span>
             </div>
             <div class="body">Mientras tanto no hace falta que hagas nada más. Si ya tenés una invitación por email, podés usarla para crear tu cuenta ahora.</div>
             <button type="button" class="btn btn-secondary" onClick="{{ goLogin }}">Volver a entrar</button>
