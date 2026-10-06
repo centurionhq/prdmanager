@@ -227,6 +227,21 @@ const ONE_ORPHAN: SuccessMetricsDto = {
   },
 };
 
+/** WO-750: dos huérfanas sobre un árbol de tres features -- el conjunto filtrado deja de ser el total. */
+const TWO_ORPHANS: SuccessMetricsDto = {
+  ...METRICS,
+  traceability: {
+    ...METRICS.traceability,
+    featuresTotal: 3,
+    featuresTraced: 1,
+    featurePercent: 33.3,
+    orphanFeatures: [
+      { id: 'FR-001', kind: 'FR', title: 'Persistencia de borradores', status: 'approved' },
+      { id: 'FR-002', kind: 'FR', title: 'Importador incremental', status: 'closed' },
+    ],
+  },
+};
+
 function renderPage(id?: string, subject: Parameters<typeof makeProjectShellContext> = ['owner', 'admin'], search = '') {
   const context = makeProjectShellContext(...subject);
   const router = createMemoryRouter(
@@ -758,6 +773,53 @@ describe('ProjectGraph (árbol de features)', () => {
     expect(await screen.findByRole('treeitem', { name: /FR-001/ })).toBeTruthy();
     expect(screen.getByRole('treeitem', { name: /MRD-001/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Sin código/ })).toBeNull();
+  });
+
+  describe('el encabezado sigue el filtro activo (WO-750, SDD-105 D3)', () => {
+    const spanText = (text: string) => (_: string, element: Element | null) => element?.tagName === 'SPAN' && element.textContent === text;
+
+    it('con el chip activo describe el conjunto filtrado, con el total como denominador', async () => {
+      mockTree();
+      vi.spyOn(client, 'getMetrics').mockResolvedValue(TWO_ORPHANS);
+
+      renderPage(undefined, ['owner', 'admin'], '?sinCodigo=1');
+
+      // El árbol monta las 2 huérfanas y el encabezado habla de esas filas, no del proyecto entero.
+      await screen.findByRole('treeitem', { name: /FR-001/ });
+      expect(screen.getAllByRole('treeitem')).toHaveLength(2);
+      expect(screen.getByText(spanText('2 resultados de 3 features'))).toBeTruthy();
+      expect(screen.queryByText(spanText('3 features, 1 cerradas'))).toBeNull();
+    });
+
+    it('al limpiar el chip vuelve al conteo de siempre', async () => {
+      mockTree();
+      vi.spyOn(client, 'getMetrics').mockResolvedValue(TWO_ORPHANS);
+
+      renderPage();
+      const chip = await screen.findByRole('button', { name: 'Sin código (2)' });
+      expect(await screen.findByText(spanText('3 features, 1 cerradas'))).toBeTruthy();
+
+      await userEvent.click(chip);
+      expect(screen.getByText(spanText('2 resultados de 3 features'))).toBeTruthy();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Sin código (2)' }));
+      expect(screen.getByText(spanText('3 features, 1 cerradas'))).toBeTruthy();
+      expect(screen.getAllByRole('treeitem')).toHaveLength(3);
+    });
+
+    it('con ?q= conserva el contrato de SDD-083', async () => {
+      vi.spyOn(client, 'getTree').mockResolvedValue({ forest: DEEP_FOREST });
+      vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+      vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
+
+      renderPage(undefined, ['owner', 'admin'], '?q=reporte');
+
+      // Sin chip (METRICS no trae huérfanas) el encabezado sigue contando el resultado de la búsqueda.
+      await screen.findByRole('treeitem', { name: /FR-031/ });
+      expect(screen.queryByRole('button', { name: /Sin código/ })).toBeNull();
+      expect(screen.getByText(spanText('3 resultados de 6 features'))).toBeTruthy();
+      expect(screen.queryByText(spanText('6 features, 0 cerradas'))).toBeNull();
+    });
   });
 
   describe('el panel deja de montarse entero (WO-749, SDD-105)', () => {

@@ -544,6 +544,11 @@ export function ProjectGraph(): ReactElement {
     return filterForestByQuery(base, query);
   }, [forest, query, filterByCode, orphanRefs]);
   const matchCount = useMemo(() => countMatches(visibleForest), [visibleForest]);
+  // WO-750 (SDD-105 D3): el encabezado describe el conjunto visible cuando hay CUALQUIER filtro puesto --
+  // la búsqueda (`?q=`, SDD-083 D2) o el chip «Sin código» (`?sinCodigo=1`, SDD-079) -- y el proyecto
+  // entero cuando no hay ninguno. Antes el chip filtraba `visibleForest` sin que el conteo lo dijera
+  // (FB-261). `filterByCode` y no `sinCodigo`: un `?sinCodigo=1` sin lista de huérfanas no filtra nada.
+  const filterActive = searching || filterByCode;
   const selectedRef = id ?? forest[0]?.ref;
 
   function setQuery(value: string): void {
@@ -665,8 +670,11 @@ export function ProjectGraph(): ReactElement {
             </div>
           ) : null}
           <div className={styles.treeHeaderRow}>
+            {/* WO-750 (SDD-105 D3): con el chip `?sinCodigo=1` activo el encabezado dice «N resultados de
+                M features» (N = `visibleForest`, M = el árbol entero) -- el mismo contrato de SDD-083 D2
+                que ya usaba la búsqueda. Sin filtro queda el conteo de siempre. */}
             <span className={styles.treeCount} aria-live="polite">
-              {searching ? (
+              {filterActive ? (
                 <>
                   <span className="num">{matchCount}</span> resultados de <span className="num">{totalFeatures}</span> features
                 </>
