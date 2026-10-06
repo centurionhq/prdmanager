@@ -72,14 +72,8 @@ function renderStationCell(row: LineRow, station: (typeof STATIONS)[number], cel
     cellIndex === andonStationIndex ? styles.cellAndonTint : null,
   );
 
-  if (isMarkerCell && row.kind === 'stopped') {
-    return (
-      <Link key={station} to={`/drift?feature=${row.feature.id}`} className={classes}>
-        <MarkerCell row={row} />
-      </Link>
-    );
-  }
-
+  // WO-680 (SDD-084 D4): the stopped cell is no longer the drift link — the notice above now carries
+  // that destination for every stopped initiative. WO-681 turns this cell into the orders button.
   if (isMarkerCell) {
     return (
       <span key={station} className={classes}>
@@ -110,6 +104,13 @@ export function LineBoardRow({ row, index, andonStationIndex }: LineBoardRowProp
       <Link to={`/arbol/${feature.id}`} className={styles.identity} aria-label={rowAccessibleName(row)}>
         <span className="id">{feature.id}</span>
         <span className={styles.featureTitle}>{feature.title}</span>
+        {/* WO-680 (SDD-084 D2): the stopped station spelled out, next to its own andon marker. */}
+        {kind === 'stopped' ? (
+          <span className={styles.rowStop}>
+            <span className={styles.rowStopMarker} aria-hidden="true" />
+            detenida en {STATION_LABELS[feature.station]}
+          </span>
+        ) : null}
       </Link>
       <span className={styles.mobileStation}>{STATION_LABELS[feature.station]}</span>
       <div className={styles.stations}>{STATIONS.map((station, cellIndex) => renderStationCell(row, station, cellIndex, andonStationIndex))}</div>
