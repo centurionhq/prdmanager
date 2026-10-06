@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkOrder } from '../../../src/data';
-import { archiveOrder, completeOrder, isValidCommitSha, retakeOrder, takeOrder } from '../../../src/features/ordenes/actions';
+import {
+  CURRENT_HANDLE,
+  archiveOrder,
+  completeOrder,
+  devActor,
+  isValidAgentName,
+  isValidCommitSha,
+  retakeOrder,
+  takeOrder,
+} from '../../../src/features/ordenes/actions';
 
 function order(overrides: Partial<WorkOrder> = {}): WorkOrder {
   return {
@@ -67,6 +76,30 @@ describe('isValidCommitSha', () => {
     expect(isValidCommitSha('a'.repeat(41))).toBe(false);
     expect(isValidCommitSha('not-a-sha')).toBe(false);
     expect(isValidCommitSha('')).toBe(false);
+  });
+});
+
+describe('isValidAgentName', () => {
+  it('accepts the charset the server takes for agent:<name>, trimmed', () => {
+    expect(isValidAgentName('claude')).toBe(true);
+    expect(isValidAgentName('claude.2_beta-x')).toBe(true);
+    expect(isValidAgentName('  claude  ')).toBe(true);
+    expect(isValidAgentName('a'.repeat(64))).toBe(true);
+  });
+
+  it('rejects empty, over-long and names with spaces or accents', () => {
+    expect(isValidAgentName('')).toBe(false);
+    expect(isValidAgentName('   ')).toBe(false);
+    expect(isValidAgentName('a'.repeat(65))).toBe(false);
+    expect(isValidAgentName('dos palabras')).toBe(false);
+    expect(isValidAgentName('julián')).toBe(false);
+  });
+});
+
+describe('devActor + CURRENT_HANDLE', () => {
+  it('names the demo session as the dev that «Yo» sends', () => {
+    expect(CURRENT_HANDLE).toBe('ana');
+    expect(devActor('ana')).toBe('dev:ana');
   });
 });
 

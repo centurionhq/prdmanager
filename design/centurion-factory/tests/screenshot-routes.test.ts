@@ -14,10 +14,13 @@ describe('screenshot routes', () => {
   it('covers every screen and each path resolves to a real route', () => {
     const names = (SCREENSHOT_ROUTES as ScreenshotRoute[]).map((route) => route.name);
     expect(new Set(names).size).toBe(names.length);
-    expect(names.length).toBe(13);
+    expect(names.length).toBe(14);
     for (const route of SCREENSHOT_ROUTES as ScreenshotRoute[]) {
       const router = createMemoryRouter(routes, { initialEntries: [route.path] });
-      expect(router.state.location.pathname, route.path).toBe(route.path);
+      const [pathname, query] = route.path.split('?');
+      // A capture route may carry a query (e.g. ?orden=WO-311): both halves must survive.
+      expect(router.state.location.pathname, route.path).toBe(pathname);
+      expect(router.state.location.search, route.path).toBe(query ? `?${query}` : '');
       router.dispose();
     }
   });
