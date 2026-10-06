@@ -1,5 +1,5 @@
 import { ageDaysFrom } from '../graph/work-order-age.js';
-import type { GraphStore, MetricsRaw } from '../graph/types.js';
+import type { GraphStore, MetricsRaw, OrphanFeature } from '../graph/types.js';
 
 const COMPLETED_STATUSES = new Set(['done', 'out_of_sync']);
 const MS_PER_HOUR = 3_600_000;
@@ -21,6 +21,7 @@ export interface SystemIntegrity {
 export interface Traceability {
   featuresTotal: number;
   featuresTraced: number;
+  orphanFeatures: OrphanFeature[];
   featurePercent: number | null;
   commitsTotal: number;
   commitsWithRefs: number;
@@ -106,6 +107,7 @@ export function computeMetrics(raw: MetricsRaw): SuccessMetrics {
     traceability: {
       featuresTotal: raw.featuresTotal,
       featuresTraced: raw.featuresTraced,
+      orphanFeatures: raw.orphanFeatures,
       featurePercent: percent(raw.featuresTraced, raw.featuresTotal),
       commitsTotal: raw.commitsTotal,
       commitsWithRefs: raw.commitsWithRefs,

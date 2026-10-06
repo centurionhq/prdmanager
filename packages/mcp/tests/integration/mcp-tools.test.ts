@@ -220,6 +220,7 @@ describe('prdm-graph MCP tools', () => {
     expect(metrics).toHaveProperty('agentHumanEfficiency');
     expect(metrics).toHaveProperty('systemIntegrity');
     expect(metrics).toHaveProperty('traceability');
+    expect(Array.isArray((metrics as { traceability: { orphanFeatures: unknown } }).traceability.orphanFeatures)).toBe(true);
   });
 
   test('errors come back as isError with a plain message and no stack trace', async () => {

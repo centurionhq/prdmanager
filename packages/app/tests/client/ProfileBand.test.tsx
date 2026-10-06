@@ -18,7 +18,7 @@ import { makeOrgSummary, makeProjectOverview } from './fixtures.js';
 const METRICS: SuccessMetricsDto = {
   agentHumanEfficiency: { completedWorkOrders: 1, measuredWorkOrders: 1, avgResolutionHours: 0.1, medianResolutionHours: 0.083 },
   systemIntegrity: { governedTotal: 10, governedSynced: 10, syncedPercent: 100 },
-  traceability: { featuresTotal: 1, featuresTraced: 1, featurePercent: 100, commitsTotal: 1, commitsWithRefs: 1, commitsTraced: 1, commitPercent: 100 },
+  traceability: { featuresTotal: 1, featuresTraced: 1, orphanFeatures: [], featurePercent: 100, commitsTotal: 1, commitsWithRefs: 1, commitsTraced: 1, commitPercent: 100 },
 };
 
 const LINE_BOARD: LineBoardDto = {

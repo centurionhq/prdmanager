@@ -5,7 +5,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { PrdmConfig } from '../../src/config.js';
 import { Engine } from '../../src/engine.js';
 import type { Neo4jGraphDatabase } from '../../src/graph/database.js';
-import type { GraphStore } from '../../src/graph/types.js';
+import type { GraphStore, MetricsRaw } from '../../src/graph/types.js';
+import { computeMetrics } from '../../src/metrics/metrics.js';
 import { buildForest, renderMermaid, renderText } from '../../src/graph/tree.js';
 import { sha256 } from '../../src/util/hash.js';
 import { graphStaleMarkerExists, writeJournalForTest } from '../../src/util/journal.js';
@@ -23,6 +24,21 @@ async function withEngine<T>(fn: (engine: Engine, root: string) => Promise<T>): 
   await engine.refresh();
   try {
     return await fn(engine, root);
+  } finally {
+    await db.close();
+    removeDir(root);
+  }
+}
+
+/** Repo + db aislados; `prepare` edita el repo antes del refresh y `refresh: false` deja el proyecto sin nodos. */
+async function withMetrics(opts: { prepare?: (root: string) => void; refresh?: boolean }): Promise<MetricsRaw> {
+  const root = createFixtureRepo();
+  opts.prepare?.(root);
+  const config = testConfig(root);
+  const { db, store } = await openTestDb(config);
+  try {
+    if (opts.refresh !== false) await new Engine(config, store).refresh();
+    return await store.metricsRaw();
   } finally {
     await db.close();
     removeDir(root);
@@ -156,13 +172,49 @@ describe('Engine + Neo4jGraphStore', () => {
     const metrics = await store.metricsRaw();
     expect(metrics.governedTotal).toBe(1);
     expect(metrics.governedSynced).toBe(1);
-    // featuresTotal includes BC-001 (fixture.ts, PRD-011/SDD-022 -- BC reuses the Feature label), which no
-    // blueprint architects, so featuresTraced (only MRD-001/PRD-001) stays unchanged.
+    // BC-001 no tiene blueprint propio, pero su PRD hijo PRD-001 (PRD-001 -[JUSTIFIED_BY]-> BC-001) lo arquitecta
+    // SDD-001 con código gobernado: el linaje simétrico lo cuenta como trazado (predicción de FB-058).
     expect(metrics.featuresTotal).toBe(3);
-    expect(metrics.featuresTraced).toBe(2);
+    expect(metrics.featuresTraced).toBe(3);
+    expect(metrics.orphanFeatures).toEqual([]);
     expect(metrics.commitsTotal).toBe(2);
     expect(metrics.commitsTraced).toBe(2);
     expect(metrics.workOrders).toEqual([{ id: 'WO-001', status: 'done', assignedTo: 'agent:claude', createdAt: null, claimedAt: '2026-09-10T10:00:00.000Z', completedAt: '2026-09-10T14:00:00.000Z' }]);
+  });
+});
+
+describe('SDD-079 orphanFeatures', () => {
+  test('empty project: 0 = 0 + 0 and a null percent', async () => {
+    const raw = await withMetrics({ refresh: false });
+    expect(raw.featuresTotal).toBe(0);
+    expect(raw.featuresTraced).toBe(0);
+    expect(raw.orphanFeatures).toEqual([]);
+    expect(computeMetrics(raw).traceability.featurePercent).toBeNull();
+    expect(raw.featuresTraced + raw.orphanFeatures.length).toBe(raw.featuresTotal);
+  });
+
+  test('every feature is an orphan when no blueprint exists', async () => {
+    const raw = await withMetrics({ prepare: (r) => rmSync(join(r, 'docs/blueprints/SDD-001.md')) });
+    expect(raw.featuresTotal).toBe(3);
+    expect(raw.featuresTraced).toBe(0);
+    expect(raw.orphanFeatures.map((f) => f.id)).toEqual(['BC-001', 'MRD-001', 'PRD-001']);
+    expect(computeMetrics(raw).traceability.featurePercent).toBe(0);
+    expect(raw.featuresTraced + raw.orphanFeatures.length).toBe(raw.featuresTotal);
+  });
+
+  test('mixed: a BC without lineage is the only orphan; BC-001 is traced through its child PRD (FB-058)', async () => {
+    const raw = await withMetrics({
+      prepare: (r) =>
+        writeFiles(r, {
+          'docs/business-case/BC-003.md': '---\nid: BC-003\ntype: BC\ntitle: "Sin linaje"\nstatus: approved\njustified_by: ["ART-001"]\n---\nx\n',
+        }),
+    });
+    expect(raw.featuresTotal).toBe(4);
+    expect(raw.featuresTraced).toBe(3);
+    expect(raw.orphanFeatures.map((f) => f.id)).toEqual(['BC-003']);
+    expect(raw.orphanFeatures[0]).toEqual({ id: 'BC-003', kind: 'BC', title: 'Sin linaje', status: 'approved' });
+    expect(raw.orphanFeatures.map((f) => f.id)).not.toContain('BC-001');
+    expect(raw.featuresTraced + raw.orphanFeatures.length).toBe(raw.featuresTotal);
   });
 });
 

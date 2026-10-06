@@ -55,6 +55,11 @@ function formatAge(value: number | null): string {
   return value === null ? 'n/a' : `${value}d`;
 }
 
+function formatOrphanFeatures(orphans: SuccessMetrics['traceability']['orphanFeatures']): string[] {
+  if (orphans.length === 0) return ['  orphan features: 0 (sin features huérfanas)'];
+  return [`  orphan features: ${orphans.length}`, ...orphans.map((f) => `    ${f.id} <${f.kind}> ${f.title} (${f.status})`)];
+}
+
 export function formatMetrics(metrics: SuccessMetrics): string {
   const { agentHumanEfficiency: efficiency, systemIntegrity: integrity, traceability, pendingQueue: queue } = metrics;
   return [
@@ -70,6 +75,7 @@ export function formatMetrics(metrics: SuccessMetrics): string {
     `  governed: ${integrity.governedSynced}/${integrity.governedTotal} synced (${formatPercent(integrity.syncedPercent)})`,
     'Traceability:',
     `  features traced: ${traceability.featuresTraced}/${traceability.featuresTotal} (${formatPercent(traceability.featurePercent)})`,
+    ...formatOrphanFeatures(traceability.orphanFeatures),
     `  commits traced: ${traceability.commitsTraced}/${traceability.commitsTotal} (${formatPercent(traceability.commitPercent)}), with refs: ${traceability.commitsWithRefs}`,
   ].join('\n');
 }
