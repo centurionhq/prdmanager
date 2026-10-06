@@ -33,3 +33,38 @@ describe('store-read derives mirrorPath on read (SDD-074 D2/D3)', () => {
     expect(await getNode(fakeDriver([]), 'neo4j', 'prj_x', 'WO-404')).toBeNull();
   });
 });
+
+describe('store-read publishes deliverableKind with the D5 fallback (SDD-093)', () => {
+  const gateAccent = { ...woRow, id: 'WO-614', title: 'Cierre (verificación, gate)' };
+  const gatePlain = { ...woRow, id: 'WO-651', title: 'Cierre (verificacion, gate)' };
+  const persistedGate = { ...woRow, id: 'WO-700', title: 'Implementar endpoint', deliverableKind: 'gate' };
+  const codeRow = { ...woRow, id: 'WO-701', title: 'Implementar endpoint' };
+
+  const listKind = async (row: unknown) => (await listWorkOrders(fakeDriver([row]), 'neo4j', 'prj_x', {}))[0]?.deliverableKind;
+  const queryKind = async (row: unknown) =>
+    (await queryWorkOrders(fakeDriver([{ items: [row], total: 1, statusCounts: {} }]), 'neo4j', 'prj_x', {})).items[0]?.deliverableKind;
+
+  test('derives gate from an accented title without a persisted field', async () => {
+    expect(await listKind(gateAccent)).toBe('gate');
+    expect(await queryKind(gateAccent)).toBe('gate');
+  });
+
+  test('derives gate from an unaccented title without a persisted field', async () => {
+    expect(await listKind(gatePlain)).toBe('gate');
+    expect(await queryKind(gatePlain)).toBe('gate');
+  });
+
+  test('the persisted deliverable_kind wins over the title', async () => {
+    expect(await listKind(persistedGate)).toBe('gate');
+    expect(await queryKind(persistedGate)).toBe('gate');
+  });
+
+  test('a code order without the field or the gate pair is code', async () => {
+    expect(await listKind(codeRow)).toBe('code');
+    expect(await queryKind(codeRow)).toBe('code');
+  });
+
+  test('the persisted value wins also when it is code and the title says gate', async () => {
+    expect(await listKind({ ...gateAccent, deliverableKind: 'code' })).toBe('code');
+  });
+});

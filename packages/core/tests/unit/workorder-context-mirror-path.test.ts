@@ -23,3 +23,25 @@ describe('getWorkOrderContext publishes mirrorPath (SDD-074 D4)', () => {
     expect(ctx?.workOrder.mirrorPath).toBe('.prdm/remote/docs/WO-001.md');
   });
 });
+
+describe('getWorkOrderContext publishes deliverableKind (SDD-093 D5)', () => {
+  const contextOf = async (node: NodeView) => {
+    const store = { workOrderContext: async () => ({ workOrder: node, blueprints: [], features: [], context: [], code: [], commits: [] }) } as unknown as GraphStore;
+    return getWorkOrderContext(store, node.id);
+  };
+
+  test('derives gate from the title when the field is not persisted', async () => {
+    const ctx = await contextOf({ ...workOrder, title: 'Cierre (verificación, gate)' });
+    expect(ctx?.workOrder.deliverableKind).toBe('gate');
+  });
+
+  test('the persisted deliverable_kind wins over the title', async () => {
+    const ctx = await contextOf({ ...workOrder, title: 'Cierre (verificación, gate)', deliverable_kind: 'code' });
+    expect(ctx?.workOrder.deliverableKind).toBe('code');
+  });
+
+  test('a plain title without the field is code', async () => {
+    const ctx = await contextOf(workOrder);
+    expect(ctx?.workOrder.deliverableKind).toBe('code');
+  });
+});

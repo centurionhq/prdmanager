@@ -1,6 +1,7 @@
 import type { NodeLabel } from '../domain/schema.js';
 import type { GraphStore, NodeView, WorkOrderContextRaw } from '../graph/types.js';
 import { mirrorPathFor } from '../graph/paths.js';
+import { classifyDeliverable, type DeliverableKind } from './deliverable.js';
 import { extractChecklistItems } from './generator.js';
 
 const MAX_BODY = 20_000;
@@ -23,6 +24,7 @@ export interface WorkOrderContext {
     assignedTo: string | null;
     sourcePath: string;
     mirrorPath: string;
+    deliverableKind: DeliverableKind;
     body: string;
     acceptanceCriteria: string[];
   };
@@ -64,6 +66,8 @@ export async function getWorkOrderContext(store: GraphStore, id: string): Promis
   const context = raw.context.map((c) => ({ id: c.id, label: c.label, title: c.title, body: truncate(c.body) }));
   const drift = raw.code.filter((c) => c.status === 'out_of_sync');
 
+  const persistedKind = stringProp(raw.workOrder, 'deliverable_kind');
+
   return {
     workOrder: {
       id: raw.workOrder.id,
@@ -72,6 +76,7 @@ export async function getWorkOrderContext(store: GraphStore, id: string): Promis
       assignedTo: stringProp(raw.workOrder, 'assigned_to'),
       sourcePath: raw.workOrder.source_path,
       mirrorPath: mirrorPathFor(raw.workOrder.id),
+      deliverableKind: persistedKind === 'code' || persistedKind === 'gate' ? persistedKind : classifyDeliverable(raw.workOrder.title),
       body,
       acceptanceCriteria: extractChecklistItems(raw.workOrder.body).map((item) => item.text),
     },
