@@ -15,7 +15,7 @@ export interface LineOrdersDrawerProps {
   readonly onClose: () => void;
 }
 
-const KNOWN_STATUSES: ReadonlySet<string> = new Set(['pending', 'in_progress', 'out_of_sync', 'done']);
+const KNOWN_STATUSES: ReadonlySet<string> = new Set(['pending', 'in_progress', 'out_of_sync', 'done', 'archived']);
 
 /** WO-681 (SDD-084 D3/D6): the initiative's work orders, opened from the station cell. An order whose
  * status the badge does not know is shown raw rather than invented. */

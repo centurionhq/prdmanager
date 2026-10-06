@@ -26,6 +26,7 @@ export const STATUS_FILTERS: readonly StatusFilterOption[] = [
   { key: 'in_progress', label: 'En curso' },
   { key: 'out_of_sync', label: 'Fuera de sincronía' },
   { key: 'done', label: 'Hechas' },
+  { key: 'archived', label: 'Archivadas' },
   { key: 'mias', label: 'Tomadas por mí' },
 ];
 
@@ -54,7 +55,8 @@ export function parseStatusFilter(value: string | null): StatusFilterKey {
 }
 
 function matchesStatus(order: WorkOrder, key: StatusFilterKey): boolean {
-  if (key === 'todas') return true;
+  // "Todas" is the active queue: archived orders only show under their own chip (SDD-064, FB-069).
+  if (key === 'todas') return order.status !== 'archived';
   if (key === 'mias') return order.assignedTo === CURRENT_ACTOR;
   return order.status === key;
 }

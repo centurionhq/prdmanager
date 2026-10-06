@@ -30,6 +30,19 @@ export function retakeOrder(order: WorkOrder): WorkOrder {
   return { ...order, status: 'in_progress', updatedAt: nowIso() };
 }
 
+/** pending|in_progress|out_of_sync -> archived, recording when and (optionally) why. */
+export function archiveOrder(order: WorkOrder, reason?: string): WorkOrder {
+  const timestamp = nowIso();
+  const trimmed = reason?.trim();
+  return {
+    ...order,
+    status: 'archived',
+    updatedAt: timestamp,
+    archivedAt: timestamp,
+    archiveReason: trimmed ? trimmed : undefined,
+  };
+}
+
 /** in_progress -> done, recording the completing commit. */
 export function completeOrder(order: WorkOrder, sha: string): WorkOrder {
   const timestamp = nowIso();

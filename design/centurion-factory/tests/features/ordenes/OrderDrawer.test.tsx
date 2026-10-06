@@ -113,4 +113,38 @@ describe('OrderDrawer', () => {
     expect(screen.queryByRole('button', { name: 'Completar' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Retomar orden' })).toBeNull();
   });
+
+  it('pending: "Archivar" opens a modal and confirming archives the order with the typed reason', async () => {
+    const user = userEvent.setup();
+    const { onUpdate } = renderDrawer('WO-311');
+    await user.click(screen.getByRole('button', { name: 'Archivar' }));
+    const dialog = screen.getByRole('dialog', { name: 'Archivar orden' });
+    expect(within(dialog).getByText('WO-311 sale de la lista activa: queda en solo lectura y la encontrás en el filtro Archivadas.')).toBeTruthy();
+    await user.type(within(dialog).getByRole('textbox', { name: 'Motivo (opcional)' }), 'Duplica a WO-106');
+    await user.click(within(dialog).getByRole('button', { name: 'Archivar' }));
+    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'WO-311', status: 'archived', archiveReason: 'Duplica a WO-106' }));
+    expect((await screen.findByRole('status')).textContent).toContain('Orden archivada');
+  });
+
+  it('archiving without a reason leaves archiveReason undefined', async () => {
+    const user = userEvent.setup();
+    const { onUpdate } = renderDrawer('WO-311');
+    await user.click(screen.getByRole('button', { name: 'Archivar' }));
+    const dialog = screen.getByRole('dialog', { name: 'Archivar orden' });
+    await user.click(within(dialog).getByRole('button', { name: 'Archivar' }));
+    const updated = onUpdate.mock.calls[0]?.[0] as WorkOrder;
+    expect(updated.status).toBe('archived');
+    expect(updated.archiveReason).toBeUndefined();
+  });
+
+  it('done: does not offer "Archivar"', () => {
+    renderDrawer('WO-058');
+    expect(screen.queryByRole('button', { name: 'Archivar' })).toBeNull();
+  });
+
+  it('archived: does not offer "Archivar" and shows the Archivada badge', () => {
+    renderDrawer('WO-215');
+    expect(screen.queryByRole('button', { name: 'Archivar' })).toBeNull();
+    expect(screen.getByText('Archivada')).toBeTruthy();
+  });
 });

@@ -17,7 +17,7 @@
     .num { font-variant-numeric: tabular-nums; }
   </style>
 </helmet>
-<div style="width: 1440px; height: 960px; overflow: hidden; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+<div style="position: relative; width: 1440px; height: 960px; overflow: hidden; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
 
   <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
     <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
@@ -175,6 +175,29 @@
         <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Ver blueprint</div>
       </div>
     </aside>
+  </div>
+
+  <!-- Artboard nuevo (no un estado del interactivo): igual que Drift.dc.html con «Reconocer drift», el modal tiene su propia placa. -->
+  <div style="position: absolute; top: 0; left: 0; width: 1440px; height: 960px; background: rgba(23,25,28,0.45); display: flex; align-items: center; justify-content: center;">
+    <div style="width: 360px; display: flex; flex-direction: column; background: #FBFCFB; border-radius: 2px; box-shadow: 0 12px 32px rgba(23,25,28,0.18);">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 0;">
+        <h2 style="margin: 0; font-size: 28px; line-height: 1.1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.01em;">Archivar orden</h2>
+        <div style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px; padding: 20px 24px 24px;">
+        <p style="margin: 0; font-size: 14px; line-height: 20px; color: #33383D;"><span class="id">WO-310</span> sale de la lista activa: queda en solo lectura y la encontrás en el filtro Archivadas.</p>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label style="font-size: 14px; font-weight: 600;">Motivo (opcional)</label>
+          <div style="min-height: 96px; padding: 8px 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #565D63;">Por qué se archiva…</div>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid #DDE1DF;">
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Cancelar</div>
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Archivar</div>
+      </div>
+    </div>
   </div>
 </div>
 </x-dc>

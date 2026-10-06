@@ -87,7 +87,7 @@ export interface Blueprint {
 
 // ── Work orders ───────────────────────────────────────────────────────────────────────────────────────
 
-export type WorkOrderStatus = 'pending' | 'in_progress' | 'done' | 'out_of_sync';
+export type WorkOrderStatus = 'pending' | 'in_progress' | 'done' | 'out_of_sync' | 'archived';
 
 export interface WorkOrder {
   readonly id: string;
@@ -103,6 +103,12 @@ export interface WorkOrder {
   readonly updatedAt: string;
   readonly claimedAt?: string;
   readonly completedAt?: string;
+  /** Set by archiveOrder: when the order left the active queue. */
+  readonly archivedAt?: string;
+  /** Actor that archived it. */
+  readonly archivedBy?: ActorRef;
+  /** Optional motive the person typed in "Archivar orden". */
+  readonly archiveReason?: string;
   /** For out_of_sync orders: the blueprint change that stranded them. */
   readonly outOfSyncReason?: string;
   readonly sample: boolean;
