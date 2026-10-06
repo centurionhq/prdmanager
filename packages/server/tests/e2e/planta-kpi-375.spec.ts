@@ -10,6 +10,9 @@
  * (`BC_REQUIRED_SECTIONS`) and `justified_by` round-trip through the live collab doc before publishing.
  * That BC is enough for one `caso_negocio` row — a `PRD` (and its own justification dance) would not add
  * anything to what this WO asserts.
+ *
+ * `GET .../projects/overview` se interviene por la misma razón que en `planta-kpi-detalle-375.spec.ts`: el
+ * proyecto del journey no tiene reporte de CI y, con SDD-085 D3, el strip colapsaría a una sola línea.
  */
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
@@ -170,6 +173,21 @@ test('la banda de la Planta a 375 px: 5 KPIs, 2+2 y la 5.ª celda a ancho comple
     await expect(page.locator('p', { hasText: /published/ })).toBeVisible();
   });
 
+  // `route.fetch()` real y se reescribe SÓLO `awaitingFirstReport` (sesión, línea, documentos y `/metrics`
+  // siguen siendo reales), igual que en `planta-kpi-detalle-375.spec.ts` (WO-669): sin reporte de CI el
+  // strip colapsa a una línea (SDD-085 D3) y los 5 KPIs que mide este spec no existirían.
+  let overviewAwaitingFirstReport = false;
+  await context.route('**/api/app/organizations/*/projects/overview', async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as Record<string, unknown>;
+    if (!Array.isArray(body.projects)) {
+      await route.fulfill({ response });
+      return;
+    }
+    const projects = (body.projects as Record<string, unknown>[]).map((p) => ({ ...p, awaitingFirstReport: overviewAwaitingFirstReport }));
+    await route.fulfill({ response, json: { ...body, projects } });
+  });
+
   await test.step('Planta a 375 px: los 5 KPIs en orden y la 5.ª celda a ancho completo', async () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
@@ -198,5 +216,23 @@ test('la banda de la Planta a 375 px: 5 KPIs, 2+2 y la 5.ª celda a ancho comple
 
     mkdirSync(dirname(SCREENSHOT_PATH), { recursive: true });
     await page.screenshot({ path: SCREENSHOT_PATH, fullPage: true });
+  });
+
+  await test.step('sin reporte de CI: el primer reporte se dice una sola vez y ofrece conectar el entorno', async () => {
+    overviewAwaitingFirstReport = true;
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Planta' })).toBeVisible();
+    await expect(page.getByText(bcDocId)).toBeVisible();
+
+    const strip = page.getByRole('region', { name: 'Indicadores de la planta' });
+    const FRASE_PRIMER_REPORTE = 'Todavía no hay reporte de CI: los indicadores llegan con el primero';
+    await expect(strip.getByText(FRASE_PRIMER_REPORTE, { exact: true })).toHaveCount(1);
+
+    const conectar = strip.getByRole('link', { name: 'Conectar mi entorno' });
+    await expect(conectar).toBeVisible();
+    await expect(conectar).toHaveAttribute('href', `/o/${org.slug}/p/${project.slug}/construir/developer`);
+
+    // La banda ya no dibuja los cinco KPIs en esta rama.
+    await expect(strip.getByText('Commits con Refs', { exact: true })).toHaveCount(0);
   });
 });
