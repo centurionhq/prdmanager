@@ -23,6 +23,10 @@
     {
       "id": "page-6",
       "name": "PRD-036 · ronda A"
+    },
+    {
+      "id": "page-7",
+      "name": "SDD-070 · previews por rama"
     }
   ],
   "artboards": [
@@ -403,6 +407,24 @@
       "w": 375,
       "h": 812,
       "page": "page-6"
+    },
+    {
+      "file": "Drift-Previews.dc.html",
+      "title": "Drift · previews por rama con delta contra el reporte oficial",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-7"
+    },
+    {
+      "file": "Drift-Detalle.dc.html",
+      "title": "Drift · detalle del reporte (la rama al frente)",
+      "x": 1600,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-7"
     }
   ],
   "annotations": [
@@ -477,6 +499,14 @@
       "w": 900,
       "page": "page-6",
       "text": "PRD-036 · Usar el design system en Ajustes — ronda A de canvas (SDD-056)\n\nQué se encontró (FB-035): el contenido de Ajustes hoy se ve sin estilo (campos sin borde, tablas con las columnas pegadas, botones sin forma) porque forms.module.css y dashboard.module.css usaban variables del sistema de diseño anterior que ya no existen. Eso ya se reparó sin tocar el diseño; lo que sigue es reconstruir cada pantalla como la dibujan estos artboards.\n\nQué falta dibujar y está acá: General (no tenía artboard), el shell con la subnavegación, y la sección a 375 px (General y una pantalla con tabla y secreto de un solo uso). Las demás pantallas conservan sus artboards de las páginas anteriores.\n\nDecisión a mirar: la subnavegación dibuja SÓLO destinos que existen (General, Miembros, Tokens de CI y Auditoría del proyecto; Perfil y Tokens personales de la cuenta). Los artboards viejos de Ajustes muestran además Integraciones, Autenticación y SSO y los de la organización; esos destinos no existen (el SSO es de un PRD futuro, FB-008) y agregar o mover destinos es otro PRD. En esos artboards manda esta subnavegación, no la suya.\n\nA 375 px la subnavegación pasa a una tira horizontal con scroll (sin los títulos de grupo) y las tablas se apilan en tarjetas. Todo control táctil de 44 px."
+    },
+    {
+      "id": "sdd070-previews-intro",
+      "x": 0,
+      "y": -320,
+      "w": 900,
+      "page": "page-7",
+      "text": "SDD-070 · Previews por rama (WO-755)\n\nEl panel sigue la decisión vigente de SDD-070, que el código ya implementa en packages/app (WO-636/637/638, PR #77): badge «vista previa» como texto apagado sin borde ni radio (D5), delta contra el reporte oficial de la rama por defecto como segunda línea del conteo (D2), la ref 32/merge legible como PR #32 con el valor crudo en el title (D3), la fila entera como botón que abre el detalle (D4) y orden peor-primero (D6).\n\nTres placas de la misma pantalla: Drift-Previews (pantalla base, el panel a contraste pleno), Drift (reconocer drift, el modal sobre la pantalla) y Drift-Detalle (el detalle del reporte, con la etiqueta de rama al frente — D7). Ninguna placa nueva pisa el rol de Drift.dc.html como placa de un modal, que es la que cita Ordenes-Archivar.dc.html.\n\nNo dibujado a propósito: el estado sin reporte oficial (— vs <rama por defecto>). En este artboard hay reporte oficial; dibujar un — al lado sería una contradicción. Está especificado en SDD-070 D2 y en canvas/Drift.decisiones.md.\n\nLa fila «Esperando reporte de CI» salió del panel: un reporte de preview siempre trae conteo y esa espera es un issue de la lista (awaiting_ci_report), no una fila de previews. El mock del paquete de diseño (src/features/drift/BranchPreviews.*) todavía dibuja la versión vieja: se alinea en una tarjeta hija de t_19045ae2."
     }
   ],
   "launch": {
