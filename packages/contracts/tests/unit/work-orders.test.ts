@@ -3,7 +3,7 @@
  * `@prdm/core`'s `getWorkOrderContext` result shape (`packages/core/src/workorders/context.ts`).
  */
 import { describe, expect, test } from 'vitest';
-import { archiveWorkOrderInputSchema, claimWorkOrderInputSchema, completeWorkOrderInputSchema, workOrderContextDtoSchema } from '../../src/work-orders.js';
+import { archiveWorkOrderInputSchema, batchWorkOrdersInputSchema, claimWorkOrderInputSchema, completeWorkOrderInputSchema, workOrderContextDtoSchema } from '../../src/work-orders.js';
 
 describe('workOrderContextDtoSchema', () => {
   const valid = {
@@ -45,8 +45,16 @@ describe('claimWorkOrderInputSchema', () => {
     expect(claimWorkOrderInputSchema.parse({})).toEqual({});
   });
 
-  test('rejects an assignee (the server decides)', () => {
-    expect(() => claimWorkOrderInputSchema.parse({ assignedTo: 'agent:claude' })).toThrow();
+  test('accepts an agent assignee', () => {
+    expect(claimWorkOrderInputSchema.parse({ assignee: 'agent:prdm-engineer' })).toEqual({ assignee: 'agent:prdm-engineer' });
+  });
+
+  test('accepts another dev assignee (the route, not the schema, returns the 403)', () => {
+    expect(claimWorkOrderInputSchema.parse({ assignee: 'dev:someone-else' })).toEqual({ assignee: 'dev:someone-else' });
+  });
+
+  test.each(['bogus', 'dev:'])('rejects a malformed assignee %j', (assignee) => {
+    expect(() => claimWorkOrderInputSchema.parse({ assignee })).toThrow();
   });
 });
 
@@ -71,5 +79,38 @@ describe('archiveWorkOrderInputSchema (WO-415/SDD-018)', () => {
 
   test('rejects an explicit empty-string reason (an empty justification is not the same as no reason)', () => {
     expect(() => archiveWorkOrderInputSchema.parse({ reason: '' })).toThrow();
+  });
+});
+
+describe('batchWorkOrdersInputSchema (SDD-086 D4)', () => {
+  const base = { action: 'archive', ids: ['WO-001', 'WO-002'] };
+
+  test('accepts a minimal archive batch', () => {
+    expect(batchWorkOrdersInputSchema.parse(base)).toEqual(base);
+  });
+
+  test('accepts a reason and a valid assignee', () => {
+    const input = { action: 'claim', ids: ['WO-001'], reason: 'why', assignee: 'agent:prdm-engineer' };
+    expect(batchWorkOrdersInputSchema.parse(input)).toEqual(input);
+  });
+
+  test('rejects an unknown action', () => {
+    expect(() => batchWorkOrdersInputSchema.parse({ ...base, action: 'bogus' })).toThrow();
+  });
+
+  test('rejects empty ids', () => {
+    expect(() => batchWorkOrdersInputSchema.parse({ ...base, ids: [] })).toThrow();
+  });
+
+  test('rejects more than 200 ids', () => {
+    expect(() => batchWorkOrdersInputSchema.parse({ ...base, ids: Array.from({ length: 201 }, (_, i) => `WO-${i}`) })).toThrow();
+  });
+
+  test('rejects an empty reason', () => {
+    expect(() => batchWorkOrdersInputSchema.parse({ ...base, reason: '' })).toThrow();
+  });
+
+  test('rejects a malformed assignee', () => {
+    expect(() => batchWorkOrdersInputSchema.parse({ ...base, assignee: 'nope' })).toThrow();
   });
 });

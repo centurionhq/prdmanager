@@ -53,9 +53,15 @@ export const workOrderContextDtoSchema = z.object({
 });
 export type WorkOrderContextDto = z.infer<typeof workOrderContextDtoSchema>;
 
-/** `POST .../work-orders/:id/claim`: intentionally empty — the assignee is always the calling
- * agent/developer, decided server-side, never something a client may specify. */
-export const claimWorkOrderInputSchema = z.strictObject({});
+/** Hand-synced with `@prdm/core`'s `ACTOR_PATTERN` (`packages/core/src/domain/schema.ts:78`). */
+export const ACTOR_PATTERN = /^(agent|dev):[A-Za-z0-9._-]{1,64}$/;
+
+/** `POST .../work-orders/:id/claim` (SDD-086 D1): without `assignee` the server keeps assigning
+ * `dev:<profile.handle>`; with it only `agent:<name>` or the caller's own `dev:<handle>` is admitted
+ * (the authorization lives in the route, not here). */
+export const claimWorkOrderInputSchema = z.object({
+  assignee: z.string().regex(ACTOR_PATTERN, 'assignee must look like agent:name or dev:name').optional(),
+});
 export type ClaimWorkOrderInput = z.infer<typeof claimWorkOrderInputSchema>;
 
 export const completeWorkOrderInputSchema = z.object({
@@ -69,3 +75,15 @@ export const archiveWorkOrderInputSchema = z.object({
   reason: z.string().min(1, 'reason must not be empty when given').max(2000).optional(),
 });
 export type ArchiveWorkOrderInput = z.infer<typeof archiveWorkOrderInputSchema>;
+
+export const BATCH_WORK_ORDER_ACTIONS = ['archive', 'claim'] as const;
+export type BatchWorkOrderAction = (typeof BATCH_WORK_ORDER_ACTIONS)[number];
+
+/** `POST .../work-orders/batch` (SDD-086 D4): best-effort por ítem; tope 200 ids (misma convención que el `triage-batch` de SDD-065 D5). */
+export const batchWorkOrdersInputSchema = z.object({
+  action: z.enum(BATCH_WORK_ORDER_ACTIONS),
+  ids: z.array(z.string().min(1)).min(1).max(200),
+  reason: z.string().min(1, 'reason must not be empty when given').max(2000).optional(),
+  assignee: z.string().regex(ACTOR_PATTERN, 'assignee must look like agent:name or dev:name').optional(),
+});
+export type BatchWorkOrdersInput = z.infer<typeof batchWorkOrdersInputSchema>;
