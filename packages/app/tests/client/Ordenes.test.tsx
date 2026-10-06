@@ -186,25 +186,75 @@ describe('Ordenes', () => {
     expect(filter.offset).toBe(0);
   });
 
-  it('opens the drawer with the real context and claims a pending order', async () => {
+  async function openClaimDialog(): Promise<HTMLElement> {
     vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
     vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(fakeContext());
-    const claim = vi.spyOn(client, 'claimWorkOrder').mockResolvedValue({ ...ORDERS[1]!, status: 'in_progress', assignedTo: 'dev:ana' });
     renderPage();
-
     await userEvent.click(await screen.findByText('WO-310'));
-
     expect(await screen.findByText('Al terminar una importación, la CLI muestra un resumen.')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Tomar orden' }));
+    return screen.findByRole('dialog', { name: 'Tomar orden' });
+  }
 
-    await waitFor(() => expect(claim).toHaveBeenCalledWith('acme', 'web', 'WO-310'));
-    expect(await screen.findByText('Orden tomada')).toBeTruthy();
+  const claimResult = (assignedTo: string): Awaited<ReturnType<typeof client.claimWorkOrder>> => ({
+    id: 'WO-310',
+    status: 'in_progress',
+    assignedTo,
+    claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+
+  it('opens the drawer with the real context and claims a pending order as the session handle', async () => {
+    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: 'ana', workProfile: null });
+    const claim = vi.spyOn(client, 'claimWorkOrder').mockResolvedValue(claimResult('dev:ana'));
+    const dialog = await openClaimDialog();
+
+    expect((await within(dialog).findByRole('radio', { name: 'Yo (dev:ana)' }) as HTMLInputElement).checked).toBe(true);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Tomar orden' }));
+
+    await waitFor(() => expect(claim).toHaveBeenCalledWith('acme', 'web', 'WO-310', 'dev:ana'));
+    expect(await screen.findByText('Orden tomada: asignada a dev:ana')).toBeTruthy();
+  });
+
+  it('without a handle disables "Yo" and claims for a named agent', async () => {
+    const claim = vi.spyOn(client, 'claimWorkOrder').mockResolvedValue(claimResult('agent:claude'));
+    const dialog = await openClaimDialog();
+
+    expect(within(dialog).queryByRole('radio', { name: /Yo \(dev:/ })).toBeNull();
+    expect((within(dialog).getByRole('radio', { name: 'Yo (sin handle)' }) as HTMLInputElement).disabled).toBe(true);
+    expect(within(dialog).getByText('Definí tu handle en Ajustes › Perfil.')).toBeTruthy();
+    await userEvent.type(within(dialog).getByLabelText('Nombre del agente'), ' claude ');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Tomar orden' }));
+
+    await waitFor(() => expect(claim).toHaveBeenCalledWith('acme', 'web', 'WO-310', 'agent:claude'));
+  });
+
+  it('rejects an invalid agent name without calling the server', async () => {
+    const claim = vi.spyOn(client, 'claimWorkOrder').mockResolvedValue(claimResult('agent:x'));
+    const dialog = await openClaimDialog();
+
+    const input = within(dialog).getByLabelText('Nombre del agente');
+    await userEvent.type(input, 'agente con espacios');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Tomar orden' }));
+
+    expect(await within(dialog).findByText(/Escribí el nombre del agente/)).toBeTruthy();
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(claim).not.toHaveBeenCalled();
+  });
+
+  it('shows a server rejection inside the claim dialog', async () => {
+    vi.spyOn(client, 'claimWorkOrder').mockRejectedValue(new ApiClientError(409, 'unknown', 'already claimed'));
+    const dialog = await openClaimDialog();
+
+    await userEvent.type(within(dialog).getByLabelText('Nombre del agente'), 'claude');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Tomar orden' }));
+
+    expect((await within(dialog).findByRole('alert')).textContent).toBeTruthy();
   });
 
   it('completes an in-progress order with a commit sha', async () => {
     vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
     vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(fakeContext({ id: 'WO-304', status: 'in_progress', assignedTo: 'agent:claude' }));
-    const complete = vi.spyOn(client, 'completeWorkOrder').mockResolvedValue({ ...ORDERS[0]!, status: 'done' });
+    const complete = vi.spyOn(client, 'completeWorkOrder').mockResolvedValue({ id: 'WO-304', status: 'done', completedAt: '2026-01-01T00:00:00.000Z', resolvedBy: [], drift: [] });
     renderPage();
 
     await userEvent.click(await screen.findByText('WO-304'));

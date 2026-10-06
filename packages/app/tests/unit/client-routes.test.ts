@@ -105,24 +105,30 @@ describe('getWorkOrderContext', () => {
 });
 
 describe('claimWorkOrder', () => {
-  it('POSTs an empty body to claim and unwraps { workOrder }', async () => {
-    const workOrder = { id: 'WO-001', status: 'in_progress' };
-    const spy = spyOnRequest().mockResolvedValue({ workOrder });
+  const url = '/api/app/organizations/acme/projects/factory/work-orders/WO-001/claim';
 
-    await expect(claimWorkOrder('acme', 'factory', 'WO-001')).resolves.toEqual(workOrder);
-    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/work-orders/WO-001/claim', {
-      method: 'POST',
-      body: {},
-    });
+  it('POSTs an empty body without an assignee and unwraps { result }', async () => {
+    const result = { id: 'WO-001', status: 'in_progress', assignedTo: 'dev:ana', claimedAt: '2026-01-01T00:00:00.000Z' };
+    const spy = spyOnRequest().mockResolvedValue({ result });
+
+    await expect(claimWorkOrder('acme', 'factory', 'WO-001')).resolves.toEqual(result);
+    expect(spy).toHaveBeenCalledWith(url, { method: 'POST', body: {} });
+  });
+
+  it('POSTs the chosen assignee', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ result: { id: 'WO-001' } });
+
+    await claimWorkOrder('acme', 'factory', 'WO-001', 'agent:claude');
+    expect(spy).toHaveBeenCalledWith(url, { method: 'POST', body: { assignee: 'agent:claude' } });
   });
 });
 
 describe('completeWorkOrder', () => {
-  it('POSTs the commit sha to complete and unwraps { workOrder }', async () => {
-    const workOrder = { id: 'WO-001', status: 'done' };
-    const spy = spyOnRequest().mockResolvedValue({ workOrder });
+  it('POSTs the commit sha to complete and unwraps { result }', async () => {
+    const result = { id: 'WO-001', status: 'done' };
+    const spy = spyOnRequest().mockResolvedValue({ result });
 
-    await expect(completeWorkOrder('acme', 'factory', 'WO-001', 'abc1234')).resolves.toEqual(workOrder);
+    await expect(completeWorkOrder('acme', 'factory', 'WO-001', 'abc1234')).resolves.toEqual(result);
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/work-orders/WO-001/complete', {
       method: 'POST',
       body: { commitSha: 'abc1234' },

@@ -6,10 +6,12 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import type { WorkOrderContextDto } from '@prdm/contracts';
 import type { WorkOrderSummary } from '@prdm/core';
-import { ApiClientError, archiveWorkOrder, claimWorkOrder, completeWorkOrder, getWorkOrderContext } from '../../api/client.js';
+import { ApiClientError, archiveWorkOrder, claimWorkOrder, completeWorkOrder, getProfile, getWorkOrderContext } from '../../api/client.js';
+import { useApiQuery } from '../../api/use-api-query.js';
 import { errorMessage } from '../../api/error-message.js';
 import { Button, Drawer, ErrorState, IdTag, Severity, Skeleton, StatusBadge, useToast } from '../../components/index.js';
 import { ArchiveOrderModal } from './ArchiveOrderModal.js';
+import { ClaimOrderModal } from './ClaimOrderModal.js';
 import { CompleteOrderModal } from './CompleteOrderModal.js';
 import { asWorkOrderStatus } from './ordenes-filters.js';
 import styles from './OrderDrawer.module.css';
@@ -31,6 +33,9 @@ export function OrderDrawer({ orgSlug, projectSlug, workOrderId, onClose, onChan
   const { show } = useToast();
   const [context, setContext] = useState<WorkOrderContextDto | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const profileQuery = useApiQuery('profile', () => getProfile(), []);
+  const [claimOpen, setClaimOpen] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
@@ -52,15 +57,17 @@ export function OrderDrawer({ orgSlug, projectSlug, workOrderId, onClose, onChan
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `load` closes over its own deps only.
   }, [orgSlug, projectSlug, workOrderId]);
 
-  async function handleClaim(): Promise<void> {
+  async function handleClaim(assignee: string): Promise<void> {
     setClaiming(true);
+    setClaimError(null);
     try {
-      const updated = await claimWorkOrder(orgSlug, projectSlug, workOrderId);
-      onChanged(updated);
-      show('Orden tomada', { tone: 'success' });
+      const result = await claimWorkOrder(orgSlug, projectSlug, workOrderId, assignee);
+      setClaimOpen(false);
+      onChanged();
+      show(`Orden tomada: asignada a ${result.assignedTo}`, { tone: 'success' });
       load();
     } catch (err) {
-      show(errorMessage(err));
+      setClaimError(errorMessage(err));
     } finally {
       setClaiming(false);
     }
@@ -70,8 +77,8 @@ export function OrderDrawer({ orgSlug, projectSlug, workOrderId, onClose, onChan
     setCompleting(true);
     setCompleteError(null);
     try {
-      const updated = await completeWorkOrder(orgSlug, projectSlug, workOrderId, commitSha);
-      onChanged(updated);
+      await completeWorkOrder(orgSlug, projectSlug, workOrderId, commitSha);
+      onChanged();
       setCompleteOpen(false);
       show('Orden completada', { tone: 'success' });
       load();
@@ -120,7 +127,7 @@ export function OrderDrawer({ orgSlug, projectSlug, workOrderId, onClose, onChan
           context ? (
             <div className={styles.footer}>
               {canClaim ? (
-                <Button type="button" variant="primary" disabled={claiming} onClick={() => void handleClaim()}>
+                <Button type="button" variant="primary" onClick={() => setClaimOpen(true)}>
                   Tomar orden
                 </Button>
               ) : null}
@@ -226,6 +233,19 @@ export function OrderDrawer({ orgSlug, projectSlug, workOrderId, onClose, onChan
           </div>
         ) : null}
       </Drawer>
+
+      <ClaimOrderModal
+        open={claimOpen}
+        workOrderId={workOrderId}
+        handle={profileQuery.data?.handle ?? null}
+        submitting={claiming}
+        error={claimError}
+        onClose={() => {
+          setClaimOpen(false);
+          setClaimError(null);
+        }}
+        onConfirm={(assignee) => void handleClaim(assignee)}
+      />
 
       <CompleteOrderModal
         open={completeOpen}

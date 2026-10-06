@@ -4,7 +4,7 @@
  * order, plus claiming and completing it.
  */
 import type { ArchiveWorkOrderInput, ClaimWorkOrderInput, CompleteWorkOrderInput, WorkOrderContextDto } from '@prdm/contracts';
-import type { ArchiveResult, WorkOrderSummary } from '@prdm/core';
+import type { ArchiveResult, ClaimResult, CompleteResult } from '@prdm/core';
 import { request } from './request.js';
 
 function workOrderBase(orgSlug: string, projectSlug: string, workOrderId: string): string {
@@ -15,14 +15,13 @@ export function getWorkOrderContext(orgSlug: string, projectSlug: string, workOr
   return request<{ context: WorkOrderContextDto }>(`${workOrderBase(orgSlug, projectSlug, workOrderId)}/context`).then((r) => r.context);
 }
 
-/** The body is always empty — the assignee is always the calling agent/developer, decided server-side. */
-const EMPTY_CLAIM_INPUT: ClaimWorkOrderInput = {};
-
-export function claimWorkOrder(orgSlug: string, projectSlug: string, workOrderId: string): Promise<WorkOrderSummary> {
-  return request<{ workOrder: WorkOrderSummary }>(`${workOrderBase(orgSlug, projectSlug, workOrderId)}/claim`, {
+/** Without `assignee` the body is `{}` and the server assigns the caller; with it, the chosen `dev:`/`agent:` actor. */
+export function claimWorkOrder(orgSlug: string, projectSlug: string, workOrderId: string, assignee?: string): Promise<ClaimResult> {
+  const input: ClaimWorkOrderInput = assignee !== undefined ? { assignee } : {};
+  return request<{ result: ClaimResult }>(`${workOrderBase(orgSlug, projectSlug, workOrderId)}/claim`, {
     method: 'POST',
-    body: EMPTY_CLAIM_INPUT,
-  }).then((r) => r.workOrder);
+    body: input,
+  }).then((r) => r.result);
 }
 
 export function completeWorkOrder(
@@ -30,12 +29,12 @@ export function completeWorkOrder(
   projectSlug: string,
   workOrderId: string,
   commitSha: string,
-): Promise<WorkOrderSummary> {
+): Promise<CompleteResult> {
   const input: CompleteWorkOrderInput = { commitSha };
-  return request<{ workOrder: WorkOrderSummary }>(`${workOrderBase(orgSlug, projectSlug, workOrderId)}/complete`, {
+  return request<{ result: CompleteResult }>(`${workOrderBase(orgSlug, projectSlug, workOrderId)}/complete`, {
     method: 'POST',
     body: input,
-  }).then((r) => r.workOrder);
+  }).then((r) => r.result);
 }
 
 /**
