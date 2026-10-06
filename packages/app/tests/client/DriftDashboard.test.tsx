@@ -6,6 +6,7 @@ import type { DriftDashboardDto, DriftIssueDto, DriftReportDetailDto, DriftRepor
 import * as client from '../../src/api/client.js';
 import * as graphApi from '../../src/api/graph.js';
 import { clearQueryCache } from '../../src/api/query-cache.js';
+import { formatDateTime } from '../../src/lib/format-date.js';
 import { DriftDashboard } from '../../src/routes/DriftDashboard.js';
 import { makeProjectShellContext } from './fixtures.js';
 
@@ -467,5 +468,90 @@ describe('DriftDashboard · triage (SDD-061)', () => {
     expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).toBeNull();
     expect(groupFor(issuesRegion(), 'Código fuera de sincronía')).toBeTruthy();
     expect(groupFor(issuesRegion(), 'Enlaces rotos')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------
+// SDD-069 / WO-634 — freshness of the official report: the relative age in the subtitle with the absolute
+// instant in the tooltip, the stale-report warning, and the «Actualizar reporte» re-read action.
+// ---------------------------------------------------------------------------------------------------
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const REFRESH_TITLE = 'Vuelve a leer el último reporte de CI; no dispara una corrida nueva.';
+
+/** An official report created `days` complete days ago (plus a minute, so rounding lands exactly on `days`). */
+function officialDaysAgo(days: number, overrides: Partial<DriftReportSummaryDto> = {}): DriftReportSummaryDto {
+  return fakeReport({
+    id: 'official-freshness',
+    mode: 'baseline',
+    tokenName: 'ci-pipeline',
+    branch: 'main',
+    createdAt: new Date(Date.now() - days * DAY_MS - 60_000).toISOString(),
+    ...overrides,
+  });
+}
+
+function renderOfficial(report: DriftReportSummaryDto): void {
+  vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({ official: report, previews: [], history: [] });
+  vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+  renderPage();
+}
+
+describe('DriftDashboard · frescura del reporte oficial (SDD-069)', () => {
+  beforeEach(() => clearQueryCache());
+  afterEach(() => vi.restoreAllMocks());
+
+  it('says the relative age in the subtitle and keeps the absolute instant in the tooltip', async () => {
+    const report = officialDaysAgo(8);
+    renderOfficial(report);
+
+    const age = await screen.findByText('hace 8 d');
+    const trigger = age.closest('[aria-describedby]');
+    const tooltipId = trigger?.getAttribute('aria-describedby');
+    expect(tooltipId).toBeTruthy();
+    expect(document.getElementById(tooltipId!)?.textContent).toBe(formatDateTime(report.createdAt));
+  });
+
+  it('warns that a report a week or older may no longer reflect the code', async () => {
+    renderOfficial(officialDaysAgo(8));
+
+    const notice = await screen.findByText(/Los números pueden no reflejar el código actual/);
+    expect(notice.textContent).toContain('El reporte oficial tiene 8 días');
+    expect(notice.textContent).toContain(`se renueva cuando CI reporta un push sobre main.`);
+  });
+
+  it('does not warn for a report younger than the stale threshold', async () => {
+    renderOfficial(officialDaysAgo(2));
+
+    expect(await screen.findByText('hace 2 d')).toBeTruthy();
+    expect(screen.queryByText(/Los números pueden no reflejar/)).toBeNull();
+  });
+
+  it('treats a report of exactly a week as stale: the threshold is inclusive', async () => {
+    renderOfficial(officialDaysAgo(7));
+
+    expect(await screen.findByText('hace 7 d')).toBeTruthy();
+    expect(screen.getByText(/Los números pueden no reflejar/)).toBeTruthy();
+  });
+
+  it('re-reads the last official report without triggering a new CI run', async () => {
+    const dashboardSpy = vi
+      .spyOn(client, 'getDriftDashboard')
+      .mockResolvedValue({ official: officialDaysAgo(3), previews: [], history: [] });
+    const issuesSpy = vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+    renderPage();
+    await screen.findByText('hace 3 d');
+    dashboardSpy.mockClear();
+    issuesSpy.mockClear();
+
+    const button = screen.getByRole('button', { name: REFRESH_TITLE });
+    expect(button.getAttribute('title')).toBe(REFRESH_TITLE);
+    expect(button.textContent).toContain('Actualizar reporte');
+
+    await userEvent.click(button);
+
+    await waitFor(() => expect(dashboardSpy).toHaveBeenCalled());
+    expect(issuesSpy).toHaveBeenCalled();
+    expect(await screen.findByText('Reporte releído')).toBeTruthy();
   });
 });
