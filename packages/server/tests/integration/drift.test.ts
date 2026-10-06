@@ -155,3 +155,130 @@ describe('/api/app/organizations/:orgSlug/projects/:projectSlug/drift/acknowledg
     await app.close();
   });
 });
+
+describe('POST /api/v1/projects/:graphProjectId/drift/acknowledge (SDD-087 WO-B)', () => {
+  let pg: PgTestDb;
+  let neo4j: Neo4jGraphDatabase;
+  let tmpRoot: string;
+  let env: ReturnType<typeof buildTestServerEnv>;
+  const AUTH_HOST = () => ({ host: new URL(env.publicUrl).host });
+  const ORIGIN = () => env.publicUrl;
+  const PASSWORD = 'correct-horse-battery-staple';
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  beforeAll(async () => {
+    pg = await openTestPg();
+    tmpRoot = makeTmpDir();
+    const config = testConfig(tmpRoot);
+    neo4j = Neo4jGraphDatabase.connect(config.neo4j);
+    await neo4j.verify();
+    await neo4j.migrate();
+    env = buildTestServerEnv({ neo4j: config.neo4j });
+  });
+
+  afterEach(async () => {
+    await truncateAll(pg.ownerPool);
+  });
+
+  afterAll(async () => {
+    await neo4j.close();
+    removeDir(tmpRoot);
+    await pg.close();
+  });
+
+  function buildApp() {
+    return buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false, neo4j });
+  }
+
+  async function signIn(app: ReturnType<typeof buildServer>, email: string): Promise<string> {
+    const res = await app.inject({ method: 'POST', url: '/api/auth/sign-in/email', payload: { email, password: PASSWORD }, headers: AUTH_HOST() });
+    const cookie = res.headers['set-cookie'];
+    return (Array.isArray(cookie) ? cookie[0] : cookie)!.split(';')[0]!;
+  }
+
+  async function seedProjectWithCiToken(app: ReturnType<typeof buildServer>, scopes: string[]) {
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    const org = await createOrganizationFixture(pg);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: `saas://project/${project.id}` });
+    await store.clear();
+    const cookie = await signIn(app, owner.email);
+    const created = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/ci-tokens`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), cookie),
+      payload: { name: 'ci-pipeline', scopes, expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    return { org, project, secret: created.json().secret as string };
+  }
+
+  function ack(app: ReturnType<typeof buildServer>, graphProjectId: string, secret: string, payload: Record<string, unknown>) {
+    return app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${graphProjectId}/drift/acknowledge`,
+      headers: { authorization: `Bearer ${secret}` },
+      payload,
+    });
+  }
+
+  async function auditRows(orgId: string) {
+    const { rows } = await pg.ownerPool.query(
+      `SELECT actor_type, actor_id, target, metadata->>'remainingIssues' AS remaining, metadata->>'reason' AS reason FROM audit_log WHERE org_id = $1 AND action = 'drift.acknowledged'`,
+      [orgId],
+    );
+    return rows;
+  }
+
+  test('a reports:baseline CI token acknowledges "all" and it is audited as a token actor', async () => {
+    const app = buildApp();
+    const { org, project, secret } = await seedProjectWithCiToken(app, ['reports:baseline']);
+
+    const res = await ack(app, project.graphProjectId, secret, { target: 'all', reason: 'reviewed the drift, baseline is correct' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().report.documents).toBe(0);
+
+    const { rows: tokenRows } = await pg.ownerPool.query(`SELECT id FROM api_tokens WHERE org_id = $1`, [org.id]);
+    const rows = await auditRows(org.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].actor_type).toBe('token');
+    expect(rows[0].actor_id).toBe(tokenRows[0].id);
+    expect(rows[0].target).toBe('all');
+    expect(rows[0].remaining).toBe('0');
+    expect(rows[0].reason).toBe('reviewed the drift, baseline is correct');
+
+    await app.close();
+  });
+
+  test('rejects a body without reason (400) and writes no audit row', async () => {
+    const app = buildApp();
+    const { org, project, secret } = await seedProjectWithCiToken(app, ['reports:baseline']);
+
+    const res = await ack(app, project.graphProjectId, secret, { target: 'all' });
+    expect(res.statusCode).toBe(400);
+    expect(await auditRows(org.id)).toHaveLength(0);
+
+    await app.close();
+  });
+
+  test('a CI token with reports:write but not reports:baseline is forbidden (403)', async () => {
+    const app = buildApp();
+    const { project, secret } = await seedProjectWithCiToken(app, ['reports:write']);
+
+    const res = await ack(app, project.graphProjectId, secret, { target: 'all', reason: 'nope' });
+    expect(res.statusCode).toBe(403);
+
+    await app.close();
+  });
+
+  test("another org's CI token cannot reach this project (404)", async () => {
+    const app = buildApp();
+    const { project } = await seedProjectWithCiToken(app, ['reports:baseline']);
+    const other = await seedProjectWithCiToken(app, ['reports:baseline']);
+
+    const res = await ack(app, project.graphProjectId, other.secret, { target: 'all', reason: 'probe' });
+    expect(res.statusCode).toBe(404);
+
+    await app.close();
+  });
+});

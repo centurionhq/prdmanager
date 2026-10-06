@@ -3,9 +3,10 @@
  * `GET .../governance` -> local `scanContents`/`resolveGoverned`/`readCommits`/`dirtyPaths` -> `POST
  * .../code-reports` -> prints the drift the server computed. `--check` exits non-zero on blocking issues.
  */
-import { currentBranch, scanContents, type RemoteProjectFile } from '@prdm/core';
+import { currentBranch, scanContents, type RefreshReport, type RemoteProjectFile } from '@prdm/core';
 import type { CodeReportIssueDto, CodeReportResponse } from '@prdm/contracts';
 import { CliError } from '../errors.js';
+import { formatRefreshReport } from '../format.js';
 import { buildCodeReportBody, sendCodeReport, type BlueprintLike } from './code-report.js';
 import { checkProjectPinMismatch, resolveRemoteCredential } from './credentials.js';
 import { fetchGithubActionsOidcToken } from './github-oidc-token.js';
@@ -88,4 +89,47 @@ export async function runRemoteSync(root: string, file: RemoteProjectFile, optio
 
   deps.stdout(options.json ? JSON.stringify(result.response, null, 2) : formatResponse(result.response));
   if (options.check && result.response.hasBlockingIssues) throw new CliError('sync check failed: blocking issues found');
+}
+
+export interface RemoteAckOptions {
+  reason?: string;
+}
+
+const MAX_ACK_REASON_LENGTH = 500;
+
+/** SDD-087 D4: `prdm sync ack <target|all> --reason "..."` in remote mode. The reason is checked before
+ * anything else (no credential lookup, no `fetch`): the server audits it and rejects a missing one anyway. */
+export async function runRemoteAck(root: string, file: RemoteProjectFile, target: string, options: RemoteAckOptions, deps: RemoteSyncDeps): Promise<void> {
+  const origin = resolveRemoteServerOrigin(file.remote, deps.env);
+  const graphProjectId = file.project.id;
+
+  const reason = options.reason?.trim() ?? '';
+  if (reason.length === 0) {
+    throw new CliError('--reason is required: "prdm sync ack" records an audited re-baseline; pass --reason "<why this baseline is correct>"');
+  }
+  if (reason.length > MAX_ACK_REASON_LENGTH) throw new CliError(`--reason must be ${MAX_ACK_REASON_LENGTH} characters or fewer`);
+
+  const pinMismatch = checkProjectPinMismatch(root, graphProjectId, deps.env);
+  if (pinMismatch) throw new CliError(pinMismatch);
+
+  const token = resolveRemoteCredential(origin, deps.env);
+
+  let response: Response;
+  try {
+    response = await (deps.fetchImpl ?? fetch)(new URL(`/api/v1/projects/${graphProjectId}/drift/acknowledge`, origin), {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ target, reason }),
+      redirect: 'error',
+    });
+  } catch (err) {
+    throw new CliError(`could not reach ${origin}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new CliError(`sync ack rejected: ${origin} responded ${response.status}${detail ? `: ${detail}` : ''}`);
+  }
+
+  const { report } = (await response.json()) as { report: RefreshReport };
+  deps.stdout(formatRefreshReport(report));
 }

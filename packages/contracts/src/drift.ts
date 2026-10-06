@@ -72,3 +72,11 @@ export const impactsPathsNarrowingSchema = z.object({
   basedOnCommits: z.array(z.string()),
 });
 export type ImpactsPathsNarrowingDto = z.infer<typeof impactsPathsNarrowingSchema>;
+
+/** SDD-087 D3: `POST /api/v1/projects/:graphProjectId/drift/acknowledge` (bearer, scope `reports:baseline`)
+ * — same `target` as the session route, plus a mandatory `reason` recorded in the audit log. The session
+ * route keeps `driftAcknowledgeInputSchema` untouched. */
+export const driftAcknowledgeTokenInputSchema = driftAcknowledgeInputSchema.extend({
+  reason: z.string().min(1).max(500),
+});
+export type DriftAcknowledgeTokenInput = z.infer<typeof driftAcknowledgeTokenInputSchema>;

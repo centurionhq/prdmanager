@@ -128,6 +128,16 @@ export async function buildIsolationFixtures(app: BuiltApp, pg: PgTestDb): Promi
     expiresAt: new Date(Date.now() + DAY_MS),
   });
 
+  const projectB = await createProjectFixture(pg, { orgId: orgB.id });
+  const orgBCiToken = await createCiToken(pg.appPool, {
+    orgId: orgB.id,
+    projectIds: [projectB.id],
+    name: 'org B ci baseline probe token',
+    scopes: ['reports:baseline'],
+    expiresAt: new Date(Date.now() + 30 * DAY_MS),
+    createdBy: orgBOwner.id,
+  });
+
   return {
     canary,
     orgA: { id: orgA.id, slug: orgA.slug, name: orgA.name },
@@ -142,6 +152,7 @@ export async function buildIsolationFixtures(app: BuiltApp, pg: PgTestDb): Promi
     orgAOwnerSessionCookie,
     orgBOwnerSessionCookie,
     orgBOwnerBearerSecret: orgBToken.token,
+    orgBCiBearerSecret: orgBCiToken.token,
     orgAScopedToProjectA2BearerSecret: orgAScopedToken.token,
   };
 }

@@ -564,6 +564,15 @@ export function registerBaseIsolationRoutes(): void {
     }),
   });
 
+  // SDD-087 (WO-691): `reports:baseline` is CI-token-only, so the cross-org caller is org B's CI token.
+  registerIsolationProbe('POST', '/api/v1/projects/:graphProjectId/drift/acknowledge', {
+    mutating: true,
+    crossOrg: (fixtures) => ({
+      credential: { kind: 'bearer', secret: fixtures.orgBCiBearerSecret },
+      params: { path: { graphProjectId: fixtures.projectA1.graphProjectId }, body: { target: 'all', reason: 'isolation probe' } },
+    }),
+  });
+
   registerIsolationProbe('POST', '/api/v1/projects/:graphProjectId/policy-docs', {
     mutating: true,
     crossOrg: (fixtures) => ({

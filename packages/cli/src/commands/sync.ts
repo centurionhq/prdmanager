@@ -5,8 +5,7 @@ import { formatRefreshReport, summarizeRefresh } from '../format.js';
 import { CliError, messageOf } from '../errors.js';
 import { createDebouncedRunner } from '../scheduler.js';
 import { withContext, type CliDeps } from '../program.js';
-import { assertLocalMutationAllowed } from '../remote/guard.js';
-import { runRemoteSync } from '../remote/sync.js';
+import { runRemoteAck, runRemoteSync } from '../remote/sync.js';
 import { createIgnoreMatcher } from '../watch-ignore.js';
 
 const DEFAULT_DEBOUNCE_MS = 300;
@@ -30,8 +29,12 @@ async function runSync(deps: CliDeps, options: { check?: boolean; json?: boolean
   });
 }
 
-async function runAck(deps: CliDeps, target: string): Promise<void> {
-  assertLocalMutationAllowed(deps.root, 'sync ack');
+async function runAck(deps: CliDeps, target: string, options: { reason?: string }): Promise<void> {
+  const mode = detectProjectFileMode(deps.root);
+  if (mode.kind === 'remote') {
+    await runRemoteAck(deps.root, mode.file, target, options, { stdout: deps.stdout, env: process.env });
+    return;
+  }
   await withContext(deps, async (ctx) => {
     const report = await ctx.engine.acknowledge(target);
     deps.stdout(formatRefreshReport(report));
@@ -72,7 +75,8 @@ export function register(program: Command, deps: CliDeps): void {
     .command('ack')
     .description('acknowledge a node (or "all") as the new baseline')
     .argument('<target>', 'node id or "all"')
-    .action((target: string) => runAck(deps, target));
+    .option('--reason <text>', 'why this re-baseline is correct (required in remote mode)')
+    .action((target: string, options: { reason?: string }) => runAck(deps, target, options));
 
   program
     .command('watch')
