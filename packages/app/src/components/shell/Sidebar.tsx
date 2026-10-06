@@ -57,7 +57,11 @@ export function Sidebar({ data }: { readonly data: AppShellData }): ReactElement
         >
           Ajustes
         </Link>
-        <div className={styles.person}>
+        <Link
+          to={`${base}/ajustes/perfil`}
+          className={styles.person}
+          aria-label={`Tu cuenta: ${data.personName} (${data.personRole})`}
+        >
           <span className={styles.avatar} aria-hidden="true">
             {initialsFor(data.personName)}
           </span>
@@ -65,7 +69,7 @@ export function Sidebar({ data }: { readonly data: AppShellData }): ReactElement
             <span className={styles.personName}>{data.personName}</span>
             <span className={styles.personRole}>{data.personRole}</span>
           </span>
-        </div>
+        </Link>
       </div>
     </aside>
   );

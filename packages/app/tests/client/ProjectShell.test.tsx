@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as client from '../../src/api/client.js';
@@ -41,6 +41,30 @@ describe('ProjectShell', () => {
 
     await screen.findByText('planta');
     expect(screen.getByText('3 errores de drift')).toBeTruthy();
+  });
+
+  it('links the sidebar person block to Ajustes → Perfil', async () => {
+    vi.spyOn(client, 'listOrganizations').mockResolvedValue([makeOrgSummary()]);
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProjectOverview()]);
+    vi.spyOn(client, 'getSession').mockResolvedValue({ user: { id: 'u1', email: 'me@example.test', name: 'Ana Ríos' } });
+
+    renderShell();
+
+    const account = await screen.findByRole('link', { name: 'Tu cuenta: Ana Ríos (Viewer)' });
+    expect(account.getAttribute('href')).toBe('/o/acme/p/web/ajustes/perfil');
+  });
+
+  it('includes "Perfil" in the mobile "Más" menu', async () => {
+    vi.spyOn(client, 'listOrganizations').mockResolvedValue([makeOrgSummary()]);
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProjectOverview()]);
+    vi.spyOn(client, 'getSession').mockResolvedValue({ user: { id: 'u1', email: 'me@example.test', name: 'Ana Ríos' } });
+
+    renderShell();
+
+    await screen.findByText('planta');
+    fireEvent.click(screen.getByRole('button', { name: 'Más' }));
+    const perfil = await screen.findByRole('link', { name: 'Perfil' });
+    expect(perfil.getAttribute('href')).toBe('/o/acme/p/web/ajustes/perfil');
   });
 
   it('shows "Organización no encontrada" for a slug the caller does not belong to', async () => {

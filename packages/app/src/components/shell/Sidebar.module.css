@@ -90,6 +90,18 @@
   gap: 10px;
   padding: var(--space-3) var(--space-2) 0;
   border-top: var(--rule);
+  color: inherit;
+  text-decoration: none;
+}
+
+.person:hover {
+  background: var(--relleno);
+  color: var(--grafito);
+  text-decoration: none;
+}
+
+.person:focus-visible {
+  background: var(--relleno);
 }
 
 .avatar {

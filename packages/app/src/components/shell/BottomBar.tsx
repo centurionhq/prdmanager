@@ -46,6 +46,7 @@ function MoreMenu({ base, orgSlug }: { readonly base: string; readonly orgSlug: 
   const moreItems = [
     { to: `${base}/entrada`, label: 'Bandeja de entrada' },
     { to: `${base}/ajustes/general`, label: 'Ajustes' },
+    { to: `${base}/ajustes/perfil`, label: 'Perfil' },
     { to: `/o/${orgSlug}`, label: 'Cambiar de proyecto' },
   ];
 
