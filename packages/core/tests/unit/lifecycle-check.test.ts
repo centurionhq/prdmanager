@@ -41,6 +41,43 @@ describe('checkLifecycle — Feedback', () => {
   });
 });
 
+describe('checkLifecycle — Feedback recorded link/outcome (WO-725 / SDD-096)', () => {
+  const fbIssues = (docs: ParsedDoc[]) => checkLifecycle(docs, noGrandfathering).filter((i) => i.nodeId === 'FB-001');
+
+  test('D1: a feedback cited by a justified_by is not a violation', () => {
+    expect(fbIssues([fb(), bc('justified_by: [FB-001]')])).toEqual([]);
+  });
+
+  test('D2: closed with close_reason + closed_by is resolved', () => {
+    expect(fbIssues([fb('close_reason: cerrado por WO-624\nclosed_by: agent:tester', 'closed')])).toEqual([]);
+  });
+
+  test('D2: duplicate with duplicate_of is resolved', () => {
+    expect(fbIssues([fb('duplicate_of: FB-002', 'duplicate')])).toEqual([]);
+  });
+
+  test('D2: dismissed with dismiss_reason is resolved', () => {
+    expect(fbIssues([fb('dismiss_reason: no aplica', 'dismissed')])).toEqual([]);
+  });
+
+  test('D3: dismissed without dismiss_reason is still an error', () => {
+    expect(kinds(fbIssues([fb('', 'dismissed')]))).toEqual([['lifecycle_violation', 'error', 'FB-001']]);
+  });
+
+  test('D3: closed without close_reason is still an error', () => {
+    expect(kinds(fbIssues([fb('closed_by: agent:tester', 'closed')]))).toEqual([['lifecycle_violation', 'error', 'FB-001']]);
+  });
+
+  test('D5: the violation message names every way out', () => {
+    const message = fbIssues([fb('', 'triaged')])[0]?.message ?? '';
+    expect(message).toMatch(/informs/);
+    expect(message).toMatch(/root: true/);
+    expect(message).toMatch(/justified_by/);
+    expect(message).toMatch(/close_reason/);
+    expect(message).toMatch(/duplicate_of/);
+  });
+});
+
 describe('checkLifecycle — Artifact', () => {
   test('no provides_context_for and no root is an error', () => {
     expect(kinds(checkLifecycle([art()], noGrandfathering))).toEqual([['lifecycle_violation', 'error', 'ART-001']]);
