@@ -59,6 +59,14 @@ export const closeFeedbackInputSchema = z.object({
 });
 export type CloseFeedbackInputDto = z.infer<typeof closeFeedbackInputSchema>;
 
+/** SDD-097 D1: shape only — que haya al menos un vínculo lo decide `@prdm/core`'s `linkFeedback`, cuyo error
+ *  (D3) nombra lo que el grafo ya tiene y por eso necesita el scan. */
+export const linkFeedbackInputSchema = z.object({
+  informs: z.array(DOC_ID).optional(),
+  root: z.boolean().optional(),
+});
+export type LinkFeedbackInputDto = z.infer<typeof linkFeedbackInputSchema>;
+
 export const markDuplicateInputSchema = z.object({ duplicateOf: DOC_ID });
 export type MarkDuplicateInputDto = z.infer<typeof markDuplicateInputSchema>;
 

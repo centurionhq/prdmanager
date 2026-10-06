@@ -33,11 +33,15 @@
  * terminal transitions (`closed` / `dismissed`) over MCP — before them no terminal state was reachable
  * remotely. They use `denyRemoteWrite(auth, 'edit_document')`, the same permission
  * `POST .../feedback/:docId/triage` requires.
+ *
+ * SDD-097: `link_feedback` links/roots an already existing Feedback in ANY status (terminal included)
+ * without ever changing its status — the remote counterpart of what `triage_feedback` (a read-only text
+ * ranker in this profile) cannot do. Same `edit_document` permission as the two tools above.
  */
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { addBlueprintTask, archiveWorkOrder, claimWorkOrder, closeFeedback, CommitNotVerifiedError, completeWorkOrder, dismissFeedback, docId, generateWorkOrders, SHA_PATTERN, submitFeedback } from '@prdm/core';
+import { addBlueprintTask, archiveWorkOrder, claimWorkOrder, closeFeedback, CommitNotVerifiedError, completeWorkOrder, dismissFeedback, docId, generateWorkOrders, linkFeedback, SHA_PATTERN, submitFeedback } from '@prdm/core';
 import { can, type PermissionAction, type PermissionSubject } from '@prdm/contracts';
 import type { PrdmDeps } from './deps.js';
 import { jsonResult, safeTool, WRITE_ONCE } from './shared.js';
@@ -48,7 +52,7 @@ import { jsonResult, safeTool, WRITE_ONCE } from './shared.js';
  * hand-copied set, which had gone stale: it was missing `generate_work_orders`/`add_blueprint_task`) to
  * decide which tool calls require the `mcp:write` scope at its outer gate.
  */
-export const REMOTE_WRITE_TOOL_NAMES = ['claim_work_order', 'complete_work_order', 'submit_feedback', 'generate_work_orders', 'add_blueprint_task', 'archive_work_order', 'close_feedback', 'dismiss_feedback'] as const;
+export const REMOTE_WRITE_TOOL_NAMES = ['claim_work_order', 'complete_work_order', 'submit_feedback', 'generate_work_orders', 'add_blueprint_task', 'archive_work_order', 'close_feedback', 'dismiss_feedback', 'link_feedback'] as const;
 
 export interface RemoteWriteAuth {
   subject: PermissionSubject;
@@ -255,6 +259,25 @@ export function registerRemoteWriteTools(server: McpServer, deps: PrdmDeps, auth
 
       const result = await dismissFeedback(deps.engine, id, { reason });
       await auth.audit('mcp.dismiss_feedback', id, { reason });
+      return jsonResult({ ...result });
+    }),
+  );
+
+  server.registerTool(
+    'link_feedback',
+    {
+      title: 'Link feedback',
+      description:
+        'Links an existing Feedback to one or more Features (`informs`, merged with whatever it already has) and/or marks it as root, in ANY status — including terminal ones. Never changes the status (close_feedback/dismiss_feedback own that). Calling it with neither `informs` nor `root` fails and names the link the Feedback already has. Requires an admin/editor project role.',
+      inputSchema: { id: docId, informs: z.array(docId).optional(), root: z.boolean().optional() },
+      annotations: { title: 'Link feedback', ...WRITE_ONCE },
+    },
+    safeTool(async ({ id, informs, root }: { id: string; informs?: string[]; root?: boolean }) => {
+      const denial = denyRemoteWrite(auth, 'edit_document');
+      if (denial) return denial;
+
+      const result = await linkFeedback(deps.engine, id, `dev:${auth.callerHandle}`, { informs, root });
+      await auth.audit('mcp.link_feedback', id, { informs: informs ?? [], root: root ?? null });
       return jsonResult({ ...result });
     }),
   );

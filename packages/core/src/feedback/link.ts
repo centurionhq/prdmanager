@@ -243,6 +243,118 @@ export async function closeFeedback(engine: ProjectEngine, id: string, by: strin
   );
 }
 
+const linkFeedbackSchema = z.object({
+  /** Feature ids to link via `informs`, merged with whatever the feedback already has. */
+  informs: z.array(docId).optional(),
+  root: z.boolean().optional(),
+});
+
+export type LinkFeedbackInput = z.input<typeof linkFeedbackSchema>;
+
+export interface LinkFeedbackResult {
+  id: string;
+  /** El estado del FB, que linkear nunca modifica (D1). */
+  status: string;
+  /** `informs` después del merge (lo pedido + lo que ya tenía). */
+  linkedTo: string[];
+  /** Valor definitivo de `root` (el pedido, o el que ya tenía, o `false`). */
+  root: boolean;
+  /** El actor validado que atribuye el vínculo. */
+  linkedBy: string;
+  /** Same meaning as `TriageFeedbackResult.applied`. */
+  applied: 'immediate' | 'deferred';
+}
+
+const TERMINAL_TRACE_FIELDS: Record<string, readonly string[]> = {
+  closed: ['close_reason', 'closed_by', 'resolved_by'],
+  dismissed: ['dismiss_reason'],
+  duplicate: ['duplicate_of'],
+};
+const QUOTED_TRACE_FIELDS = new Set(['close_reason', 'dismiss_reason']);
+
+function formatTraceValue(field: string, value: unknown): string {
+  if (Array.isArray(value)) return `${field}: [${value.join(', ')}]`;
+  return QUOTED_TRACE_FIELDS.has(field) ? `${field}: "${String(value)}"` : `${field}: ${String(value)}`;
+}
+
+/** SDD-097 D3: lists, in a fixed order, the links/trace the graph already holds for this Feedback. */
+function describeExistingLinks(scan: Scan, feedback: Scan['docs'][number], id: string): string[] {
+  const fm = feedback.frontmatter as Record<string, unknown>;
+  const lines: string[] = [];
+
+  const informs = fm.informs;
+  if (Array.isArray(informs) && informs.length > 0) lines.push(`informs: [${informs.join(', ')}]`);
+  if (fm.root === true) lines.push('root: true');
+
+  const citedBy = scan.docs
+    .filter((d) => 'justified_by' in d.frontmatter && d.frontmatter.justified_by?.includes(id))
+    .map((d) => d.node.id)
+    .sort();
+  if (citedBy.length > 0) lines.push(`cited by: [${citedBy.join(', ')}] (justified_by)`);
+
+  const status = fm.status;
+  if (typeof status === 'string' && status in TERMINAL_TRACE_FIELDS) {
+    const trace = TERMINAL_TRACE_FIELDS[status]!
+      .filter((field) => fm[field] !== undefined)
+      .map((field) => formatTraceValue(field, fm[field]));
+    lines.push(trace.length > 0 ? `status: ${status} (${trace.join('; ')})` : `status: ${status}`);
+  }
+  return lines;
+}
+
+function emptyLinkError(scan: Scan, feedback: Scan['docs'][number], id: string): Error {
+  const header = 'link_feedback requires "informs" (one or more feature ids) or "root: true"';
+  const existing = describeExistingLinks(scan, feedback, id);
+  if (existing.length === 0) return new Error(header);
+  return new Error(`${header}. ${id} already has:\n${existing.map((line) => `  - ${line}`).join('\n')}`);
+}
+
+/**
+ * SDD-097 D1: links an existing Feedback to Features (`informs`, merged — never overwritten) and/or marks
+ * it `root`, in ANY status, terminal ones included, and never touches `status` (that is `triageFeedback`/
+ * `closeFeedback`/`dismissFeedback`'s job). Mirrors `closeFeedback`: `by` is validated up front and
+ * attributes the link. With neither `informs` nor `root` it fails (D3) naming the links the graph already
+ * has, which is why that check lives inside the transaction — it needs the scan.
+ */
+export async function linkFeedback(engine: ProjectEngine, id: string, by: string, input: LinkFeedbackInput = {}): Promise<LinkFeedbackResult> {
+  if (!ACTOR_PATTERN.test(by)) throw new Error(`invalid actor: ${by} (expected agent:name or dev:name)`);
+  const parsed = linkFeedbackSchema.parse(input);
+  const requested = [...new Set(parsed.informs ?? [])];
+
+  return engine.transaction(
+    async (ops) => {
+      const scan = await ops.scan();
+      const feedback = scan.docs.find((d) => d.node.id === id);
+      if (!feedback) throw new Error(`feedback ${id} not found`);
+      if (feedback.node.label !== 'Feedback' || feedback.frontmatter.type !== 'FB') throw new Error(`${id} is not Feedback`);
+      if (requested.length === 0 && parsed.root === undefined) throw emptyLinkError(scan, feedback, id);
+
+      await validateInformsTargets(ops, requested);
+
+      const linkedTo = [...new Set([...feedback.frontmatter.informs, ...requested])];
+      const fields: Record<string, FieldValue> = { informs: linkedTo };
+      if (parsed.root !== undefined) fields.root = parsed.root;
+
+      const updated = await ops.updateDocument(id, fields);
+      await ops.refresh();
+
+      const reflected =
+        updated.frontmatter.type === 'FB' &&
+        requested.every((target) => (updated.frontmatter as { informs: string[] }).informs.includes(target)) &&
+        (parsed.root === undefined || updated.frontmatter.root === parsed.root);
+      return {
+        id,
+        status: feedback.frontmatter.status ?? 'new',
+        linkedTo,
+        root: parsed.root ?? feedback.frontmatter.root ?? false,
+        linkedBy: by,
+        applied: reflected ? 'immediate' : 'deferred',
+      };
+    },
+    { atomic: true },
+  );
+}
+
 /**
  * SDD-065 D5: applies one action to many Feedback ids in a single transaction (one scan, one refresh).
  * A bad item is reported in its own result and never aborts the rest — the caller shows per-item outcomes.
