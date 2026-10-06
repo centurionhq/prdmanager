@@ -10,19 +10,42 @@ const ORGS = [
   { id: 'org2', slug: 'other', name: 'Other Co', role: 'member' as const },
 ];
 
+const NAV_LINKS = ['Proyectos', 'Miembros', 'Auditoría', 'Tokens'] as const;
+
 function renderShell(initialPath = '/o/acme') {
   const router = createMemoryRouter(
     [
       {
         path: '/o/:orgSlug',
         element: <OrgShell />,
-        children: [{ index: true, element: <p>projects dashboard</p> }],
+        children: [
+          { index: true, element: <p>projects dashboard</p> },
+          // SDD-077 D3 defines the active item route by route, so the harness has to let any nested
+          // path render the shell (`/o/acme/ajustes/*`, `/o/acme/p/web/ajustes/tokens-personales`).
+          { path: '*', element: <p>nested screen</p> },
+        ],
       },
+      // In production `/settings/tokens` is a redirect living outside OrgShell (SDD-013); D3 still
+      // declares the Tokens item current on that route, so it is mounted here just to pin the rule.
+      { path: '/settings/tokens', element: <OrgShell /> },
       { path: '/login', element: <p>login screen</p> },
     ],
     { initialEntries: [initialPath] },
   );
   render(<RouterProvider router={router} />);
+}
+
+/** Loads the shell at `initialPath`, waits for the routed screen and pins which one of the four
+ *  destinations carries `aria-current="page"` (SDD-077 D3). */
+async function expectCurrentNav(initialPath: string, marker: string, expected: string): Promise<void> {
+  vi.spyOn(client, 'listOrganizations').mockResolvedValue(ORGS);
+  renderShell(initialPath);
+  await screen.findByText(marker);
+
+  for (const name of NAV_LINKS) {
+    const link = screen.getByRole('link', { name });
+    expect(link.getAttribute('aria-current')).toBe(name === expected ? 'page' : null);
+  }
 }
 
 describe('OrgShell', () => {
@@ -105,5 +128,29 @@ describe('OrgShell', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
 
     expect(await screen.findByText('login screen')).toBeTruthy();
+  });
+
+  it('marks Proyectos as the current destination only on the org root (D3)', async () => {
+    await expectCurrentNav('/o/acme', 'projects dashboard', 'Proyectos');
+  });
+
+  it('moves the current destination to Miembros on the members screen (D3)', async () => {
+    await expectCurrentNav('/o/acme/ajustes/miembros', 'nested screen', 'Miembros');
+  });
+
+  it('marks Auditoría as the current destination on the audit screen (D3)', async () => {
+    await expectCurrentNav('/o/acme/ajustes/auditoria', 'nested screen', 'Auditoría');
+  });
+
+  it('keeps Tokens current on the screen the legacy redirect lands on (D3)', async () => {
+    await expectCurrentNav('/o/acme/p/web/ajustes/tokens-personales', 'nested screen', 'Tokens');
+  });
+
+  it('marks Tokens as the current destination on the legacy /settings/tokens route (D3)', async () => {
+    vi.spyOn(client, 'listOrganizations').mockResolvedValue(ORGS);
+    renderShell('/settings/tokens');
+
+    const tokens = await screen.findByRole('link', { name: 'Tokens' });
+    expect(tokens.getAttribute('aria-current')).toBe('page');
   });
 });

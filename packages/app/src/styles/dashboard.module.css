@@ -68,6 +68,14 @@
   color: var(--cianotipo);
 }
 
+/* SDD-077 D3: the current destination is told apart by weight AND colour, never by colour alone.
+   `--cianotipo` on `--superficie` is 7.6:1, past AA for this 14px label. */
+.nav a.active,
+.nav a.active:hover {
+  color: var(--cianotipo);
+  font-weight: 600;
+}
+
 .signOutButton {
   height: var(--control-height);
   background: var(--superficie);
