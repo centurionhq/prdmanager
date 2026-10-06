@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InboxItem } from '../../../src/data';
+import { NOW_ISO as DRIFT_NOW_ISO } from '../../../src/features/drift/drift-format';
 import { daysSince, formatRelativeDays, formatScore, isOverdue, nextFeatureRequestId, nextFeedbackId, rankCandidates } from '../../../src/features/entrada/lib';
+import { NOW_ISO as PLANTA_NOW_ISO, referenceNow } from '../../../src/features/planta/planta-format';
 
 const NOW = new Date('2026-09-15T13:00:00.000Z');
 
@@ -28,6 +30,29 @@ describe('isOverdue', () => {
   it('is not overdue at 2 days or fewer', () => {
     expect(isOverdue('2026-09-14T09:00:00.000Z', NOW)).toBe(false);
     expect(isOverdue('2026-09-13T09:00:00.000Z', NOW)).toBe(false);
+  });
+});
+
+describe('frozen demo «ahora» (WO-674)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2031-06-01T00:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('defaults every Entrada helper to the demo «ahora», never to the real clock', () => {
+    expect(daysSince('2026-09-12T09:00:00.000Z')).toBe(3);
+    expect(formatRelativeDays('2026-09-12T09:00:00.000Z')).toBe('hace 3 d');
+    expect(isOverdue('2026-09-12T09:00:00.000Z')).toBe(true);
+    expect(isOverdue('2026-09-14T09:00:00.000Z')).toBe(false);
+  });
+
+  it('shares one «ahora» with Planta and Drift', () => {
+    expect(referenceNow().toISOString()).toBe(PLANTA_NOW_ISO);
+    expect(referenceNow().toISOString()).toBe(DRIFT_NOW_ISO);
   });
 });
 

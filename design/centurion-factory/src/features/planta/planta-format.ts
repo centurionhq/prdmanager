@@ -1,16 +1,14 @@
 /**
  * Number formatting for the Planta page (WO-282), es-AR locale (decimal comma), plus this screen's
  * relative-time wrapper around the shared helper in `src/lib/format-date.ts`.
- * `NOW_ISO` is the fixed "now" behind every "hace N" caption in this mock demo: it lines up with
- * report-001's `createdAt` (09:56) so the header reads "hace 4 min", exactly as the canvas commits to.
+ * `NOW_ISO` is the demo's single frozen «ahora» (WO-674): it lives in `src/data/demoClock.ts` and is
+ * re-exported here so this screen's callers keep their import. It lines up with report-001's
+ * `createdAt` (09:56) so the header reads "hace 4 min", exactly as the canvas commits to.
  */
+import { DEMO_NOW_ISO, referenceNow } from '../../data';
 import { formatRelativeCapped } from '../../lib/format-date';
 
-export const NOW_ISO = '2026-09-15T10:00:00.000Z';
-
-export function referenceNow(): Date {
-  return new Date(NOW_ISO);
-}
+export { DEMO_NOW_ISO as NOW_ISO, referenceNow };
 
 const PERCENT_FORMATTER = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
 

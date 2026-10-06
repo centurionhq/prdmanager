@@ -1,6 +1,6 @@
 /** The Bandeja de entrada item list and its mutations (link, create feature request, register). */
 import { useState } from 'react';
-import { FEATURES, INBOX_ITEMS, type InboxItem } from '../../data';
+import { FEATURES, INBOX_ITEMS, referenceNow, type InboxItem } from '../../data';
 import { nextFeatureRequestId, nextFeedbackId } from './lib';
 import type { RegisterFeedbackInput } from './RegisterFeedbackModal';
 
@@ -39,7 +39,7 @@ export function useInboxItems(): UseInboxItemsResult {
       source: input.source,
       status: 'new',
       links: [],
-      receivedAt: new Date().toISOString(),
+      receivedAt: referenceNow().toISOString(),
       candidates: [],
       sample: true,
     };

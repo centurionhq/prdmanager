@@ -1,21 +1,26 @@
 /**
  * Pure helpers for the Bandeja de entrada screen (WO-295): relative time, "days since received"
  * urgency, candidate ranking and id allocation for feedback registered or triaged locally.
+ * Every relative caption here reads the demo's single frozen «ahora» (`src/data/demoClock.ts`, WO-674)
+ * by default: the screen never follows the real calendar, just like Planta and Drift.
  */
-import type { InboxItem } from '../../data';
-import { daysSince, formatRelativeDaysOnly } from '../../lib/format-date';
+import { referenceNow, type InboxItem } from '../../data';
+import { daysSince as daysSinceAt, formatRelativeDaysOnly } from '../../lib/format-date';
 
-export { daysSince };
+/** Whole days elapsed since `receivedAt`, against the demo's frozen «ahora» by default. */
+export function daysSince(receivedAt: string, now: Date = referenceNow()): number {
+  return daysSinceAt(receivedAt, now);
+}
 
 /** `hoy`, `hace 1 d`, `hace 3 d`… the compact relative badge next to the source. */
-export function formatRelativeDays(receivedAt: string, now: Date = new Date()): string {
+export function formatRelativeDays(receivedAt: string, now: Date = referenceNow()): string {
   return formatRelativeDaysOnly(receivedAt, now);
 }
 
 /** Feedback is considered overdue for triage past this many days (andon styling kicks in). */
 const OVERDUE_DAYS = 2;
 
-export function isOverdue(receivedAt: string, now: Date = new Date()): boolean {
+export function isOverdue(receivedAt: string, now: Date = referenceNow()): boolean {
   return daysSince(receivedAt, now) > OVERDUE_DAYS;
 }
 

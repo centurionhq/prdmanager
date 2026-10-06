@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../../../src/router';
 
 function renderAt(path: string) {
@@ -137,5 +137,25 @@ describe('EntradaPage', () => {
 
     expect((await screen.findByRole('status')).textContent).toContain('Feedback registrado');
     expect(screen.getByText('Nuevo pedido de un cliente')).toBeTruthy();
+  });
+});
+
+describe('frozen demo «ahora» (WO-674)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2031-06-01T00:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('keeps the andon and the relative badge of FB-007 as the artboard, years after the demo date', async () => {
+    renderAt('/entrada?estado=listo');
+    const id = await screen.findByText('FB-007');
+    const row = id.closest('div');
+    if (!row) throw new Error('row not found');
+    expect(within(row).getByText(/Lleva 3 días sin triar/)).toBeTruthy();
+    expect(within(row).getByText('hace 3 d')).toBeTruthy();
   });
 });

@@ -3,6 +3,7 @@
  * `src/data` entry point instead of reaching into individual files.
  */
 export * from './types';
+export * from './demoClock';
 
 export * from './features';
 export * from './blueprints';
