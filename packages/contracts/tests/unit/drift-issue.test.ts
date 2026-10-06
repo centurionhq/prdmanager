@@ -24,6 +24,13 @@ describe('driftIssueDtoSchema', () => {
     expect(parsed.target).toBe('SDD-001');
   });
 
+  test('accepts a landed_but_open issue targeting a full commit sha', () => {
+    const target = 'a1b2c3d4e5'.repeat(4);
+    const parsed = driftIssueDtoSchema.parse({ ...valid, kind: 'landed_but_open', severity: 'warning', target });
+    expect(parsed.kind).toBe('landed_but_open');
+    expect(parsed.target).toBe(target);
+  });
+
   test('accepts a null blueprintId/station', () => {
     const parsed = driftIssueDtoSchema.parse({ ...valid, station: null });
     expect(parsed.blueprintId).toBeNull();

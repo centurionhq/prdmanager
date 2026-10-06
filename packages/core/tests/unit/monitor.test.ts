@@ -308,3 +308,46 @@ describe('acknowledge', () => {
     expect(() => acknowledge(input({ docs: after, baseline: stale }), 'SDD-404')).toThrow(/unknown/i);
   });
 });
+
+describe('landed_but_open (SDD-076 D1)', () => {
+  const SHA_A = 'a'.repeat(40);
+  const SHA_B = 'b'.repeat(40);
+  const landed = (sha: string, refs: string[]): CommitInfo => ({ ...commit([], refs), sha });
+  const landedIssues = (docs: ParsedDoc[], commits: CommitInfo[]) => detectDrift(input({ docs, commits })).issues.filter((i) => i.kind === 'landed_but_open');
+
+  test.each(['pending', 'in_progress'] as const)('flags a %s work order referenced by a commit', (status) => {
+    const issues = landedIssues([mrd(), prd(), sdd(), wo('WO-001', status)], [landed(SHA_A, ['WO-001'])]);
+    expect(issues).toEqual([
+      { kind: 'landed_but_open', severity: 'warning', nodeId: 'WO-001', target: SHA_A, message: `WO-001 is ${status} but commit ${SHA_A} already references it (Refs: WO-001)` },
+    ]);
+  });
+
+  test('does not flag a done work order', () => {
+    expect(landedIssues([mrd(), prd(), sdd(), wo('WO-001', 'done')], [landed(SHA_A, ['WO-001'])])).toEqual([]);
+  });
+
+  test('does not flag an out_of_sync work order', () => {
+    expect(landedIssues([mrd(), prd(), sdd(), wo('WO-001', 'out_of_sync')], [landed(SHA_A, ['WO-001'])])).toEqual([]);
+  });
+
+  test('does not flag when no commit has refs', () => {
+    expect(landedIssues([mrd(), prd(), sdd(), wo('WO-001', 'pending')], [landed(SHA_A, [])])).toEqual([]);
+  });
+
+  test('emits one issue per work order, targeting the first referencing commit in array order', () => {
+    const issues = landedIssues([mrd(), prd(), sdd(), wo('WO-001', 'pending')], [landed(SHA_B, ['WO-001']), landed(SHA_A, ['WO-001'])]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.target).toBe(SHA_B);
+  });
+
+  test('ignores a commit that references a work order absent from docs', () => {
+    expect(landedIssues([mrd(), prd(), sdd(), wo('WO-001', 'pending')], [landed(SHA_A, ['WO-999'])])).toEqual([]);
+  });
+
+  test('closes nothing: no workOrderUpdates and the status is untouched', () => {
+    const docs = [mrd(), prd(), sdd(), wo('WO-001', 'pending')];
+    const result = detectDrift(input({ docs, commits: [landed(SHA_A, ['WO-001'])] }));
+    expect(result.workOrderUpdates).toEqual([]);
+    expect(docs[3]).toMatchObject({ frontmatter: { status: 'pending' } });
+  });
+});

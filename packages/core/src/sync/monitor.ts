@@ -34,7 +34,14 @@ export type IssueKind =
    * unlike `impacts_warning` (a static `impacts_paths` glob that resolves to nothing on disk), this is
    * purely about *when* a report last covered a blueprint, not whether its paths are well-formed.
    */
-  | 'awaiting_ci_report';
+  | 'awaiting_ci_report'
+  /**
+   * SDD-076 D1: a `pending`/`in_progress` Work Order whose id already appears in the `Refs:` of a commit in the
+   * report -- the work landed but the WO was never closed. Never blocking (`severity: 'warning'`) and purely
+   * informational: the rule closes nothing and leaves `workOrderUpdates` and the baseline untouched. `target` is
+   * the full sha of the first referencing commit.
+   */
+  | 'landed_but_open';
 
 export interface DriftIssue {
   kind: IssueKind;
@@ -206,7 +213,19 @@ function collectIssues(ctx: DriftContext, governed: GovernedState[], updates: Wo
     ...ctx.input.governWarnings.map((w): DriftIssue => ({ kind: 'impacts_warning', severity: 'warning', nodeId: w.blueprintId, message: w.message })),
     ...ctx.input.docs.flatMap((d) => deprecationIssues(d)),
     ...checkLifecycle(ctx.input.docs, ctx.input.lifecycle ?? { grandfathered: [] }),
+    ...landedButOpenIssues(ctx),
   ];
+}
+
+/** SDD-076 D1: one warning per open work order that a commit's `refs` already mention (first commit in report order wins). */
+function landedButOpenIssues(ctx: DriftContext): DriftIssue[] {
+  return ctx.input.docs.filter(isWorkOrder).flatMap((wo): DriftIssue[] => {
+    const status = wo.frontmatter.status;
+    if (status !== 'pending' && status !== 'in_progress') return [];
+    const landed = ctx.input.commits.find((c) => c.refs.includes(wo.node.id));
+    if (!landed) return [];
+    return [{ kind: 'landed_but_open', severity: 'warning', nodeId: wo.node.id, target: landed.sha, message: `${wo.node.id} is ${status} but commit ${landed.sha} already references it (Refs: ${wo.node.id})` }];
+  });
 }
 
 /** ADR-002 D9: surfaces each legacy alias still on disk so `prdm migrate docs` has something to act on. */
