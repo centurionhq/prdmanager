@@ -15,6 +15,23 @@ const METRICS: SuccessMetricsDto = {
   traceability: { featuresTotal: 4, featuresTraced: 4, orphanFeatures: [], featurePercent: 100, commitsTotal: 10, commitsWithRefs: 7, commitsTraced: 6, commitPercent: 66.4 },
 };
 
+const METRICS_WITH_ORPHANS: SuccessMetricsDto = {
+  ...METRICS,
+  traceability: {
+    featuresTotal: 5,
+    featuresTraced: 3,
+    orphanFeatures: [
+      { id: 'BC-002', kind: 'BC', title: 'Reducir el churn de cuentas', status: 'approved' },
+      { id: 'PRD-012', kind: 'PRD', title: 'Importador incremental de repos', status: 'draft' },
+    ],
+    featurePercent: 60,
+    commitsTotal: 10,
+    commitsWithRefs: 7,
+    commitsTraced: 6,
+    commitPercent: 66.4,
+  },
+};
+
 const EMPTY_METRICS: SuccessMetricsDto = {
   agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null },
   systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
@@ -209,7 +226,10 @@ describe('Planta', () => {
 
     expect(await screen.findByText('5 min')).toBeTruthy();
     expect(screen.getByText('99,6 %')).toBeTruthy();
-    expect(screen.getByText('100 %')).toBeTruthy();
+    // `4/4` also appears in the line board (FR-001's progress), so scope it to the KPI strip.
+    const strip = screen.getByRole('region', { name: 'Indicadores de la planta' });
+    expect(within(strip).getByText('4/4')).toBeTruthy();
+    expect(within(strip).getByText('Todas trazadas')).toBeTruthy();
     expect(screen.getByText('66,4 %')).toBeTruthy();
     expect(screen.getByText('70 %')).toBeTruthy();
   });
@@ -230,7 +250,40 @@ describe('Planta', () => {
     ]);
     // Same order, each cell paired with its own number: "Commits con Refs" is commitsWithRefs/commitsTotal
     // (7/10 = 70 %), not the commitPercent (66,4 %) its neighbour "Commits trazados" shows.
-    expect(cells.map((cell) => cell.lastElementChild?.textContent)).toEqual(['5 min', '99,6 %', '100 %', '66,4 %', '70 %']);
+    expect(cells.map((cell) => cell.lastElementChild?.textContent)).toEqual(['5 min', '99,6 %', 'Todas trazadas', '66,4 %', '70 %']);
+    expect(cells[2]!.textContent).toContain('4/4');
+  });
+
+  it('makes "Features trazadas" a link to the filtered tree, with the missing count, when features lack code (SDD-079)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS_WITH_ORPHANS);
+    renderPlanta();
+
+    const link = await screen.findByRole('link', { name: /3 de 5 features trazadas; faltan 2/ });
+    expect(link.textContent).toBe('3/5');
+    expect(link.getAttribute('href')).toBe('/o/acme/p/web/arbol?sinCodigo=1');
+    expect(screen.getByText('faltan 2')).toBeTruthy();
+  });
+
+  it('shows "Todas trazadas" and no link when every feature is traced (SDD-079)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    const strip = await screen.findByRole('region', { name: 'Indicadores de la planta' });
+    expect(within(strip).getByText('4/4')).toBeTruthy();
+    expect(within(strip).getByText('Todas trazadas')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /features trazadas/i })).toBeNull();
+  });
+
+  it('shows "Sin datos", not a link, for "Features trazadas" when the project has no features (SDD-079)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(EMPTY_METRICS);
+    renderPlanta();
+
+    const cell = (await screen.findByText('Features trazadas')).closest('div');
+    expect(cell?.textContent).toContain('Sin datos');
+    expect(screen.queryByRole('link', { name: /features trazadas/i })).toBeNull();
   });
 
   it('keeps "Commits trazados" and "Commits con Refs" as two distinct KPIs when their numbers differ (WO-606)', async () => {

@@ -8,7 +8,7 @@
  * CSS module, plus `FeatureTree`'s, now that the tree itself is a design-system component).
  */
 import { useMemo, useState, type ReactElement } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import type { CodeRefDto, CommitDto, DriftIssueDto, ForceCloseBypassableCheckDto } from '@prdm/contracts';
 import { can, FORCE_CLOSE_BYPASSABLE_CHECKS } from '@prdm/contracts';
 import type { NodeDetail, NodeLink, NodeView, Subgraph, TreeNode } from '@prdm/core';
@@ -19,6 +19,7 @@ import {
   getClosureReadiness,
   getDriftIssues,
   getFeatureBranch,
+  getMetrics,
   getNode,
   getTree,
   listCodeRefs,
@@ -132,6 +133,16 @@ function countFeatures(nodes: readonly TreeNode[]): { readonly total: number; re
     },
     { total: 0, closed: 0 },
   );
+}
+
+/** SDD-079 D5: el filtro del chip -- exactamente las features que el servidor listó en
+ * `orphanFeatures`, como lista plana (los hijos de una huérfana no son huérfanos y se caen; nada
+ * más rellena la vista). Así el número de filas visibles coincide con el conteo del chip. */
+function keepOnlyOrphans(nodes: readonly TreeNode[], orphanRefs: ReadonlySet<string>): TreeNode[] {
+  return nodes.flatMap((node) => {
+    const descendants = keepOnlyOrphans(node.children, orphanRefs);
+    return orphanRefs.has(node.ref) ? [{ ...node, children: [] }, ...descendants] : descendants;
+  });
 }
 
 /** WO-461: the header's "Buscar por id o título" -- keeps a node if it (or any descendant) matches, so a
@@ -468,6 +479,10 @@ export function ProjectGraph(): ReactElement {
   const [closureOpen, setClosureOpen] = useState(false);
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  // SDD-079 D5: el estado del filtro vive en la URL, así el drill-down de la Planta
+  // (`?sinCodigo=1`) y cualquier link compartido funcionan, y el «atrás» del navegador también.
+  const sinCodigo = searchParams.get('sinCodigo') === '1';
   useDocumentTitle('Árbol de features');
 
   const treeQuery = useApiQuery(
@@ -477,8 +492,29 @@ export function ProjectGraph(): ReactElement {
     (forest) => forest.length === 0,
   );
   const forest = useMemo(() => buildFeatureForest(treeQuery.data ?? []), [treeQuery.data]);
-  const visibleForest = useMemo(() => filterForestByQuery(forest, searchQuery.trim().toLowerCase()), [forest, searchQuery]);
+  const metricsQuery = useApiQuery(
+    `metrics:${orgSlug}:${projectSlug}`,
+    () => getMetrics(orgSlug, projectSlug),
+    [orgSlug, projectSlug],
+    () => false,
+  );
+  const orphanFeatures = metricsQuery.data?.traceability.orphanFeatures;
+  const orphanRefs = useMemo(() => new Set((orphanFeatures ?? []).map((feature) => feature.id)), [orphanFeatures]);
+  // SDD-079 D6: sin lista no hay filtro que ofrecer -- ni chip, ni filtro, aunque el param venga puesto.
+  const showCodeFilter = orphanRefs.size > 0;
+  const filterByCode = sinCodigo && showCodeFilter;
+  const visibleForest = useMemo(() => {
+    const base = filterByCode ? keepOnlyOrphans(forest, orphanRefs) : forest;
+    return filterForestByQuery(base, searchQuery.trim().toLowerCase());
+  }, [forest, searchQuery, filterByCode, orphanRefs]);
   const selectedRef = id ?? forest[0]?.ref;
+
+  function toggleSinCodigo(): void {
+    const next = new URLSearchParams(searchParams);
+    if (sinCodigo) next.delete('sinCodigo');
+    else next.set('sinCodigo', '1');
+    setSearchParams(next);
+  }
 
   const driftQuery = useApiQuery<readonly DriftIssueDto[]>(
     `drift-issues:${orgSlug}:${projectSlug}`,
@@ -558,6 +594,16 @@ export function ProjectGraph(): ReactElement {
           <div className={styles.treeSearch}>
             <SearchField label="Buscar por id o título" value={searchQuery} onChange={setSearchQuery} placeholder="Buscar por id o título" />
           </div>
+          {showCodeFilter ? (
+            <div className={styles.treeHeaderRow}>
+              <Button type="button" variant={sinCodigo ? 'primary' : 'secondary'} aria-pressed={sinCodigo} onClick={toggleSinCodigo}>
+                Sin código ({orphanRefs.size})
+              </Button>
+              <span className={styles.treeCount} role="status">
+                {sinCodigo ? `${orphanRefs.size} ${orphanRefs.size === 1 ? 'feature' : 'features'} sin código` : ''}
+              </span>
+            </div>
+          ) : null}
           <div className={styles.treeHeaderRow}>
             <span className={styles.treeCount}>
               <span className="num">{totalFeatures}</span> features, <span className="num">{closedFeatures}</span> cerradas
@@ -570,6 +616,7 @@ export function ProjectGraph(): ReactElement {
             forest={visibleForest}
             selectedRef={selectedRef}
             driftRefs={driftRefs}
+            orphanRefs={orphanRefs}
             collapseSignal={collapseSignal}
             onSelect={(ref) => navigate(`/o/${orgSlug}/p/${projectSlug}/arbol/${ref}`)}
           />

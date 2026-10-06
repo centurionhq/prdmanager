@@ -1,9 +1,9 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NodeDetail, Subgraph, TreeNode } from '@prdm/core';
-import type { CommitDto, DriftIssueDto } from '@prdm/contracts';
+import type { CommitDto, DriftIssueDto, SuccessMetricsDto } from '@prdm/contracts';
 import * as client from '../../src/api/client.js';
 import { clearQueryCache } from '../../src/api/query-cache.js';
 import { ProjectGraph } from '../../src/routes/ProjectGraph.js';
@@ -162,7 +162,24 @@ function nodeDetailForMixed(ref: string): NodeDetail {
   return { node: { id: ref, label: 'Feature', kind: ref.split('-')[0] ?? '', title: ref, status: 'approved', body: '', tags: [], source_path: '', mirrorPath: `.prdm/remote/docs/${ref}.md`, created_at: null }, links: [] };
 }
 
-function renderPage(id?: string, subject: Parameters<typeof makeProjectShellContext> = ['owner', 'admin']) {
+const METRICS: SuccessMetricsDto = {
+  agentHumanEfficiency: { completedWorkOrders: 3, measuredWorkOrders: 3, avgResolutionHours: 0.2, medianResolutionHours: 0.15 },
+  systemIntegrity: { governedTotal: 5, governedSynced: 5, syncedPercent: 100 },
+  traceability: { featuresTotal: 3, featuresTraced: 3, orphanFeatures: [], featurePercent: 100, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null },
+};
+
+const ONE_ORPHAN: SuccessMetricsDto = {
+  ...METRICS,
+  traceability: {
+    ...METRICS.traceability,
+    featuresTotal: 3,
+    featuresTraced: 2,
+    featurePercent: 66.7,
+    orphanFeatures: [{ id: 'FR-002', kind: 'FR', title: 'Importador incremental', status: 'closed' }],
+  },
+};
+
+function renderPage(id?: string, subject: Parameters<typeof makeProjectShellContext> = ['owner', 'admin'], search = '') {
   const context = makeProjectShellContext(...subject);
   const router = createMemoryRouter(
     [
@@ -172,13 +189,17 @@ function renderPage(id?: string, subject: Parameters<typeof makeProjectShellCont
         children: [{ path: 'arbol/:id?', element: <ProjectGraph /> }],
       },
     ],
-    { initialEntries: [`/o/${context.orgSlug}/p/${context.projectSlug}/arbol${id ? `/${id}` : ''}`] },
+    { initialEntries: [`/o/${context.orgSlug}/p/${context.projectSlug}/arbol${id ? `/${id}` : ''}${search}`] },
   );
   render(<RouterProvider router={router} />);
-  return context;
+  return router;
 }
 
 describe('ProjectGraph (árbol de features)', () => {
+  beforeEach(() => {
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     clearQueryCache();
@@ -496,5 +517,63 @@ describe('ProjectGraph (árbol de features)', () => {
     const row = await screen.findByRole('treeitem', { name: /FR-001/ });
     await waitFor(() => expect(within(row).getByTitle('Drift activo')).toBeTruthy());
     expect(within(screen.getByRole('treeitem', { name: /MRD-001/ })).queryByTitle('Drift activo')).toBeNull();
+  });
+
+  function mockTree(): void {
+    vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+    vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+    vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
+  }
+
+  it('the "Sin código" chip filters the tree to the orphan features and announces the count (SDD-079)', async () => {
+    mockTree();
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(ONE_ORPHAN);
+
+    const router = renderPage();
+
+    const chip = await screen.findByRole('button', { name: 'Sin código (1)' });
+    expect(chip.getAttribute('aria-pressed')).toBe('false');
+    const row = screen.getByRole('treeitem', { name: /FR-002/ });
+    expect(within(row).getByText('Sin código')).toBeTruthy();
+
+    await userEvent.click(chip);
+
+    expect(chip.getAttribute('aria-pressed')).toBe('true');
+    expect(router.state.location.search).toBe('?sinCodigo=1');
+    expect(screen.queryByRole('treeitem', { name: /FR-001/ })).toBeNull();
+    expect(screen.queryByRole('treeitem', { name: /MRD-001/ })).toBeNull();
+    expect(screen.getAllByRole('treeitem')).toHaveLength(1);
+    expect(screen.getByRole('status').textContent).toBe('1 feature sin código');
+  });
+
+  it('starts filtered when the url already carries ?sinCodigo=1 (drill-down from the Planta)', async () => {
+    mockTree();
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(ONE_ORPHAN);
+
+    renderPage(undefined, ['owner', 'admin'], '?sinCodigo=1');
+
+    const chip = await screen.findByRole('button', { name: 'Sin código (1)' });
+    expect(chip.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.queryByRole('treeitem', { name: /FR-001/ })).toBeNull();
+    expect(screen.getByRole('treeitem', { name: /FR-002/ })).toBeTruthy();
+  });
+
+  it('offers no chip when there are no orphan features', async () => {
+    mockTree();
+
+    renderPage();
+
+    await screen.findByRole('tree', { name: /árbol de features/i });
+    expect(screen.queryByRole('button', { name: /Sin código/ })).toBeNull();
+  });
+
+  it('does not filter, and shows no chip, when ?sinCodigo=1 arrives with an empty orphan list', async () => {
+    mockTree();
+
+    renderPage(undefined, ['owner', 'admin'], '?sinCodigo=1');
+
+    expect(await screen.findByRole('treeitem', { name: /FR-001/ })).toBeTruthy();
+    expect(screen.getByRole('treeitem', { name: /MRD-001/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Sin código/ })).toBeNull();
   });
 });

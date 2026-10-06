@@ -5,7 +5,8 @@
  * plus the success-metrics KPI strip (`getMetrics`). See canvas/Main.dc.html — the sidebar itself is
  * `ProjectShell`'s own `AppShell`, unchanged by this WO; this route only renders the line and the strip.
  */
-import { type ReactElement } from 'react';
+import { type ReactElement, type ReactNode } from 'react';
+import { Link } from 'react-router';
 import type { SuccessMetricsDto } from '@prdm/contracts';
 import { getLineBoard, getMetrics } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
@@ -34,15 +35,39 @@ function formatCommitRefsPercent(traceability: SuccessMetricsDto['traceability']
 interface KpiStripProps {
   readonly metrics: SuccessMetricsDto;
   readonly awaitingFirstReport: boolean;
+  readonly orgSlug: string;
+  readonly projectSlug: string;
 }
 
-function KpiStrip({ metrics, awaitingFirstReport }: KpiStripProps): ReactElement {
-  const items = [
-    { label: 'Resolución mediana de una orden', value: formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours) },
-    { label: 'Código sincronizado', value: formatPercent(metrics.systemIntegrity.syncedPercent) },
-    { label: 'Features trazadas', value: formatPercent(metrics.traceability.featurePercent) },
-    { label: 'Commits trazados', value: formatPercent(metrics.traceability.commitPercent) },
-    { label: 'Commits con Refs', value: formatCommitRefsPercent(metrics.traceability) },
+function KpiStrip({ metrics, awaitingFirstReport, orgSlug, projectSlug }: KpiStripProps): ReactElement {
+  const { featuresTotal, featuresTraced, orphanFeatures } = metrics.traceability;
+  // SDD-079 D4: la invariante del servidor es featuresTraced + orphanFeatures.length === featuresTotal.
+  // El faltante es la MISMA lista que filtra el Árbol, así que el número de acá y el del chip coinciden.
+  const missing = orphanFeatures.length;
+  const ratio = `${featuresTraced}/${featuresTotal}`;
+  const treeHref = `/o/${orgSlug}/p/${projectSlug}/arbol?sinCodigo=1`;
+
+  const traced: { readonly value: ReactNode; readonly note: ReactNode } =
+    featuresTotal === 0
+      ? { value: <span className={`num ${styles.kpiValue}`}>Sin datos</span>, note: null }
+      : missing === 0
+        ? { value: <span className={`num ${styles.kpiValue}`}>{ratio}</span>, note: <span className={styles.kpiLabel}>Todas trazadas</span> }
+        : {
+            value: (
+              <Link className={`num ${styles.kpiValue}`} to={treeHref} aria-label={`${featuresTraced} de ${featuresTotal} features trazadas; faltan ${missing}`}>
+                {ratio}
+              </Link>
+            ),
+            note: <span className={styles.kpiLabel}>faltan {missing}</span>,
+          };
+
+  const plain = (value: string): ReactNode => <span className={`num ${styles.kpiValue}`}>{value}</span>;
+  const items: { label: string; value: ReactNode; note: ReactNode }[] = [
+    { label: 'Resolución mediana de una orden', value: plain(formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours)), note: null },
+    { label: 'Código sincronizado', value: plain(formatPercent(metrics.systemIntegrity.syncedPercent)), note: null },
+    { label: 'Features trazadas', value: traced.value, note: traced.note },
+    { label: 'Commits trazados', value: plain(formatPercent(metrics.traceability.commitPercent)), note: null },
+    { label: 'Commits con Refs', value: plain(formatCommitRefsPercent(metrics.traceability)), note: null },
   ];
 
   return (
@@ -50,7 +75,14 @@ function KpiStrip({ metrics, awaitingFirstReport }: KpiStripProps): ReactElement
       {items.map((item) => (
         <div key={item.label} className={styles.kpiItem}>
           <span className={styles.kpiLabel}>{item.label}</span>
-          {awaitingFirstReport ? <span className={styles.kpiLabel}>Esperando el primer reporte de CI</span> : <span className={`num ${styles.kpiValue}`}>{item.value}</span>}
+          {awaitingFirstReport ? (
+            <span className={styles.kpiLabel}>Esperando el primer reporte de CI</span>
+          ) : (
+            <>
+              {item.value}
+              {item.note}
+            </>
+          )}
         </div>
       ))}
     </section>
@@ -95,7 +127,7 @@ export function Planta(): ReactElement {
       {!isLoading && !failure && lineBoardQuery.data && metricsQuery.data && lineBoardQuery.status !== 'vacio' ? (
         <div className={styles.page}>
           <LineBoard orgSlug={orgSlug} projectSlug={projectSlug} lineBoard={lineBoardQuery.data} />
-          <KpiStrip metrics={metricsQuery.data} awaitingFirstReport={project.awaitingFirstReport} />
+          <KpiStrip metrics={metricsQuery.data} awaitingFirstReport={project.awaitingFirstReport} orgSlug={orgSlug} projectSlug={projectSlug} />
         </div>
       ) : null}
     </div>
