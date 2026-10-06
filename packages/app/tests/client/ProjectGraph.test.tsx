@@ -485,7 +485,7 @@ describe('ProjectGraph (árbol de features)', () => {
     expect(screen.getByText('0 commits')).toBeTruthy();
   });
 
-  it('the "Buscar por id o título" field filters the tree, keeping a match\'s ancestors and the header total unchanged (WO-461)', async () => {
+  it('the "Buscar por id o título" field filters the tree, keeping a match\'s ancestors (WO-461; el conteo del header pasa a «N resultados de M features» por SDD-083 D2)', async () => {
     vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
     vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
     vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
@@ -501,8 +501,8 @@ describe('ProjectGraph (árbol de features)', () => {
     expect(screen.queryByRole('treeitem', { name: /FR-002/ })).toBeNull();
     expect(screen.getByRole('treeitem', { name: /FR-001/ })).toBeTruthy();
     expect(screen.getByRole('treeitem', { name: /MRD-001/ })).toBeTruthy();
-    // The "3 features, 1 cerradas" header count still describes the whole tree, not the filtered view.
-    expect(screen.getByText((_, element) => element?.tagName === 'SPAN' && element.textContent === '3 features, 1 cerradas')).toBeTruthy();
+    // SDD-083 D2: mientras hay búsqueda el header cuenta resultados (FR-001 + su ancestro MRD-001) sobre el total.
+    expect(screen.getByText((_, element) => element?.tagName === 'SPAN' && element.textContent === '2 resultados de 3 features')).toBeTruthy();
   });
 
   it('shows a drift dot next to a feature with an open drift issue (WO-457)', async () => {
@@ -524,6 +524,71 @@ describe('ProjectGraph (árbol de features)', () => {
     vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
     vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
   }
+
+  describe('buscador en la URL (SDD-083)', () => {
+    const spanText = (text: string) => (_: string, element: Element | null) => element?.tagName === 'SPAN' && element.textContent === text;
+
+    it('writes ?q= to the URL, reads it on mount, and clears the param (D1)', async () => {
+      mockTree();
+      const router = renderPage();
+      await screen.findByRole('treeitem', { name: /FR-002/ });
+
+      await userEvent.type(screen.getByLabelText('Buscar por id o título'), 'Importador');
+      expect(router.state.location.search).toBe('?q=Importador');
+      expect(screen.queryByRole('treeitem', { name: /FR-001/ })).toBeNull();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Borrar búsqueda' }));
+      expect(router.state.location.search).toBe('');
+      expect(screen.getByRole('treeitem', { name: /FR-001/ })).toBeTruthy();
+    });
+
+    it('filters when mounted with ?q= (D1)', async () => {
+      mockTree();
+      renderPage(undefined, ['owner', 'admin'], '?q=Importador');
+      await screen.findByRole('treeitem', { name: /FR-002/ });
+      expect(screen.queryByRole('treeitem', { name: /FR-001/ })).toBeNull();
+    });
+
+    it('says "N resultados de M features" while searching (D2)', async () => {
+      mockTree();
+      renderPage(undefined, ['owner', 'admin'], '?q=FR-002');
+      expect(await screen.findByText(spanText('2 resultados de 3 features'))).toBeTruthy();
+    });
+
+    it('shows its own empty state with a clear action when nothing matches (D3)', async () => {
+      mockTree();
+      const router = renderPage(undefined, ['owner', 'admin'], '?q=zzz');
+      expect(await screen.findByText('Sin resultados para «zzz»')).toBeTruthy();
+      expect(screen.getByText(spanText('0 resultados de 3 features'))).toBeTruthy();
+      expect(screen.queryByRole('tree')).toBeNull();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Limpiar búsqueda' }));
+      expect(router.state.location.search).toBe('');
+      expect(await screen.findByRole('tree')).toBeTruthy();
+    });
+
+    it('folds accents and case in titles (D4)', async () => {
+      const forest: TreeNode[] = [
+        { ...FOREST[0]!, children: [{ ...FOREST[0]!.children[0]!, title: 'Árbol de features y su buscador' }, FOREST[0]!.children[1]!] },
+      ];
+      vi.spyOn(client, 'getTree').mockResolvedValue({ forest });
+      vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+      vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
+      renderPage(undefined, ['owner', 'admin'], '?q=arbol');
+      expect(await screen.findByRole('treeitem', { name: /FR-001/ })).toBeTruthy();
+      expect(screen.queryByRole('treeitem', { name: /FR-002/ })).toBeNull();
+    });
+
+    it('does not move the selection when filtering (D5)', async () => {
+      mockTree();
+      renderPage();
+      await screen.findByRole('treeitem', { name: /FR-002/ });
+      await userEvent.type(screen.getByLabelText('Buscar por id o título'), 'Importador');
+
+      expect(await screen.findByText(/Mercado/, { selector: 'h1, h2, h3' })).toBeTruthy();
+      expect(screen.getByRole('treeitem', { name: /MRD-001/ }).ariaSelected).toBe('true');
+    });
+  });
 
   it('the "Sin código" chip filters the tree to the orphan features and announces the count (SDD-079)', async () => {
     mockTree();
