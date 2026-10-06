@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { closureReadiness, docId, DOC_KINDS, DRAFT_KINDS, DraftValidationError, type DocKind, type DraftKind } from '@prdm/core';
 import { requireAuthoring, type PrdmDeps } from './deps.js';
+import type { RemoteDocumentWorkflowState } from './documents-port.js';
 import { DESTRUCTIVE_IDEMPOTENT, jsonResult, jsonText, READ_ONLY, safeReadTool, safeTool, WRITE_ONCE } from './shared.js';
 
 const draftKindEnum = z.enum(DRAFT_KINDS as unknown as [string, ...string[]]);
@@ -49,23 +50,42 @@ export interface ProjectSummary {
   lifecycle: Record<DocKind, string>;
   counts: Record<DocKind, number>;
   openDrafts: number;
+  /** Real per-state document counts; `counts` above stays published-only. */
+  byWorkflowState: Record<RemoteDocumentWorkflowState, number>;
   draftableKinds: readonly DraftKind[];
 }
 
+/** With a documents port (remote profile) the server is the source of truth (SDD-067 D4); without one, only
+ * published docs are known, plus the in-memory drafts when `deps.authoring` exists. */
+async function countByWorkflowState(deps: PrdmDeps, counts: Record<DocKind, number>): Promise<Record<RemoteDocumentWorkflowState, number>> {
+  if (deps.documents) {
+    const result = { draft: 0, in_review: 0, published: 0, archived: 0 };
+    for (const doc of await deps.documents.list()) result[doc.workflowState] += 1;
+    return result;
+  }
+  const published = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  return { draft: deps.authoring ? requireAuthoring(deps).list().length : 0, in_review: 0, published, archived: 0 };
+}
+
 /** Shared by the `get_project` tool and the `prdm://project` resource so both report the exact same
- * data. `openDrafts` is `0` for a profile with no `deps.authoring` at all (SDD-010's remote profile —
- * there is no in-memory draft concept over HTTP), rather than throwing. */
+ * data. `counts` is always about published docs. With `deps.documents` (remote profile) `openDrafts` and
+ * `byWorkflowState` come from the port, so they reflect the real draft + in_review documents (SDD-067 D4).
+ * Without the port, `openDrafts` counts the in-memory drafts of `deps.authoring`, or is `0` when there is no
+ * authoring either, rather than throwing. */
 export async function buildProjectSummary(deps: PrdmDeps): Promise<ProjectSummary> {
   const { docs } = await deps.engine.scan();
   const counts = Object.fromEntries(DOC_KINDS.map((kind) => [kind, 0])) as Record<DocKind, number>;
   for (const doc of docs) counts[doc.node.kind] += 1;
+  const byWorkflowState = await countByWorkflowState(deps, counts);
+  const openDrafts = deps.documents ? byWorkflowState.draft + byWorkflowState.in_review : deps.authoring ? requireAuthoring(deps).list().length : 0;
   return {
     id: deps.config.project.id,
     name: deps.config.project.name,
     folders: deps.config.folders,
     lifecycle: LIFECYCLE_RULES,
     counts,
-    openDrafts: deps.authoring ? requireAuthoring(deps).list().length : 0,
+    openDrafts,
+    byWorkflowState,
     draftableKinds: DRAFT_KINDS,
   };
 }
@@ -89,7 +109,7 @@ export function registerProjectSummaryTools(server: McpServer, deps: PrdmDeps): 
     {
       title: 'Get project',
       description:
-        'Returns the active project: id, name, its folder map per document kind, a one-line lifecycle rule per kind (PRD-002 §3), current document counts, the number of open drafts and which kinds can be drafted (every kind except WO). Call this before author_artifact to know the project name and rules.',
+        'Returns the active project: id, name, its folder map per document kind, a one-line lifecycle rule per kind (PRD-002 §3), current published document counts, the real number of open drafts (draft + in_review), a byWorkflowState breakdown and which kinds can be drafted (every kind except WO). Call this before author_artifact to know the project name and rules.',
       inputSchema: {},
       annotations: { title: 'Get project', ...READ_ONLY },
     },
