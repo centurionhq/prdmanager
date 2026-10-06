@@ -146,8 +146,8 @@ describe('DriftDashboard', () => {
 
     await userEvent.click(within(table).getByText('ci-pipeline'));
 
-    expect(await screen.findByRole('dialog', { name: 'Detalle del reporte' })).toBeTruthy();
-    expect(await screen.findByText(/packages\/cli\/src\/import\.ts is out of sync/)).toBeTruthy();
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del reporte' });
+    await waitFor(() => expect(dialog.textContent).toContain('packages/cli/src/import.ts no coincide con SDD-012'));
   });
 
   it('acknowledges drift and shows a success toast', async () => {
