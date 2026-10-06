@@ -33,7 +33,12 @@ export interface DriftIssuesListProps {
 }
 
 export function DriftIssuesList({ issues }: DriftIssuesListProps): ReactElement {
-  const groups = groupIssues(issues);
+  // WO-615: `groupIssues` now returns kind → subgroups. Until WO-616 renders that second level, this
+  // list keeps its flat <ul> per kind by flattening each group's subgroups back into a single list.
+  const groups = groupIssues(issues).map((group) => ({
+    ...group,
+    issues: group.subgroups.flatMap((subgroup) => subgroup.issues),
+  }));
 
   if (groups.length === 0) {
     return <p>No hay drift pendiente de revisar.</p>;
