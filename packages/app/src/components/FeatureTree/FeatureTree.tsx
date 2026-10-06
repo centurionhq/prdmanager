@@ -107,6 +107,20 @@ export function FeatureTree({ forest, selectedRef, driftRefs, orphanRefs, collap
     setExpanded(new Set());
   }, [collapseSignal]);
 
+  // WO-678 (rework del gate WO-679): el bosque cambia sin remount cuando el usuario tipea en el buscador
+  // (`?q=`) o prende/apaga el chip «Sin código» (ambos viven en la URL). Recalcular acá la expansión por
+  // defecto sobre el bosque nuevo evita que un nodo con hijos que no estaba en el bosque anterior quede
+  // colapsado: así «N resultados» del header (SDD-083 D2) sigue siendo el número de filas que se ven.
+  // «Contraer todo» (WO-457) no se pisa: el bosque no cambia al apretarlo.
+  const isFirstForest = useRef(true);
+  useEffect(() => {
+    if (isFirstForest.current) {
+      isFirstForest.current = false;
+      return;
+    }
+    setExpanded(new Set(collectExpandableRefs(forest)));
+  }, [forest]);
+
   useEffect(() => {
     treeRef.current?.querySelector<HTMLDivElement>(`[data-ref="${CSS.escape(focusedRef)}"]`)?.focus();
   }, [focusedRef]);
