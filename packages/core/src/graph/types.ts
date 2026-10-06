@@ -76,6 +76,13 @@ export interface WorkOrderSummary {
   sourcePath: string;
   /** Derived on read, never persisted; `sourcePath` stays the canonical published path (SDD-074). */
   mirrorPath: string;
+  /** Publicado por `listWorkOrders` (LIST_WORK_ORDERS), SDD-075 D1. La proyección paginada de
+   * `queryWorkOrders` (PRD-042 R2 / SDD-064) queda congelada y por eso los deja sin definir. */
+  createdAt?: string | null;
+  /** ISO de la reclamación; `null` mientras nadie la tomó (el modo remoto no inventa dueño). */
+  claimedAt?: string | null;
+  /** Días completos desde `createdAt` calculados al leer; `null` cuando la WO no tiene fecha. */
+  ageDays?: number | null;
 }
 
 export type WorkOrderActorKind = 'agent' | 'dev' | 'unassigned';

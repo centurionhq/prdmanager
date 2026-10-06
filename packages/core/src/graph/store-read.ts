@@ -2,6 +2,7 @@ import neo4j, { type Driver } from 'neo4j-driver';
 import type { NodeLabel } from '../domain/schema.js';
 import { buildScopedLuceneQuery } from './lucene.js';
 import { mirrorPathFor } from './paths.js';
+import { ageDaysFrom } from './work-order-age.js';
 import { BRANCH, FULL_GRAPH, GET_NODE, LIST_WORK_ORDERS, METRICS_RAW, QUERY_WORK_ORDERS, MAX_DEPTH, SEARCH, UP_FILTER, DOWN_FILTER, WORK_ORDER_CONTEXT } from './queries.js';
 import type { MetricsRaw, NodeDetail, SearchHit, Subgraph, WorkOrderContextRaw, WorkOrderPage, WorkOrderQueryFilter, WorkOrderSummary } from './types.js';
 
@@ -53,12 +54,15 @@ export async function listWorkOrders(
   filter: { status?: string; blueprint?: string } = {},
 ): Promise<WorkOrderSummary[]> {
   const rows = await read<WorkOrderRow>(driver, database, LIST_WORK_ORDERS, { projectId, status: filter.status ?? null, blueprint: filter.blueprint ?? null });
-  return rows.map(withMirrorPath);
+  return rows.map(withDates);
 }
 
-type WorkOrderRow = Omit<WorkOrderSummary, 'mirrorPath'>;
+type WorkOrderRow = Omit<WorkOrderSummary, 'mirrorPath' | 'ageDays'>;
 
 const withMirrorPath = (row: WorkOrderRow): WorkOrderSummary => ({ ...row, mirrorPath: mirrorPathFor(row.id) });
+
+/** Sólo `listWorkOrders` trae fechas; `queryWorkOrders` no debe inventar `ageDays` (SDD-075 D1). */
+const withDates = (row: WorkOrderRow): WorkOrderSummary => ({ ...withMirrorPath(row), ageDays: ageDaysFrom(row.createdAt ?? null) });
 
 const DEFAULT_WORK_ORDER_LIMIT = 25;
 const MAX_WORK_ORDER_LIMIT = 200;
