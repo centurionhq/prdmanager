@@ -74,6 +74,36 @@ export interface WorkOrderSummary {
   sourcePath: string;
 }
 
+export type WorkOrderActorKind = 'agent' | 'dev' | 'unassigned';
+
+export interface WorkOrderQueryFilter {
+  status?: string;
+  blueprint?: string;
+  actorKind?: WorkOrderActorKind;
+  assignedTo?: string;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface WorkOrderStatusCounts {
+  /** Base sin `archived` (coherente con D3: el chip "Todas" == default). */
+  all: number;
+  pending: number;
+  in_progress: number;
+  out_of_sync: number;
+  done: number;
+  archived: number;
+}
+
+export interface WorkOrderPage {
+  items: WorkOrderSummary[];
+  /** Conteo del conjunto con TODOS los filtros (incl. estado/D3). */
+  total: number;
+  /** Base filtrada por blueprint/actorKind/assignedTo/q, SIN estado. */
+  statusCounts: WorkOrderStatusCounts;
+}
+
 export interface WorkOrderContextRaw {
   workOrder: NodeView;
   blueprints: NodeView[];
@@ -146,6 +176,7 @@ export interface GraphStore {
   branch(id: string): Promise<Subgraph>;
   fullGraph(): Promise<Subgraph>;
   listWorkOrders(filter?: { status?: string; blueprint?: string }): Promise<WorkOrderSummary[]>;
+  queryWorkOrders(filter?: WorkOrderQueryFilter): Promise<WorkOrderPage>;
   workOrderContext(id: string): Promise<WorkOrderContextRaw | null>;
   metricsRaw(): Promise<MetricsRaw>;
 }

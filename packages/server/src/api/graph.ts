@@ -19,6 +19,7 @@ import { resolvePgProjectEngine, requireNeo4j } from '../engine/resolve-pg-proje
 import type { ServerEnv } from '../env.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { requireAppSession } from './app-session.js';
+import { MAX_PAGE_LIMIT } from './keyset-page-query.js';
 import { requireMemberOrg } from './require-member-org.js';
 import { resolveVisibleProject } from './projects.js';
 
@@ -39,7 +40,15 @@ interface NodeRouteParams extends ProjectRouteParams {
 }
 
 const treeQuerySchema = z.object({ root: docId.optional() });
-const workOrdersQuerySchema = z.object({ status: z.enum(WORK_ORDER_STATUSES).optional(), blueprint: docId.optional() });
+const workOrdersQuerySchema = z.object({
+  status: z.enum(WORK_ORDER_STATUSES).optional(),
+  blueprint: docId.optional(),
+  actorKind: z.enum(['agent', 'dev', 'unassigned']).optional(),
+  assignedTo: z.string().min(1).max(200).optional(),
+  q: z.string().min(1).max(300).optional(),
+  limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).default(25),
+  offset: z.coerce.number().int().min(0).default(0),
+});
 const searchQuerySchema = z.object({
   q: z.string().min(1).max(300),
   label: z.enum(NODE_LABELS).optional(),
@@ -134,7 +143,7 @@ export function registerGraphRoutes(app: FastifyInstance, opts: RegisterGraphRou
       const store = await resolveStore(req.params.orgSlug, req.params.projectSlug, session.user.id);
       const parsedQuery = workOrdersQuerySchema.safeParse(req.query);
       if (!parsedQuery.success) throw new ValidationError('invalid query');
-      return store.listWorkOrders(parsedQuery.data);
+      return store.queryWorkOrders(parsedQuery.data);
     },
   );
 

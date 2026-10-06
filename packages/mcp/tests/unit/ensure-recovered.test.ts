@@ -34,6 +34,10 @@ function trackedDeps(calls: string[]): PrdmDeps {
       calls.push('store.fullGraph');
       return { nodes: [], edges: [] };
     },
+    queryWorkOrders: async () => {
+      calls.push('store.queryWorkOrders');
+      return { items: [], total: 0, statusCounts: { all: 0, pending: 0, in_progress: 0, out_of_sync: 0, done: 0, archived: 0 } };
+    },
     listWorkOrders: async () => {
       calls.push('store.listWorkOrders');
       return [];

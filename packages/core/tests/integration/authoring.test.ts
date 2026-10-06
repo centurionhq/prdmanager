@@ -10,7 +10,7 @@ import { Engine } from '../../src/engine.js';
 import { sha256 } from '../../src/util/hash.js';
 import { graphStaleMarkerExists, writeJournalForTest } from '../../src/util/journal.js';
 import type { Neo4jGraphDatabase } from '../../src/graph/database.js';
-import type { GraphSnapshot, GraphStore, MetricsRaw, NodeDetail, SearchHit, Subgraph, WorkOrderContextRaw, WorkOrderSummary } from '../../src/graph/types.js';
+import type { GraphSnapshot, GraphStore, MetricsRaw, NodeDetail, SearchHit, Subgraph, WorkOrderContextRaw, WorkOrderPage, WorkOrderQueryFilter, WorkOrderSummary } from '../../src/graph/types.js';
 import type { NodeLabel } from '../../src/domain/schema.js';
 import { createFixtureRepo, makeTmpDir, openTestDb, removeDir, testConfig } from '@prdm/testkit';
 
@@ -154,6 +154,9 @@ class FlakyStore implements GraphStore {
   }
   fullGraph(): Promise<Subgraph> {
     return this.inner.fullGraph();
+  }
+  queryWorkOrders(filter?: WorkOrderQueryFilter): Promise<WorkOrderPage> {
+    return this.inner.queryWorkOrders(filter);
   }
   listWorkOrders(filter?: { status?: string; blueprint?: string }): Promise<WorkOrderSummary[]> {
     return this.inner.listWorkOrders(filter);
