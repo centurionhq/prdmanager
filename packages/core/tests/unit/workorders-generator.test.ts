@@ -229,3 +229,74 @@ describe('extractTasks', () => {
     expect(planned.map((p) => p.title)).toEqual(['Uno', 'Dos']);
   });
 });
+
+describe('planWorkOrders deliverable_kind (SDD-093)', () => {
+  const GATE_TEXT = '**WO-C (verificación, gate)** — arrancar y cerrar limpio';
+  const parseWo = (content: string, path: string) => {
+    const parsed = parseDocument(content, path);
+    if (!parsed?.ok) throw new Error('expected a valid planned work order');
+    return parsed.doc;
+  };
+  const planOne = (tasks: string) => {
+    const [wo] = planWorkOrders(multiBlueprint(tasks), [], OPTIONS);
+    if (!wo) throw new Error('expected one planned work order');
+    return wo;
+  };
+
+  test('a declared `deliverable: gate` persists the kind and swaps the commit criteria for evidence ones', () => {
+    const wo = planOne('- [ ] Cerrar el gate de arranque\n  deliverable: gate\n');
+    expect(wo.content).toContain('deliverable_kind: "gate"');
+    expect(wo.content).toContain('- [ ] Evidencia registrada (comando + salida + ART o tarjeta del gate)');
+    expect(wo.content).toContain('- [ ] Cerrada con `archive_work_order` + motivo que nombra la evidencia');
+    expect(wo.content).not.toContain('Refs:');
+    expect(wo.content).not.toContain('Commit realizado');
+    expect(wo.content).not.toContain('Tests que cubren el cambio');
+    expect(wo.content).toContain('## Criterios de aceptación');
+  });
+
+  test('a gate-worded item without declaration is recognized by the heuristic', () => {
+    const wo = planOne(`- [ ] ${GATE_TEXT}\n`);
+    expect(wo.content).toContain('deliverable_kind: "gate"');
+    expect(wo.content).not.toContain('Refs:');
+  });
+
+  test('an explicit `deliverable: code` beats the heuristic', () => {
+    const wo = planOne(`- [ ] ${GATE_TEXT}\n  deliverable: code\n`);
+    expect(wo.content).toContain('deliverable_kind: "code"');
+    expect(wo.content).toContain('Refs: WO-001');
+  });
+
+  test('a code item without declaration carries no deliverable_kind at all', () => {
+    const wo = planOne('- [ ] Implementar hashing de código\n');
+    expect((parseWo(wo.content, wo.path).frontmatter as { deliverable_kind?: string }).deliverable_kind).toBeUndefined();
+    expect(wo.content).not.toContain('deliverable_kind');
+    expect(wo.content).toContain('Refs: WO-001');
+  });
+
+  test('a `deliverable:` line is not a task and combines with `paths:` in any order', () => {
+    const bp = multiBlueprint('- [ ] Uno\n  deliverable: gate\n  paths: a.ts\n- [ ] Dos\n  paths: b.ts\n  deliverable: gate\n- [ ] Tres\n');
+    const planned = planWorkOrders(bp, [], OPTIONS);
+    expect(planned.map((p) => p.title)).toEqual(['Uno', 'Dos', 'Tres']);
+    expect(planned[0]?.content).toContain('paths: a.ts');
+    expect(planned[0]?.content).toContain('deliverable_kind: "gate"');
+    expect(planned[1]?.content).toContain('paths: b.ts');
+    expect(planned[1]?.content).toContain('deliverable_kind: "gate"');
+    expect(planned[2]?.content).not.toContain('deliverable_kind');
+  });
+
+  test('declaring `deliverable:` does not change source_task', () => {
+    const plain = planOne('- [ ] Cerrar el gate de arranque\n');
+    const declared = planOne('- [ ] Cerrar el gate de arranque\n  deliverable: gate\n');
+    const sourceTask = (wo: { content: string; path: string }) => parseWo(wo.content, wo.path).frontmatter;
+    expect(sourceTask(declared)).toMatchObject({ source_task: (sourceTask(plain) as { source_task?: string }).source_task });
+  });
+
+  test('is hash-neutral when absent and hashed when present', () => {
+    const base = 'id: WO-001\ntype: WO\ntitle: Task\nstatus: pending\nimplements: [SDD-001]\n';
+    const without = doc(base, 'task');
+    const withGate = doc(`${base}deliverable_kind: "gate"\n`, 'task');
+    expect((without.frontmatter as { deliverable_kind?: string }).deliverable_kind).toBeUndefined();
+    expect(without.node.contentHash).toBe('b05c112c45135f26eedadf64bc06ab7c1c7088477eeeab5f4cc62e0eb636e089');
+    expect(withGate.node.contentHash).not.toBe(without.node.contentHash);
+  });
+});
