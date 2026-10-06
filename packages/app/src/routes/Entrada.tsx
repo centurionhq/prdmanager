@@ -1,11 +1,22 @@
 /**
- * `/o/:orgSlug/p/:projectSlug/entrada` (SDD-013 §"Shell y router", WO-362): the real feedback/artifact
- * triage inbox — `listInbox`, filterable by estado (`new`/`triaged`) and tipo (`FB`/`ART`), "Enlazar a
- * feature" (`getFeedbackCandidates` + `triageFeedback`) and "Registrar feedback" (`submitFeedback`).
+ * `/o/:orgSlug/p/:projectSlug/entrada` (SDD-013 §"Shell y router", WO-362; SDD-065 WO-B): the real
+ * feedback/artifact triage inbox — `listInbox` (SDD-065 D3 `{items,total}` envelope), filterable by
+ * estado/tipo/fuente and by a free-text query, with a «Recibido» column, sort wired to the `DataTable`
+ * (D2), client pagination and the automatic items folded into a collapsible block (D6).
+ *
+ * The URL is the source of truth for filtros, búsqueda, orden y página (D4): every control writes the
+ * query string through {@link updateQuery} and the list is rebuilt from it on each render. The screen
+ * fetches the inbox once (`limit` bounded by `MAX_INBOX_LIMIT`) and does filter/sort/page in the client —
+ * the endpoint does not expose a sort param, so sorting by título/id across the whole set needs the full
+ * filtered list (realistic inbox fits in one fetch, per D3's own note).
+ *
+ * Still pending (later work orders in the same chain): row actions Descatar/duplicar, batch bar, item
+ * Drawer and the extended Estado chips (WO-C) and the per-row accessible names (WO-D).
  */
-import { ChevronDown } from 'lucide-react';
-import { useMemo, useState, type ChangeEvent, type ReactElement } from 'react';
-import type { InboxItemDto } from '@prdm/contracts';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useMemo, useState, type ChangeEvent, type ReactElement, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router';
+import { MAX_INBOX_LIMIT, type InboxItemDto } from '@prdm/contracts';
 import { listInbox, submitFeedback } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { useApiQuery } from '../api/use-api-query.js';
@@ -17,6 +28,8 @@ import {
   FilterChips,
   IdTag,
   PageHeader,
+  SearchField,
+  SelectField,
   Skeleton,
   ToastProvider,
   useToast,
@@ -25,25 +38,35 @@ import {
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { useProjectShellContext } from './ProjectShell.js';
 import { LinkFeatureModal } from './entrada/LinkFeatureModal.js';
+import { Pagination } from './entrada/Pagination.js';
 import { RegisterFeedbackModal } from './entrada/RegisterFeedbackModal.js';
+import {
+  ALL_SOURCES,
+  ENTRADA_PAGE_SIZE,
+  buildEntradaList,
+  defaultDirection,
+  formatReceivedDate,
+  inboxSources,
+  parseEntradaQuery,
+  toEntradaSearchParams,
+  type EntradaEstado,
+  type EntradaQuery,
+  type EntradaSortKey,
+  type EntradaTipo,
+} from './entrada/entrada-filters.js';
 import styles from './entrada/Entrada.module.css';
 
-type EstadoFilter = 'todos' | 'new' | 'triaged';
-type TipoFilter = 'todos' | 'FB' | 'ART';
-
-const ESTADO_OPTIONS: readonly { value: EstadoFilter; label: string }[] = [
+const ESTADO_OPTIONS: readonly { value: EntradaEstado; label: string }[] = [
   { value: 'todos', label: 'Todos' },
   { value: 'new', label: 'Sin triar' },
   { value: 'triaged', label: 'Triados' },
 ];
 
-function matchesEstado(item: InboxItemDto, estado: EstadoFilter): boolean {
-  return estado === 'todos' || item.status === estado;
-}
-
-function matchesTipo(item: InboxItemDto, tipo: TipoFilter): boolean {
-  return tipo === 'todos' || item.kind === tipo;
-}
+const TIPO_OPTIONS: readonly { value: EntradaTipo; label: string }[] = [
+  { value: 'todos', label: 'Tipo: todos' },
+  { value: 'FB', label: 'Tipo: FB' },
+  { value: 'ART', label: 'Tipo: ART' },
+];
 
 function statusLabel(status: string): string {
   if (status === 'new') return 'Sin triar';
@@ -51,23 +74,58 @@ function statusLabel(status: string): string {
   return status;
 }
 
+/** Header of the collapsible block D6 folds the `agent:*` items into. */
+function AutomaticGroup({
+  count,
+  open,
+  onToggle,
+  children,
+}: {
+  readonly count: number;
+  readonly open: boolean;
+  readonly onToggle: () => void;
+  readonly children: ReactNode;
+}): ReactElement {
+  return (
+    <section className={styles.automaticGroup} aria-label="Ítems automáticos">
+      <button type="button" className={styles.automaticToggle} aria-expanded={open} onClick={onToggle}>
+        {open ? <ChevronUp aria-hidden="true" size={16} /> : <ChevronDown aria-hidden="true" size={16} />}
+        Automáticos ({count})
+      </button>
+      {open ? children : null}
+    </section>
+  );
+}
+
 function EntradaContent(): ReactElement {
   const { orgSlug, projectSlug } = useProjectShellContext();
   useDocumentTitle('Bandeja de entrada');
   const { show } = useToast();
 
-  const [estado, setEstado] = useState<EstadoFilter>('todos');
-  const [tipo, setTipo] = useState<TipoFilter>('todos');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = useMemo(() => parseEntradaQuery(searchParams), [searchParams]);
+
+  const [automaticOpen, setAutomaticOpen] = useState(false);
   const [linkTarget, setLinkTarget] = useState<InboxItemDto | undefined>(undefined);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [registerSubmitting, setRegisterSubmitting] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
 
-  const listQuery = useApiQuery(`inbox:${orgSlug}:${projectSlug}`, () => listInbox(orgSlug, projectSlug), [orgSlug, projectSlug]);
-  const items = listQuery.data ?? [];
+  const listQuery = useApiQuery(
+    `inbox:${orgSlug}:${projectSlug}`,
+    () => listInbox(orgSlug, projectSlug, { limit: MAX_INBOX_LIMIT }),
+    [orgSlug, projectSlug],
+  );
+  const items = listQuery.data?.items ?? [];
+  const serverTotal = listQuery.data?.total ?? items.length;
+
+  /** Writes the next state into the URL (D4); anything changed by a control resets to page 1. */
+  function updateQuery(patch: Partial<EntradaQuery>): void {
+    setSearchParams(toEntradaSearchParams({ ...query, ...patch }));
+  }
 
   const counts = useMemo(() => {
-    const result: Record<EstadoFilter, number> = { todos: items.length, new: 0, triaged: 0 };
+    const result: Record<EntradaEstado, number> = { todos: items.length, new: 0, triaged: 0 };
     for (const item of items) {
       if (item.status === 'new') result.new += 1;
       if (item.status === 'triaged') result.triaged += 1;
@@ -75,7 +133,10 @@ function EntradaContent(): ReactElement {
     return result;
   }, [items]);
 
-  const rows = useMemo(() => items.filter((item) => matchesEstado(item, estado) && matchesTipo(item, tipo)), [items, estado, tipo]);
+  const sources = useMemo(() => inboxSources(items), [items]);
+  const list = useMemo(() => buildEntradaList(items, query), [items, query]);
+  const matchCount = list.manual.total + list.automatic.length;
+  const rows = list.manual.items;
 
   async function handleRegisterConfirm(input: { text: string; source: string; title?: string; customer?: string }): Promise<void> {
     setRegisterSubmitting(true);
@@ -103,6 +164,17 @@ function EntradaContent(): ReactElement {
     { key: 'kind', header: 'Tipo', render: (item) => item.kind, sortValue: (item) => item.kind, width: '64px' },
     { key: 'title', header: 'Título', render: (item) => item.title },
     { key: 'source', header: 'Fuente', render: (item) => item.source, sortValue: (item) => item.source, width: '140px' },
+    {
+      key: 'receivedAt',
+      header: 'Recibido',
+      render: (item) => (
+        <time className={`${styles.date} num`} dateTime={item.receivedAt}>
+          {formatReceivedDate(item.receivedAt)}
+        </time>
+      ),
+      sortValue: (item) => item.receivedAt,
+      width: '112px',
+    },
     {
       key: 'status',
       header: 'Estado',
@@ -152,17 +224,41 @@ function EntradaContent(): ReactElement {
           <div className={styles.filtersBar}>
             <FilterChips
               label="Estado"
-              value={estado}
-              onChange={(value) => setEstado(value as EstadoFilter)}
+              value={query.estado}
+              onChange={(value) => updateQuery({ estado: value as EntradaEstado, page: 1 })}
               options={ESTADO_OPTIONS.map((option) => ({ value: option.value, label: option.label, count: counts[option.value] }))}
             />
             <div className={styles.selectWrapper}>
-              <select aria-label="Tipo" className={styles.select} value={tipo} onChange={(event: ChangeEvent<HTMLSelectElement>) => setTipo(event.target.value as TipoFilter)}>
-                <option value="todos">Tipo: todos</option>
-                <option value="FB">Tipo: FB</option>
-                <option value="ART">Tipo: ART</option>
+              <select
+                aria-label="Tipo"
+                className={styles.select}
+                value={query.tipo}
+                onChange={(event: ChangeEvent<HTMLSelectElement>) => updateQuery({ tipo: event.target.value as EntradaTipo, page: 1 })}
+              >
+                {TIPO_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
               <ChevronDown aria-hidden="true" size={16} className={styles.selectIcon} />
+            </div>
+            <div className={styles.selectWrapper}>
+              <SelectField
+                label="Fuente"
+                hideLabel
+                value={query.fuente}
+                options={[{ value: ALL_SOURCES, label: 'Todas las fuentes' }, ...sources.map((source) => ({ value: source, label: source }))]}
+                onChange={(value) => updateQuery({ fuente: value, page: 1 })}
+              />
+            </div>
+            <div className={styles.searchWrapper}>
+              <SearchField
+                label="Buscar en la bandeja"
+                value={query.q}
+                placeholder="Buscar por id, título o texto"
+                onChange={(value) => updateQuery({ q: value, page: 1 })}
+              />
             </div>
           </div>
 
@@ -171,8 +267,41 @@ function EntradaContent(): ReactElement {
             columns={columns}
             rows={rows}
             getRowId={(item) => item.id}
-            emptyState={<EmptyState title="Ningún ítem coincide con estos filtros" />}
+            sort={{ key: query.sort, direction: query.dir }}
+            onSortChange={(next) => {
+              const key = next.key as EntradaSortKey;
+              updateQuery({ sort: key, dir: key === query.sort ? next.direction : defaultDirection(key), page: 1 });
+            }}
+            emptyState={
+              <EmptyState
+                title={
+                  matchCount === 0
+                    ? 'Ningún ítem coincide con estos filtros'
+                    : 'Los ítems que coinciden son automáticos; mirá el bloque de abajo'
+                }
+              />
+            }
           />
+
+          <Pagination
+            page={list.manual.page}
+            pageCount={list.manual.pageCount}
+            total={list.manual.total}
+            pageSize={ENTRADA_PAGE_SIZE}
+            onChange={(page) => updateQuery({ page })}
+          />
+
+          {serverTotal > items.length ? (
+            <p className={styles.truncatedNote}>
+              Se muestran los primeros {items.length} de {serverTotal} ítems.
+            </p>
+          ) : null}
+
+          {list.automatic.length > 0 ? (
+            <AutomaticGroup count={list.automatic.length} open={automaticOpen} onToggle={() => setAutomaticOpen((open) => !open)}>
+              <DataTable caption="Ítems automáticos" columns={columns} rows={list.automatic} getRowId={(item) => item.id} />
+            </AutomaticGroup>
+          ) : null}
         </div>
       )}
 

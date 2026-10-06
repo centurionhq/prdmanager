@@ -3,7 +3,7 @@
  * conectado al backend SaaS", WO-339): submit raw feedback text, list the triage inbox, and — for one
  * inbox item — fetch its linking candidates and act on them.
  */
-import type { CandidateDto, InboxItemDto, SubmitFeedbackInput } from '@prdm/contracts';
+import type { CandidateDto, InboxResponseDto, SubmitFeedbackInput } from '@prdm/contracts';
 import { buildQuery } from './build-query.js';
 import { request } from './request.js';
 
@@ -23,12 +23,30 @@ export function submitFeedback(orgSlug: string, projectSlug: string, input: Subm
 
 export interface InboxFilters {
   readonly status?: string;
+  readonly kind?: 'FB' | 'ART';
+  readonly source?: string;
+  readonly q?: string;
+  readonly limit?: number;
+  readonly offset?: number;
 }
 
-export function listInbox(orgSlug: string, projectSlug: string, filters: InboxFilters = {}): Promise<InboxItemDto[]> {
-  return request<{ items: InboxItemDto[] }>(
-    `${projectBase(orgSlug, projectSlug)}/inbox${buildQuery({ status: filters.status })}`,
-  ).then((r) => r.items);
+/**
+ * `GET /inbox` (SDD-065 D3): the endpoint now pages/filters server-side and answers with the
+ * `{items,total}` envelope, so callers get the real count behind the current page. The app screen
+ * fetches with `limit` (bounded by `MAX_INBOX_LIMIT`) and paginates in the client, because it sorts by
+ * título/id — a sort the endpoint does not expose.
+ */
+export function listInbox(orgSlug: string, projectSlug: string, filters: InboxFilters = {}): Promise<InboxResponseDto> {
+  return request<InboxResponseDto>(
+    `${projectBase(orgSlug, projectSlug)}/inbox${buildQuery({
+      status: filters.status,
+      kind: filters.kind,
+      source: filters.source,
+      q: filters.q,
+      limit: filters.limit === undefined ? undefined : String(filters.limit),
+      offset: filters.offset === undefined ? undefined : String(filters.offset),
+    })}`,
+  );
 }
 
 export function getFeedbackCandidates(orgSlug: string, projectSlug: string, docId: string): Promise<CandidateDto[]> {

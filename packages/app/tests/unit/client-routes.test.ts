@@ -166,19 +166,29 @@ describe('submitFeedback', () => {
 });
 
 describe('listInbox', () => {
-  it('GETs the inbox with no filters and unwraps { items }', async () => {
-    const items = [{ id: 'FB-001', kind: 'FB' }];
-    const spy = spyOnRequest().mockResolvedValue({ items });
+  it('GETs the inbox with no filters and returns the { items, total } envelope', async () => {
+    const envelope = { items: [{ id: 'FB-001', kind: 'FB' }], total: 1 };
+    const spy = spyOnRequest().mockResolvedValue(envelope);
 
-    await expect(listInbox('acme', 'factory')).resolves.toEqual(items);
+    await expect(listInbox('acme', 'factory')).resolves.toEqual(envelope);
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/inbox');
   });
 
   it('GETs the inbox with a status filter as a query param', async () => {
-    const spy = spyOnRequest().mockResolvedValue({ items: [] });
+    const spy = spyOnRequest().mockResolvedValue({ items: [], total: 0 });
 
     await listInbox('acme', 'factory', { status: 'new' });
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/inbox?status=new');
+  });
+
+  it('sends the SDD-065 filtros, búsqueda and paginado params (kind, source, q, limit, offset)', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ items: [], total: 0 });
+
+    await listInbox('acme', 'factory', { status: 'new', kind: 'FB', source: 'slack', q: 'importador lento', limit: 200, offset: 25 });
+
+    expect(spy).toHaveBeenCalledWith(
+      '/api/app/organizations/acme/projects/factory/inbox?status=new&kind=FB&source=slack&q=importador+lento&limit=200&offset=25',
+    );
   });
 });
 

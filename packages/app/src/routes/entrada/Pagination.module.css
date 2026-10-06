@@ -1,0 +1,61 @@
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--regla-fila);
+}
+
+.range {
+  font-size: var(--text-sm);
+  color: var(--texto-secundario);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.button {
+  width: var(--control-height);
+  height: var(--control-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+  color: var(--grafito);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--relleno);
+}
+
+.button:focus-visible {
+  outline: none;
+  border-color: var(--cianotipo);
+  box-shadow: var(--focus-ring);
+}
+
+.button:disabled {
+  color: var(--apagado);
+  cursor: not-allowed;
+}
+
+.page {
+  font-size: var(--text-sm);
+  color: var(--texto-secundario);
+  white-space: nowrap;
+}
+
+/* 44 px hit targets on the mobile stacked layout (design package rule 6). */
+@media (max-width: 640px) {
+  .button {
+    min-width: var(--hit-target);
+    min-height: var(--hit-target);
+  }
+}
