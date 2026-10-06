@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { parseDocument } from '../../src/parser/frontmatter.js';
-import { planWorkOrders } from '../../src/workorders/generator.js';
+import { deriveImpactPaths, planWorkOrders } from '../../src/workorders/generator.js';
 import { doc } from '@prdm/testkit';
 
 const NOW = new Date('2026-09-12T00:00:00Z');
@@ -110,5 +110,122 @@ describe('planWorkOrders', () => {
     const planned = planWorkOrders(bp, [], { ...OPTIONS, reservedIds: ['WO-001'] });
 
     expect(planned.map((p) => p.id)).toEqual(['WO-002', 'WO-003']);
+  });
+});
+
+const MULTI_PATHS = ['packages/core/src/a.ts', 'packages/app/src/b.tsx', 'packages/server/src/c.ts', 'packages/app/tests/d.test.tsx', 'packages/core/tests/e.test.ts'];
+const MULTI_EXTRA = `impacts_paths: ${JSON.stringify(MULTI_PATHS)}`;
+
+function multiBlueprint(tasks: string): ReturnType<typeof doc> {
+  return doc(`id: SDD-002\ntype: SDD\ntitle: Multi\narchitects: [PRD-001]\n${MULTI_EXTRA}\ntags: ["graph"]\n`, `design\n\n## Tareas\n${tasks}`);
+}
+
+function parsedOf(plan: { content: string; path: string }) {
+  const parsed = parseDocument(plan.content, plan.path);
+  if (!parsed?.ok || parsed.doc.frontmatter.type !== 'WO') throw new Error('expected a valid work order');
+  return { fm: parsed.doc.frontmatter, body: parsed.doc.node.body };
+}
+
+describe('planWorkOrders — impacts_paths por tarea (SDD-068)', () => {
+  test('five tasks of different domains get five distinct, disjoint impacts_paths', () => {
+    const bp = multiBlueprint(
+      [
+        '- [ ] Ajustar a.ts en core',
+        '- [ ] Pintar b.tsx en la app',
+        '- [ ] Exponer c.ts en el server',
+        '- [ ] Cubrir d.test.tsx de la app',
+        '- [ ] Cubrir e.test.ts de core',
+      ].join('\n'),
+    );
+    const planned = planWorkOrders(bp, [], OPTIONS).map((p) => parsedOf(p).fm.impacts_paths);
+    expect(planned).toEqual(MULTI_PATHS.map((p) => [p]));
+  });
+
+  test('keeps blueprint order inside a WO that names several files', () => {
+    const bp = multiBlueprint('- [ ] Tocar e.test.ts y a.ts a la vez\n');
+    const [plan] = planWorkOrders(bp, [], OPTIONS);
+    expect(parsedOf(plan!).fm.impacts_paths).toEqual(['packages/core/src/a.ts', 'packages/core/tests/e.test.ts']);
+    expect(parsedOf(plan!).body).toContain('paths: packages/core/src/a.ts, packages/core/tests/e.test.ts');
+  });
+
+  test('a task naming no file inherits the blueprint list and declares the fallback in the body', () => {
+    const bp = multiBlueprint('- [ ] Revisar la documentación general\n');
+    const [plan] = planWorkOrders(bp, [], OPTIONS);
+    const { fm, body } = parsedOf(plan!);
+    expect(fm.impacts_paths).toEqual(MULTI_PATHS);
+    expect(body).toContain('paths: heredados del blueprint (el ítem no nombra archivos)');
+  });
+
+  test('a `paths:` line under an item wins over the textual match', () => {
+    const bp = multiBlueprint('- [ ] Tocar a.ts\n  paths: x/one.ts, x/two.ts\n- [ ] Otro\n');
+    const planned = planWorkOrders(bp, [], OPTIONS);
+    expect(planned).toHaveLength(2);
+    const { fm, body } = parsedOf(planned[0]!);
+    expect(fm.impacts_paths).toEqual(['x/one.ts', 'x/two.ts']);
+    expect(body).toContain('paths: x/one.ts, x/two.ts');
+    expect(body).not.toContain('packages/core/src/a.ts');
+    expect(planned[0]?.title).toBe('Tocar a.ts');
+  });
+
+  test('a `paths:` line wins when the item text has no textual match either', () => {
+    const bp = multiBlueprint('- [ ] Revisar algo\n  paths: y.ts\n');
+    const [plan] = planWorkOrders(bp, [], OPTIONS);
+    expect(parsedOf(plan!).fm.impacts_paths).toEqual(['y.ts']);
+  });
+
+  test('source_task ignores the paths override (idempotent when the override is added later)', () => {
+    const plain = planWorkOrders(multiBlueprint('- [ ] Tocar a.ts\n'), [], OPTIONS)[0]!;
+    const withOverride = planWorkOrders(multiBlueprint('- [ ] Tocar a.ts\n  paths: x.ts\n'), [], OPTIONS)[0]!;
+    expect(parsedOf(withOverride).fm.source_task).toBe(parsedOf(plain).fm.source_task);
+  });
+
+  test('a glob path the item does not name is inherited', () => {
+    const bp = blueprint('design\n\n## Tareas\n- [ ] Leer commits de git\n');
+    const [plan] = planWorkOrders(bp, [], OPTIONS);
+    expect(parsedOf(plan!).fm.impacts_paths).toEqual(['src/sync/**']);
+  });
+});
+
+describe('deriveImpactPaths', () => {
+  const BP = ['packages/core/src/workorders/generator.ts', 'packages/core/src/index.ts', 'src/sync/**'];
+
+  test('override wins and is not validated against the blueprint', () => {
+    expect(deriveImpactPaths('toca generator.ts', ['z.ts'], BP)).toEqual({ paths: ['z.ts'], source: 'override' });
+  });
+
+  test('an empty override is ignored', () => {
+    expect(deriveImpactPaths('toca generator.ts', [], BP).source).toBe('match');
+  });
+
+  test('matches a basename without extension as a delimited token', () => {
+    expect(deriveImpactPaths('Refactorizar el generator', undefined, BP)).toEqual({
+      paths: ['packages/core/src/workorders/generator.ts'],
+      source: 'match',
+    });
+  });
+
+  test('matches the full path, case-insensitively', () => {
+    expect(deriveImpactPaths('Editar PACKAGES/core/src/index.ts', undefined, BP).paths).toEqual(['packages/core/src/index.ts']);
+  });
+
+  test('does not match a token embedded in a longer word (index inside indexar)', () => {
+    expect(deriveImpactPaths('Indexar los documentos', undefined, BP)).toEqual({ paths: BP, source: 'inherited' });
+  });
+
+  test('a glob only matches when the item contains the whole glob', () => {
+    expect(deriveImpactPaths('Cambiar sync', undefined, BP).source).toBe('inherited');
+    expect(deriveImpactPaths('Cubrir src/sync/** con tests', undefined, BP)).toEqual({ paths: ['src/sync/**'], source: 'match' });
+  });
+
+  test('normalizes a leading ./ on blueprint paths', () => {
+    expect(deriveImpactPaths('tocar a.ts', undefined, ['./src/a.ts'])).toEqual({ paths: ['src/a.ts'], source: 'match' });
+  });
+});
+
+describe('extractTasks', () => {
+  test('a `paths:` line is not a task and does not count as one', () => {
+    const bp = multiBlueprint('- [ ] Uno\n  paths: a.ts\n- [ ] Dos\n');
+    const planned = planWorkOrders(bp, [], OPTIONS);
+    expect(planned.map((p) => p.title)).toEqual(['Uno', 'Dos']);
   });
 });
