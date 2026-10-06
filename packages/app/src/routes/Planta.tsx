@@ -5,13 +5,13 @@
  * plus the success-metrics KPI strip (`getMetrics`). See canvas/Main.dc.html — the sidebar itself is
  * `ProjectShell`'s own `AppShell`, unchanged by this WO; this route only renders the line and the strip.
  */
-import { type ReactElement, type ReactNode } from 'react';
+import { useId, useState, type ReactElement, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import type { SuccessMetricsDto } from '@prdm/contracts';
 import { getLineBoard, getMetrics } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { useApiQuery } from '../api/use-api-query.js';
-import { EmptyState, ErrorState, LineBoard, PageHeader, Skeleton } from '../components/index.js';
+import { Drawer, EmptyState, ErrorState, LineBoard, PageHeader, Skeleton } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { formatDateTime } from '../lib/format-date.js';
 import { ProfileBand } from './inicio/ProfileBand.js';
@@ -93,6 +93,119 @@ function UnmeasuredNote({ efficiency, orgSlug, projectSlug }: UnmeasuredNoteProp
   );
 }
 
+type UntracedCommits = SuccessMetricsDto['traceability']['untracedCommits'];
+type UntracedCommit = UntracedCommits['items'][number];
+type CommitKpiKind = 'with_refs' | 'traced';
+
+const COMMIT_DRAWER_WIDTH = 640;
+const SHORT_SHA_LENGTH = 7;
+
+const COMMIT_DEFINITION: Readonly<Record<CommitKpiKind, string>> = {
+  with_refs: 'Commits cuyo mensaje lleva el trailer Refs:; la lista son los que no lo llevan.',
+  traced: 'Commits cuya ref resuelve la cadena hasta una feature (WO → Blueprint → Feature); la lista son los que no la resuelven.',
+};
+
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/**
+ * WO-669 (SDD-080 D6): the commit KPIs open their list only when the server sent one. The response is not
+ * validated at runtime and front/back deploy separately, so a server older than WO-668 sends no
+ * `untracedCommits`; then the KPI stays a plain number.
+ */
+function readUntracedCommits(traceability: SuccessMetricsDto['traceability']): UntracedCommits | null {
+  const untraced = traceability.untracedCommits as UntracedCommits | undefined;
+  return untraced && Array.isArray(untraced.items) ? untraced : null;
+}
+
+interface CommitsKpiProps {
+  readonly kind: CommitKpiKind;
+  readonly label: string;
+  readonly ratio: string;
+  readonly percent: string;
+  readonly commitsTotal: number;
+  readonly untraced: UntracedCommits | null;
+}
+
+function CommitsKpi({ kind, label, ratio, percent, commitsTotal, untraced }: CommitsKpiProps): ReactElement {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+
+  if (commitsTotal === 0) return <span className={`num ${styles.kpiValue}`}>Sin datos</span>;
+
+  const missingRefs = untraced ? untraced.total - untraced.danglingRefs : 0;
+  const hasList = untraced !== null && (kind === 'with_refs' ? missingRefs > 0 : untraced.total > 0);
+  const rows = untraced === null ? [] : kind === 'with_refs' ? untraced.items.filter((item) => item.gap === 'no_refs') : untraced.items;
+
+  return (
+    <>
+      {hasList ? (
+        <button
+          type="button"
+          className={`num ${styles.kpiValue} ${styles.kpiControl}`}
+          aria-expanded={open}
+          aria-controls={panelId}
+          aria-label={`${label}: ${ratio}`}
+          onClick={() => setOpen(true)}
+        >
+          {ratio}
+        </button>
+      ) : (
+        <span className={`num ${styles.kpiValue}`}>{ratio}</span>
+      )}
+      <span className={styles.kpiPercent}>{percent}</span>
+      {hasList ? (
+        <Drawer open={open} title={label} onClose={() => setOpen(false)} width={COMMIT_DRAWER_WIDTH}>
+          <div id={panelId} className={styles.commitsBody}>
+            <p>{COMMIT_DEFINITION[kind]}</p>
+            <div className={styles.commitsCounts}>
+              <p className="num">
+                {kind === 'with_refs' ? `${missingRefs} de ${commitsTotal} commits sin el trailer Refs:` : `${untraced.total} de ${commitsTotal} commits sin trazar`}
+              </p>
+              {kind === 'traced' ? <p className="num">{plural(untraced.danglingRefs, 'ref colgante', 'refs colgantes')}</p> : null}
+            </div>
+            {rows.length === 0 ? <p>No hay commits en esta lista.</p> : <CommitsTable rows={rows} />}
+            {untraced.truncated ? <p>Se muestran los primeros {untraced.items.length} de {untraced.total}.</p> : null}
+          </div>
+        </Drawer>
+      ) : null}
+    </>
+  );
+}
+
+function CommitsTable({ rows }: { readonly rows: readonly UntracedCommit[] }): ReactElement {
+  return (
+    <div className={styles.commitsScroll} tabIndex={0} role="group" aria-label="Commits de la lista">
+      <table className={styles.commitsTable}>
+        <thead>
+          <tr>
+            <th scope="col">Commit</th>
+            <th scope="col">Asunto</th>
+            <th scope="col">Autor</th>
+            <th scope="col">Fecha</th>
+            <th scope="col">Archivos</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.sha}>
+              <td>
+                <span className="id">{row.sha.slice(0, SHORT_SHA_LENGTH)}</span>
+                {row.gap === 'dangling_refs' ? <span className={styles.commitDangling}> ref colgante</span> : null}
+              </td>
+              <td>{row.subject}</td>
+              <td>{row.author}</td>
+              <td>{formatDateTime(row.date)}</td>
+              <td className="num">{plural(row.files.length, 'archivo', 'archivos')}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 interface KpiStripProps {
   readonly metrics: SuccessMetricsDto;
   readonly awaitingFirstReport: boolean;
@@ -129,12 +242,17 @@ function KpiStrip({ metrics, awaitingFirstReport, orgSlug, projectSlug }: KpiStr
             };
 
   const plain = (value: string): ReactNode => <span className={`num ${styles.kpiValue}`}>{value}</span>;
+  const untraced = readUntracedCommits(metrics.traceability);
+  const { commitsTotal } = metrics.traceability;
+  const commitKpi = (kind: CommitKpiKind, label: string, count: number, percent: string): ReactNode => (
+    <CommitsKpi kind={kind} label={label} ratio={`${count}/${commitsTotal}`} percent={percent} commitsTotal={commitsTotal} untraced={untraced} />
+  );
   const items: { label: string; value: ReactNode; note: ReactNode }[] = [
     { label: 'Resolución mediana de una orden', value: plain(formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours)), note: <UnmeasuredNote efficiency={metrics.agentHumanEfficiency} orgSlug={orgSlug} projectSlug={projectSlug} /> },
     { label: 'Código sincronizado', value: plain(formatPercent(metrics.systemIntegrity.syncedPercent)), note: null },
     { label: 'Features trazadas', value: traced.value, note: traced.note },
-    { label: 'Commits trazados', value: plain(formatPercent(metrics.traceability.commitPercent)), note: null },
-    { label: 'Commits con Refs', value: plain(formatCommitRefsPercent(metrics.traceability)), note: null },
+    { label: 'Commits trazados', value: commitKpi('traced', 'Commits trazados', metrics.traceability.commitsTraced, formatPercent(metrics.traceability.commitPercent)), note: null },
+    { label: 'Commits con Refs', value: commitKpi('with_refs', 'Commits con Refs', metrics.traceability.commitsWithRefs, formatCommitRefsPercent(metrics.traceability)), note: null },
   ];
 
   return (

@@ -35,6 +35,80 @@
   font-stretch: var(--stretch-wide);
 }
 
+.kpiPercent {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+/* WO-669 (SDD-080 D6): the commit KPIs are buttons that look like their neighbours' values. */
+.kpiControl {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kpiControl:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* WO-669: the drawer's content. */
+.commitsBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+
+.commitsBody p {
+  margin: 0;
+}
+
+.commitsCounts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* The table keeps its width and scrolls inside the panel instead of overflowing it at 375 px. */
+.commitsScroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.commitsScroll:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.commitsTable {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.commitsTable th,
+.commitsTable td {
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  border-bottom: var(--rule-row);
+  vertical-align: top;
+}
+
+.commitsTable th {
+  color: var(--apagado);
+  font-weight: 600;
+}
+
+.commitDangling {
+  color: var(--andon-texto);
+}
+
 /* WO-672 (SDD-081 D7): the unmeasured-orders detail lives inside the first kpiItem, under the value. */
 .unmeasuredDetails {
   min-width: 0;

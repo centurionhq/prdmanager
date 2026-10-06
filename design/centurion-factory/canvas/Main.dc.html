@@ -157,6 +157,7 @@
       </div>
     </section>
 
+    <!-- WO-669 (SDD-080 D6/D9): «Commits trazados» y «Commits con Refs» son control (n/total + porcentaje secundario) y abren el drawer de commits; su estado abierto está en PlantaBanda.dc.html y PlantaMobile.dc.html (este artboard ya muestra el drawer de órdenes de WO-681). -->
     <section style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid #C9CFCD; border-bottom: 1px solid #C9CFCD;">
       <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px 16px 0;">
         <span style="font-size: 14px; color: #565D63;">Resolución mediana de una orden</span>
@@ -173,11 +174,13 @@
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px; border-left: 1px solid #C9CFCD;">
         <span style="font-size: 14px; color: #565D63;">Commits trazados</span>
-        <span class="num" style="font-size: 36px; font-weight: 700; font-stretch: 112%;">66,4 %</span>
+        <button type="button" class="num" aria-expanded="false" aria-label="Commits trazados: 166/250" style="align-self: flex-start; padding: 0; border: 0; background: none; color: #17191C; text-align: left; font-family: inherit; font-size: 36px; font-weight: 700; font-stretch: 112%; cursor: pointer;">166/250</button>
+        <span style="font-size: 14px; color: #565D63;">66,4 %</span>
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 0 16px 24px; border-left: 1px solid #C9CFCD;">
         <span style="font-size: 14px; color: #565D63;">Commits con Refs</span>
-        <span class="num" style="font-size: 36px; font-weight: 700; font-stretch: 112%;">66,4 %</span>
+        <button type="button" class="num" aria-expanded="false" aria-label="Commits con Refs: 172/250" style="align-self: flex-start; padding: 0; border: 0; background: none; color: #17191C; text-align: left; font-family: inherit; font-size: 36px; font-weight: 700; font-stretch: 112%; cursor: pointer;">172/250</button>
+        <span style="font-size: 14px; color: #565D63;">68,8 %</span>
       </div>
     </section>
 

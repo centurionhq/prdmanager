@@ -17,7 +17,7 @@ const HIDE_BOTTOM_BAR_CSS = 'nav[aria-label="Navegación móvil"]{position:stati
 
 async function main() {
   await mkdir(outDir, { recursive: true });
-  const server = await createServer({ root, server: { port: 0, strictPort: false }, logLevel: 'error' });
+  const server = await createServer({ root, server: { port: 0, strictPort: false, watch: null }, logLevel: 'error' });
   await server.listen();
   const address = server.httpServer?.address();
   if (!address || typeof address === 'string') throw new Error('No se pudo obtener el puerto del servidor de Vite');
@@ -34,6 +34,10 @@ async function main() {
       for (const route of SCREENSHOT_ROUTES) {
         await page.goto(`${baseUrl}${route.path}`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(SETTLE_MS);
+        if (route.click) {
+          await page.getByRole('button', { name: route.click }).click();
+          await page.waitForTimeout(SETTLE_MS);
+        }
         if (viewport.name === 'mobile') await page.addStyleTag({ content: HIDE_BOTTOM_BAR_CSS });
         const file = join(outDir, `${route.name}-${viewport.name}.png`);
         await page.screenshot({ path: file, fullPage: true });

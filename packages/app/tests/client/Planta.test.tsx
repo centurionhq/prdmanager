@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -253,6 +253,8 @@ describe('Planta', () => {
     expect(within(strip).getByText('Todas trazadas')).toBeTruthy();
     expect(screen.getByText('66,4 %')).toBeTruthy();
     expect(screen.getByText('70 %')).toBeTruthy();
+    expect(within(strip).getByText('6/10')).toBeTruthy();
+    expect(within(strip).getByText('7/10')).toBeTruthy();
   });
 
   it('renders the 5 KPIs in product order, with the two commit KPIs adjacent (WO-648)', async () => {
@@ -270,10 +272,11 @@ describe('Planta', () => {
       'Commits con Refs',
     ]);
     // Same order, each cell paired with its own number: "Commits con Refs" is commitsWithRefs/commitsTotal
-    // (7/10 = 70 %), not the commitPercent (66,4 %) its neighbour "Commits trazados" shows.
+    // (7/10), not the commitsTraced/commitsTotal (6/10) its neighbour "Commits trazados" shows (WO-669: n/total
+    // is the primary value, the percentage the secondary line).
     // WO-672: the first cell can end in the unmeasured <details>, so the value is read by position (the
     // child right after the label), except the last-child note of "Features trazadas" ("Todas trazadas").
-    expect(cells.map((cell, index) => (index === 2 ? cell.lastElementChild : cell.children[1])?.textContent)).toEqual(['5 min', '99,6 %', 'Todas trazadas', '66,4 %', '70 %']);
+    expect(cells.map((cell, index) => (index === 2 ? cell.lastElementChild : cell.children[1])?.textContent)).toEqual(['5 min', '99,6 %', 'Todas trazadas', '6/10', '7/10']);
     expect(cells[2]!.textContent).toContain('4/4');
   });
 
@@ -428,8 +431,10 @@ describe('Planta', () => {
 
     const withRefs = (await screen.findByText('Commits con Refs')).closest('div')?.textContent ?? '';
     const traced = screen.getByText('Commits trazados').closest('div')?.textContent ?? '';
+    expect(withRefs).toContain('10/20');
     expect(withRefs).toContain('50 %');
     expect(withRefs).not.toContain('30 %');
+    expect(traced).toContain('6/20');
     expect(traced).toContain('30 %');
     expect(traced).not.toContain('50 %');
   });
@@ -441,6 +446,169 @@ describe('Planta', () => {
 
     const withRefs = (await screen.findByText('Commits con Refs')).closest('div')?.textContent ?? '';
     expect(withRefs).toContain('Sin datos');
+    expect(screen.queryByRole('button', { name: /^Commits/ })).toBeNull();
+  });
+
+  describe('commit KPIs drill-down (WO-669, SDD-080 D6/D7)', () => {
+    const COMMITS_METRICS: SuccessMetricsDto = {
+      ...METRICS,
+      traceability: {
+        ...METRICS.traceability,
+        untracedCommits: {
+          total: 4,
+          danglingRefs: 1,
+          truncated: true,
+          items: [
+            { sha: 'aaaaaaa1111', subject: 'sin trailer uno', author: 'Ana', date: '2026-09-27T18:21:00.000Z', files: ['a.ts', 'b.ts', 'c.ts'], gap: 'no_refs' },
+            { sha: 'bbbbbbb2222', subject: 'sin trailer dos', author: 'Beto', date: '2026-09-27T18:22:00.000Z', files: ['d.ts'], gap: 'no_refs' },
+            { sha: 'ccccccc3333', subject: 'sin trailer tres', author: 'Ana', date: '2026-09-27T18:23:00.000Z', files: ['e.ts', 'f.ts'], gap: 'no_refs' },
+            { sha: 'ddddddd4444', subject: 'ref que no resuelve', author: 'Cleo', date: '2026-09-27T18:24:00.000Z', files: ['g.ts'], gap: 'dangling_refs' },
+          ],
+        },
+      },
+    };
+    const WITH_REFS = 'Commits con Refs: 7/10';
+    const TRACED = 'Commits trazados: 6/10';
+
+    function mockCommits(metrics: SuccessMetricsDto = COMMITS_METRICS): void {
+      vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+      vi.spyOn(client, 'getMetrics').mockResolvedValue(metrics);
+    }
+
+    async function openKpi(name: string): Promise<HTMLElement> {
+      const button = await screen.findByRole('button', { name });
+      await userEvent.click(button);
+      return button;
+    }
+
+    it('makes each commit KPI a button with aria-expanded and an aria-controls that exists', async () => {
+      mockCommits();
+      renderPlanta();
+
+      for (const name of [TRACED, WITH_REFS]) {
+        const button = await screen.findByRole('button', { name });
+        expect(button.getAttribute('aria-expanded')).toBe('false');
+        expect(document.getElementById(button.getAttribute('aria-controls')!)).toBeTruthy();
+        await userEvent.click(button);
+        expect(button.getAttribute('aria-expanded')).toBe('true');
+        expect(await screen.findByRole('dialog')).toBeTruthy();
+        act(() => {
+          screen.getByRole('dialog').dispatchEvent(new Event('cancel', { cancelable: true }));
+        });
+      }
+    });
+
+    it('"Commits con Refs" lists only the no_refs commits, counted from the payload', async () => {
+      mockCommits();
+      renderPlanta();
+      await openKpi(WITH_REFS);
+
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByText('aaaaaaa')).toBeTruthy();
+      expect(within(dialog).getByText('ccccccc')).toBeTruthy();
+      expect(within(dialog).queryByText('ddddddd')).toBeNull();
+      expect(within(dialog).getByText('3 de 10 commits sin el trailer Refs:')).toBeTruthy();
+      expect(within(dialog).getByText('Commits cuyo mensaje lleva el trailer Refs:; la lista son los que no lo llevan.')).toBeTruthy();
+    });
+
+    it('"Commits trazados" lists both kinds and marks the dangling one with text', async () => {
+      mockCommits();
+      renderPlanta();
+      await openKpi(TRACED);
+
+      const dialog = await screen.findByRole('dialog');
+      const danglingRow = within(dialog).getByText('ddddddd').closest('tr')!;
+      const plainRow = within(dialog).getByText('aaaaaaa').closest('tr')!;
+      expect(within(danglingRow).getByText('ref colgante')).toBeTruthy();
+      expect(within(plainRow).queryByText('ref colgante')).toBeNull();
+      expect(within(dialog).getByText('4 de 10 commits sin trazar')).toBeTruthy();
+      expect(within(dialog).getByText('1 ref colgante')).toBeTruthy();
+      expect(
+        within(dialog).getByText('Commits cuya ref resuelve la cadena hasta una feature (WO → Blueprint → Feature); la lista son los que no la resuelven.'),
+      ).toBeTruthy();
+    });
+
+    it('deja la tabla y el cuerpo del drawer alcanzables por teclado (scrollable-region-focusable)', async () => {
+      mockCommits();
+      renderPlanta();
+      await openKpi(TRACED);
+
+      const dialog = await screen.findByRole('dialog');
+      // La tabla scrollea en horizontal: el contenedor es un grupo con nombre y entra en el orden de tabulación.
+      const grupo = within(dialog).getByRole('group', { name: 'Commits de la lista' });
+      expect(grupo.getAttribute('tabindex')).toBe('0');
+      // El cuerpo del drawer scrollea en vertical: también tiene que ser focuseable.
+      const cuerpo = grupo.parentElement?.closest('[tabindex="0"]');
+      expect(cuerpo).not.toBeNull();
+      expect(dialog.contains(cuerpo ?? null)).toBe(true);
+    });
+
+    it('pluralizes the dangling count', async () => {
+      mockCommits({ ...COMMITS_METRICS, traceability: { ...COMMITS_METRICS.traceability, untracedCommits: { ...COMMITS_METRICS.traceability.untracedCommits, danglingRefs: 2 } } });
+      renderPlanta();
+      await openKpi(TRACED);
+
+      expect(within(await screen.findByRole('dialog')).getByText('2 refs colgantes')).toBeTruthy();
+    });
+
+    it('declares truncation only when the payload says so', async () => {
+      mockCommits();
+      renderPlanta();
+      await openKpi(TRACED);
+      expect(within(await screen.findByRole('dialog')).getByText('Se muestran los primeros 4 de 4.')).toBeTruthy();
+      cleanup();
+      clearQueryCache();
+
+      mockCommits({ ...COMMITS_METRICS, traceability: { ...COMMITS_METRICS.traceability, untracedCommits: { ...COMMITS_METRICS.traceability.untracedCommits, truncated: false } } });
+      renderPlanta();
+      await openKpi(TRACED);
+      expect(within(await screen.findByRole('dialog')).queryByText(/Se muestran los primeros/)).toBeNull();
+    });
+
+    it('renders a 5-column table with scope="col" and singular/plural file counts', async () => {
+      mockCommits();
+      renderPlanta();
+      await openKpi(TRACED);
+
+      const dialog = await screen.findByRole('dialog');
+      const headers = within(dialog).getAllByRole('columnheader');
+      expect(headers.map((h) => h.textContent)).toEqual(['Commit', 'Asunto', 'Autor', 'Fecha', 'Archivos']);
+      for (const header of headers) expect(header.getAttribute('scope')).toBe('col');
+      expect(within(dialog).getByText('3 archivos')).toBeTruthy();
+      expect(within(dialog).getAllByText('1 archivo').length).toBeGreaterThan(0);
+    });
+
+    it('Escape closes the drawer and returns focus to the KPI', async () => {
+      mockCommits();
+      renderPlanta();
+      const button = await openKpi(WITH_REFS);
+
+      act(() => {
+        screen.getByRole('dialog').dispatchEvent(new Event('cancel', { cancelable: true }));
+      });
+
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(button.getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(button);
+    });
+
+    it('stays standing with an older server that sends no untracedCommits: plain n/total, no buttons', async () => {
+      const { untracedCommits: _omitted, ...legacyTraceability } = METRICS.traceability;
+      mockCommits({ ...METRICS, traceability: legacyTraceability as SuccessMetricsDto['traceability'] });
+      renderPlanta();
+
+      const strip = await screen.findByRole('region', { name: 'Indicadores de la planta' });
+      expect(within(strip).getByText('6/10')).toBeTruthy();
+      expect(within(strip).getByText('7/10')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /^Commits/ })).toBeNull();
+    });
+
+    it('offers no control when there is nothing to list', async () => {
+      mockCommits(METRICS);
+      renderPlanta();
+      await screen.findByText('6/10');
+      expect(screen.queryByRole('button', { name: /^Commits/ })).toBeNull();
+    });
   });
 
   it('explains missing metrics instead of showing a fabricated 0% when awaiting the first report', async () => {
