@@ -107,6 +107,7 @@ export const LIST_WORK_ORDERS = `
   WHERE ($status IS NULL OR wo.status = $status)
     AND ($blueprint IS NULL OR EXISTS { (wo)-[:IMPLEMENTS]->(:Blueprint {project_id: $projectId, id: $blueprint}) })
   RETURN wo.id AS id, wo.title AS title, wo.status AS status, wo.assigned_to AS assignedTo, wo.source_path AS sourcePath,
+         wo.created_at AS createdAt, wo.claimed_at AS claimedAt,
          COLLECT { MATCH (wo)-[:IMPLEMENTS]->(b:Blueprint {project_id: $projectId}) RETURN b.id ORDER BY b.id } AS blueprints
   ORDER BY wo.id`;
 
