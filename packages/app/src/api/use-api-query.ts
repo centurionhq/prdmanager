@@ -5,7 +5,7 @@
  * screen already visited this session never flashes "cargando" again.
  */
 import { useCallback, useEffect, useRef, useState, type DependencyList } from 'react';
-import { getCachedQuery, setCachedQuery } from './query-cache.js';
+import { confirmQueryRendered, getRenderableQuery, setCachedQuery } from './query-cache.js';
 
 export type ApiQueryStatus = 'cargando' | 'vacio' | 'error' | 'listo';
 
@@ -31,7 +31,7 @@ function loadedState<T>(data: T, isEmpty: (data: T) => boolean): InternalState<T
 }
 
 function initialStateFor<T>(key: string, isEmpty: (data: T) => boolean): InternalState<T> {
-  const cached = getCachedQuery<T>(key);
+  const cached = getRenderableQuery<T>(key);
   return cached === undefined ? { status: 'cargando', data: undefined, error: null } : loadedState(cached, isEmpty);
 }
 
@@ -74,6 +74,15 @@ export function useApiQuery<T>(
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `deps` is the caller-supplied dependency list.
   }, [key, retryTick, ...deps]);
+
+  // SDD-103 D6: the value only becomes reusable cache once *this* screen has rendered it in a commit that
+  // actually landed — a render that throws (an envelope the screen cannot parse) never reaches this effect,
+  // so the plate's `retry()` finds no cached value and asks the server again instead of throwing on the same
+  // poison. `state.data !== undefined` also covers the "vacio" case (an empty list is a real, renderable
+  // result); a query whose data is literally `undefined` never had a usable cache entry to begin with.
+  useEffect(() => {
+    if (state.data !== undefined) confirmQueryRendered(key);
+  }, [key, state.data]);
 
   const retry = useCallback(() => setRetryTick((tick) => tick + 1), []);
 

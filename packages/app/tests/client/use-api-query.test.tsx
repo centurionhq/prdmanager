@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearQueryCache } from '../../src/api/query-cache.js';
+import { clearQueryCache, setCachedQuery } from '../../src/api/query-cache.js';
 import { useApiQuery } from '../../src/api/use-api-query.js';
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (error: unknown) => void } {
@@ -72,6 +72,19 @@ describe('useApiQuery', () => {
     const second = renderHook(() => useApiQuery('wo-2', fn, []));
     expect(second.result.current.status).toBe('listo');
     expect(second.result.current.data).toEqual({ id: 'wo-2' });
+  });
+
+  it('does not serve a stored value no screen has rendered yet (SDD-103 D6)', async () => {
+    // The poisoned-read case: a 200 the screen cannot render lands in the cache, its render throws, and the
+    // boundary's retry remounts with the same key. Serving that value again would throw again with no
+    // refetch — the value is only reusable after a commit actually rendered it.
+    setCachedQuery('stored-but-unrendered', { id: 'poisoned' });
+    const fn = vi.fn(async () => ({ id: 'fresh' }));
+    const { result } = renderHook(() => useApiQuery('stored-but-unrendered', fn, []));
+
+    expect(result.current.status).toBe('cargando');
+    await waitFor(() => expect(result.current.data).toEqual({ id: 'fresh' }));
+    expect(fn).toHaveBeenCalledTimes(1);
   });
 
   it('ignores a stale response when deps change before the previous call resolves', async () => {
