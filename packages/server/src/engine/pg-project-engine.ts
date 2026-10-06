@@ -16,7 +16,9 @@
  * correctly returns `null` for every sha, matching "commit_not_verified_by_ci" for anything not yet
  * baseline-trusted).
  *
- * `refresh()`/`inspect()`/`acknowledge()`: `dirty` is always empty — PgProjectEngine has no local git
+ * `refresh()`/`inspect()`/`acknowledge()`: `refresh()` (and `acknowledge()`'s own re-refresh) persists its
+ * `RefreshReport` verbatim in `project_code_state.last_report` (WO-604), which `lastReport()` reads back;
+ * `inspect()` never writes anything. `dirty` is always empty — PgProjectEngine has no local git
  * working tree to read it from at all. `governed` (WO-334, SDD-012) is loaded from `project_code_refs`,
  * the per-blueprint state a baseline code report persists (WO-333); see `buildDriftInput`/`loadGoverned`.
  * Independently, reconciliation-by-hash at the `impacts_paths`-signature level (WO-134) still guards
@@ -110,7 +112,7 @@ import {
   type TransactionOptions,
   type WorkOrderUpdate,
 } from '@prdm/core';
-import { formatDocId, schema, seedIdCounterAtLeast, withTenantTx, type PgDatabase } from '@prdm/db';
+import { formatDocId, readProjectLastReport, schema, seedIdCounterAtLeast, withTenantTx, writeProjectLastReport, type PgDatabase } from '@prdm/db';
 import { assertValidRoot, createDocumentYDoc, decodeUpdateRanges, FRONTMATTER_ROOT, InvalidDocumentRootError, type FrontmatterValue } from '@prdm/collab';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Hocuspocus } from '@hocuspocus/server';
@@ -337,11 +339,11 @@ export class PgProjectEngine implements ProjectEngine {
     return withTenantTx(this.pool, this.orgId, (tx) => loadScanState(tx, this.projectId));
   }
 
-  /** Read-only, saved state; never recomputes (SDD-007) and this WO does not yet persist a saved
-   * report anywhere durable, so it always answers `null` until a future WO adds that (mirrors
-   * `Engine.lastReport()` before its own first `refresh()`/`inspect()` of the process). */
+  /** Read-only, saved state; nunca recomputa (SDD-007: "estado guardado, nunca dispara refresh"). WO-604:
+   * devuelve el último `RefreshReport` que `refresh()` persistió en `project_code_state.last_report`, o
+   * `null` si nunca hubo uno. */
   async lastReport(): Promise<RefreshReport | null> {
-    return null;
+    return withTenantTx(this.pool, this.orgId, async (tx) => (await readProjectLastReport(tx, this.projectId)) as RefreshReport | null);
   }
 
   /** No local git working tree/journal to recover from a crash of the caller's *own* process (nothing
@@ -1048,7 +1050,7 @@ export class PgProjectEngine implements ProjectEngine {
     const baselineWritten = scan.errors.length === 0;
     if (baselineWritten) await this.saveBaseline(tx, this.preserveStaleGoverns(input.baseline, built.baseline, staleBlueprintIds));
 
-    return {
+    const report: RefreshReport = {
       documents: scan.docs.length,
       errors: scan.errors,
       issues: allIssues,
@@ -1057,6 +1059,9 @@ export class PgProjectEngine implements ProjectEngine {
       baselineWritten,
       hasBlockingIssues: scan.errors.length > 0 || allIssues.some((i) => i.severity === 'error'),
     };
+    // WO-604: `lastReport()` (MCP remoto) lee esto; `inspect()` (persist === false) nunca escribe.
+    await writeProjectLastReport(tx, { projectId: this.projectId, orgId: this.orgId, report });
+    return report;
   }
 
   private async applyStatusUpdates(tx: PgDatabase, updates: WorkOrderUpdate[]): Promise<{ applied: WorkOrderUpdate[]; failures: DriftIssue[] }> {

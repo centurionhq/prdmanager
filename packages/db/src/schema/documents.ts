@@ -223,6 +223,10 @@ export const projectCodeState = pgTable(
      * `code-reports.ts`), persisted verbatim so the dashboard can show them without re-parsing the raw
      * report. `null` before a project's first baseline report ever sets it. */
     governedWarnings: jsonb('governed_warnings'),
+    /** WO-604 (SDD-010): el último `RefreshReport` que `PgProjectEngine.refresh()` calculó y escribió,
+     * serializado verbatim, para que `lastReport()` (perfil MCP remoto, que nunca refresca) pueda
+     * devolverlo sin recomputar nada. `null` hasta el primer refresh persistido. */
+    lastReport: jsonb('last_report'),
   },
   (table) => [
     foreignKey({

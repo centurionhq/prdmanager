@@ -1,0 +1,45 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.box {
+  min-height: var(--control-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  background: var(--relleno);
+  border: var(--rule);
+  border-radius: var(--radius-input);
+  font-size: var(--text-sm);
+  color: var(--texto-secundario);
+}
+
+/* The global `.id` face is `white-space: nowrap`, right for a short id in a table cell and wrong here: a long
+   identifier must wrap inside its box instead of pushing the whole page sideways on a phone. */
+.box .value {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.hint {
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--apagado);
+}

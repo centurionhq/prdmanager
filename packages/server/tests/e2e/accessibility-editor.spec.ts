@@ -27,6 +27,10 @@ test.describe('Accessibility gate: lossless preview editor (WO-387)', () => {
 
     await switchToMarkdownTab(page);
     await page.locator('.cm-content').click();
+    // A fresh PRD's body isn't empty -- "Nuevo documento" seeds it from the PRD template ("## Resumen/##
+    // Requisitos/## Fuera de alcance"), so select-all before typing to replace it outright rather than
+    // merge into one of those headings (which leaves no plain `<p>` for the click below to find).
+    await page.keyboard.press('Control+a');
     await page.keyboard.type('Select this sentence to comment.');
     await page.getByRole('tab', { name: 'Vista previa' }).click();
 

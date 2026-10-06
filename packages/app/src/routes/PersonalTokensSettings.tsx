@@ -6,17 +6,16 @@
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import type { CreatedTokenResponse, OrganizationSummary, TokenScopeDto, TokenSummaryDto } from '@prdm/contracts';
-import { LoadingState } from '@prdm/ui';
 import { createPersonalToken, listOrganizations, listPersonalTokens, revokePersonalToken } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { PERSONAL_TOKEN_SCOPES } from '../auth/token-scopes.js';
+import { Button, Notice, SectionHeader, SelectField, Skeleton } from '../components/index.js';
 import { FormError } from '../components/FormError.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { TokenCreateForm } from '../components/TokenCreateForm.js';
 import { TokenSecretPanel } from '../components/TokenSecretPanel.js';
 import { TokenTable } from '../components/TokenTable.js';
-import dashboardStyles from '../styles/dashboard.module.css';
-import styles from '../styles/forms.module.css';
+import styles from './TokensScreen.module.css';
 
 export function PersonalTokensSettings(): ReactElement {
   const [organizations, setOrganizations] = useState<OrganizationSummary[] | null>(null);
@@ -24,6 +23,7 @@ export function PersonalTokensSettings(): ReactElement {
   const [tokens, setTokens] = useState<TokenSummaryDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [justCreated, setJustCreated] = useState<CreatedTokenResponse | null>(null);
+  const [creating, setCreating] = useState(false);
   useDocumentTitle('Tokens personales');
 
   useEffect(() => {
@@ -48,6 +48,7 @@ export function PersonalTokensSettings(): ReactElement {
     const result = await createPersonalToken(orgSlug, input);
     setJustCreated(result);
     setTokens((prev) => [...(prev ?? []), result.token]);
+    setCreating(false);
   }
 
   async function handleRevoke(tokenId: string): Promise<void> {
@@ -61,30 +62,32 @@ export function PersonalTokensSettings(): ReactElement {
   }
 
   if (error) return <FormError message={error} />;
-  if (!organizations) return <LoadingState label="Cargando…" />;
+  if (!organizations) return <Skeleton rows={3} />;
   if (organizations.length === 0) {
-    return <p className={styles.hint}>Necesitás pertenecer a una organización para crear tokens personales.</p>;
+    return <Notice>Necesitás pertenecer a una organización para crear tokens personales.</Notice>;
   }
 
   return (
-    <div className={dashboardStyles.content}>
-      <h1 className={styles.title}>Tokens personales</h1>
-      <div className={styles.field}>
-        <label htmlFor="tokens-org">Organización</label>
-        <select id="tokens-org" value={orgSlug ?? ''} onChange={(e) => setOrgSlug(e.target.value)}>
-          {organizations.map((org) => (
-            <option key={org.id} value={org.slug}>
-              {org.name}
-            </option>
-          ))}
-        </select>
+    <div className={styles.screen}>
+      <SectionHeader
+        title="Tokens personales"
+        subtitle="Credenciales tuyas para conectar tu asistente de código. No las compartas: identifican tus cambios."
+        actions={
+          creating ? null : (
+            <Button type="button" variant="primary" onClick={() => setCreating(true)}>
+              Crear token
+            </Button>
+          )
+        }
+      />
+
+      <div className={styles.orgPicker}>
+        <SelectField label="Organización" value={orgSlug ?? ''} onChange={setOrgSlug} options={organizations.map((org) => ({ value: org.slug, label: org.name }))} />
       </div>
 
-      {justCreated && <TokenSecretPanel secret={justCreated.secret} onDismiss={() => setJustCreated(null)} />}
-
-      {!tokens ? <LoadingState label="Cargando tokens…" /> : <TokenTable tokens={tokens} onRevoke={(id) => void handleRevoke(id)} />}
-
-      <TokenCreateForm availableScopes={PERSONAL_TOKEN_SCOPES} onCreate={handleCreate} />
+      {justCreated ? <TokenSecretPanel secret={justCreated.secret} onDismiss={() => setJustCreated(null)} /> : null}
+      {creating ? <TokenCreateForm availableScopes={PERSONAL_TOKEN_SCOPES} onCreate={handleCreate} onCancel={() => setCreating(false)} /> : null}
+      {!tokens ? <Skeleton rows={3} /> : <TokenTable tokens={tokens} onRevoke={(id) => void handleRevoke(id)} />}
     </div>
   );
 }

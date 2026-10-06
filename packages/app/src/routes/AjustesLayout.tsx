@@ -4,23 +4,33 @@
  * auditoría) and an outlet for the active one.
  */
 import type { ReactElement } from 'react';
-import { NavLink, Outlet } from 'react-router';
-import { PageHeader } from '../components/index.js';
+import { Outlet } from 'react-router';
+import { PageHeader, SubNav, type SubNavGroup } from '../components/index.js';
 import { projectBasePath } from '../components/shell/project-nav.js';
 import { useProjectShellContext } from './ProjectShell.js';
 import styles from './AjustesLayout.module.css';
 
-const AJUSTES_ITEMS: readonly { to: string; label: string }[] = [
-  { to: 'general', label: 'General' },
-  { to: 'miembros', label: 'Miembros' },
-  { to: 'tokens', label: 'Tokens de CI' },
-  { to: 'tokens-personales', label: 'Tokens personales' },
-  { to: 'perfil', label: 'Perfil' },
-  { to: 'auditoria', label: 'Auditoría' },
-];
-
-function navLinkClassName({ isActive }: { readonly isActive: boolean }): string {
-  return [styles.link, isActive ? styles.active : null].filter((value): value is string => Boolean(value)).join(' ');
+/** Only destinations that exist, grouped as the approved canvas groups them (`AjustesGeneral.dc.html`). The
+ * routes are the ones they always had: moving or adding destinations is a different PRD (PRD-036 leaves it out). */
+function ajustesGroups(base: string, projectName: string): readonly SubNavGroup[] {
+  return [
+    {
+      title: `Proyecto ${projectName}`,
+      items: [
+        { to: `${base}/general`, label: 'General' },
+        { to: `${base}/miembros`, label: 'Miembros' },
+        { to: `${base}/tokens`, label: 'Tokens de CI' },
+        { to: `${base}/auditoria`, label: 'Auditoría' },
+      ],
+    },
+    {
+      title: 'Tu cuenta',
+      items: [
+        { to: `${base}/perfil`, label: 'Perfil' },
+        { to: `${base}/tokens-personales`, label: 'Tokens personales' },
+      ],
+    },
+  ];
 }
 
 export function AjustesLayout(): ReactElement {
@@ -32,17 +42,7 @@ export function AjustesLayout(): ReactElement {
     <div className={styles.page}>
       <PageHeader title="Ajustes" subtitle={`Proyecto ${project.name}, organización ${currentOrg.name}`} />
       <div className={styles.layout}>
-        <nav aria-label="Ajustes" className={styles.nav}>
-          <ul className={styles.list}>
-            {AJUSTES_ITEMS.map((item) => (
-              <li key={item.to}>
-                <NavLink to={`${base}/${item.to}`} className={navLinkClassName}>
-                  {item.label}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        <SubNav label="Ajustes" groups={ajustesGroups(base, project.name)} />
         <section className={styles.section}>
           <Outlet context={context} />
         </section>

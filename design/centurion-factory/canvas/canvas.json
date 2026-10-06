@@ -15,6 +15,14 @@
     {
       "id": "page-4",
       "name": "PRD-007 · ronda A"
+    },
+    {
+      "id": "page-5",
+      "name": "PRD-033 · ronda A"
+    },
+    {
+      "id": "page-6",
+      "name": "PRD-036 · ronda A"
     }
   ],
   "artboards": [
@@ -300,6 +308,55 @@
       "page": "page-4"
     },
     {
+      "file": "PlantaBanda.dc.html",
+      "title": "Planta con la banda · probá los cuatro estados (sin perfil y los tres perfiles)",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-5",
+      "is_interactive": true
+    },
+    {
+      "file": "ConstruirNegocio.dc.html",
+      "title": "Negocio · el caso de negocio guiado sección por sección",
+      "x": 1600,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-5"
+    },
+    {
+      "file": "ConstruirProducto.dc.html",
+      "title": "Producto · elegí la iniciativa; probá también el estado sin ninguna aprobada",
+      "x": 3200,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-5",
+      "is_interactive": true
+    },
+    {
+      "file": "ConstruirDeveloper.dc.html",
+      "title": "Developer · puesta en marcha; probá los tres estados de instalación",
+      "x": 4800,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-5",
+      "is_interactive": true
+    },
+    {
+      "file": "PlantaBandaMobile.dc.html",
+      "title": "390 px · la banda y los tres destinos",
+      "x": 0,
+      "y": 1120,
+      "w": 390,
+      "h": 844,
+      "page": "page-5",
+      "is_interactive": true
+    },
+    {
       "file": "AgentePanel.dc.html",
       "title": "Agente · panel (espera, actividad, fallo, turno cortado, detenido)",
       "x": 4800,
@@ -307,6 +364,33 @@
       "w": 560,
       "h": 960,
       "page": "page-4"
+    },
+    {
+      "file": "AjustesGeneral.dc.html",
+      "title": "Ajustes · General, con el shell y la subnavegación reales",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "page-6"
+    },
+    {
+      "file": "AjustesGeneralMobile.dc.html",
+      "title": "Ajustes · General a 375 px",
+      "x": 1560,
+      "y": 0,
+      "w": 375,
+      "h": 812,
+      "page": "page-6"
+    },
+    {
+      "file": "AjustesTokensMobile.dc.html",
+      "title": "Ajustes · tokens de CI a 375 px, con el secreto de un solo uso",
+      "x": 2055,
+      "y": 0,
+      "w": 375,
+      "h": 812,
+      "page": "page-6"
     }
   ],
   "annotations": [
@@ -365,10 +449,26 @@
       "w": 900,
       "page": "page-4",
       "text": "PRD-007 · Ronda B — verificación contra datos reales (aprobada 2026-09-15)\n\nNo hizo falta diseño nuevo: las pantallas ya construidas resuelven los 6 puntos de la ronda B con los datos reales del backend.\n\n- Planta es data-driven, sin límite de filas para más de 6 features.\n- \"Esperando el primer reporte de CI\" reemplaza un 0% fabricado cuando el proyecto todavía no tiene reporte.\n- Tokens de CI ya no muestra el campo \"Rama\": explica que la baseline depende de la rama por defecto del proyecto y de OIDC.\n- Login no muestra ningún botón de SSO.\n- Enlazar feedback a una feature explica el caso de un documento colaborativo pendiente de republicar, en vez de tratarlo como error.\n- Un issue de drift sin feature ni blueprint (por ejemplo, un error de escaneo del proyecto) se muestra igual, sin esa etiqueta."
+    },
+    {
+      "id": "prd033-ronda-a-intro",
+      "x": 0,
+      "y": -320,
+      "w": 900,
+      "page": "page-5",
+      "text": "PRD-033 · Trabajar en la línea de producción — ronda A de canvas\n\nEl problema (BC-013, a partir de la prueba de usuario de FB-026): la fábrica no tiene puerta de entrada. El único camino para empezar algo es Documentos, una lista donde conviven ocho tipos de documento y hay que saber de antemano cuál elegir.\n\nLa forma que se decidió: la Planta NO se mueve, sigue siendo la pantalla de arranque. Arriba de la línea aparece una banda que la primera vez pregunta a qué venís, y de ahí en más muestra tu próximo paso con una salida a construir. A dónde lleva depende del camino: negocio y producto terminan en un documento creado, developer en un entorno conectado.\n\nEste desvío respecto del texto de R1 (que pedía sacar a la Planta del arranque) está registrado en FB-032.\n\nQué mirar: que ninguna sigla (BC, PRD, SDD, FR, WO) aparezca como opción a elegir; que cada camino termine en algo concreto y no en una lista; y que el estado 'todavía no hay iniciativa aprobada' del camino de producto avise antes de escribir, no al intentar publicar."
+    },
+    {
+      "id": "prd036-ronda-a-intro",
+      "x": 0,
+      "y": -320,
+      "w": 900,
+      "page": "page-6",
+      "text": "PRD-036 · Usar el design system en Ajustes — ronda A de canvas (SDD-056)\n\nQué se encontró (FB-035): el contenido de Ajustes hoy se ve sin estilo (campos sin borde, tablas con las columnas pegadas, botones sin forma) porque forms.module.css y dashboard.module.css usaban variables del sistema de diseño anterior que ya no existen. Eso ya se reparó sin tocar el diseño; lo que sigue es reconstruir cada pantalla como la dibujan estos artboards.\n\nQué falta dibujar y está acá: General (no tenía artboard), el shell con la subnavegación, y la sección a 375 px (General y una pantalla con tabla y secreto de un solo uso). Las demás pantallas conservan sus artboards de las páginas anteriores.\n\nDecisión a mirar: la subnavegación dibuja SÓLO destinos que existen (General, Miembros, Tokens de CI y Auditoría del proyecto; Perfil y Tokens personales de la cuenta). Los artboards viejos de Ajustes muestran además Integraciones, Autenticación y SSO y los de la organización; esos destinos no existen (el SSO es de un PRD futuro, FB-008) y agregar o mover destinos es otro PRD. En esos artboards manda esta subnavegación, no la suya.\n\nA 375 px la subnavegación pasa a una tira horizontal con scroll (sin los títulos de grupo) y las tablas se apilan en tarjetas. Todo control táctil de 44 px."
     }
   ],
   "launch": {
     "view": "canvas",
-    "page": "page-4"
+    "page": "page-6"
   }
 }

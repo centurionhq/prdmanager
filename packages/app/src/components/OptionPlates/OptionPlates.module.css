@@ -1,0 +1,75 @@
+.group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-3);
+}
+
+.stack {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.plate {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: var(--hit-target);
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  color: var(--grafito);
+  cursor: pointer;
+}
+
+.plate:hover {
+  border-color: var(--cianotipo);
+}
+
+/* Selected: the border and a tinted fill say it, and the marker (when drawn) says it again without colour. */
+.selected {
+  background: var(--seleccion);
+  border-color: var(--cianotipo);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.description {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--texto-secundario);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.marker {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: var(--space-1);
+  border: 1px solid var(--regla);
+  background: var(--superficie);
+}
+
+.markerOn {
+  border-color: var(--cianotipo);
+  background: var(--cianotipo);
+}

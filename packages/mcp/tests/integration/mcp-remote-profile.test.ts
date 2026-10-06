@@ -103,16 +103,16 @@ describe('remote MCP profile tool/prompt allow-list (WO-184)', () => {
     expect(body.openDrafts).toBe(0);
   });
 
-  test('get_drift_report never refreshes: reports hasReport: false when lastReport() is still null', async () => {
+  test('get_drift_report never refreshes: returns the pre-existing lastReport() without recomputing it', async () => {
     const result = await client.callTool({ name: 'get_drift_report', arguments: {} });
     expect(result.isError).toBeFalsy();
     const content = result.content as { type: string; text: string }[];
     const body = JSON.parse(content[0]!.text) as { hasReport?: boolean };
-    // `Engine.lastReport()` was already populated by the `beforeAll` refresh above, so this profile's
-    // get_drift_report should surface that pre-existing report rather than `hasReport: false` OR
-    // silently recompute it. Confirmed here: the returned report never re-triggers a refresh() by
-    // asserting no exception path was needed and the response shape is a real report, not the
-    // no-report placeholder.
+    // In this in-memory suite `Engine.lastReport()` is already populated by the `beforeAll` refresh, so
+    // the remote profile must return that pre-existing report (not `hasReport: false`, which is only for
+    // a project with no report) and must never recompute it. Note this suite cannot detect a
+    // `PgProjectEngine.lastReport()` stub returning null: that is covered by
+    // `packages/server/tests/integration/mcp-remote-drift-report.test.ts` (WO-605).
     expect(body.hasReport).not.toBe(false);
   });
 });

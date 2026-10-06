@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { doc } from '@prdm/testkit';
 import type { ParsedDoc } from '../../src/domain/schema.js';
+import { BC_REQUIRED_SECTIONS } from '../../src/domain/index.js';
 import { checkLifecycle, type LifecycleContext } from '../../src/lifecycle/check.js';
 
 const noGrandfathering: LifecycleContext = { grandfathered: [] };
@@ -12,7 +13,7 @@ const sdd = (extra = '', body = 'design'): ParsedDoc => doc(`id: SDD-001\ntype: 
 const wo = (extra = ''): ParsedDoc => doc(`id: WO-001\ntype: WO\ntitle: Task\nimplements: [SDD-001]\n${extra}`);
 const fb = (extra = '', status = 'new'): ParsedDoc => doc(`id: FB-001\ntype: FB\ntitle: Feedback\nstatus: ${status}\n${extra}`);
 const art = (extra = ''): ParsedDoc => doc(`id: ART-001\ntype: ART\ntitle: Note\n${extra}`);
-const BC_ALL_SECTIONS = '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n';
+const BC_ALL_SECTIONS = `${BC_REQUIRED_SECTIONS.join('\n\n')}\n`;
 const bc = (extra = '', body = BC_ALL_SECTIONS): ParsedDoc => doc(`id: BC-001\ntype: BC\ntitle: Business case\n${extra}`, body);
 
 function kinds(issues: ReturnType<typeof checkLifecycle>): [string, string, string][] {
@@ -171,6 +172,11 @@ describe('checkLifecycle — BusinessCase (BC)', () => {
     expect(issues[0]?.message).toContain('Impacto esperado');
     expect(issues[0]?.message).toContain('Métrica de éxito');
     expect(issues[0]?.message).toContain('Costo estimado');
+  });
+
+  test('the gate names every section of the shared domain list when the body is empty (WO-556: one list, two readers)', () => {
+    const issues = checkLifecycle([bc('justified_by: [FB-999]', '')], noGrandfathering);
+    for (const heading of BC_REQUIRED_SECTIONS) expect(issues[0]?.message).toContain(heading);
   });
 
   test('justified_by + all four sections satisfies the rule with zero issues (no impacts_paths/Tareas required: not a blueprint)', () => {

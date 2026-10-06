@@ -3,34 +3,25 @@
  * muestra una sola vez"): `secret` only ever lives in this component's own render — never written to
  * `localStorage`/a cookie/anywhere persistent, and the server itself never lets it be re-fetched
  * (`tokenSummarySchema` has no secret field). Dismissing it drops the last reference React holds.
+ *
+ * SDD-056/PRD-036: drawn as the canvas's own card ("Token creado", `AjustesTokens.dc.html`) with the design
+ * system's `CopyBlock`, which also covers a browser that refuses the clipboard. It is `role="alert"` so a
+ * screen reader announces it the moment it appears: the secret cannot be recovered if it is missed.
  */
-import { useState, type ReactElement } from 'react';
-import styles from '../styles/forms.module.css';
+import type { ReactElement } from 'react';
+import { Button, CopyBlock } from './index.js';
+import styles from './TokenSecretPanel.module.css';
 
 export function TokenSecretPanel({ secret, onDismiss }: { secret: string; onDismiss: () => void }): ReactElement {
-  const [copied, setCopied] = useState(false);
-
-  async function handleCopy(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(secret);
-      setCopied(true);
-    } catch {
-      // Clipboard access can be denied/unavailable (permissions, non-secure context in some browsers);
-      // the secret is still selectable/copyable by hand from the panel below.
-    }
-  }
-
   return (
-    <div className={styles.secretPanel} role="alert">
-      <p className={styles.secretTitle}>Guardá este secreto ahora: no se va a volver a mostrar.</p>
-      <code className={styles.secretValue}>{secret}</code>
+    <div className={styles.panel} role="alert">
+      <span className={styles.title}>Token creado</span>
+      <p className={styles.text}>Copialo ahora. Por seguridad no lo vamos a volver a mostrar.</p>
+      <CopyBlock label="Token recién creado" text={secret} />
       <div className={styles.actions}>
-        <button type="button" className={styles.secondaryButton} onClick={() => void handleCopy()}>
-          {copied ? 'Copiado' : 'Copiar'}
-        </button>
-        <button type="button" className={styles.primaryButton} onClick={onDismiss}>
-          Cerrar
-        </button>
+        <Button type="button" variant="ghost" onClick={onDismiss}>
+          Ya lo guardé
+        </Button>
       </div>
     </div>
   );

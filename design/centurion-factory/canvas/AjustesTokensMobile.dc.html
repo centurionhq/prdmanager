@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; }
+    .code { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.5; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<!-- 375×812. Todo control táctil respeta el mínimo de 44px. Ajustes se llega desde "Más". -->
+<div style="width: 375px; height: 812px; display: flex; flex-direction: column; background: #E9ECEB; overflow: hidden;">
+  <header style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #C9CFCD; background: #E9ECEB;">
+    <div style="display: flex; flex-direction: column; min-width: 0;">
+      <span style="font-size: 12px; color: #565D63;">Centurion HQ · prdmanager</span>
+      <span style="font-size: 17px; font-weight: 700;">Ajustes</span>
+    </div>
+  </header>
+  <nav aria-label="Ajustes" style="display: flex; overflow-x: auto; border-bottom: 1px solid #C9CFCD; background: #E9ECEB; padding: 0 2px;"><div style="flex: none; height: 44px; display: flex; align-items: center; padding: 0 14px; font-size: 14px; color: #33383D; white-space: nowrap; border-bottom: 2px solid transparent;">General</div><div style="flex: none; height: 44px; display: flex; align-items: center; padding: 0 14px; font-size: 14px; color: #33383D; white-space: nowrap; border-bottom: 2px solid transparent;">Miembros</div><div style="flex: none; height: 44px; display: flex; align-items: center; padding: 0 14px; font-size: 14px; font-weight: 600; color: #17191C; white-space: nowrap; border-bottom: 2px solid #17191C;">Tokens de CI</div><div style="flex: none; height: 44px; display: flex; align-items: center; padding: 0 14px; font-size: 14px; color: #33383D; white-space: nowrap; border-bottom: 2px solid transparent;">Auditoría</div><div style="flex: none; height: 44px; display: flex; align-items: center; padding: 0 14px; font-size: 14px; color: #33383D; white-space: nowrap; border-bottom: 2px solid transparent;">Perfil</div><div style="flex: none; height: 44px; display: flex; align-items: center; padding: 0 14px; font-size: 14px; color: #33383D; white-space: nowrap; border-bottom: 2px solid transparent;">Tokens personales</div></nav>
+  <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 14px; padding: 16px;">
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <h1 style="margin: 0; font-size: 28px; line-height: 1.1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Tokens de CI</h1>
+      <span style="font-size: 14px; color: #565D63; line-height: 1.4;">Solo un token de CI en la rama por defecto avanza el reporte oficial de drift.</span>
+    </div>
+    <div style="min-height: 44px; display: flex; align-items: center; justify-content: center; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Crear token</div>
+    <!-- El secreto se muestra una sola vez: tarjeta propia, bloque oscuro copiable, y "Ya lo guardé". -->
+    <div style="display: flex; flex-direction: column; gap: 10px; padding: 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-left: 3px solid #1E7F4F; border-radius: 2px;">
+      <span style="font-size: 15px; font-weight: 700;">Token creado</span>
+      <span style="font-size: 13px; color: #33383D; line-height: 1.4;">Copialo ahora. Por seguridad no lo vamos a volver a mostrar.</span>
+      <div style="padding: 10px 12px; background: #17191C; border-radius: 2px;"><code class="code" style="color: #E9ECEB; word-break: break-all;">prdm_ci_7f3a9c42e1d84b6f90aa51c7b21c</code></div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div style="min-height: 44px; display: flex; align-items: center; justify-content: center; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px; font-weight: 600;">Copiar</div>
+        <div style="min-height: 44px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #1F4FA0;">Ya lo guardé</div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px; padding: 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; ">
+      <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 15px; font-weight: 700;">github-actions-main</span><span style="font-size: 13px; color: #565D63;">Ana Ríos, 15/09/2026</span></div>
+      <span class="id" style="color: #565D63;">prdm_ci_7f3a…</span>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="id" style="padding: 2px 6px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 2px;">reports:write</span><span class="id" style="padding: 2px 6px; background: #F1F3F2; border: 1px solid #C9CFCD; border-radius: 2px;">reports:baseline</span></div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 13px; color: #33383D;"><span><span style="color: #565D63;">Rama </span><span class="id">main</span></span><span><span style="color: #565D63;">Vence </span>14/12/2026</span><span style="grid-column: 1 / -1;"><span style="color: #565D63;">Último uso </span>hace 4 min</span></div>
+      <div style="min-height: 44px; display: flex; align-items: center; color: #B8322A; font-size: 14px; font-weight: 600;">Revocar</div>
+    </div>
+  </div>
+  <nav aria-label="Navegación principal" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid #C9CFCD; background: #FBFCFB; padding: 4px 0;">
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; font-weight: 600; color: #17191C;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17191C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V8l8-4 8 4v12"></path><path d="M4 14h16"></path></svg>
+      Planta
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; color: #565D63;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"></circle><circle cx="18" cy="12" r="2"></circle><circle cx="6" cy="18" r="2"></circle><path d="M8 6h4a2 2 0 0 1 2 2v2M8 18h4a2 2 0 0 0 2-2v-2"></path></svg>
+      Árbol
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; color: #565D63;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="1"></rect><path d="M9 9h6M9 13h6M9 17h3"></path></svg>
+      Documentos
+    </div>
+    <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; color: #565D63;">
+      <span class="num" style="position: absolute; top: 8px; left: 50%; margin-left: 6px; min-width: 16px; height: 16px; padding: 0 4px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 11px; font-weight: 700; border-radius: 2px;">3</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4L2 20h20z"></path><path d="M12 10v4"></path><circle cx="12" cy="17.5" r="0.5"></circle></svg>
+      Drift
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; color: #565D63;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg>
+      Más
+    </div>
+  </nav>
+</div>
+</x-dc>
+</body>
+</html>

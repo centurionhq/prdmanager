@@ -1,5 +1,6 @@
 /**
- * `GET /api/app/profile` and `POST /api/app/profile/handle` (WO-432): set-once `user_profile.handle`,
+ * `GET /api/app/profile`, `POST /api/app/profile/handle` (WO-432) and `POST /api/app/profile/work-profile`
+ * (WO-542, SDD-051): set-once `user_profile.handle`,
  * the "dev:<handle>" actor identity `claim_work_order`/`complete_work_order`/`archive_work_order`
  * require. Global, not org/project-scoped -- `packages/server/src/api/profile.ts`'s own doc comment.
  */
@@ -59,7 +60,7 @@ describe('GET /api/app/profile, POST /api/app/profile/handle (WO-432)', () => {
     const res = await app.inject({ method: 'GET', url: '/api/app/profile', headers: { ...AUTH_HOST(), cookie } });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ handle: null });
+    expect(res.json()).toEqual({ handle: null, workProfile: null });
 
     await app.close();
   });
@@ -79,7 +80,7 @@ describe('GET /api/app/profile, POST /api/app/profile/handle (WO-432)', () => {
     expect(setRes.json()).toEqual({ handle: 'tano' });
 
     const getRes = await app.inject({ method: 'GET', url: '/api/app/profile', headers: { ...AUTH_HOST(), cookie } });
-    expect(getRes.json()).toEqual({ handle: 'tano' });
+    expect(getRes.json()).toEqual({ handle: 'tano', workProfile: null });
 
     await app.close();
   });
@@ -145,6 +146,118 @@ describe('GET /api/app/profile, POST /api/app/profile/handle (WO-432)', () => {
 
     const getRes = await app.inject({ method: 'GET', url: '/api/app/profile', headers: AUTH_HOST() });
     expect(getRes.statusCode).toBe(401);
+
+    await app.close();
+  });
+
+  // ---- WO-542 (SDD-051/PRD-033 R1): the work profile the Planta's entry band remembers ----
+
+  test('WO-542: GET reports workProfile: null until one is chosen, without needing a handle', async () => {
+    const app = buildApp();
+    const user = await seedUser(env, pg.appPool, PASSWORD);
+    const cookie = await signIn(app, user.email);
+
+    const res = await app.inject({ method: 'GET', url: '/api/app/profile', headers: { ...AUTH_HOST(), cookie } });
+
+    expect(res.json()).toEqual({ handle: null, workProfile: null });
+
+    await app.close();
+  });
+
+  test('WO-542: POST work-profile stores the choice and the very next GET carries it, in the same read as the handle', async () => {
+    const app = buildApp();
+    const user = await seedUser(env, pg.appPool, PASSWORD);
+    const cookie = await signIn(app, user.email);
+
+    const setRes = await app.inject({
+      method: 'POST',
+      url: '/api/app/profile/work-profile',
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), cookie),
+      payload: { workProfile: 'producto' },
+    });
+    expect(setRes.statusCode).toBe(200);
+    expect(setRes.json()).toEqual({ workProfile: 'producto' });
+
+    const getRes = await app.inject({ method: 'GET', url: '/api/app/profile', headers: { ...AUTH_HOST(), cookie } });
+    expect(getRes.json()).toEqual({ handle: null, workProfile: 'producto' });
+
+    await app.close();
+  });
+
+  test('WO-542: unlike the handle, the work profile is meant to change: a second POST replaces it, no 409', async () => {
+    const app = buildApp();
+    const user = await seedUser(env, pg.appPool, PASSWORD);
+    const cookie = await signIn(app, user.email);
+
+    for (const workProfile of ['negocio', 'developer']) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/app/profile/work-profile',
+        headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), cookie),
+        payload: { workProfile },
+      });
+      expect(res.statusCode).toBe(200);
+    }
+
+    const getRes = await app.inject({ method: 'GET', url: '/api/app/profile', headers: { ...AUTH_HOST(), cookie } });
+    expect(getRes.json()).toEqual({ handle: null, workProfile: 'developer' });
+
+    await app.close();
+  });
+
+  test('WO-542: setting a work profile and setting a handle do not interfere with each other', async () => {
+    const app = buildApp();
+    const user = await seedUser(env, pg.appPool, PASSWORD);
+    const cookie = await signIn(app, user.email);
+
+    await app.inject({ method: 'POST', url: '/api/app/profile/work-profile', headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), cookie), payload: { workProfile: 'developer' } });
+    const handleRes = await app.inject({ method: 'POST', url: '/api/app/profile/handle', headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), cookie), payload: { handle: 'lucia' } });
+    expect(handleRes.statusCode).toBe(200);
+
+    const getRes = await app.inject({ method: 'GET', url: '/api/app/profile', headers: { ...AUTH_HOST(), cookie } });
+    expect(getRes.json()).toEqual({ handle: 'lucia', workProfile: 'developer' });
+
+    await app.close();
+  });
+
+  test('WO-542: POST work-profile rejects a value outside the three profiles with 400', async () => {
+    const app = buildApp();
+    const user = await seedUser(env, pg.appPool, PASSWORD);
+    const cookie = await signIn(app, user.email);
+
+    for (const payload of [{ workProfile: 'gerente' }, { workProfile: '' }, {}, { workProfile: 42 }]) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/app/profile/work-profile',
+        headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), cookie),
+        payload,
+      });
+      expect(res.statusCode).toBe(400);
+    }
+
+    await app.close();
+  });
+
+  test('WO-542: POST work-profile is rejected without a session', async () => {
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'POST', url: '/api/app/profile/work-profile', headers: AUTH_HOST(), payload: { workProfile: 'negocio' } });
+    expect([401, 403]).toContain(res.statusCode);
+
+    await app.close();
+  });
+
+  test('WO-542: each person only ever sees and changes their own work profile', async () => {
+    const app = buildApp();
+    const a = await seedUser(env, pg.appPool, PASSWORD);
+    const b = await seedUser(env, pg.appPool, PASSWORD);
+    const cookieA = await signIn(app, a.email);
+    const cookieB = await signIn(app, b.email);
+
+    await app.inject({ method: 'POST', url: '/api/app/profile/work-profile', headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), cookieA), payload: { workProfile: 'negocio' } });
+
+    const forB = await app.inject({ method: 'GET', url: '/api/app/profile', headers: { ...AUTH_HOST(), cookie: cookieB } });
+    expect(forB.json()).toEqual({ handle: null, workProfile: null });
 
     await app.close();
   });

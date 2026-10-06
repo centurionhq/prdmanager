@@ -1,0 +1,188 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; }
+    .code { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 13px; line-height: 1.5; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 960px; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+
+  <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
+    <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em; padding: 0 8px;">Centurion Factory</div>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 52px; margin-top: -8px; padding: 0 10px 0 12px; border: 1px solid #C9CFCD; border-radius: 2px;">
+      <div style="display: flex; flex-direction: column;"><span style="font-size: 12px; color: #565D63;">Centurion HQ</span><span style="font-size: 15px; font-weight: 600;">prdmanager</span></div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"></path></svg>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600; font-size: 15px;">Planta</div>
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Árbol de features</div>
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Documentos</div>
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Órdenes de trabajo</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Drift <span class="num" style="min-width: 22px; height: 20px; padding: 0 6px; display: flex; align-items: center; justify-content: center; background: #F5C400; font-size: 12px; font-weight: 700; border-radius: 2px;">3</span></div>
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Bandeja de entrada</div>
+    </div>
+    <div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 12px 8px 0; border-top: 1px solid #C9CFCD;">
+      <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">LP</div>
+      <div style="display: flex; flex-direction: column;"><span style="font-size: 14px; font-weight: 600;">Lucía Paz</span><span style="font-size: 12px; color: #565D63;">Developer</span></div>
+    </div>
+  </nav>
+
+  <main style="display: flex; flex-direction: column; gap: 20px; padding: 24px 32px; min-width: 0; overflow: hidden;">
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #565D63;">
+      <span>Planta</span><span>/</span><span style="color: #17191C;">Conectar tu entorno</span>
+    </div>
+
+    <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;">
+      <div style="display: flex; flex-direction: column; gap: 6px; max-width: 720px;">
+        <h1 style="margin: 0; font-size: 36px; line-height: 1.05; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Conectar tu entorno a este proyecto</h1>
+        <p style="margin: 0; font-size: 15px; color: #33383D; line-height: 1.5;">Tres pasos. Al final, tu asistente de código ve las órdenes de trabajo de este proyecto y puede tomarlas sin que le pegues el contexto a mano.</p>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; flex: none; padding: 8px 14px; border: 1px solid #C9CFCD; background: #FBFCFB; border-radius: 2px;">
+        <span style="width: 10px; height: 10px; border-radius: 5px; background: {{ estadoColor }};"></span>
+        <span style="font-size: 14px; font-weight: 600;">{{ estadoTexto }}</span>
+      </div>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; min-height: 0;">
+
+      <section aria-label="Pasos de puesta en marcha" style="display: flex; flex-direction: column; gap: 14px;">
+
+        <!-- Paso 1 -->
+        <div style="display: flex; gap: 14px; padding: 16px 18px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+          <span style="flex: none; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: {{ paso1Fondo }}; color: {{ paso1Texto }}; font-size: 13px; font-weight: 700;">1</span>
+          <div style="display: flex; flex-direction: column; gap: 10px; min-width: 0; flex: 1;">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+              <span style="font-size: 17px; font-weight: 700;">Crear tu credencial</span>
+              <span style="font-size: 13px; color: {{ paso1Color }};">{{ paso1Estado }}</span>
+            </div>
+            <p style="margin: 0; font-size: 14px; color: #33383D; line-height: 1.45;">Una credencial personal tuya, con permiso de leer y escribir documentos. No la compartas: identifica tus cambios.</p>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="height: 36px; display: flex; align-items: center; padding: 0 14px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Crear credencial</div>
+              <a style="font-size: 14px;">Ver mis credenciales</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Paso 2 -->
+        <div style="display: flex; gap: 14px; padding: 16px 18px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+          <span style="flex: none; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: {{ paso2Fondo }}; color: {{ paso2Texto }}; font-size: 13px; font-weight: 700;">2</span>
+          <div style="display: flex; flex-direction: column; gap: 10px; min-width: 0; flex: 1;">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+              <span style="font-size: 17px; font-weight: 700;">Vincular el repositorio</span>
+              <span style="font-size: 13px; color: {{ paso2Color }};">{{ paso2Estado }}</span>
+            </div>
+            <p style="margin: 0; font-size: 14px; color: #33383D; line-height: 1.45;">Corré esto en la raíz de tu copia del repositorio. Deja el proyecto atado y escribe la configuración del asistente.</p>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 12px; background: #17191C; border-radius: 2px;">
+                <code class="code" style="color: #E9ECEB; white-space: pre-wrap; word-break: break-all;">prdm login --server https://centurion.ngrok.app
+prdm link centurionhq/prdmanager --server https://centurion.ngrok.app --mcp</code>
+                <div style="flex: none; height: 28px; display: flex; align-items: center; padding: 0 10px; border: 1px solid #565D63; color: #C4CAD0; font-size: 12px; border-radius: 2px;">Copiar</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Paso 3 -->
+        <div style="display: flex; gap: 14px; padding: 16px 18px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+          <span style="flex: none; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: {{ paso3Fondo }}; color: {{ paso3Texto }}; font-size: 13px; font-weight: 700;">3</span>
+          <div style="display: flex; flex-direction: column; gap: 10px; min-width: 0; flex: 1;">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+              <span style="font-size: 17px; font-weight: 700;">Elegir tu asistente</span>
+              <span style="font-size: 13px; color: {{ paso3Color }};">{{ paso3Estado }}</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <div style="height: 32px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #17191C; border-radius: 2px; font-size: 14px; font-weight: 600;">Claude Code</div>
+              <div style="height: 32px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px; color: #33383D;">Cursor</div>
+              <div style="height: 32px; display: flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px; color: #33383D;">Otro cliente MCP</div>
+            </div>
+            <p style="margin: 0; font-size: 14px; color: #33383D; line-height: 1.45;">El paso anterior ya escribió <span class="id">.mcp.json</span> en tu repositorio. Abrí el asistente y aprobá el servidor la primera vez que te lo pida.</p>
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 12px; background: #17191C; border-radius: 2px;">
+              <code class="code" style="color: #E9ECEB; white-space: pre-wrap; word-break: break-all;">{
+  "mcpServers": {
+    "prdm-remote": { "command": "prdm", "args": ["mcp-proxy"] }
+  }
+}</code>
+              <div style="flex: none; height: 28px; display: flex; align-items: center; padding: 0 10px; border: 1px solid #565D63; color: #C4CAD0; font-size: 12px; border-radius: 2px;">Copiar</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside aria-label="Datos de este proyecto" style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+          <span style="font-size: 16px; font-weight: 700;">Datos de este proyecto</span>
+          <div style="display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 13px; color: #565D63;">Identificador del proyecto</span>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <span class="id" style="word-break: break-all;">prj_2d8057a6d35ad63c</span>
+              <div style="flex: none; height: 26px; display: flex; align-items: center; padding: 0 8px; border: 1px solid #C9CFCD; color: #1F4FA0; font-size: 12px; border-radius: 2px;">Copiar</div>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 13px; color: #565D63;">Servidor</span>
+            <span class="id" style="word-break: break-all;">https://centurion.ngrok.app</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 13px; color: #565D63;">Rama oficial</span>
+            <span class="id">main</span>
+          </div>
+        </div>
+
+        <sc-if value="{{ faltaReporte }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; gap: 10px; padding: 14px 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-left: 3px solid #F5C400; border-radius: 2px;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 14px; font-weight: 700;">El árbol va a estar vacío hasta el primer reporte</span>
+              <span style="font-size: 13px; color: #33383D; line-height: 1.45;">Este proyecto todavía no recibió ningún reporte de integración continua. Hasta que corra el primero, el Árbol de features no muestra código.</span>
+            </div>
+          </div>
+        </sc-if>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; background: #F1F3F2; border-radius: 2px;">
+          <span style="font-size: 14px; font-weight: 700;">Después de conectar</span>
+          <span style="font-size: 13px; color: #33383D; line-height: 1.45;">Pedile a tu asistente las órdenes pendientes de este proyecto. Cada commit tuyo tiene que referenciar la orden que resuelve.</span>
+          <a style="font-size: 13px;">Ver órdenes pendientes</a>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"estado":{"editor":"enum","default":"falta_todo","options":["falta_todo","falta_vincular","listo"],"section":"Estado de la instalación"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const estado = this.props.estado ?? 'falta_todo';
+    const hecho = { fondo: '#1E7F4F', texto: '#FFFFFF', color: '#19703F', estado: 'Listo' };
+    const ahora = { fondo: '#1F4FA0', texto: '#FFFFFF', color: '#1F4FA0', estado: 'Te toca esto' };
+    const luego = { fondo: '#F1F3F2', texto: '#565D63', color: '#565D63', estado: 'Pendiente' };
+    const mapa = {
+      falta_todo:     { p1: ahora, p2: luego, p3: luego, texto: 'Sin conectar', color: '#565D63' },
+      falta_vincular: { p1: hecho, p2: ahora, p3: luego, texto: 'Credencial creada, falta vincular', color: '#7A5A00' },
+      listo:          { p1: hecho, p2: hecho, p3: hecho, texto: 'Conectado', color: '#1E7F4F' }
+    };
+    const m = mapa[estado] ?? mapa.falta_todo;
+    return {
+      estadoTexto: m.texto,
+      estadoColor: m.color,
+      paso1Fondo: m.p1.fondo, paso1Texto: m.p1.texto, paso1Color: m.p1.color, paso1Estado: m.p1.estado,
+      paso2Fondo: m.p2.fondo, paso2Texto: m.p2.texto, paso2Color: m.p2.color, paso2Estado: m.p2.estado,
+      paso3Fondo: m.p3.fondo, paso3Texto: m.p3.texto, paso3Color: m.p3.color, paso3Estado: m.p3.estado,
+      faltaReporte: estado !== 'listo'
+    };
+  }
+}
+</script>
+</body>
+</html>

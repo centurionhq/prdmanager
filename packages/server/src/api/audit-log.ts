@@ -11,7 +11,7 @@
  * `assertNoSecretsInAuditMetadata` rejects one at write time, in `auditLog.record` — so this route has
  * nothing further to redact there.
  */
-import { auditLogEntrySchema, can, type AuditLogEntryDto } from '@prdm/contracts';
+import { auditLogEntrySchema, can, type AuditLogEntryDto, type AuditLogPageDto } from '@prdm/contracts';
 import type { AuditLogRecord } from '@prdm/db';
 import { createTenantDb } from '@prdm/db';
 import type { FastifyInstance } from 'fastify';
@@ -75,7 +75,8 @@ export function registerAuditLogRoutes(app: FastifyInstance, opts: RegisterAudit
           .auditLog.list({ projectId: project.id, action: parsedQuery.data.action, cursor: parsedQuery.data.cursor, limit: parsedQuery.data.limit }),
       );
 
-      return { entries: page.items.map(toAuditLogEntryDto), nextCursor: page.nextCursor };
+      const body: AuditLogPageDto = { entries: page.items.map(toAuditLogEntryDto), nextCursor: page.nextCursor };
+      return body;
     },
   );
 
@@ -96,7 +97,8 @@ export function registerAuditLogRoutes(app: FastifyInstance, opts: RegisterAudit
           .auditLog.list({ action: parsedQuery.data.action, cursor: parsedQuery.data.cursor, limit: parsedQuery.data.limit }),
       );
 
-      return { entries: page.items.map(toAuditLogEntryDto), nextCursor: page.nextCursor };
+      const body: AuditLogPageDto = { entries: page.items.map(toAuditLogEntryDto), nextCursor: page.nextCursor };
+      return body;
     },
   );
 }

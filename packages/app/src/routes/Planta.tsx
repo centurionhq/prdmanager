@@ -12,6 +12,7 @@ import { errorMessage } from '../api/error-message.js';
 import { useApiQuery } from '../api/use-api-query.js';
 import { EmptyState, ErrorState, LineBoard, PageHeader, Skeleton } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
+import { ProfileBand } from './inicio/ProfileBand.js';
 import styles from './Planta.module.css';
 import { useProjectShellContext } from './ProjectShell.js';
 
@@ -25,6 +26,11 @@ function formatMedianResolution(hours: number | null): string {
   return hours === null ? 'Sin datos' : `${Math.round(hours * 60)} min`;
 }
 
+/** Mirrors core's `percent()`: no commits means "no data", not a fabricated 0 %. */
+function formatCommitRefsPercent(traceability: SuccessMetricsDto['traceability']): string {
+  return formatPercent(traceability.commitsTotal === 0 ? null : (traceability.commitsWithRefs / traceability.commitsTotal) * 100);
+}
+
 interface KpiStripProps {
   readonly metrics: SuccessMetricsDto;
   readonly awaitingFirstReport: boolean;
@@ -35,7 +41,8 @@ function KpiStrip({ metrics, awaitingFirstReport }: KpiStripProps): ReactElement
     { label: 'Resolución mediana de una orden', value: formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours) },
     { label: 'Código sincronizado', value: formatPercent(metrics.systemIntegrity.syncedPercent) },
     { label: 'Features trazadas', value: formatPercent(metrics.traceability.featurePercent) },
-    { label: 'Commits con Refs', value: formatPercent(metrics.traceability.commitPercent) },
+    { label: 'Commits trazados', value: formatPercent(metrics.traceability.commitPercent) },
+    { label: 'Commits con Refs', value: formatCommitRefsPercent(metrics.traceability) },
   ];
 
   return (
@@ -69,10 +76,15 @@ export function Planta(): ReactElement {
     <div>
       <PageHeader title="Planta" />
 
+      {/* SDD-051: the entry band depends only on the shell's context, never on the line's data, so it is
+          always there -- including while the line loads, if it fails, and above the empty state, which is
+          exactly when someone most needs to be told where to start. */}
+      <ProfileBand />
+
       {isLoading ? (
         <div className={styles.loading}>
           <Skeleton rows={6} />
-          <Skeleton rows={1} columns={4} />
+          <Skeleton rows={1} columns={5} />
         </div>
       ) : null}
 

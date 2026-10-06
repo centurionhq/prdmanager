@@ -24,4 +24,5 @@ export * from './resolve-document.js';
 export * from './tenant.js';
 export * from './tokens.js';
 export * from './user-profile.js';
+export * from './user-work-profile.js';
 export * as schema from './schema.js';

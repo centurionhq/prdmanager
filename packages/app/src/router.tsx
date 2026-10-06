@@ -15,6 +15,9 @@ import { AjustesLayout } from './routes/AjustesLayout.js';
 import { AjustesMiembros } from './routes/AjustesMiembros.js';
 import { AjustesPerfil } from './routes/AjustesPerfil.js';
 import { AjustesTokens } from './routes/AjustesTokens.js';
+import { ConstruirDeveloper } from './routes/ConstruirDeveloper.js';
+import { ConstruirNegocio } from './routes/ConstruirNegocio.js';
+import { ConstruirProducto } from './routes/ConstruirProducto.js';
 import { DocumentDetail } from './routes/DocumentDetail.js';
 import { DocumentsList } from './routes/DocumentsList.js';
 import { DriftDashboard } from './routes/DriftDashboard.js';
@@ -56,6 +59,9 @@ export const routes: RouteObject[] = [
     element: <ProjectShell />,
     children: [
       { index: true, element: <Planta /> },
+      { path: 'construir/negocio', element: <ConstruirNegocio /> },
+      { path: 'construir/developer', element: <ConstruirDeveloper /> },
+      { path: 'construir/producto', element: <ConstruirProducto /> },
       { path: 'arbol/:id?', element: <ProjectGraph /> },
       { path: 'documents', element: <DocumentsList /> },
       { path: 'documents/:docId', element: <DocumentDetail /> },

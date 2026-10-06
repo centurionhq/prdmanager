@@ -25,6 +25,13 @@ describe('frontmatterFieldsForKind', () => {
     expect(keys).toEqual(['title', 'tags', 'source', 'customer', 'informs', 'root']);
   });
 
+  test('a Business Case (BC) exposes title/tags/justified_by -- without it there is nowhere in the UI to say what justifies it (WO-557)', () => {
+    const keys = frontmatterFieldsForKind('BC').map((f) => f.key);
+    expect(keys).toEqual(['title', 'tags', 'justified_by']);
+    expect(keys).not.toContain('status');
+    expect(keys).not.toContain('implements');
+  });
+
   test('a work order (WO) has no frontmatter form fields at all (never authored via the editor)', () => {
     expect(frontmatterFieldsForKind('WO')).toEqual([]);
   });
@@ -54,6 +61,11 @@ describe('validateFrontmatterFields', () => {
   test('never surfaces an issue on a synthetic server-managed field (id/type), even though the schema requires them', () => {
     const issues = validateFrontmatterFields('PRD', { title: 'ok', tags: [] });
     expect(issues.every((i) => i.field !== 'id' && i.field !== 'type')).toBe(true);
+  });
+
+  test('a BC validates against its own schema: a bad id in justified_by is reported, a good one is not', () => {
+    expect(validateFrontmatterFields('BC', { title: 'ok', tags: [], justified_by: ['not-an-id'] }).some((i) => i.field === 'justified_by')).toBe(true);
+    expect(validateFrontmatterFields('BC', { title: 'ok', tags: [], justified_by: ['FB-026'] })).toEqual([]);
   });
 
   test('a kind with no schema mapping (WO) never produces issues', () => {

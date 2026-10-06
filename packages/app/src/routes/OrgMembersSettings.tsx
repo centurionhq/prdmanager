@@ -11,10 +11,13 @@
  * per project and counted client-side, fine at this screen's scale), blocking self-removal the same way
  * `ProjectMembersSection` does, and a "Reenviar" action on pending invitations (`resendInvitation`,
  * WO-343) with its own short-lived confirmation banner.
+ *
+ * SDD-056/PRD-036: rebuilt on the design-system pieces (`PageHeader`, `DataTable`, `Modal`, `SelectField`,
+ * `Button`). It lives in `OrgShell`, not under the project's Ajustes layout, so it keeps its own `h1`. Same
+ * requests, same rules; the invite form opens from the primary action instead of sitting under the tables.
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import { ORG_ROLES, type InvitationSummary, type OrganizationMember, type OrgRole, type ProjectSummary } from '@prdm/contracts';
-import { LoadingState } from '@prdm/ui';
 import {
   getSession,
   listOrganizationInvitations,
@@ -28,11 +31,14 @@ import {
 } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { isOrgAdmin } from '../auth/org-role.js';
+import { Button, DataTable, Modal, Notice, PageHeader, SelectField, Skeleton, type DataTableColumn } from '../components/index.js';
 import { FormError } from '../components/FormError.js';
+import { formatDate } from '../lib/format-date.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { InviteMemberForm } from './InviteMemberForm.js';
 import { useOrgShellContext } from './OrgShell.js';
-import formStyles from '../styles/forms.module.css';
+import { PersonCell } from './miembros/PersonCell.js';
+import styles from './OrgMembersSettings.module.css';
 
 interface Loaded {
   members: OrganizationMember[];
@@ -60,6 +66,7 @@ export function OrgMembersSettings(): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
   useDocumentTitle(`Miembros de ${currentOrg.name}`);
 
   async function reload(): Promise<void> {
@@ -130,108 +137,115 @@ export function OrgMembersSettings(): ReactElement {
   }
 
   if (error) return <FormError message={error} />;
-  if (!data) return <LoadingState label="Cargando miembros…" />;
+  if (!data) return <Skeleton rows={4} />;
+
+  const ROLE_OPTIONS = ORG_ROLES.map((r) => ({ value: r, label: r }));
+
+  const memberColumns: readonly DataTableColumn<OrganizationMember>[] = [
+    { key: 'person', header: 'Persona', render: (member) => <PersonCell name={member.name} email={member.email} you={member.userId === data.currentUserId} />, sortValue: (member) => member.name },
+    {
+      key: 'role',
+      header: 'Rol',
+      render: (member) =>
+        canManage ? (
+          <SelectField label={`Rol de ${member.email}`} hideLabel value={member.role} options={ROLE_OPTIONS} onChange={(value) => void handleRoleChange(member.userId, value as OrgRole)} />
+        ) : (
+          member.role
+        ),
+    },
+    { key: 'projects', header: 'Proyectos', align: 'end', render: (member) => data.projectCountByUserId.get(member.userId) ?? 0 },
+    ...(canManage
+      ? [
+          {
+            key: 'actions',
+            header: 'Acciones',
+            align: 'end' as const,
+            render: (member: OrganizationMember) =>
+              member.userId === data.currentUserId ? (
+                <span className={styles.cannotRemove}>No podés quitarte</span>
+              ) : (
+                <Button type="button" variant="destructive" size="sm" aria-label={`Quitar a ${member.email}`} onClick={() => void handleRemove(member.userId)}>
+                  Quitar
+                </Button>
+              ),
+          },
+        ]
+      : []),
+  ];
+
+  const invitationColumns: readonly DataTableColumn<InvitationSummary>[] = [
+    { key: 'email', header: 'Email', render: (invitation) => invitation.email },
+    { key: 'role', header: 'Rol', render: (invitation) => invitation.role },
+    { key: 'status', header: 'Estado', render: (invitation) => invitation.status },
+    { key: 'expires', header: 'Vence', render: (invitation) => formatDate(invitation.expiresAt) },
+    {
+      key: 'actions',
+      header: 'Acciones',
+      align: 'end',
+      render: (invitation) => (
+        <span className={styles.rowActions}>
+          {invitation.status === 'pending' ? (
+            <Button type="button" variant="ghost" size="sm" aria-label={`Reenviar a ${invitation.email}`} onClick={() => void handleResend(invitation.id)}>
+              Reenviar
+            </Button>
+          ) : null}
+          <Button type="button" variant="destructive" size="sm" aria-label={`Revocar la invitación de ${invitation.email}`} onClick={() => void handleRevoke(invitation.id)}>
+            Revocar
+          </Button>
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <div>
-      <h1 className={formStyles.title}>Miembros de {currentOrg.name}</h1>
+    <div className={styles.screen}>
+      <PageHeader
+        title={`Miembros de ${currentOrg.name}`}
+        subtitle="Quién es parte de la organización y a qué proyectos accede."
+        actions={
+          canManage ? (
+            <Button type="button" variant="primary" onClick={() => setInviting(true)}>
+              Invitar persona
+            </Button>
+          ) : undefined
+        }
+      />
       <FormError message={rowError} />
-      <div className={formStyles.tableWrap}>
-        <table className={formStyles.table}>
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Nombre</th>
-              <th>Rol</th>
-              <th>Proyectos</th>
-              {canManage && <th>Acciones</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {data.members.map((member) => (
-              <tr key={member.userId}>
-                <td>{member.email}</td>
-                <td>{member.name}</td>
-                <td>
-                  {canManage ? (
-                    <select aria-label={`Rol de ${member.email}`} value={member.role} onChange={(e) => void handleRoleChange(member.userId, e.target.value as OrgRole)}>
-                      {ORG_ROLES.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    member.role
-                  )}
-                </td>
-                <td>{data.projectCountByUserId.get(member.userId) ?? 0}</td>
-                {canManage && (
-                  <td>
-                    {member.userId === data.currentUserId ? (
-                      <span className={formStyles.hint}>No podés quitarte</span>
-                    ) : (
-                      <button type="button" className={formStyles.secondaryButton} onClick={() => void handleRemove(member.userId)}>
-                        Quitar
-                      </button>
-                    )}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable caption="Miembros de la organización" columns={memberColumns} rows={data.members} getRowId={(member) => member.userId} />
 
-      {canManage && (
+      {canManage ? (
         <>
-          <h2 className={formStyles.title}>Invitaciones pendientes</h2>
-          {data.invitations.length === 0 && <p className={formStyles.hint}>No hay invitaciones pendientes.</p>}
-          {data.invitations.length > 0 && (
-            <div className={formStyles.tableWrap}>
-              <table className={formStyles.table}>
-                <thead>
-                  <tr>
-                    <th>Email</th>
-                    <th>Rol</th>
-                    <th>Estado</th>
-                    <th>Vence</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.invitations.map((invitation) => (
-                    <tr key={invitation.id}>
-                      <td>{invitation.email}</td>
-                      <td>{invitation.role}</td>
-                      <td>{invitation.status}</td>
-                      <td>{invitation.expiresAt}</td>
-                      <td>
-                        {invitation.status === 'pending' && (
-                          <button type="button" className={formStyles.link} onClick={() => void handleResend(invitation.id)}>
-                            Reenviar
-                          </button>
-                        )}{' '}
-                        <button type="button" className={formStyles.secondaryButton} onClick={() => void handleRevoke(invitation.id)}>
-                          Revocar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <section className={styles.invitations} aria-labelledby="org-invitations-title">
+            <h2 id="org-invitations-title" className={styles.sectionTitle}>
+              Invitaciones pendientes
+            </h2>
+            {data.invitations.length === 0 ? (
+              <p className={styles.empty}>No hay invitaciones pendientes.</p>
+            ) : (
+              <DataTable caption="Invitaciones pendientes" columns={invitationColumns} rows={data.invitations} getRowId={(invitation) => invitation.id} />
+            )}
+          </section>
 
-          <InviteMemberForm orgSlug={orgSlug} projects={data.projects} canInviteOwner={currentOrg.role === 'owner'} onInvited={() => void reload()} />
+          <Modal open={inviting} title="Invitar miembro" description="Le mandamos un enlace para que se sume a la organización." onClose={() => setInviting(false)}>
+            <InviteMemberForm
+              orgSlug={orgSlug}
+              projects={data.projects}
+              canInviteOwner={currentOrg.role === 'owner'}
+              onInvited={() => {
+                setInviting(false);
+                void reload();
+              }}
+              onCancel={() => setInviting(false)}
+            />
+          </Modal>
         </>
-      )}
+      ) : null}
 
-      {toast && (
-        <div role="status" className={formStyles.notice}>
-          {toast}
+      {toast ? (
+        <div role="status">
+          <Notice>{toast}</Notice>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

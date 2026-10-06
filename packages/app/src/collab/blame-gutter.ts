@@ -17,7 +17,7 @@
  * `position: fixed` (recomputed from the anchor's live coordinates on every scroll/resize), which sidesteps
  * that class of bug entirely instead of patching the positioning math by hand.
  */
-import { EditorView, GutterMarker, gutter, showTooltip } from '@codemirror/view';
+import { EditorView, GutterMarker, gutter, showTooltip, ViewPlugin } from '@codemirror/view';
 import type { Tooltip } from '@codemirror/view';
 import { StateEffect, StateField } from '@codemirror/state';
 import type { BlameResult } from '@prdm/collab';
@@ -146,9 +146,32 @@ export const blameGutter = gutter({
   lineMarkerChange: (update) => update.state.field(blameField) !== update.startState.field(blameField),
 });
 
+/** WO-600: `@codemirror/view` sets `aria-hidden="true"` on `.cm-gutters` unconditionally, a reasonable
+ * default when a gutter's only content is decorative line numbers -- but `aria-hidden` on an ancestor
+ * hides every focusable descendant from assistive tech regardless of that descendant's own attributes
+ * (confirmed via axe-core's `aria-hidden-focus` rule), and this extension's markers are real, focusable
+ * `<button>`s. There's no CodeMirror facet to opt a specific gutter out of the parent's `aria-hidden`, so
+ * this clears it directly on mount and on every update (CodeMirror doesn't appear to re-assert it after
+ * the initial render, but re-checking each update costs one attribute read/write and is cheap insurance
+ * against a future CodeMirror version doing so). */
+const gutterAccessibilityFix = ViewPlugin.fromClass(
+  class {
+    constructor(view: EditorView) {
+      this.fix(view);
+    }
+    update(update: { view: EditorView }): void {
+      this.fix(update.view);
+    }
+    private fix(view: EditorView): void {
+      view.dom.querySelector('.cm-gutters')?.removeAttribute('aria-hidden');
+    }
+  },
+);
+
 export const blameGutterExtension = [
   blameField,
   blameTooltipField,
   blameGutter,
+  gutterAccessibilityFix,
   EditorView.baseTheme({ '.cm-blame-marker': { cursor: 'pointer' } }),
 ];

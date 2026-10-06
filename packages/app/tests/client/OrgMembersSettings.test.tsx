@@ -47,6 +47,7 @@ describe('OrgMembersSettings', () => {
     expect(screen.queryByRole('combobox', { name: /Rol de/ })).toBeNull();
     expect(screen.queryByText('Invitaciones pendientes')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Invitar' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Invitar persona' })).toBeNull();
   });
 
   it('lets an admin change a role, remove a member, and revoke an invitation', async () => {
@@ -62,11 +63,11 @@ describe('OrgMembersSettings', () => {
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Rol de member@example.test' }), 'admin');
     await waitFor(() => expect(updateRole).toHaveBeenCalledWith('acme', 'u2', 'admin'));
 
-    const rows = screen.getAllByRole('button', { name: 'Quitar' });
+    const rows = screen.getAllByRole('button', { name: /^Quitar/ });
     await userEvent.click(rows[rows.length - 1]!);
     await waitFor(() => expect(remove).toHaveBeenCalledWith('acme', 'u2'));
 
-    await userEvent.click(screen.getByRole('button', { name: 'Revocar' }));
+    await userEvent.click(screen.getByRole('button', { name: /^Revocar/ }));
     await waitFor(() => expect(revoke).toHaveBeenCalledWith('acme', 'inv1'));
   });
 
@@ -77,7 +78,7 @@ describe('OrgMembersSettings', () => {
     renderPage('admin');
 
     await screen.findByText('owner@example.test');
-    const [removeOwnerButton] = screen.getAllByRole('button', { name: 'Quitar' });
+    const [removeOwnerButton] = screen.getAllByRole('button', { name: /^Quitar/ });
     await userEvent.click(removeOwnerButton!);
 
     expect(await screen.findByText('cannot remove the last owner')).toBeTruthy();
@@ -88,6 +89,7 @@ describe('OrgMembersSettings', () => {
     vi.spyOn(client, 'listOrganizationInvitations').mockResolvedValue([]);
     renderPage('admin');
 
+    await userEvent.click(await screen.findByRole('button', { name: 'Invitar persona' }));
     await screen.findByRole('heading', { name: 'Invitar miembro' });
     const roleSelect = screen.getByLabelText('Rol en la organización') as HTMLSelectElement;
     const optionValues = Array.from(roleSelect.options).map((o) => o.value);
@@ -104,7 +106,7 @@ describe('OrgMembersSettings', () => {
 
     await screen.findByText('caller@example.test');
     expect(screen.getByText('No podés quitarte')).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: 'Quitar' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /^Quitar/ })).toHaveLength(2);
   });
 
   it('shows how many projects each member belongs to', async () => {
@@ -136,7 +138,7 @@ describe('OrgMembersSettings', () => {
     const resend = vi.spyOn(client, 'resendInvitation').mockResolvedValue(undefined);
     renderPage('admin');
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Reenviar' }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Reenviar/ }));
 
     await waitFor(() => expect(resend).toHaveBeenCalledWith('acme', 'inv1'));
     expect(await screen.findByText('Invitación reenviada')).toBeTruthy();

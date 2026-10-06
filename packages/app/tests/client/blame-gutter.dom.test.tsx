@@ -105,6 +105,25 @@ describe('blame gutter (DOM)', () => {
     expect(dom.textContent).toBe(marker.getAttribute('aria-label'));
   });
 
+  // WO-600: `@codemirror/view` sets `aria-hidden="true"` on `.cm-gutters` unconditionally (a reasonable
+  // default when the only content is decorative line numbers) — but this gutter's markers are real,
+  // focusable `<button>`s, and `aria-hidden` on an ancestor hides every focusable descendant from
+  // assistive tech regardless of the descendant's own attributes (confirmed via axe-core's
+  // `aria-hidden-focus` rule in `accessibility-screens.spec.ts`, intermittent because it only fires once
+  // blame data has actually arrived and a marker exists).
+  test('WO-600: .cm-gutters is never left aria-hidden once this extension is loaded, so its focusable markers stay reachable', () => {
+    view = makeView('line one\nline two');
+    // Even before any blame data arrives (no markers rendered yet), the container must already be fixed
+    // -- CodeMirror sets the attribute at initial mount, before this extension gets a chance to react to
+    // a `setBlame` dispatch.
+    expect(view.dom.querySelector('.cm-gutters')?.getAttribute('aria-hidden')).not.toBe('true');
+
+    const blame: BlameResult = { lines: [{ line: 0, attribution: { actorKind: 'user', userId: 'ana', onBehalfOf: null, agentId: null, receivedAt: '2026-01-01T00:00:00.000Z' } }], fields: {} };
+    view.dispatch({ effects: setBlame.of(blame) });
+    expect(view.dom.querySelectorAll('.cm-blame-marker')).toHaveLength(1);
+    expect(view.dom.querySelector('.cm-gutters')?.getAttribute('aria-hidden')).not.toBe('true');
+  });
+
   test('a fresh setBlame dispatch (e.g. after a blame:stale refetch) replaces the previous markers', () => {
     view = makeView('line one');
     const blameFor = (userId: string, receivedAt: string): BlameResult => ({
