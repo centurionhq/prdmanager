@@ -170,7 +170,7 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
     {
       title: 'Get metrics',
       description:
-        'Returns the success metrics of the graph: agent/human resolution efficiency for Work Orders, GOVERNED_BY sync integrity, and Feature/commit traceability. traceability.orphanFeatures lists every Feature (id, kind, title, status) whose lineage has no Blueprint with governed code, so the caller sees which Features are actually untraced without a second call; the list is empty when every Feature is traced. It comes from the same definition as traceability.featuresTraced, so featuresTraced + orphanFeatures.length always equals featuresTotal.',
+        'Returns the success metrics of the graph: agent/human resolution efficiency for Work Orders, GOVERNED_BY sync integrity, and Feature/commit traceability. traceability.orphanFeatures lists every Feature (id, kind, title, status) whose lineage has no Blueprint with governed code, so the caller sees which Features are actually untraced without a second call; the list is empty when every Feature is traced. It comes from the same definition as traceability.featuresTraced, so featuresTraced + orphanFeatures.length always equals featuresTotal. The efficiency aggregate (avgResolutionHours, medianResolutionHours, measuredWorkOrders) excludes completed Work Orders that cannot be measured; that gap and the ids are in agentHumanEfficiency.unmeasured (total + workOrders with id, status, reason, claimedAt, completedAt, ordered by id), so measuredWorkOrders + unmeasured.total always equals completedWorkOrders.',
       inputSchema: {},
       annotations: { title: 'Get metrics', ...READ_ONLY },
     },

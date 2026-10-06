@@ -5,11 +5,22 @@ const COMPLETED_STATUSES = new Set(['done', 'out_of_sync']);
 const MS_PER_HOUR = 3_600_000;
 const STALE_PENDING_DAYS = 7;
 
+export type UnmeasuredReason = 'missing_claim' | 'missing_completion' | 'invalid_timestamp' | 'negative_duration';
+
+export interface UnmeasuredWorkOrder {
+  id: string;
+  status: MetricsRaw['workOrders'][number]['status'];
+  reason: UnmeasuredReason;
+  claimedAt: string | null;
+  completedAt: string | null;
+}
+
 export interface AgentHumanEfficiency {
   completedWorkOrders: number;
   measuredWorkOrders: number;
   avgResolutionHours: number | null;
   medianResolutionHours: number | null;
+  unmeasured: { total: number; workOrders: UnmeasuredWorkOrder[] };
 }
 
 export interface SystemIntegrity {
@@ -52,14 +63,15 @@ function percent(numerator: number, denominator: number): number | null {
   return denominator === 0 ? null : round((numerator / denominator) * 100, 1);
 }
 
-/** Hours between claim and completion, or null when either timestamp is missing/invalid/non-positive. */
-function resolutionHours(claimedAt: string | null, completedAt: string | null): number | null {
-  if (!claimedAt || !completedAt) return null;
+/** Hours between claim and completion, or the first reason (fixed precedence) the order cannot be measured. */
+function measureResolution(claimedAt: string | null, completedAt: string | null): { hours: number } | { reason: UnmeasuredReason } {
+  if (!claimedAt) return { reason: 'missing_claim' };
+  if (!completedAt) return { reason: 'missing_completion' };
   const claimed = Date.parse(claimedAt);
   const completed = Date.parse(completedAt);
-  if (Number.isNaN(claimed) || Number.isNaN(completed)) return null;
+  if (Number.isNaN(claimed) || Number.isNaN(completed)) return { reason: 'invalid_timestamp' };
   const hours = (completed - claimed) / MS_PER_HOUR;
-  return hours >= 0 ? hours : null;
+  return hours >= 0 ? { hours } : { reason: 'negative_duration' };
 }
 
 function median(values: number[]): number {
@@ -72,15 +84,21 @@ function median(values: number[]): number {
 
 function computeEfficiency(workOrders: MetricsRaw['workOrders']): AgentHumanEfficiency {
   const completed = workOrders.filter((wo) => COMPLETED_STATUSES.has(wo.status));
-  const measured = completed
-    .map((wo) => resolutionHours(wo.claimedAt, wo.completedAt))
-    .filter((hours): hours is number => hours !== null);
+  const measured: number[] = [];
+  const unmeasured: UnmeasuredWorkOrder[] = [];
+  for (const wo of completed) {
+    const result = measureResolution(wo.claimedAt, wo.completedAt);
+    if ('hours' in result) measured.push(result.hours);
+    else unmeasured.push({ id: wo.id, status: wo.status, reason: result.reason, claimedAt: wo.claimedAt, completedAt: wo.completedAt });
+  }
+  unmeasured.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
   return {
     completedWorkOrders: completed.length,
     measuredWorkOrders: measured.length,
     avgResolutionHours: measured.length === 0 ? null : round(measured.reduce((sum, h) => sum + h, 0) / measured.length, 2),
     medianResolutionHours: measured.length === 0 ? null : round(median(measured), 2),
+    unmeasured: { total: unmeasured.length, workOrders: unmeasured },
   };
 }
 

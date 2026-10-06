@@ -163,7 +163,7 @@ function nodeDetailForMixed(ref: string): NodeDetail {
 }
 
 const METRICS: SuccessMetricsDto = {
-  agentHumanEfficiency: { completedWorkOrders: 3, measuredWorkOrders: 3, avgResolutionHours: 0.2, medianResolutionHours: 0.15 },
+  agentHumanEfficiency: { completedWorkOrders: 3, measuredWorkOrders: 3, avgResolutionHours: 0.2, medianResolutionHours: 0.15, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 5, governedSynced: 5, syncedPercent: 100 },
   traceability: { featuresTotal: 3, featuresTraced: 3, orphanFeatures: [], featurePercent: 100, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null },
 };
