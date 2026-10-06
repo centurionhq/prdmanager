@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkOrder } from '../../../src/data';
-import { completeOrder, isValidCommitSha, retakeOrder, takeOrder } from '../../../src/features/ordenes/actions';
+import { archiveOrder, completeOrder, isValidCommitSha, retakeOrder, takeOrder } from '../../../src/features/ordenes/actions';
 
 function order(overrides: Partial<WorkOrder> = {}): WorkOrder {
   return {
@@ -67,5 +67,28 @@ describe('isValidCommitSha', () => {
     expect(isValidCommitSha('a'.repeat(41))).toBe(false);
     expect(isValidCommitSha('not-a-sha')).toBe(false);
     expect(isValidCommitSha('')).toBe(false);
+  });
+});
+
+describe('archiveOrder', () => {
+  it('moves a pending order to archived, stamps archivedAt and keeps the trimmed reason', () => {
+    const before = order();
+    const after = archiveOrder(before, '  Duplica a WO-106  ');
+    expect(after.status).toBe('archived');
+    expect(after.archivedAt).toBeTruthy();
+    expect(after.updatedAt).not.toBe(before.updatedAt);
+    expect(after.archiveReason).toBe('Duplica a WO-106');
+  });
+
+  it('leaves archiveReason undefined without a reason or with only whitespace', () => {
+    expect(archiveOrder(order()).archiveReason).toBeUndefined();
+    expect(archiveOrder(order(), '   ').archiveReason).toBeUndefined();
+  });
+
+  it('never mutates the input', () => {
+    const before = order();
+    archiveOrder(before, 'motivo');
+    expect(before.status).toBe('pending');
+    expect(before.archivedAt).toBeUndefined();
   });
 });

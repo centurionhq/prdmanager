@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router';
-import { Drawer } from '../../components';
+import { Button, Drawer } from '../../components';
 import { COMMITS, type WorkOrder } from '../../data';
+import { ArchiveOrderModal } from './ArchiveOrderModal';
 import { CompleteOrderModal } from './CompleteOrderModal';
 import styles from './OrderDrawer.module.css';
 import { OrderCommitsSection } from './OrderCommitsSection';
@@ -28,6 +29,9 @@ export function OrderDrawer({ order, open, onClose, onUpdate }: OrderDrawerProps
   const actions = useOrderDrawerActions(order, onUpdate);
   const commits = order.commitShas.map((sha) => COMMITS.find((commit) => commit.sha === sha)).filter((commit) => commit !== undefined);
 
+  // Archiving is the exception path: the primary action stays the lifecycle one (Tomar / Completar / Retomar).
+  const canArchive = order.status === 'pending' || order.status === 'in_progress' || order.status === 'out_of_sync';
+
   return (
     <>
       <Drawer
@@ -37,6 +41,11 @@ export function OrderDrawer({ order, open, onClose, onUpdate }: OrderDrawerProps
         footer={
           <div className={styles.footer}>
             <OrderPrimaryAction status={order.status} onTake={actions.openTake} onComplete={actions.openComplete} onRetake={actions.handleRetake} />
+            {canArchive ? (
+              <Button type="button" variant="secondary" onClick={actions.openArchive}>
+                Archivar
+              </Button>
+            ) : null}
             <Link to={`/documentos/${order.blueprintId}`} className={styles.blueprintLink}>
               Ver blueprint
             </Link>
@@ -52,6 +61,7 @@ export function OrderDrawer({ order, open, onClose, onUpdate }: OrderDrawerProps
       </Drawer>
 
       <TakeOrderModal open={actions.takeOpen} onClose={actions.closeTake} onConfirm={actions.handleTakeConfirm} />
+      <ArchiveOrderModal open={actions.archiveOpen} orderId={order.id} onClose={actions.closeArchive} onConfirm={actions.handleArchiveConfirm} />
       <CompleteOrderModal open={actions.completeOpen} orderId={order.id} onClose={actions.closeComplete} onConfirm={actions.handleCompleteConfirm} />
     </>
   );

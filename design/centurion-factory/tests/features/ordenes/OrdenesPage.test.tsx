@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { BLUEPRINTS, WORK_ORDERS } from '../../../src/data';
 import { routes } from '../../../src/router';
 
+const activeOrders = () => WORK_ORDERS.filter((wo) => wo.status !== 'archived');
+
 function renderAt(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   render(<RouterProvider router={router} />);
@@ -41,13 +43,13 @@ describe('OrdenesPage', () => {
     renderAt('/ordenes?estado=listo');
     const table = await screen.findByRole('table');
     expect(screen.getByText(`${WORK_ORDERS.length} órdenes en ${BLUEPRINTS.length} blueprints`)).toBeTruthy();
-    expect(within(table).getAllByRole('row')).toHaveLength(WORK_ORDERS.length + 1); // + header row
+    expect(within(table).getAllByRole('row')).toHaveLength(activeOrders().length + 1); // + header row
   });
 
   it('falls back to "Todas" for an unknown ?filtro= value (WO-318)', async () => {
     renderAt('/ordenes?estado=listo&filtro=algo-inventado');
     const table = await screen.findByRole('table');
-    expect(within(table).getAllByRole('row')).toHaveLength(WORK_ORDERS.length + 1);
+    expect(within(table).getAllByRole('row')).toHaveLength(activeOrders().length + 1);
     const group = screen.getByRole('radiogroup', { name: 'Estado' });
     expect(within(group).getByRole('radio', { name: /Todas/ }).getAttribute('aria-checked')).toBe('true');
   });
@@ -131,7 +133,18 @@ describe('OrdenesPage', () => {
     renderAt('/ordenes?estado=listo');
     await screen.findByRole('table');
     const footer = screen.getByText(/^Mostrando/);
-    expect(footer.textContent).toBe(`Mostrando ${WORK_ORDERS.length} de ${WORK_ORDERS.length} órdenes`);
+    expect(footer.textContent).toBe(`Mostrando ${activeOrders().length} de ${activeOrders().length} órdenes`);
+  });
+
+  it('the "Archivadas" chip lists only the archived order', async () => {
+    const user = userEvent.setup();
+    const router = renderAt('/ordenes?estado=listo');
+    const table = await screen.findByRole('table');
+    await user.click(within(screen.getByRole('radiogroup', { name: 'Estado' })).getByRole('radio', { name: /Archivadas/ }));
+    expect(router.state.location.search).toContain('filtro=archived');
+    expect(within(table).getAllByRole('row')).toHaveLength(2);
+    expect(within(table).getByText('WO-215')).toBeTruthy();
+    expect(screen.getByText(/^Mostrando/).textContent).toBe('Mostrando 1 de 1 órdenes');
   });
 
   it('?orden= opens the drawer for that order', async () => {

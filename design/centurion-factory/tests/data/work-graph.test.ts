@@ -16,7 +16,7 @@ const WORK_ORDER_ID = /^WO-\d{3}$/;
 const SHA = /^[0-9a-f]{7}$/;
 
 const FEATURE_STATUSES: readonly FeatureStatus[] = ['draft', 'proposed', 'approved', 'closed'];
-const WORK_ORDER_STATUSES: readonly WorkOrderStatus[] = ['pending', 'in_progress', 'done', 'out_of_sync'];
+const WORK_ORDER_STATUSES: readonly WorkOrderStatus[] = ['pending', 'in_progress', 'done', 'out_of_sync', 'archived'];
 
 function uniqueIds(ids: readonly string[]): boolean {
   return new Set(ids).size === ids.length;
@@ -97,8 +97,18 @@ describe('blueprints', () => {
 });
 
 describe('work orders', () => {
-  it('has exactly 40 work orders', () => {
-    expect(WORK_ORDERS).toHaveLength(40);
+  it('marks the archived order with its archive metadata, and only archived orders', () => {
+    const archived = WORK_ORDERS.filter((w) => w.status === 'archived');
+    expect(archived).toHaveLength(1);
+    expect(archived[0]?.id).toBe('WO-215');
+    expect(archived[0]?.archivedAt).toBeTruthy();
+    expect(archived[0]?.archivedBy).toBeTruthy();
+    expect(archived[0]?.archiveReason).toBeTruthy();
+    for (const wo of WORK_ORDERS.filter((w) => w.status !== 'archived')) expect(wo.archivedAt).toBeUndefined();
+  });
+
+  it('has exactly 41 work orders', () => {
+    expect(WORK_ORDERS).toHaveLength(41);
   });
 
   it('uses unique ids matching the domain id pattern', () => {

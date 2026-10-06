@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useToast } from '../../components';
 import type { ActorRef, WorkOrder } from '../../data';
-import { completeOrder, retakeOrder, takeOrder } from './actions';
+import { archiveOrder, completeOrder, retakeOrder, takeOrder } from './actions';
 
 export interface UseOrderDrawerActionsResult {
   readonly takeOpen: boolean;
@@ -11,6 +11,10 @@ export interface UseOrderDrawerActionsResult {
   readonly completeOpen: boolean;
   readonly openComplete: () => void;
   readonly closeComplete: () => void;
+  readonly archiveOpen: boolean;
+  readonly openArchive: () => void;
+  readonly closeArchive: () => void;
+  readonly handleArchiveConfirm: (reason?: string) => void;
   readonly handleTakeConfirm: (assignee: ActorRef) => void;
   readonly handleRetake: () => void;
   readonly handleCompleteConfirm: (sha: string) => void;
@@ -20,6 +24,7 @@ export function useOrderDrawerActions(order: WorkOrder, onUpdate: (next: WorkOrd
   const { show } = useToast();
   const [takeOpen, setTakeOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   function handleTakeConfirm(assignee: ActorRef): void {
     onUpdate(takeOrder(order, assignee));
@@ -38,6 +43,12 @@ export function useOrderDrawerActions(order: WorkOrder, onUpdate: (next: WorkOrd
     show('Orden completada', { tone: 'success' });
   }
 
+  function handleArchiveConfirm(reason?: string): void {
+    onUpdate(archiveOrder(order, reason));
+    setArchiveOpen(false);
+    show('Orden archivada', { tone: 'success' });
+  }
+
   return {
     takeOpen,
     openTake: () => setTakeOpen(true),
@@ -45,6 +56,10 @@ export function useOrderDrawerActions(order: WorkOrder, onUpdate: (next: WorkOrd
     completeOpen,
     openComplete: () => setCompleteOpen(true),
     closeComplete: () => setCompleteOpen(false),
+    archiveOpen,
+    openArchive: () => setArchiveOpen(true),
+    closeArchive: () => setArchiveOpen(false),
+    handleArchiveConfirm,
     handleTakeConfirm,
     handleRetake,
     handleCompleteConfirm,

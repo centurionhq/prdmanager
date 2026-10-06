@@ -23,6 +23,7 @@ describe('StatusBadge', () => {
       ['in_progress', 'En curso'],
       ['out_of_sync', 'Fuera de sincronía'],
       ['done', 'Hecha'],
+      ['archived', 'Archivada'],
     ] as const)('labels %s as %s', (status, label) => {
       render(<StatusBadge kind="workOrder" status={status} />);
       expect(screen.getByText(label)).toBeTruthy();
