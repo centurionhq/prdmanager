@@ -298,3 +298,57 @@ describe('Work Order Generator — id allocation across invalid documents (bug r
     }
   });
 });
+
+describe('Work Order Generator — impacts_paths por tarea (SDD-068)', () => {
+  test('each work order gets its own paths, the unnamed task declares the fallback, regenerating is a no-op', async () => {
+    const pathsRoot = createFixtureRepo();
+    const pathsConfig = testConfig(pathsRoot);
+    const { db: pathsDb, store: pathsStore } = await openTestDb(pathsConfig);
+    const pathsEngine = new Engine(pathsConfig, pathsStore);
+
+    const bpPaths = ['src/core/a.ts', 'src/app/b.tsx', 'src/server/c.ts'];
+    writeFiles(pathsRoot, {
+      'docs/blueprints/SDD-002.md': [
+        '---',
+        'id: SDD-002',
+        'type: SDD',
+        'title: "Paths por tarea"',
+        'architects: ["PRD-001"]',
+        `impacts_paths: ${JSON.stringify(bpPaths)}`,
+        '---',
+        'Diseño.',
+        '',
+        '## Tareas',
+        '- [ ] Ajustar a.ts del core',
+        '- [ ] Pintar b.tsx de la app',
+        '- [ ] Exponer c.ts del server',
+        '- [ ] Revisar la documentación general',
+        '',
+      ].join('\n'),
+    });
+    for (const p of bpPaths) writeFiles(pathsRoot, { [p]: 'export {};\n' });
+    await pathsEngine.refresh();
+
+    try {
+      const result = await generateWorkOrders(pathsEngine, 'SDD-002');
+      expect(result.created).toHaveLength(4);
+
+      const read = (c: { path: string }) => readFileSync(`${pathsRoot}/${c.path}`, 'utf8');
+      const docs = result.created.map(read);
+      expect(docs[0]).toContain('impacts_paths: ["src/core/a.ts"]');
+      expect(docs[0]).toContain('paths: src/core/a.ts');
+      expect(docs[1]).toContain('impacts_paths: ["src/app/b.tsx"]');
+      expect(docs[2]).toContain('impacts_paths: ["src/server/c.ts"]');
+      expect(docs[3]).toContain('paths: heredados del blueprint (el ítem no nombra archivos)');
+      for (const p of bpPaths) expect(docs[3]).toContain(p);
+
+      const second = await generateWorkOrders(pathsEngine, 'SDD-002');
+      expect(second.created).toEqual([]);
+      expect(second.skipped).toBe(4);
+      expect(result.created.map(read)).toEqual(docs);
+    } finally {
+      await pathsDb.close();
+      removeDir(pathsRoot);
+    }
+  });
+});

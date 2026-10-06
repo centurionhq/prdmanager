@@ -39,4 +39,10 @@
   .kpiStrip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  /* WO-648 (D3): with 5 cells in 2 columns the 5th would sit alone in a half-empty row; it closes the
+     band full-width instead (2+2+1), so no orphan cell is left behind. */
+  .kpiItem:nth-child(odd):last-child {
+    grid-column: 1 / -1;
+  }
 }
