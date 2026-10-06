@@ -47,6 +47,69 @@
   border-left: none;
 }
 
+.kpiButton {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  cursor: pointer;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.kpiButton:hover {
+  background: var(--relleno);
+}
+
+.kpiButton:focus-visible {
+  outline: 2px solid var(--cianotipo);
+  outline-offset: 2px;
+}
+
+.kpiSelected {
+  background: var(--relleno);
+  box-shadow: inset 0 -3px 0 0 var(--paro);
+}
+
+.kpiSelectedWarning {
+  box-shadow: inset 0 -3px 0 0 var(--andon);
+}
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+  border-bottom: var(--rule);
+  margin-bottom: var(--space-4);
+}
+
+.filterControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.filterFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--hit-target);
+}
+
+.filterSummary {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.issuesList {
+  min-width: 0;
+}
+
 .summaryHeadline {
   display: flex;
   align-items: baseline;

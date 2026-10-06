@@ -107,8 +107,9 @@ describe('DriftDashboard', () => {
 
     renderPage();
 
-    const codeGroupHeader = await screen.findByText('Código fuera de sincronía');
-    expect(screen.getByText('Esperando reporte de CI')).toBeTruthy();
+    const issuesRegion = await screen.findByRole('region', { name: 'Issues de drift' });
+    const codeGroupHeader = within(issuesRegion).getByText('Código fuera de sincronía');
+    expect(within(issuesRegion).getByText('Esperando reporte de CI')).toBeTruthy();
     expect(screen.getAllByText('SDD-012').length).toBeGreaterThan(0);
     expect(within(codeGroupHeader.parentElement!).getByText('1')).toBeTruthy();
   });
@@ -155,7 +156,7 @@ describe('DriftDashboard', () => {
     const acknowledge = vi.spyOn(graphApi, 'acknowledgeDrift').mockResolvedValue({ report: {} as never });
 
     renderPage();
-    await screen.findByText('Código fuera de sincronía');
+    await screen.findByRole('region', { name: 'Issues de drift' });
 
     await userEvent.click(screen.getByRole('button', { name: 'Reconocer drift' }));
     const dialog = await screen.findByRole('dialog', { name: 'Reconocer drift' });
