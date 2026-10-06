@@ -17,7 +17,7 @@ import { createTenantDb } from '@prdm/db';
 import type { RemoteDocumentSummary, RemoteDocumentVersionSummary, RemoteDocumentWithVersion, RemoteDocumentsPort, RemoteImpactsPathsDrift } from '@prdm/mcp/lib';
 import type { Pool } from 'pg';
 import { ConflictError, NotFoundError } from '../errors.js';
-import { computeImpactsPathsDrift } from '../engine/impacts-paths-drift.js';
+import { computeImpactsPathsDrift, computeImpactsPathsNarrowing } from '../engine/impacts-paths-drift.js';
 import type { PgProjectEngine } from '../engine/pg-project-engine.js';
 import { buildProjectSettings } from '../engine/pg-project-settings.js';
 import { createAndSubmitDocument } from './create-and-submit.js';
@@ -119,7 +119,10 @@ export function buildRemoteDocumentsPort(pool: Pool, orgId: string, project: Pro
 
     async getImpactsPathsDrift(blueprintId): Promise<RemoteImpactsPathsDrift | null> {
       const scan = await engine.scan();
-      return computeImpactsPathsDrift(pool, orgId, project.id, scan.docs, blueprintId);
+      const drift = await computeImpactsPathsDrift(pool, orgId, project.id, scan.docs, blueprintId);
+      if (!drift) return null;
+      const narrowing = await computeImpactsPathsNarrowing(pool, orgId, project.id, scan.docs, blueprintId);
+      return { ...drift, suggestedRemovals: narrowing?.suggestedRemovals ?? [] };
     },
   };
 }

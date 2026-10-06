@@ -53,3 +53,22 @@ export const driftReportDetailSchema = z.object({
   issues: z.array(driftIssueDtoSchema),
 });
 export type DriftReportDetailDto = z.infer<typeof driftReportDetailSchema>;
+
+/** SDD-072 D1 (WO-642): `ImpactsPathsNarrowing` from `packages/server/src/engine/impacts-paths-drift.ts`,
+ * hand-synced (this package has no dependency on the server). */
+export const impactsPathsRemovalSuggestionSchema = z.object({
+  pattern: z.string(),
+  matchedPaths: z.array(z.string()),
+  foreignCommits: z.array(z.string()),
+  alsoDeclaredBy: z.array(z.string()),
+  driftIssueCount: z.number().int().min(0),
+});
+export type ImpactsPathsRemovalSuggestionDto = z.infer<typeof impactsPathsRemovalSuggestionSchema>;
+
+export const impactsPathsNarrowingSchema = z.object({
+  blueprintId: z.string(),
+  currentPatterns: z.array(z.string()),
+  suggestedRemovals: z.array(impactsPathsRemovalSuggestionSchema),
+  basedOnCommits: z.array(z.string()),
+});
+export type ImpactsPathsNarrowingDto = z.infer<typeof impactsPathsNarrowingSchema>;

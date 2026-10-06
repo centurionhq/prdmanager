@@ -58,6 +58,15 @@ export interface RemoteImpactsPathsDrift {
   currentPatterns: readonly string[];
   suggestedAdditions: readonly string[];
   basedOnCommits: readonly string[];
+  /** SDD-072 WO-642: patterns of `currentPatterns` that look surplus, each with its evidence (the portable
+   * DTO lives here, so the port can return it without a cast). */
+  suggestedRemovals: readonly {
+    pattern: string;
+    matchedPaths: readonly string[];
+    foreignCommits: readonly string[];
+    alsoDeclaredBy: readonly string[];
+    driftIssueCount: number;
+  }[];
 }
 
 export interface RemoteDocumentsPort {
