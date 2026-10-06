@@ -11,9 +11,11 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { isEntryPoint } from '../entry-point.mjs';
 import { runCycleOnce } from './driver-lib.mjs';
+import { enforceStartGuard } from './start-guard.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const STATE_DIR = path.join(os.homedir(), '.local', 'state', 'prdmanager-rsi');
@@ -46,13 +48,17 @@ function readCyclePrompt() {
   return readFileSync(CYCLE_PROMPT_PATH, 'utf8');
 }
 
-async function main() {
+/** Aborta (exit 1) antes de cualquier ciclo si el checkout no es un punto de partida reproducible (SDD-063). */
+export async function main(options = {}) {
+  const { enforceGuard = () => enforceStartGuard({ cwd: REPO_ROOT }) } = options;
+  const guard = enforceGuard();
+  if (!guard.ok) return 1;
   for (;;) {
     const result = await runCycleOnce({ statePath: STATE_PATH, pausePath: PAUSE_PATH, runClaude: runRealCycle });
     if (!result.ran || result.state.pausedReason) {
       const reason = result.reason ?? result.state.pausedReason;
       console.error(`rsi-driver: paused (${reason}) -- clear ${PAUSE_PATH} or its pausedReason in ${STATE_PATH} to resume`);
-      return;
+      return 0;
     }
     console.log(`rsi-driver: cycle done, next in ${Math.round((result.delayMs ?? 0) / 60000)}min`);
     await new Promise((resolve) => setTimeout(resolve, result.delayMs ?? 0));
@@ -60,5 +66,5 @@ async function main() {
 }
 
 if (isEntryPoint(import.meta.url)) {
-  await main();
+  process.exitCode = await main();
 }
