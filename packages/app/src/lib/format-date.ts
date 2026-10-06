@@ -7,6 +7,28 @@
  */
 const DATE_FORMAT = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
 
+/**
+ * The same date, plus the time: `27/09/2026, 18:21`.
+ *
+ * `hour12: false` is not decoration. `es-AR` resolves to the h12 cycle in the ICU that ships with current
+ * Node and Chrome (verified: the option object without it renders `27/09/2026, 06:21 p. m.`), and this product
+ * reads the clock the 24-hour way, so the cycle is pinned instead of inherited from the runtime.
+ */
+const DATE_TIME_FORMAT = new Intl.DateTimeFormat('es-AR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+  timeZone: 'UTC',
+});
+
 export function formatDate(iso: string): string {
   return DATE_FORMAT.format(new Date(iso));
+}
+
+/** `dd/mm/aaaa, hh:mm`, es-AR and UTC, for the places that need the instant, not just the day. */
+export function formatDateTime(iso: string): string {
+  return DATE_TIME_FORMAT.format(new Date(iso));
 }

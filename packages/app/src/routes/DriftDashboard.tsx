@@ -13,6 +13,7 @@ import { errorMessage } from '../api/error-message.js';
 import { useApiQuery } from '../api/use-api-query.js';
 import { Button, ErrorState, FilterChips, PageHeader, SearchField, SelectField, Severity, Skeleton, ToastProvider, Tooltip, useToast } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
+import { formatDateTime } from '../lib/format-date.js';
 import { useProjectShellContext } from './ProjectShell.js';
 import { AcknowledgeModal } from './drift/AcknowledgeModal.js';
 import { EMPTY_FILTERS, PROJECT_TARGET, acknowledgeableTargets, filterIssues, groupIssues, type DriftFilters } from './drift/drift-groups.js';
@@ -27,14 +28,6 @@ const REASON_TIP =
 
 function shortSha(sha: string): string {
   return sha.slice(0, 12);
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString();
-}
-
-function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString();
 }
 
 function isActivationKey(key: string): boolean {
@@ -109,7 +102,7 @@ function DriftContent(): ReactElement {
           dashboard.official ? (
             <>
               Reporte oficial de <span className="id">{dashboard.official.branch ?? '(rama desconocida)'}</span> · commit{' '}
-              <span className="id">{shortSha(dashboard.official.headSha)}</span> · {formatTimestamp(dashboard.official.createdAt)}
+              <span className="id">{shortSha(dashboard.official.headSha)}</span> · {formatDateTime(dashboard.official.createdAt)}
             </>
           ) : (
             'Todavía no hay un reporte oficial verificado por CI para este proyecto.'
@@ -299,7 +292,7 @@ function DriftContent(): ReactElement {
                         setReportId(report.id);
                       }}
                     >
-                      <td className={styles.historyCell}>{formatDate(report.createdAt)}</td>
+                      <td className={styles.historyCell}>{formatDateTime(report.createdAt)}</td>
                       <td className={styles.historyCell}>
                         <span className="id">{shortSha(report.headSha)}</span>
                       </td>
