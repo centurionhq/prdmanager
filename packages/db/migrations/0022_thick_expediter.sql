@@ -1,0 +1,1 @@
+ALTER TABLE "project_code_state" ADD COLUMN "last_report" jsonb;
