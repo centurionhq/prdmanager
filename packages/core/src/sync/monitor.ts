@@ -96,9 +96,12 @@ class DriftContext {
   readonly byId: Map<string, ParsedDoc>;
   /** Current refs plus refs remembered in the baseline that no longer resolve, so vanished code is reported instead of silently pruned. */
   readonly governed: Map<string, CodeRefState[]>;
+  /** WO-692 (SDD-087 E1): keys declared today per blueprint, to tell a declaration problem (hash null) from a key that merely vanished from the baseline. */
+  private readonly declaredKeys: Map<string, ReadonlySet<string>>;
 
   constructor(readonly input: DriftInput) {
     this.byId = new Map(input.docs.map((d) => [d.node.id, d]));
+    this.declaredKeys = new Map([...input.governed].map(([bp, refs]) => [bp, new Set(refs.map((r) => r.key))]));
     this.governed = new Map(
       [...input.governed].map(([bp, refs]) => {
         const known = new Set(refs.map((r) => r.key));
@@ -108,6 +111,10 @@ class DriftContext {
         return [bp, [...refs, ...vanished]];
       }),
     );
+  }
+
+  isDeclared(blueprintId: string, key: string): boolean {
+    return this.declaredKeys.get(blueprintId)?.has(key) ?? false;
   }
 
   /** Blueprints architecting a requirement that evolved since its acknowledged version: their code may now be legacy. */
@@ -198,7 +205,13 @@ function collectIssues(ctx: DriftContext, governed: GovernedState[], updates: Wo
       .map((d): DriftIssue => ({ kind: 'blueprint_changed', severity: 'error', nodeId: d.node.id, message: `${d.node.id} changed since its last acknowledged version` })),
     ...governed
       .filter((g) => g.status === 'out_of_sync')
-      .map((g): DriftIssue => ({ kind: 'code_out_of_sync', severity: 'error', nodeId: g.blueprintId, target: g.key, message: `${g.key} is out of sync with ${g.blueprintId} (${g.reason})` })),
+      .map((g): DriftIssue =>
+        // WO-692 (SDD-087 E3): a pattern declared today that resolves to no file is a declaration problem, not code drift.
+        // Keys vanished from the baseline (not declared) and real hash changes stay errors.
+        g.reason === 'missing' && ctx.isDeclared(g.blueprintId, g.key)
+          ? { kind: 'impacts_warning', severity: 'warning', nodeId: g.blueprintId, target: g.key, message: `impacts_paths pattern "${g.key}" resolves to no file; narrow or remove the pattern (FR-006/SDD-072)` }
+          : { kind: 'code_out_of_sync', severity: 'error', nodeId: g.blueprintId, target: g.key, message: `${g.key} is out of sync with ${g.blueprintId} (${g.reason})` },
+      ),
     ...ctx.input.docs
       .filter(isWorkOrder)
       .filter((wo) => (finalStatus.get(wo.node.id) ?? wo.frontmatter.status) === 'out_of_sync')
@@ -297,6 +310,12 @@ function reconcileBaseline(ctx: DriftContext, states: GovernedState[]): Baseline
 export interface AcknowledgeResult {
   baseline: Baseline;
   workOrderHashUpdates: { id: string; sourcePath: string; blueprintHashes: Record<string, string> }[];
+  /**
+   * SDD-087 D5(a) / WO-692: baseline keys of the re-baselined blueprints that the current impacts_paths no longer
+   * resolve (e.g. a directory key recorded before WO-464 started expanding directory patterns). They are dropped
+   * from `baseline.governs`; this lists them so the caller can report what the ack discarded.
+   */
+  discardedKeys: { blueprintId: string; key: string }[];
 }
 
 /**
@@ -330,5 +349,11 @@ export function acknowledge(input: DriftInput, target: string): AcknowledgeResul
     return [{ id: wo.node.id, sourcePath: wo.node.sourcePath, blueprintHashes }];
   });
 
-  return { baseline: { version: 1, docs, governs }, workOrderHashUpdates };
+  const discardedKeys = blueprintIds.flatMap((bp) =>
+    Object.keys(input.baseline.governs[bp] ?? {})
+      .filter((key) => !ctx.isDeclared(bp, key))
+      .map((key) => ({ blueprintId: bp, key })),
+  );
+
+  return { baseline: { version: 1, docs, governs }, workOrderHashUpdates, discardedKeys };
 }
