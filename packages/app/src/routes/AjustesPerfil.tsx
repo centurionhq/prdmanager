@@ -105,7 +105,7 @@ export function AjustesPerfil(): ReactElement {
       <Panel>
         {user ? (
           <>
-            <ReadOnlyField label="Nombre" value={user.name} />
+            <ReadOnlyField label="Nombre" value={user.name} note="No se puede cambiar" />
             <ReadOnlyField label="Email" value={user.email} note="No se puede cambiar" />
           </>
         ) : null}
