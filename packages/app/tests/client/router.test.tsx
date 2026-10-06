@@ -47,7 +47,9 @@ describe('app router', () => {
       render(<RouterProvider router={router} />);
 
       expect(await screen.findByRole('heading', { name: 'Esta sección no existe en Acme' })).toBeTruthy();
-      expect(screen.getByRole('combobox', { name: 'Organización' })).toBeTruthy();
+      // SDD-077 D1: con una sola organización el header muestra el nombre como texto, sin switcher.
+      expect(screen.queryByRole('combobox', { name: 'Organización' })).toBeNull();
+      expect(screen.getByText('Acme')).toBeTruthy();
       expect(screen.getByRole('link', { name: 'Ver los proyectos de Acme' }).getAttribute('href')).toBe('/o/acme');
     });
 

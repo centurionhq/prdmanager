@@ -67,6 +67,35 @@ describe('OrgShell', () => {
     await waitFor(() => expect(setActive).toHaveBeenCalledWith('org2'));
   });
 
+  it('with a single organization it shows the name as text and renders no form control', async () => {
+    vi.spyOn(client, 'listOrganizations').mockResolvedValue([ORGS[0]!]);
+    renderShell();
+
+    await screen.findByText('projects dashboard');
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.getByText('Acme')).toBeTruthy();
+  });
+
+  it('with two or more organizations the switcher keeps both options and is identified', async () => {
+    vi.spyOn(client, 'listOrganizations').mockResolvedValue(ORGS);
+    renderShell();
+
+    await screen.findByText('projects dashboard');
+    const select = screen.getByRole('combobox', { name: 'Organización' }) as HTMLSelectElement;
+    expect(select.id).toBe('org-switcher');
+    expect(select.getAttribute('name')).toBe('organization');
+    expect(screen.getByRole('option', { name: 'Acme' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'Other Co' })).toBeTruthy();
+  });
+
+  it('with a single organization the not-found branch renders no form control', async () => {
+    vi.spyOn(client, 'listOrganizations').mockResolvedValue([ORGS[0]!]);
+    renderShell('/o/nope');
+
+    expect(await screen.findByText('Organización no encontrada')).toBeTruthy();
+    expect(screen.queryByRole('combobox')).toBeNull();
+  });
+
   it('sign out calls the API and navigates to /login', async () => {
     vi.spyOn(client, 'listOrganizations').mockResolvedValue(ORGS);
     vi.spyOn(client, 'signOut').mockResolvedValue(undefined);

@@ -78,25 +78,34 @@ export function OrgShell(): ReactElement {
 
   const currentOrg = organizations.find((org) => org.slug === orgSlug);
 
-  const switcher = (
-    <select
-      className={styles.orgSwitcher}
-      value={currentOrg?.slug ?? ''}
-      onChange={(e) => void handleSwitch(e.target.value)}
-      aria-label="Organización"
-    >
-      {currentOrg ? null : (
-        <option value="" disabled>
-          Elegí una organización
-        </option>
-      )}
-      {organizations.map((org) => (
-        <option key={org.id} value={org.slug}>
-          {org.name}
-        </option>
-      ))}
-    </select>
-  );
+  // Un switcher solo existe si hay algo que cambiar (SDD-077 D1); con una sola organización se
+  // muestra su nombre como texto estático (o nada, si la organización pedida no existe).
+  let switcher: ReactElement | null = null;
+  if (organizations.length > 1) {
+    switcher = (
+      <select
+        id="org-switcher"
+        name="organization"
+        className={styles.orgSwitcher}
+        value={currentOrg?.slug ?? ''}
+        onChange={(e) => void handleSwitch(e.target.value)}
+        aria-label="Organización"
+      >
+        {currentOrg ? null : (
+          <option value="" disabled>
+            Elegí una organización
+          </option>
+        )}
+        {organizations.map((org) => (
+          <option key={org.id} value={org.slug}>
+            {org.name}
+          </option>
+        ))}
+      </select>
+    );
+  } else if (currentOrg) {
+    switcher = <span className={styles.orgName}>{currentOrg.name}</span>;
+  }
   const signOutButton = (
     <button type="button" className={styles.signOutButton} onClick={() => void handleSignOut()}>
       Cerrar sesión
