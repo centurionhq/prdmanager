@@ -33,12 +33,37 @@ function violation(nodeId: string, severity: DriftIssue['severity'], message: st
   return { kind: 'lifecycle_violation', severity, nodeId, message };
 }
 
-function checkFeedback(doc: FeedbackDoc): DriftIssue[] {
+/** SDD-096 D1: a Feedback is linked when any MRD/PRD/FR/BC cites it in `justified_by` (the inverse of `hasJustification`). */
+function isCitedByJustifiedBy(id: string, docs: readonly ParsedDoc[]): boolean {
+  return docs.some((d) => {
+    const fm = d.frontmatter;
+    if (fm.type !== 'MRD' && fm.type !== 'PRD' && fm.type !== 'FR' && fm.type !== 'BC') return false;
+    return (fm.justified_by ?? []).includes(id);
+  });
+}
+
+/** SDD-096 D2: a terminal status counts as resolved only when it carries the trace field `link.ts` always writes with it. */
+function hasTerminalOutcome(fm: FeedbackDoc['frontmatter']): boolean {
+  switch (fm.status) {
+    case 'closed':
+      return !!fm.close_reason && fm.closed_by !== undefined;
+    case 'duplicate':
+      return fm.duplicate_of !== undefined;
+    case 'dismissed':
+      return !!fm.dismiss_reason;
+    default:
+      return false;
+  }
+}
+
+function checkFeedback(doc: FeedbackDoc, docs: readonly ParsedDoc[]): DriftIssue[] {
   const fm = doc.frontmatter;
   if (fm.informs.length > 0 || fm.root) return [];
+  if (isCitedByJustifiedBy(doc.node.id, docs) || hasTerminalOutcome(fm)) return [];
+  const exits = `link it via "informs", mark "root: true", get cited in a "justified_by", close it with a "close_reason", or mark it a duplicate via "duplicate_of"`;
   return fm.status === 'new'
-    ? [violation(doc.node.id, 'warning', `${doc.node.id} is still untriaged: link it via "informs" (or mark "root: true") before it can justify a feature`)]
-    : [violation(doc.node.id, 'error', `${doc.node.id} must link to a feature via "informs" (or be marked "root: true")`)];
+    ? [violation(doc.node.id, 'warning', `${doc.node.id} is still untriaged: ${exits} before it can justify a feature`)]
+    : [violation(doc.node.id, 'error', `${doc.node.id} must link to a feature via "informs" (or: mark "root: true", get cited in a "justified_by", close it with a "close_reason", or mark it a duplicate via "duplicate_of")`)];
 }
 
 function checkArtifact(doc: ArtifactDoc): DriftIssue[] {
@@ -160,7 +185,7 @@ function checkWorkOrder(doc: WorkOrderDoc): DriftIssue[] {
 function checkDoc(doc: ParsedDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>): DriftIssue[] {
   switch (doc.frontmatter.type) {
     case 'FB':
-      return checkFeedback(doc as FeedbackDoc);
+      return checkFeedback(doc as FeedbackDoc, docs);
     case 'ART':
       return checkArtifact(doc as ArtifactDoc);
     case 'MRD':
