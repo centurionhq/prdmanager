@@ -81,14 +81,17 @@ export interface FeatureTreeProps {
   readonly forest: readonly TreeNode[];
   readonly selectedRef: string;
   readonly driftRefs: ReadonlySet<string>;
+  /** SDD-079 D5: las filas huérfanas llevan el badge «Sin código». */
+  readonly orphanRefs: ReadonlySet<string>;
   /** Bumping this collapses every expandable row -- WO-457's "Contraer todo". */
   readonly collapseSignal: number;
   readonly onSelect: (ref: string) => void;
 }
 
 /** Keyboard-navigable ARIA tree (`role="tree"`/`"treeitem"`) of a project's features. Closed features are
- * dimmed unless selected; a feature named in `driftRefs` gets the canvas's yellow drift dot. */
-export function FeatureTree({ forest, selectedRef, driftRefs, collapseSignal, onSelect }: FeatureTreeProps): ReactElement {
+ * dimmed unless selected; a feature named in `driftRefs` gets the canvas's yellow drift dot, and one named
+ * in `orphanRefs` gets the «Sin código» badge. */
+export function FeatureTree({ forest, selectedRef, driftRefs, orphanRefs, collapseSignal, onSelect }: FeatureTreeProps): ReactElement {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set(collectExpandableRefs(forest)));
   const [focusedRef, setFocusedRef] = useState(selectedRef);
   const treeRef = useRef<HTMLDivElement>(null);
@@ -148,6 +151,7 @@ export function FeatureTree({ forest, selectedRef, driftRefs, collapseSignal, on
           >
             <span className={`id ${styles.rowId}`}>{row.node.ref}</span>
             <span className={styles.rowTitle}>{row.node.title}</span>
+            {orphanRefs.has(row.node.ref) ? <span className={styles.orphanBadge}>Sin código</span> : null}
             {driftRefs.has(row.node.ref) ? (
               <span title="Drift activo" className={styles.drift}>
                 <span className={styles.driftDot} />

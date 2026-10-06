@@ -48,3 +48,19 @@
   border-radius: 4px;
   background: var(--andon);
 }
+
+.orphanBadge {
+  flex: none;
+  margin-left: auto;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--texto-secundario);
+}
