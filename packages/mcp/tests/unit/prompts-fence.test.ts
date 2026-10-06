@@ -21,7 +21,7 @@ function fakeStoreWithMaliciousFeature(): GraphStore {
       edges: [],
     }),
     getNode: async (id: string) => ({
-      node: { id, label: 'Feature', kind: 'PRD', title: MALICIOUS_TITLE, status: 'draft', body: '', tags: [], source_path: 'x.md', created_at: null },
+      node: { id, label: 'Feature', kind: 'PRD', title: MALICIOUS_TITLE, status: 'draft', body: '', tags: [], source_path: 'x.md', mirrorPath: '.prdm/remote/docs/PRD-900.md', created_at: null },
       links: [{ type: 'EVOLVES_FROM', direction: 'out' as const, ref: 'MRD-001', title: MALICIOUS_TITLE, props: {} }],
     }),
   } as unknown as GraphStore;
@@ -30,11 +30,11 @@ function fakeStoreWithMaliciousFeature(): GraphStore {
 function fakeStoreWithMaliciousWorkOrderContext(): GraphStore {
   return {
     workOrderContext: async () => ({
-      workOrder: { id: 'WO-900', label: 'WorkOrder', kind: 'WO', title: 'wo', status: 'pending', body: '', tags: [], source_path: 'wo.md', created_at: null },
+      workOrder: { id: 'WO-900', label: 'WorkOrder', kind: 'WO', title: 'wo', status: 'pending', body: '', tags: [], source_path: 'wo.md', mirrorPath: '.prdm/remote/docs/WO-900.md', created_at: null },
       blueprints: [],
       features: [],
       context: [
-        { id: 'FB-900', label: 'Feedback', kind: 'FB', title: 'feedback', status: 'new', body: MALICIOUS_BODY, tags: [], source_path: 'fb.md', created_at: null },
+        { id: 'FB-900', label: 'Feedback', kind: 'FB', title: 'feedback', status: 'new', body: MALICIOUS_BODY, tags: [], source_path: 'fb.md', mirrorPath: '.prdm/remote/docs/FB-900.md', created_at: null },
       ],
       code: [],
       commits: [],

@@ -20,6 +20,7 @@ function nodeView(overrides: Partial<NodeView>): NodeView {
     body: '',
     tags: [],
     source_path: 'PRD-001.md',
+    mirrorPath: '.prdm/remote/docs/PRD-001.md',
     created_at: null,
     ...overrides,
   };

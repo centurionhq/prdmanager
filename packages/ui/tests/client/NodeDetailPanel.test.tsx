@@ -1,4 +1,4 @@
-import type { NodeDetail } from '@prdm/core';
+import { mirrorPathFor, type NodeDetail } from '@prdm/core';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
@@ -7,21 +7,20 @@ import { NodeDetailPanel } from '../../src/components/NodeDetailPanel';
 import { SelectionProvider, useSelection } from '../../src/state/selection';
 
 function detail(overrides: Partial<NodeDetail['node']> = {}, links: NodeDetail['links'] = []): NodeDetail {
-  return {
-    node: {
-      id: 'PRD-004',
-      label: 'Feature',
-      kind: 'PRD',
-      title: 'Explorador web del Feature Tree y del drift',
-      status: 'approved',
-      body: '',
-      tags: ['web-ui'],
-      source_path: 'docs/prd/PRD-004-explorador-web.md',
-      created_at: '2026-09-13',
-      ...overrides,
-    },
-    links,
+  const base: NodeDetail['node'] = {
+    id: 'PRD-004',
+    label: 'Feature',
+    kind: 'PRD',
+    title: 'Explorador web del Feature Tree y del drift',
+    status: 'approved',
+    body: '',
+    tags: ['web-ui'],
+    source_path: 'docs/prd/PRD-004-explorador-web.md',
+    created_at: '2026-09-13',
+    mirrorPath: mirrorPathFor('PRD-004'),
   };
+  const node = { ...base, ...overrides };
+  return { node: { ...node, mirrorPath: node.mirrorPath ?? mirrorPathFor(node.id) }, links };
 }
 
 function Selector({ id }: { id: string }): ReactElement {

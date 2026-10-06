@@ -13,6 +13,7 @@ describe('workOrderContextDtoSchema', () => {
       status: 'pending',
       assignedTo: null,
       sourcePath: 'docs/work-orders/WO-001.md',
+      mirrorPath: '.prdm/remote/docs/WO-001.md',
       body: 'Parsear trailers Refs.',
       acceptanceCriteria: ['Implementar hashing de código'],
     },
@@ -27,6 +28,11 @@ describe('workOrderContextDtoSchema', () => {
 
   test('accepts a full work-order context', () => {
     expect(workOrderContextDtoSchema.parse(valid)).toEqual(valid);
+  });
+
+  test('requires workOrder.mirrorPath (SDD-074)', () => {
+    const { mirrorPath: _omitted, ...workOrder } = valid.workOrder;
+    expect(() => workOrderContextDtoSchema.parse({ ...valid, workOrder })).toThrow();
   });
 
   test('rejects an invalid context label', () => {

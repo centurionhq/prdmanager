@@ -11,10 +11,10 @@ import { Ordenes } from '../../src/routes/Ordenes.js';
 import { makeProjectShellContext } from './fixtures.js';
 
 const ORDERS: WorkOrderSummary[] = [
-  { id: 'WO-304', title: 'Escaneo incremental por hash', status: 'in_progress', assignedTo: 'agent:claude', blueprints: ['SDD-012'], sourcePath: 'docs/work-orders/WO-304.md' },
-  { id: 'WO-310', title: 'Resumen del importador', status: 'pending', assignedTo: null, blueprints: ['SDD-012'], sourcePath: 'docs/work-orders/WO-310.md' },
-  { id: 'WO-301', title: 'Tabla de hashes', status: 'done', assignedTo: 'dev:martin', blueprints: ['SDD-013'], sourcePath: 'docs/work-orders/WO-301.md' },
-  { id: 'WO-320', title: 'Índice de búsqueda incremental', status: 'archived', assignedTo: null, blueprints: ['SDD-013'], sourcePath: 'docs/work-orders/WO-320.md' },
+  { id: 'WO-304', title: 'Escaneo incremental por hash', status: 'in_progress', assignedTo: 'agent:claude', blueprints: ['SDD-012'], sourcePath: 'docs/work-orders/WO-304.md', mirrorPath: '.prdm/remote/docs/WO-304.md' },
+  { id: 'WO-310', title: 'Resumen del importador', status: 'pending', assignedTo: null, blueprints: ['SDD-012'], sourcePath: 'docs/work-orders/WO-310.md', mirrorPath: '.prdm/remote/docs/WO-310.md' },
+  { id: 'WO-301', title: 'Tabla de hashes', status: 'done', assignedTo: 'dev:martin', blueprints: ['SDD-013'], sourcePath: 'docs/work-orders/WO-301.md', mirrorPath: '.prdm/remote/docs/WO-301.md' },
+  { id: 'WO-320', title: 'Índice de búsqueda incremental', status: 'archived', assignedTo: null, blueprints: ['SDD-013'], sourcePath: 'docs/work-orders/WO-320.md', mirrorPath: '.prdm/remote/docs/WO-320.md' },
 ];
 
 function fakeContext(overrides: Partial<WorkOrderContextDto['workOrder']> = {}): WorkOrderContextDto {
@@ -25,6 +25,7 @@ function fakeContext(overrides: Partial<WorkOrderContextDto['workOrder']> = {}):
       status: 'pending',
       assignedTo: null,
       sourcePath: 'docs/work-orders/WO-310.md',
+      mirrorPath: '.prdm/remote/docs/WO-310.md',
       body: 'Al terminar una importación, la CLI muestra un resumen.',
       acceptanceCriteria: ['El resumen separa archivos nuevos, modificados y borrados'],
       ...overrides,
