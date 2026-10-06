@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import fg from 'fast-glob';
+import { glob } from 'tinyglobby';
 
 const PROJECT_FILE = '.prdm.yaml';
 const LEGACY_CONFIG_FILE = 'prdm.config.json';
@@ -43,7 +43,14 @@ export function discoverProjectRoot(startDir: string, env: NodeJS.ProcessEnv = p
  * (SDD-002 "Proyecto activo"). `root`'s own `.prdm.yaml`, if any, is never included.
  */
 export async function findNestedProjectRoots(root: string, ignore: string[]): Promise<string[]> {
-  const matches = await fg.glob(`**/${PROJECT_FILE}`, { cwd: root, ignore, dot: false, onlyFiles: true, followSymbolicLinks: false });
+  const matches = await glob(`**/${PROJECT_FILE}`, {
+    cwd: root,
+    ignore,
+    dot: false,
+    onlyFiles: true,
+    followSymbolicLinks: false,
+    expandDirectories: false,
+  });
   const suffix = `/${PROJECT_FILE}`;
   return matches
     .filter((rel) => rel !== PROJECT_FILE)
