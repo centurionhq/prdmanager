@@ -1,7 +1,8 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Subgraph } from '@prdm/core';
 import type { LineBoardDto, SuccessMetricsDto } from '@prdm/contracts';
 import * as client from '../../src/api/client.js';
 import { clearQueryCache } from '../../src/api/query-cache.js';
@@ -71,6 +72,32 @@ const LINE_BOARD: LineBoardDto = {
   andon: { featureId: 'BC-001', station: 'construccion' },
 };
 
+/** WO-681: a feature branch with three work orders (one in a status the app does not know) and a
+ * non-order node that must not be listed. */
+const BRANCH: Subgraph = {
+  nodes: [
+    { ref: 'WO-401', label: 'WorkOrder', kind: null, title: 'Escaneo incremental', status: 'done' },
+    { ref: 'WO-402', label: 'WorkOrder', kind: null, title: 'Reintento de subida', status: 'in_progress' },
+    { ref: 'WO-403', label: 'WorkOrder', kind: null, title: 'Informe de parada', status: 'en_revision' },
+    { ref: 'SDD-084', label: 'Blueprint', kind: 'SDD', title: 'La línea accionable', status: 'active' },
+  ],
+  edges: [],
+};
+
+const BC_001_BUTTON = 'BC-001 Importador incremental de repos: ver órdenes';
+
+async function openBc001(): Promise<HTMLElement> {
+  const button = (await screen.findAllByRole('button', { name: BC_001_BUTTON }))[0]!;
+  await userEvent.click(button);
+  return button;
+}
+
+function mockBoard(branch: () => Promise<Subgraph> = () => Promise.resolve(BRANCH)): void {
+  vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+  vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+  vi.spyOn(client, 'getFeatureBranch').mockImplementation(branch);
+}
+
 function renderPlanta(overrides: Parameters<typeof makeProjectOverview>[0] = {}) {
   const context = makeProjectShellContext('owner');
   const project = makeProjectOverview({ slug: context.projectSlug, ...overrides });
@@ -83,6 +110,7 @@ function renderPlanta(overrides: Parameters<typeof makeProjectOverview>[0] = {})
           { index: true, element: <Planta /> },
           { path: 'arbol/:id', element: <p>arbol screen</p> },
           { path: 'drift', element: <p>drift screen</p> },
+          { path: 'ordenes', element: <p>ordenes screen</p> },
         ],
       },
     ],
@@ -317,5 +345,93 @@ describe('Planta', () => {
     renderPlanta();
 
     expect(await screen.findByText(/no pudimos cargar la planta/i)).toBeTruthy();
+  });
+
+  it('la celda de la estación es un button con aria-expanded y aria-controls (WO-681, SDD-084 D3)', async () => {
+    mockBoard();
+    renderPlanta();
+
+    const buttons = await screen.findAllByRole('button', { name: BC_001_BUTTON });
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const button of buttons) {
+      expect(button.getAttribute('aria-expanded')).toBe('false');
+      expect(button.getAttribute('aria-controls')).toBeTruthy();
+    }
+    await userEvent.click(buttons[0]!);
+    expect(buttons[0]!.getAttribute('aria-expanded')).toBe('true');
+    expect(document.getElementById(buttons[0]!.getAttribute('aria-controls')!)).toBeTruthy();
+  });
+
+  it('al abrir lista las órdenes del branch con su estado (WO-681)', async () => {
+    mockBoard();
+    renderPlanta();
+    await openBc001();
+
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText('WO-401')).toBeTruthy();
+    expect(within(dialog).getByText('Escaneo incremental')).toBeTruthy();
+    expect(within(dialog).getByText('Hecha')).toBeTruthy();
+    expect(within(dialog).getByText('WO-402')).toBeTruthy();
+    expect(within(dialog).getByText('En curso')).toBeTruthy();
+    expect(within(dialog).queryByText('SDD-084')).toBeNull();
+  });
+
+  it('una orden sin estado conocido no se inventa (WO-681)', async () => {
+    mockBoard();
+    renderPlanta();
+    await openBc001();
+
+    const row = (await screen.findByText('WO-403')).closest('li')!;
+    expect(within(row).queryByText(/^(Hecha|Pendiente|En curso|Fuera de sincronía|Archivada)$/)).toBeNull();
+    expect(within(row).getByText('en_revision')).toBeTruthy();
+  });
+
+  it('cada fila enlaza a ordenes?q=<id> (WO-681)', async () => {
+    mockBoard();
+    renderPlanta();
+    await openBc001();
+
+    const link = await screen.findByRole('link', { name: 'WO-401 Escaneo incremental' });
+    expect(link.getAttribute('href')).toBe('/o/acme/p/web/ordenes?q=WO-401');
+  });
+
+  it('Escape cierra y el foco vuelve a la celda (WO-681)', async () => {
+    mockBoard();
+    renderPlanta();
+    const button = await openBc001();
+
+    const dialog = await screen.findByRole('dialog');
+    act(() => {
+      dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
+    });
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(button);
+  });
+
+  it('con branch vacío, el vacío se declara (WO-681)', async () => {
+    mockBoard(() => Promise.resolve({ nodes: [], edges: [] }));
+    renderPlanta();
+    await openBc001();
+
+    expect(await screen.findByText(/todavía no hay órdenes/i)).toBeTruthy();
+  });
+
+  it('si branch falla, mensaje propio sin romper el tablero (WO-681)', async () => {
+    mockBoard(() => Promise.reject(new Error('branch down')));
+    renderPlanta();
+    await openBc001();
+
+    expect(await screen.findByText(/no pudimos cargar las órdenes/i)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'La línea' })).toBeTruthy();
+  });
+
+  it('el encabezado usa el progress de la fila (WO-681)', async () => {
+    mockBoard();
+    renderPlanta();
+    await openBc001();
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('22 órdenes · 14 hechas · 3 paradas')).toBeTruthy();
   });
 });

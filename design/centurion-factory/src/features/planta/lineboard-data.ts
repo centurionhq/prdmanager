@@ -87,3 +87,10 @@ export function rowAccessibleName(row: LineRow): string {
   const stoppedPart = kind === 'stopped' ? `, línea detenida: ${progress.stopped} órdenes fuera de sincronía` : '';
   return `${base}${progressPart}${stoppedPart}`;
 }
+
+/** WO-681: the drawer's header, from the row's own progress (e.g. «22 órdenes · 14 hechas · 3 paradas»). */
+export function ordersSummary(progress: WorkOrderProgress): string {
+  const { done, total, stopped } = progress;
+  if (total === 0) return 'Sin órdenes activas';
+  return `${total} ${total === 1 ? 'orden' : 'órdenes'} · ${done} ${done === 1 ? 'hecha' : 'hechas'} · ${stopped} ${stopped === 1 ? 'parada' : 'paradas'}`;
+}

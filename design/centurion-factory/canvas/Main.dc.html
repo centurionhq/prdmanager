@@ -24,7 +24,7 @@
     @media (prefers-reduced-motion: reduce) { .cf-station, .cf-row, .cf-andon { animation: none; } }
   </style>
 </helmet>
-<div style="width: 1440px; height: 960px; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+<div style="position: relative; overflow: hidden; width: 1440px; height: 960px; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
 
   <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
     <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
@@ -201,6 +201,18 @@
       </div>
     </section>
   </main>
+  <!-- WO-681 (SDD-084 D3/D6): drawer abierto desde la celda de la estación actual de FR-002. -->
+  <div style="position: absolute; inset: 0; background: rgba(23, 25, 28, 0.45);"></div>
+  <aside aria-label="Órdenes de FR-002" style="position: absolute; top: 0; right: 0; bottom: 0; width: 520px; display: flex; flex-direction: column; gap: 16px; padding: 24px; background: #FBFCFB; border-left: 1px solid #C9CFCD;">
+    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;"><h2 style="margin: 0; font-size: 20px; font-weight: 700;">FR-002 Importador incremental de repositorios</h2><span aria-label="Cerrar" style="font-size: 20px; line-height: 1;">×</span></div>
+    <p class="num" style="margin: 0; font-size: 14px; color: #33383D;">22 órdenes · 14 hechas · 3 paradas</p>
+    <div style="display: flex; flex-direction: column;">
+      <div style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 0; border-bottom: 1px solid #DDE1DF;"><span class="id" style="color: #565D63;">WO-301</span><span style="flex: 1; min-width: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Esquema de importación</span><span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #19703F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Hecha</span></div>
+      <div style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 0; border-bottom: 1px solid #DDE1DF;"><span class="id" style="color: #565D63;">WO-304</span><span style="flex: 1; min-width: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Escaneo incremental por hash de archivo</span><span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #1F4FA0;"><span style="width: 8px; height: 8px; background: #1F4FA0;"></span>En curso</span></div>
+      <div style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 0; border-bottom: 1px solid #DDE1DF;"><span class="id" style="color: #565D63;">WO-310</span><span style="flex: 1; min-width: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Resumen del importador en la CLI</span><span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #B8322A;"><span style="width: 8px; height: 8px; background: #B8322A;"></span>Fuera de sincronía</span></div>
+      <div style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 0; border-bottom: 1px solid #DDE1DF;"><span class="id" style="color: #565D63;">WO-311</span><span style="flex: 1; min-width: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Reintento de subida con idempotencia</span><span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #565D63;"><span style="width: 8px; height: 8px; background: #565D63;"></span>Pendiente</span></div>
+    </div>
+  </aside>
 </div>
 </x-dc>
 </body>

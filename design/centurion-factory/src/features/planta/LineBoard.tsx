@@ -1,8 +1,10 @@
-import type { CSSProperties, ReactElement } from 'react';
+import { useState, type CSSProperties, type ReactElement } from 'react';
 import { Link } from 'react-router';
 import { STATIONS, STATION_LABELS } from '../../data';
 import { buildLineRows, findStopped, stationIndex } from './lineboard-data';
-import { LineBoardRow } from './LineBoardRow';
+import type { LineRow } from './lineboard-data';
+import { LineBoardRow, ordersPanelId } from './LineBoardRow';
+import { LineOrdersDrawer } from './LineOrdersDrawer';
 import styles from './LineBoard.module.css';
 
 function joinClasses(...values: (string | null | undefined | false)[]): string {
@@ -15,9 +17,14 @@ function joinClasses(...values: (string | null | undefined | false)[]): string {
  *
  * WO-680 (SDD-084 D1/D4): the notice is a list, one row per stopped initiative, each naming its id,
  * title and station and linking to that initiative's drift; the station cell is no longer that link.
+ * WO-681 (SDD-084 D3/D6): the station cell (and its mobile mirror) is a button opening that initiative's orders.
  */
 export function LineBoard(): ReactElement {
   const rows = buildLineRows();
+  // The drawer stays mounted after closing so `Drawer` can hand focus back to the cell.
+  const [orders, setOrders] = useState<{ readonly row: LineRow | null; readonly open: boolean }>({ row: null, open: false });
+  const toggleOrders = (row: LineRow): void =>
+    setOrders((prev) => (prev.open && prev.row?.feature.id === row.feature.id ? { ...prev, open: false } : { row, open: true }));
   const stopped = findStopped(rows);
   const andonStation = stopped[0]?.feature.station;
 
@@ -60,9 +67,25 @@ export function LineBoard(): ReactElement {
 
       <ul className={styles.rows}>
         {rows.map((row, index) => (
-          <LineBoardRow key={row.feature.id} row={row} index={index} andonStationIndex={andonStation === undefined ? -1 : stationIndex(andonStation)} />
+          <LineBoardRow
+            key={row.feature.id}
+            row={row}
+            index={index}
+            andonStationIndex={andonStation === undefined ? -1 : stationIndex(andonStation)}
+            isOrdersOpen={orders.open && orders.row?.feature.id === row.feature.id}
+            onOpenOrders={toggleOrders}
+          />
         ))}
       </ul>
+
+      {orders.row ? (
+        <LineOrdersDrawer
+          row={orders.row}
+          open={orders.open}
+          panelId={ordersPanelId(orders.row.feature.id)}
+          onClose={() => setOrders((prev) => ({ ...prev, open: false }))}
+        />
+      ) : null}
     </section>
   );
 }

@@ -1,4 +1,5 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { LineBoard } from '../../../src/features/planta/LineBoard';
@@ -79,5 +80,33 @@ describe('LineBoard', () => {
     const closedLabel = screen.getByText('cerrada · 245/245');
     const row = closedLabel.closest('li');
     expect(row?.className).toContain('rowClosed');
+  });
+
+  it('the station cell is a button that opens the initiative\'s work orders, each linked to ordenes?q= (WO-681)', async () => {
+    renderBoard();
+    const buttons = screen.getAllByRole('button', { name: /^FR-002 .*: ver órdenes$/ });
+    for (const button of buttons) expect(button.getAttribute('aria-expanded')).toBe('false');
+    await userEvent.click(buttons[0]!);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('22 órdenes · 14 hechas · 3 paradas')).toBeTruthy();
+    const wo301 = within(dialog).getByRole('link', { name: /^WO-301 / });
+    expect(wo301.getAttribute('href')).toBe('/ordenes?q=WO-301');
+    expect(within(wo301).getByText('Hecha')).toBeTruthy();
+    const wo311 = within(dialog).getByRole('link', { name: /^WO-311 / });
+    expect(wo311.getAttribute('href')).toBe('/ordenes?q=WO-311');
+    expect(within(wo311).getByText('Pendiente')).toBeTruthy();
+  });
+
+  it('Escape closes the orders drawer and returns focus to the cell (WO-681)', async () => {
+    renderBoard();
+    const button = screen.getAllByRole('button', { name: /^FR-002 .*: ver órdenes$/ })[0]!;
+    await userEvent.click(button);
+    const dialog = await screen.findByRole('dialog');
+    act(() => {
+      dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
+    });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(button);
   });
 });
