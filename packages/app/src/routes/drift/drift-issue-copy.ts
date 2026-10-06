@@ -70,6 +70,15 @@ function brokenLinkHeadline(issue: DriftIssueDto): string {
   return `El documento ${issue.nodeId} enlaza a ${target}, que ya no existe`;
 }
 
+const SHORT_SHA_LENGTH = 7;
+
+/** `landed_but_open` names the short sha of the commit that already references the open work order. */
+function landedButOpenHeadline(issue: DriftIssueDto): string {
+  const target = issue.target;
+  if (target === undefined || target === '') return 'Ya aterrizada: un commit del reporte la referencia en main';
+  return `Ya aterrizada: el commit ${target.slice(0, SHORT_SHA_LENGTH)} la referencia en main`;
+}
+
 /**
  * One row per `IssueKind` (`packages/core/src/sync/monitor.ts:18`): the Spanish headline and the suggested
  * action shown as "Qué hacer:". `headline` always names the real issue values, never a literal placeholder;
@@ -121,6 +130,10 @@ export const KIND_COPY: Readonly<
   status_write_failed: {
     headline: (issue) => `No se pudo escribir el estado del documento ${issue.nodeId}`,
     action: 'Reintentá; si persiste, revisá el estado del proyecto',
+  },
+  landed_but_open: {
+    headline: landedButOpenHeadline,
+    action: 'Completala con ese sha',
   },
 };
 
