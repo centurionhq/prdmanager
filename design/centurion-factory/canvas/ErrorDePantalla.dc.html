@@ -1,0 +1,246 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    /* Mirror of packages/app/src/styles/tokens.css: the comp only uses these names. */
+    :root {
+      --grafito: #17191C; --acero: #E9ECEB; --cianotipo: #1F4FA0; --cianotipo-hover: #173C7A;
+      --andon: #F5C400; --senal-texto: #19703F; --paro: #B8322A;
+      --superficie: #FBFCFB; --regla: #C9CFCD; --regla-fila: #DDE1DF; --relleno: #F1F3F2;
+      --texto-secundario: #33383D; --apagado: #565D63; --blanco: #FFFFFF; --diff-agregado: #E1F0E8; --diff-quitado: #F6E3E1;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px; --space-12: 48px;
+      --radius-plate: 2px; --radius-input: 4px; --control-height: 40px; --hit-target: 44px;
+      --focus-ring: 0 0 0 2px var(--superficie), 0 0 0 4px var(--cianotipo);
+    }
+    .m { --control-height: 44px; }
+    body { margin: 0; background: var(--acero); font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: var(--grafito); }
+    * { box-sizing: border-box; }
+    :focus { outline: none; }
+    :focus-visible { box-shadow: var(--focus-ring); }
+    button, a { font-family: inherit; }
+
+    /* Shell (mirror of AppShell / Sidebar / BottomBar) */
+    .shell { flex: 1; min-height: 0; display: flex; }
+    .sidebar { flex: none; width: 224px; display: flex; flex-direction: column; gap: var(--space-6); padding: var(--space-6) var(--space-4); border-right: 1px solid var(--regla); }
+    .brand { padding: 0 var(--space-2); font-size: 18px; line-height: 22px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em; }
+    .switcher { display: flex; flex-direction: column; padding: 8px 12px; border: 1px solid var(--regla); border-radius: var(--radius-plate); background: var(--superficie); }
+    .switcher small { font-size: 12px; line-height: 16px; color: var(--apagado); }
+    .switcher b { font-size: 15px; line-height: 20px; }
+    .nav { display: flex; flex-direction: column; gap: 2px; }
+    .nav a { display: flex; align-items: center; justify-content: space-between; height: var(--control-height); padding: 0 var(--space-3); border: 1px solid transparent; border-radius: var(--radius-plate); color: var(--texto-secundario); font-size: 15px; text-decoration: none; }
+    .nav a:hover { background: var(--relleno); color: var(--grafito); }
+    .nav a.on { background: var(--superficie); border-color: var(--regla); color: var(--grafito); font-weight: 600; }
+    .badge { min-width: 22px; height: 20px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; background: var(--andon); color: var(--grafito); font-size: 12px; font-weight: 700; border-radius: var(--radius-plate); }
+    .side-foot { margin-top: auto; border-top: 1px solid var(--regla); padding-top: var(--space-4); display: flex; align-items: center; gap: var(--space-3); }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--grafito); color: var(--blanco); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+    .content { flex: 1; min-width: 0; overflow: hidden; }
+    .topbar { flex: none; height: 56px; display: flex; align-items: center; padding: 0 var(--space-4); border-bottom: 1px solid var(--regla); font-size: 20px; font-weight: 800; font-stretch: 112%; letter-spacing: -0.01em; }
+    .bottom { flex: none; height: 64px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: var(--superficie); border-top: 1px solid var(--regla); }
+    .bottom a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: var(--hit-target); font-size: 12px; color: var(--apagado); text-decoration: none; }
+    .bottom svg { stroke: currentColor; }
+
+    /* Plate: same family as NotFoundPanel (page + card 32rem, rule, 2px radius), plus a paro mark. */
+    .page { min-height: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: var(--space-8); }
+    .m .page { padding: var(--space-4); align-items: flex-start; }
+    .card { width: 100%; max-width: 32rem; min-width: 0; background: var(--superficie); border: 1px solid var(--regla); border-radius: var(--radius-plate); padding: var(--space-6); display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); }
+    .m .card { padding: var(--space-4); }
+    .mark { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 14px; line-height: 20px; font-weight: 600; color: var(--paro); }
+    .mark i { display: block; width: 8px; height: 8px; background: var(--paro); }
+    .title { margin: 0; font-size: 20px; line-height: 26px; font-weight: 700; overflow-wrap: anywhere; }
+    .body { margin: 0; font-size: 14px; line-height: 20px; color: var(--texto-secundario); overflow-wrap: anywhere; }
+    .m .body { font-size: 16px; line-height: 22px; }
+    .rule { width: 100%; border: 0; border-top: 1px solid var(--regla-fila); margin: 0; }
+
+    /* Error id: same shape as CopyBlock (literal text + copy button), text stays selectable. */
+    .idblock { width: 100%; display: flex; align-items: stretch; border: 1px solid var(--regla); border-radius: var(--radius-plate); background: var(--relleno); }
+    .idtext { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; padding: var(--space-2) var(--space-3); }
+    .idlabel { font-size: 12px; line-height: 16px; color: var(--apagado); }
+    .m .idlabel { font-size: 14px; line-height: 20px; }
+    .idval { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 14px; line-height: 20px; user-select: all; overflow-wrap: anywhere; }
+    .copy { flex: none; min-width: var(--hit-target); min-height: var(--hit-target); padding: 0 var(--space-4); border: 0; border-left: 1px solid var(--regla); background: var(--superficie); color: var(--cianotipo); font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 0 var(--radius-plate) var(--radius-plate) 0; }
+    .m .copy { font-size: 16px; }
+    .copy:hover { background: var(--relleno); color: var(--cianotipo-hover); }
+    .copy.done { color: var(--senal-texto); }
+    .note { margin: 0; font-size: 12px; line-height: 16px; color: var(--apagado); }
+    .m .note { font-size: 14px; line-height: 20px; }
+    .fail { margin: 0; font-size: 14px; line-height: 20px; color: var(--paro); font-weight: 600; }
+
+    .actions { width: 100%; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .m .actions { flex-direction: column; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); height: var(--control-height); min-height: var(--hit-target); padding: 0 var(--space-4); border-radius: var(--radius-plate); border: 1px solid transparent; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; text-decoration: none; }
+    .m .btn { width: 100%; font-size: 16px; }
+    .btn-primary { background: var(--cianotipo); color: var(--blanco); }
+    .btn-primary:hover:not(:disabled) { background: var(--cianotipo-hover); }
+    .btn-secondary { background: var(--superficie); border-color: var(--regla); color: var(--grafito); }
+    .btn-secondary:hover { background: var(--relleno); }
+    .btn:disabled { background: var(--regla-fila); border-color: var(--regla-fila); color: var(--apagado); cursor: not-allowed; }
+    .spin { animation: spin 900ms linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+    /* Demo-only controls (not part of the screen). */
+    .demo { display: flex; align-items: center; gap: var(--space-6); padding: 0 var(--space-6); height: 56px; border-bottom: 1px solid var(--regla); background: var(--relleno); font-size: 13px; color: var(--apagado); flex: none; }
+    .chip { height: 32px; padding: 0 var(--space-3); border: 1px solid var(--regla); border-radius: var(--radius-plate); background: var(--superficie); color: var(--grafito); font-size: 13px; cursor: pointer; }
+    .chip.on { background: var(--grafito); color: var(--blanco); border-color: var(--grafito); }
+  </style>
+</helmet>
+<div class="{{ rootClass }}" style="position: relative; width: 1440px; height: 960px; overflow: hidden; background: var(--acero); display: flex; flex-direction: column;">
+
+  <div class="demo" role="toolbar" aria-label="Controles de la maqueta (no son parte de la pantalla)">
+    <span>Vista</span>
+    <div style="display: flex; gap: 4px;">
+      <sc-for list="{{ views }}" as="v" hint-placeholder-count="2">
+        <button type="button" class="{{ v.cls }}" onClick="{{ v.onClick }}">{{ v.label }}</button>
+      </sc-for>
+    </div>
+    <span>Estado</span>
+    <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+      <sc-for list="{{ states }}" as="s" hint-placeholder-count="5">
+        <button type="button" class="{{ s.cls }}" onClick="{{ s.onClick }}">{{ s.label }}</button>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="flex: 1; min-height: 0; display: flex; align-items: flex-start; justify-content: center; padding-top: {{ stagePad }}; overflow: hidden;">
+    <div style="{{ frameStyle }}">
+
+      <!-- Desktop: sidebar sobrevive -->
+      <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+        <aside class="sidebar" aria-label="Barra lateral">
+          <div class="brand">Centurion<br>Factory</div>
+          <div class="switcher"><small>Centurion HQ</small><b>prdmanager</b></div>
+          <nav class="nav" aria-label="Navegación principal">
+            <a href="#">Planta</a>
+            <a href="#">Árbol de features</a>
+            <a href="#">Documentos</a>
+            <a href="#" class="on" aria-current="page">Órdenes de trabajo</a>
+            <a href="#">Drift <span class="badge">11</span></a>
+            <a href="#">Bandeja de entrada</a>
+          </nav>
+          <div class="side-foot" style="margin-top: auto; border-top: 1px solid var(--regla); padding-top: var(--space-4);">
+            <span class="avatar" aria-hidden="true">TA</span>
+            <div><div style="font-size: 14px; font-weight: 600;">Tano</div><div style="font-size: 12px; color: var(--apagado);">Admin de proyecto</div></div>
+          </div>
+        </aside>
+      </sc-if>
+
+      <div class="content" style="display: flex; flex-direction: column;">
+        <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+          <header class="topbar">Órdenes de trabajo</header>
+        </sc-if>
+
+        <main id="contenido" tabindex="-1" style="flex: 1; min-height: 0; overflow: hidden;">
+          <div class="page">
+            <section class="card" aria-labelledby="t-err" role="alert">
+              <span class="mark"><i aria-hidden="true"></i>Algo salió mal</span>
+              <h1 id="t-err" class="title">No pudimos mostrar esta pantalla</h1>
+              <p class="body">El error es de esta pantalla, no de tu cuenta. El resto de la aplicación sigue funcionando: podés seguir desde otra sección.</p>
+
+              <div style="width: 100%; display: flex; flex-direction: column; gap: var(--space-2);">
+                <div class="idblock" role="group" aria-label="Código del error">
+                  <div class="idtext">
+                    <span class="idlabel">Código del error</span>
+                    <span class="idval">ERR-7F3A-92C1</span>
+                  </div>
+                  <button type="button" class="{{ copyClass }}" onClick="{{ onCopy }}" aria-label="{{ copyAria }}">{{ copyLabel }}</button>
+                </div>
+                <sc-if value="{{ copyFailed }}" hint-placeholder-val="{{ false }}">
+                  <p role="status" class="fail">No pudimos copiarlo. Seleccioná el código y copialo a mano.</p>
+                </sc-if>
+                <sc-if value="{{ copyOk }}" hint-placeholder-val="{{ false }}">
+                  <p role="status" class="note" style="color: var(--senal-texto);">Código copiado.</p>
+                </sc-if>
+                <sc-if value="{{ notCopyState }}" hint-placeholder-val="{{ true }}">
+                  <p class="note">No incluye tus datos. Pasale este código a quien administra el proyecto.</p>
+                </sc-if>
+              </div>
+
+              <hr class="rule">
+
+              <div class="actions">
+                <button type="button" class="btn btn-primary" disabled="{{ isRetrying }}" onClick="{{ onRetry }}">
+                  <sc-if value="{{ isRetrying }}" hint-placeholder-val="{{ false }}">
+                    <svg class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" style="stroke: var(--apagado); opacity: 0.35;"></circle><path d="M12 3a9 9 0 0 1 9 9" style="stroke: var(--apagado);"></path></svg>
+                  </sc-if>
+                  {{ retryLabel }}
+                </button>
+                <a href="#" class="btn btn-secondary">Ir a la Planta</a>
+                <a href="#" class="btn btn-secondary">Ir a Documentos</a>
+              </div>
+            </section>
+          </div>
+        </main>
+
+        <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+          <nav class="bottom" aria-label="Navegación principal">
+            <a href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V10l6 4V10l6 4V4h6v16z"></path></svg>Planta</a>
+            <a href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"></circle><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="12" r="2"></circle><path d="M6 7v10M8 5h4a4 4 0 0 1 4 4v1"></path></svg>Árbol</a>
+            <a href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6v18h12V7z"></path><path d="M14 3v4h4"></path><path d="M9 13h6"></path><path d="M9 17h6"></path></svg>Docs</a>
+            <a href="#" style="color: var(--grafito); font-weight: 700;" aria-current="page"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="1"></rect><path d="M9 4V3h6v1"></path><path d="M9 11h6"></path><path d="M9 16h4"></path></svg>Órdenes</a>
+            <a href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4L2 20h20z"></path><path d="M12 10v4"></path><circle cx="12" cy="17.5" r="0.5"></circle></svg>Drift</a>
+            <a href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg>Más</a>
+          </nav>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    // state: base | copied | copyfail | retrying
+    this.state = { mobile: false, view: 'base' };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const chip = (on) => 'chip' + (on ? ' on' : '');
+    const go = (view) => () => this.setState({ view: view });
+    const v = s.view;
+
+    const frameStyle = s.mobile
+      ? 'width: 375px; height: 820px; display: flex; flex-direction: column; overflow: hidden; background: var(--acero); border: 1px solid var(--regla); box-shadow: 0 0 0 8px var(--relleno);'
+      : 'width: 1440px; height: 848px; display: flex; overflow: hidden; background: var(--acero);';
+
+    return {
+      rootClass: s.mobile ? 'm' : '',
+      stagePad: s.mobile ? '24px' : '0px',
+      frameStyle: frameStyle,
+      isDesktop: !s.mobile,
+      isMobile: s.mobile,
+      views: [
+        { label: 'Escritorio 1440', cls: chip(!s.mobile), onClick: () => this.setState({ mobile: false }) },
+        { label: 'Móvil 375', cls: chip(s.mobile), onClick: () => this.setState({ mobile: true }) }
+      ],
+      states: [
+        { label: 'Error', cls: chip(v === 'base'), onClick: go('base') },
+        { label: 'Código copiado', cls: chip(v === 'copied'), onClick: go('copied') },
+        { label: 'No se pudo copiar', cls: chip(v === 'copyfail'), onClick: go('copyfail') },
+        { label: 'Reintentando', cls: chip(v === 'retrying'), onClick: go('retrying') }
+      ],
+      isRetrying: v === 'retrying',
+      retryLabel: v === 'retrying' ? 'Reintentando…' : 'Reintentar',
+      copyOk: v === 'copied',
+      copyFailed: v === 'copyfail',
+      notCopyState: v !== 'copied' && v !== 'copyfail',
+      copyClass: v === 'copied' ? 'copy done' : 'copy',
+      copyLabel: v === 'copied' ? 'Copiado' : 'Copiar',
+      copyAria: v === 'copied' ? 'Código copiado' : 'Copiar el código del error',
+      onCopy: go('copied'),
+      onRetry: go('retrying')
+    };
+  }
+}
+</script>
+</body>
+</html>

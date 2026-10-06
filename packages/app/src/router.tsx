@@ -34,60 +34,80 @@ import { Planta } from './routes/Planta.js';
 import { ProjectGraph } from './routes/ProjectGraph.js';
 import { ProjectShell } from './routes/ProjectShell.js';
 import { ProjectsDashboard } from './routes/ProjectsDashboard.js';
+import { OrgScreenError, ProjectScreenError, RootScreenError } from './routes/RouteError.js';
 import { ResetPassword } from './routes/ResetPassword.js';
 import { RootRedirect } from './routes/RootRedirect.js';
 import { SettingsTokensRedirect } from './routes/SettingsTokensRedirect.js';
 
+// SDD-103 D1: the error boundary lives in a path-less route ONE LEVEL BELOW each shell — never on the shell's own
+// route, which would swap the whole chrome for the plate (the FB-189 bug). React Router truncates the branch at the
+// deepest route that declares `errorElement` and renders it in that route's place, parents intact. The root
+// boundary is the last resort for when the chrome itself throws: no sidebar to keep, so no navigation either.
 export const routes: RouteObject[] = [
-  { path: '/', element: <RootRedirect /> },
-  { path: '/login', element: <Login /> },
-  { path: '/reset-password', element: <ResetPassword /> },
-  { path: '/invite/:id', element: <InviteAccept /> },
-  { path: '/admin', element: <AdminOrganizations /> },
-  { path: '/settings/tokens', element: <SettingsTokensRedirect /> },
   {
-    path: '/o/:orgSlug',
-    element: <OrgShell />,
+    errorElement: <RootScreenError />,
     children: [
-      { index: true, element: <ProjectsDashboard /> },
-      { path: 'ajustes/miembros', element: <OrgMembersSettings /> },
-      { path: 'ajustes/auditoria', element: <OrgAjustesAuditoria /> },
-      { path: '*', element: <OrgNotFound /> },
-    ],
-  },
-  {
-    path: '/o/:orgSlug/p/:projectSlug',
-    element: <ProjectShell />,
-    children: [
-      { index: true, element: <Planta /> },
-      { path: 'construir/negocio', element: <ConstruirNegocio /> },
-      { path: 'construir/developer', element: <ConstruirDeveloper /> },
-      { path: 'construir/producto', element: <ConstruirProducto /> },
-      { path: 'arbol/:id?', element: <ProjectGraph /> },
-      { path: 'documents', element: <DocumentsList /> },
-      { path: 'documents/:docId', element: <DocumentDetail /> },
-      { path: 'ordenes', element: <Ordenes /> },
-      { path: 'drift', element: <DriftDashboard /> },
-      { path: 'entrada', element: <Entrada /> },
+      { path: '/', element: <RootRedirect /> },
+      { path: '/login', element: <Login /> },
+      { path: '/reset-password', element: <ResetPassword /> },
+      { path: '/invite/:id', element: <InviteAccept /> },
+      { path: '/admin', element: <AdminOrganizations /> },
+      { path: '/settings/tokens', element: <SettingsTokensRedirect /> },
       {
-        path: 'ajustes',
-        element: <AjustesLayout />,
+        path: '/o/:orgSlug',
+        element: <OrgShell />,
         children: [
-          { index: true, element: <Navigate to="general" replace /> },
-          { path: 'general', element: <AjustesGeneral /> },
-          { path: 'miembros', element: <AjustesMiembros /> },
-          { path: 'tokens', element: <AjustesTokens /> },
-          { path: 'tokens-personales', element: <PersonalTokensSettings /> },
-          { path: 'perfil', element: <AjustesPerfil /> },
-          { path: 'auditoria', element: <AjustesAuditoria /> },
+          {
+            errorElement: <OrgScreenError />,
+            children: [
+              { index: true, element: <ProjectsDashboard /> },
+              { path: 'ajustes/miembros', element: <OrgMembersSettings /> },
+              { path: 'ajustes/auditoria', element: <OrgAjustesAuditoria /> },
+              { path: '*', element: <OrgNotFound /> },
+            ],
+          },
         ],
       },
-      { path: 'settings', element: <Navigate to="../ajustes/general" replace /> },
-      { path: 'graph', element: <Navigate to="../arbol" replace /> },
-      { path: '*', element: <ProjectNotFound /> },
+      {
+        path: '/o/:orgSlug/p/:projectSlug',
+        element: <ProjectShell />,
+        children: [
+          {
+            errorElement: <ProjectScreenError />,
+            children: [
+              { index: true, element: <Planta /> },
+              { path: 'construir/negocio', element: <ConstruirNegocio /> },
+              { path: 'construir/developer', element: <ConstruirDeveloper /> },
+              { path: 'construir/producto', element: <ConstruirProducto /> },
+              { path: 'arbol/:id?', element: <ProjectGraph /> },
+              { path: 'documents', element: <DocumentsList /> },
+              { path: 'documents/:docId', element: <DocumentDetail /> },
+              { path: 'ordenes', element: <Ordenes /> },
+              { path: 'drift', element: <DriftDashboard /> },
+              { path: 'entrada', element: <Entrada /> },
+              {
+                path: 'ajustes',
+                element: <AjustesLayout />,
+                children: [
+                  { index: true, element: <Navigate to="general" replace /> },
+                  { path: 'general', element: <AjustesGeneral /> },
+                  { path: 'miembros', element: <AjustesMiembros /> },
+                  { path: 'tokens', element: <AjustesTokens /> },
+                  { path: 'tokens-personales', element: <PersonalTokensSettings /> },
+                  { path: 'perfil', element: <AjustesPerfil /> },
+                  { path: 'auditoria', element: <AjustesAuditoria /> },
+                ],
+              },
+              { path: 'settings', element: <Navigate to="../ajustes/general" replace /> },
+              { path: 'graph', element: <Navigate to="../arbol" replace /> },
+              { path: '*', element: <ProjectNotFound /> },
+            ],
+          },
+        ],
+      },
+      { path: '*', element: <NotFound /> },
     ],
   },
-  { path: '*', element: <NotFound /> },
 ];
 
 export const router = createBrowserRouter(routes);

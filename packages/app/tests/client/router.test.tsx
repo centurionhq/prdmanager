@@ -1,10 +1,47 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as client from '../../src/api/client.js';
 import { clearQueryCache } from '../../src/api/query-cache.js';
 import { routes } from '../../src/router';
 import { makeOrgSummary, makeProjectOverview } from './fixtures.js';
+
+/** SDD-103: banderas mutables (izadas con el `vi.mock`) que hacen tirar a una pantalla real durante el render. */
+const thrown = vi.hoisted(() => ({ ordenes: false, admin: false, orgIndex: false }));
+
+vi.mock('../../src/routes/Ordenes.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/routes/Ordenes.js')>();
+  return {
+    ...actual,
+    Ordenes: () => {
+      if (thrown.ordenes) throw new Error('boom en Órdenes');
+      return <actual.Ordenes />;
+    },
+  };
+});
+
+vi.mock('../../src/routes/AdminOrganizations.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/routes/AdminOrganizations.js')>();
+  return {
+    ...actual,
+    AdminOrganizations: () => {
+      if (thrown.admin) throw new Error('boom en Admin');
+      return <actual.AdminOrganizations />;
+    },
+  };
+});
+
+vi.mock('../../src/routes/ProjectsDashboard.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/routes/ProjectsDashboard.js')>();
+  return {
+    ...actual,
+    ProjectsDashboard: () => {
+      if (thrown.orgIndex) throw new Error('boom en Proyectos');
+      return <actual.ProjectsDashboard />;
+    },
+  };
+});
 
 /** WO-117: "/" no longer renders a static placeholder — it's `RootRedirect`, which sends a signed-out
  * visitor to `/login` (this repo's actual entry point once a session exists is `/o/:orgSlug`, exercised by
@@ -153,6 +190,103 @@ describe('app router', () => {
       render(<RouterProvider router={router} />);
 
       expect(await screen.findByRole('button', { name: 'Crear token' })).toBeTruthy();
+    });
+  });
+
+  describe('SDD-103 · el error de render se contiene dentro del chrome', () => {
+    const CODE = /^ERR-[0-9A-F]{4}-[0-9A-F]{4}$/;
+    let consoleError: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(client, 'listOrganizations').mockResolvedValue([makeOrgSummary()]);
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProjectOverview()]);
+      vi.spyOn(client, 'getSession').mockResolvedValue(null);
+      vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null, workProfile: null });
+      vi.spyOn(client, 'queryWorkOrders').mockResolvedValue({
+        items: [],
+        total: 0,
+        statusCounts: { all: 0, pending: 0, in_progress: 0, out_of_sync: 0, done: 0, archived: 0 },
+      } as Awaited<ReturnType<typeof client.queryWorkOrders>>);
+    });
+    afterEach(() => {
+      thrown.ordenes = false;
+      thrown.admin = false;
+      thrown.orgIndex = false;
+    });
+
+    function mountOrdenes() {
+      thrown.ordenes = true;
+      const router = createMemoryRouter(routes, { initialEntries: ['/o/acme/p/web/ordenes'] });
+      render(<RouterProvider router={router} />);
+      return router;
+    }
+
+    it('(a) project level: the sidebar survives and the plate explains it without leaking the engine error', async () => {
+      mountOrdenes();
+
+      expect(await screen.findByRole('heading', { name: 'No pudimos mostrar esta pantalla' })).toBeTruthy();
+      expect(screen.getByRole('navigation', { name: 'Navegación principal' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Reintentar' })).toBeTruthy();
+      const exits = within(screen.getByRole('navigation', { name: 'Destinos del proyecto' }));
+      expect(exits.getByRole('link', { name: 'Ir a la Planta' }).getAttribute('href')).toBe('/o/acme/p/web');
+      expect(exits.getByRole('link', { name: 'Ir a Documentos' }).getAttribute('href')).toBe('/o/acme/p/web/documents');
+      const group = within(screen.getByRole('group', { name: 'Código del error' }));
+      expect(group.getByText(CODE)).toBeTruthy();
+      expect(screen.queryByText(/Unexpected Application Error/)).toBeNull();
+      expect(screen.queryByText(/boom en Órdenes/)).toBeNull();
+    });
+
+    it('(b) logs the same code it shows, next to the real error', async () => {
+      mountOrdenes();
+
+      const code = (await screen.findByText(CODE)).textContent ?? '';
+      expect(consoleError).toHaveBeenCalledWith(`[route-error] ${code}`, expect.any(Error));
+    });
+
+    it('(c) "Reintentar" redraws the real screen once the cause is gone', async () => {
+      mountOrdenes();
+      await screen.findByRole('heading', { name: 'No pudimos mostrar esta pantalla' });
+
+      thrown.ordenes = false;
+      await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+
+      expect(await screen.findByRole('heading', { name: 'Órdenes de trabajo' })).toBeTruthy();
+      expect(screen.queryByRole('heading', { name: 'No pudimos mostrar esta pantalla' })).toBeNull();
+    });
+
+    it('(d) navigating to another route of the shell clears the plate', async () => {
+      const router = mountOrdenes();
+      await screen.findByRole('heading', { name: 'No pudimos mostrar esta pantalla' });
+
+      await router.navigate('/o/acme/p/web/ajustes/general');
+
+      expect(await screen.findByRole('heading', { name: 'General' })).toBeTruthy();
+      expect(screen.queryByRole('heading', { name: 'No pudimos mostrar esta pantalla' })).toBeNull();
+    });
+
+    it('(e) org level: the org header survives and the exit goes to the org projects', async () => {
+      thrown.orgIndex = true;
+      const router = createMemoryRouter(routes, { initialEntries: ['/o/acme'] });
+      render(<RouterProvider router={router} />);
+
+      expect(await screen.findByRole('heading', { name: 'No pudimos mostrar esta pantalla' })).toBeTruthy();
+      expect(screen.getByText('Acme')).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Ver los proyectos de Acme' }).getAttribute('href')).toBe('/o/acme');
+      expect(screen.getByRole('button', { name: 'Reintentar' })).toBeTruthy();
+      expect(screen.queryByText(/boom en Proyectos/)).toBeNull();
+    });
+
+    it('(e) last resort: a failure outside any shell renders the plate with no navigation', async () => {
+      thrown.admin = true;
+      const router = createMemoryRouter(routes, { initialEntries: ['/admin'] });
+      render(<RouterProvider router={router} />);
+
+      expect(await screen.findByRole('heading', { name: 'No pudimos mostrar esta pantalla' })).toBeTruthy();
+      expect(screen.getByText(CODE)).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Reintentar' })).toBeTruthy();
+      expect(screen.queryByRole('navigation')).toBeNull();
+      expect(screen.queryByText(/Unexpected Application Error/)).toBeNull();
     });
   });
 });
