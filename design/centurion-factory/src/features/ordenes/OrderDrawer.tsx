@@ -11,6 +11,7 @@ import { OrderGovernedCodeSection } from './OrderGovernedCodeSection';
 import { OrderHeader } from './OrderHeader';
 import { OrderPrimaryAction } from './OrderPrimaryAction';
 import { TakeOrderModal } from './TakeOrderModal';
+import { CURRENT_HANDLE } from './actions';
 import { useOrderDrawerActions } from './useOrderDrawerActions';
 
 export interface OrderDrawerProps {
@@ -60,7 +61,13 @@ export function OrderDrawer({ order, open, onClose, onUpdate }: OrderDrawerProps
         </div>
       </Drawer>
 
-      <TakeOrderModal open={actions.takeOpen} onClose={actions.closeTake} onConfirm={actions.handleTakeConfirm} />
+      <TakeOrderModal
+        open={actions.takeOpen}
+        orderId={order.id}
+        handle={CURRENT_HANDLE}
+        onClose={actions.closeTake}
+        onConfirm={actions.handleTakeConfirm}
+      />
       <ArchiveOrderModal open={actions.archiveOpen} orderId={order.id} onClose={actions.closeArchive} onConfirm={actions.handleArchiveConfirm} />
       <CompleteOrderModal open={actions.completeOpen} orderId={order.id} onClose={actions.closeComplete} onConfirm={actions.handleCompleteConfirm} />
     </>

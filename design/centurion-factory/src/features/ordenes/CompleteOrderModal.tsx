@@ -51,7 +51,7 @@ export function CompleteOrderModal({ open, orderId, onClose, onConfirm }: Comple
         </label>
         <input
           id={inputId}
-          className={styles.input}
+          className={[styles.input, styles.mono].join(' ')}
           value={sha}
           onChange={handleChange}
           aria-invalid={touched && !valid}

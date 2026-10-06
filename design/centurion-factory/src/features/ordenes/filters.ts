@@ -4,14 +4,16 @@
  * Kept free of React so the predicate combinations are unit-testable on their own.
  */
 import { searchItems, type SortState } from '../../lib/filter-sort';
-import type { WorkOrder, WorkOrderStatus } from '../../data';
+import type { ActorRef, WorkOrder, WorkOrderStatus } from '../../data';
+import { CURRENT_HANDLE, devActor } from './actions';
 
 /**
- * The demo's logged-in user (see the Ana Ríos profile card in the sidebar). No mock work order is
- * assigned to her, so "Tomadas por mí" is naturally empty here — the same behavior
+ * The demo's logged-in user (see the Ana Ríos profile card in the sidebar), derived from the
+ * session handle so "Tomadas por mí" and the «Yo» of "Tomar orden" can never disagree. No mock work
+ * order is assigned to her, so "Tomadas por mí" is naturally empty here — the same behavior
  * canvas/Ordenes.dc.html hardcodes for its approved `mine` filter.
  */
-export const CURRENT_ACTOR = 'dev:ana';
+export const CURRENT_ACTOR: ActorRef | null = CURRENT_HANDLE === null ? null : devActor(CURRENT_HANDLE);
 
 export type StatusFilterKey = 'todas' | WorkOrderStatus | 'mias';
 
@@ -57,7 +59,7 @@ export function parseStatusFilter(value: string | null): StatusFilterKey {
 function matchesStatus(order: WorkOrder, key: StatusFilterKey): boolean {
   // "Todas" is the active queue: archived orders only show under their own chip (SDD-064, FB-069).
   if (key === 'todas') return order.status !== 'archived';
-  if (key === 'mias') return order.assignedTo === CURRENT_ACTOR;
+  if (key === 'mias') return CURRENT_ACTOR !== null && order.assignedTo === CURRENT_ACTOR;
   return order.status === key;
 }
 

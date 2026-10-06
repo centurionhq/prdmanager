@@ -69,15 +69,28 @@ describe('OrderDrawer', () => {
     expect(screen.getByRole('link', { name: 'Ver blueprint' }).getAttribute('href')).toBe('/documentos/SDD-012');
   });
 
-  it('pending: "Tomar orden" opens a modal and confirming assigns and moves it to in_progress', async () => {
+  it('pending: "Tomar orden" opens the modal and confirming assigns it to the session dev', async () => {
     const user = userEvent.setup();
     const { onUpdate } = renderDrawer('WO-311');
     await user.click(screen.getByRole('button', { name: 'Tomar orden' }));
     const dialog = screen.getByRole('dialog', { name: 'Tomar orden' });
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Asignar a' }), 'dev:martin');
+    expect(within(dialog).getByText('WO-311 pasa a estar en curso, asignada a quien elijas.')).toBeTruthy();
+    const self = within(dialog).getByRole('radio', { name: 'Yo (dev:ana)' }) as HTMLInputElement;
+    expect(self.checked).toBe(true);
     await user.click(within(dialog).getByRole('button', { name: 'Tomar orden' }));
-    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'WO-311', status: 'in_progress', assignedTo: 'dev:martin' }));
+    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'WO-311', status: 'in_progress', assignedTo: 'dev:ana' }));
     expect((await screen.findByRole('status')).textContent).toContain('Orden tomada');
+  });
+
+  it('pending: "Tomar orden" can hand the order to a named agent instead', async () => {
+    const user = userEvent.setup();
+    const { onUpdate } = renderDrawer('WO-311');
+    await user.click(screen.getByRole('button', { name: 'Tomar orden' }));
+    const dialog = screen.getByRole('dialog', { name: 'Tomar orden' });
+    await user.click(within(dialog).getByRole('radio', { name: /Un agente/ }));
+    await user.type(within(dialog).getByRole('textbox', { name: 'Nombre del agente' }), 'claude.2');
+    await user.click(within(dialog).getByRole('button', { name: 'Tomar orden' }));
+    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'WO-311', status: 'in_progress', assignedTo: 'agent:claude.2' }));
   });
 
   it('in_progress: "Completar" validates the SHA and, once valid, marks the order done', async () => {

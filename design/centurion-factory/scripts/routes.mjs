@@ -9,6 +9,8 @@ export const SCREENSHOT_ROUTES = [
   { name: 'documentos', path: '/documentos' },
   { name: 'documento', path: '/documentos/SDD-011' },
   { name: 'ordenes', path: '/ordenes' },
+  // WO-756: el drawer de una orden pendiente con el modal «Tomar orden» abierto (SDD-086 §D2).
+  { name: 'ordenes-tomar', path: '/ordenes?orden=WO-311', click: 'Tomar orden' },
   { name: 'drift', path: '/drift' },
   { name: 'entrada', path: '/entrada' },
   { name: 'ajustes-miembros', path: '/ajustes/miembros' },

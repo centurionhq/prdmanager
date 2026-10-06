@@ -4,8 +4,26 @@
  */
 import type { ActorRef, WorkOrder } from '../../data';
 
-/** The actors a person can hand a work order to from "Tomar orden" (two agents, two developers). */
-export const ASSIGNABLE_ACTORS: readonly ActorRef[] = ['agent:claude', 'agent:deepseek', 'dev:martin', 'dev:diego'];
+/**
+ * The demo's signed-in session — Ana Ríos, `dev:ana` in `src/data/people.ts` — exposed as the
+ * handle the «Yo» option of "Tomar orden" sends (SDD-086 §D2, FB-146). A `null` handle models a
+ * session without one: the modal has to explain that instead of assigning a broken actor.
+ */
+export const CURRENT_HANDLE: string | null = 'ana';
+
+/** How a person is named as an actor: `dev:<handle>`. */
+export function devActor(handle: string): ActorRef {
+  return `dev:${handle}`;
+}
+
+/** The charset the server accepts for an `agent:<name>` actor (SDD-086 §D2). */
+const AGENT_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
+
+export function isValidAgentName(value: string): boolean {
+  return AGENT_NAME_PATTERN.test(value.trim());
+}
+
+export const AGENT_NAME_ERROR = 'Escribí el nombre del agente (letras, números, punto, guion o guion bajo, hasta 64).';
 
 const COMMIT_SHA_PATTERN = /^[0-9a-f]{7,40}$/i;
 
