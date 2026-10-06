@@ -59,10 +59,18 @@
       </div>
     </header>
 
-    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-      <sc-for list="{{ chips }}" as="chip" hint-placeholder-count="3">
-        <button type="button" onClick="{{ chip.pick }}" style="{{ chip.style }}">{{ chip.label }}<span class="num" style="{{ chip.countStyle }}">{{ chip.count }}</span></button>
-      </sc-for>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 24px;">
+      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        <sc-for list="{{ chips }}" as="chip" hint-placeholder-count="3">
+          <button type="button" onClick="{{ chip.pick }}" style="{{ chip.style }}">{{ chip.label }}<span class="num" style="{{ chip.countStyle }}">{{ chip.count }}</span></button>
+        </sc-for>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+        <span style="font-size: 14px; color: #565D63;">Estado de la línea</span>
+        <sc-for list="{{ lineChips }}" as="chip" hint-placeholder-count="4">
+          <button type="button" onClick="{{ chip.pick }}" style="{{ chip.style }}">{{ chip.label }}<span class="num" style="{{ chip.countStyle }}">{{ chip.count }}</span></button>
+        </sc-for>
+      </div>
     </div>
 
     <section style="padding: 12px 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px; color: #33383D; display: flex; flex-direction: column; gap: 6px;">
@@ -127,7 +135,7 @@
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { filter: 'active', confirming: null };
+    this.state = { filter: 'active', lineFilter: 'all', confirming: null };
   }
 
   renderVals() {
@@ -163,7 +171,34 @@ class Component extends DCLogic {
       };
     });
 
+    const lineMatchers = {
+      all: () => true,
+      stopped: (p) => p.driftAt !== 0,
+      drift: (p) => p.drift === 'error' || p.drift === 'warning',
+      awaiting: (p) => p.drift === 'awaiting'
+    };
+    const lineFilters = [
+      { key: 'all', label: 'Todos' },
+      { key: 'stopped', label: 'Detenidos' },
+      { key: 'drift', label: 'Con drift' },
+      { key: 'awaiting', label: 'Esperando CI' }
+    ];
+    const currentLine = this.state.lineFilter;
+    const lineChips = lineFilters.map((f) => {
+      const isSelected = f.key === currentLine;
+      return {
+        label: f.label,
+        count: projects.filter(lineMatchers[f.key]).length,
+        style: isSelected
+          ? chipBase + ' background: #17191C; color: #E9ECEB; border: 1px solid #17191C; font-weight: 600;'
+          : chipBase + ' background: #FBFCFB; color: #17191C; border: 1px solid #C9CFCD; font-weight: 400;',
+        countStyle: isSelected ? 'font-size: 13px; color: #C9CFCD;' : 'font-size: 13px; color: #565D63;',
+        pick: () => this.setState({ lineFilter: f.key })
+      };
+    });
+
     const visible = projects.filter((p) => {
+      if (!lineMatchers[currentLine](p)) return false;
       if (current === 'active') return !p.archived;
       if (current === 'archived') return p.archived;
       return true;
@@ -209,7 +244,7 @@ class Component extends DCLogic {
       };
     });
 
-    return { chips: chips, rows: rows, confirmOpen: this.state.confirming !== null, confirmTitle: 'Archivar ' + this.state.confirming, cancelConfirm: () => this.setState({ confirming: null }), doConfirm: () => this.setState({ confirming: null }) };
+    return { chips: chips, lineChips: lineChips, rows: rows, confirmOpen: this.state.confirming !== null, confirmTitle: 'Archivar ' + this.state.confirming, cancelConfirm: () => this.setState({ confirming: null }), doConfirm: () => this.setState({ confirming: null }) };
   }
 }
 </script>
