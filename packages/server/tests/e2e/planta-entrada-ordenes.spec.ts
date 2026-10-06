@@ -39,15 +39,28 @@
  * padrón is big enough to page through for real, the SDD checklist below carries more than one item: a
  * blueprint's `## Tareas` is exactly what `generate_work_orders` turns into work orders, so this stays
  * the real governance pipeline, never a seeded fixture.
+ *
+ * WO-689 (SDD-086 WO-E, gate): the same journey now also covers that blueprint's integrated result —
+ * «Tomar orden» asking for the assignee (the caller's `dev:<handle>` by default, `agent:<name>` as the
+ * alternative, and a `dev:<otro>` refused server-side with 403), the batch bar over the DataTable's
+ * multi-select (counter + `aria-live`, in-progress orders walking away from *Todas* and staying
+ * `archived` in the graph, and one failing item never aborting the rest), the empty state of a project
+ * with no orders (which explains the blueprint checklist and leads to Construir) and the still-reachable
+ * «Quitar filtros» of a filter-only empty state — at 1440 and 375 px, with the same CSP listener.
  */
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { PASSWORD, startJourney, stopJourney, type Journey } from './harness.js';
+import { mutationHeaders } from '../helpers/csrf.js';
 
 let journey: Journey;
 
 const ALICE_HANDLE = 'alice-e2e-line-board';
+
+/** WO-689 (SDD-086 §D2): the agent name the delegation path claims with — `agent:<name>` is the actor
+ * shape `@prdm/core`'s `claimWorkOrder` accepts, and the one this journey assigns the second order to. */
+const E2E_AGENT = 'prdm-engineer';
 
 /** Screenshots for the 1440/375 px checks (WO-614) — the same gitignored dir the WO-623 test writes to. */
 const SHOTS_DIR = fileURLToPath(new URL('../../test-results/', import.meta.url));
@@ -332,6 +345,15 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
 
   let workOrderId = '';
   let secondWorkOrderId = '';
+  /** WO-689: the orders the SDD-086 steps below take out of *Todas* — two archived as one batch, one
+   * claimed by an `agent:<name>`, one left pending for the refused `dev:<otro>` case, and the pair the
+   * partial batch uses (an already-in-progress order plus a pending one). */
+  let batchIds: readonly string[] = [];
+  let agentWorkOrderId = '';
+  let refusedWorkOrderId = '';
+  /** The order the «no `assignee`» claim below takes, kept pending for the partial batch afterwards. */
+  let selfClaimWorkOrderId = '';
+  let partialClaimIds: readonly string[] = [];
 
   await test.step('Planta: publishing an architecting SDD (with its generated work orders) moves the PRD to Planificación', async () => {
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/documents`);
@@ -379,6 +401,13 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     const woIds = body.documents.map((document) => document.docId).sort((a, b) => a.localeCompare(b));
     workOrderId = woIds[0]!;
     secondWorkOrderId = woIds[1]!;
+    // WO-689: the batch/agent steps below take the next ids, so the WO-614 expectations above (still one
+    // in-progress order, 26 rows across two pages) keep measuring exactly what they always measured.
+    batchIds = [woIds[2]!, woIds[3]!];
+    agentWorkOrderId = woIds[4]!;
+    refusedWorkOrderId = woIds[5]!;
+    selfClaimWorkOrderId = woIds[7]!;
+    partialClaimIds = [workOrderId, woIds[6]!];
 
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
     // Same WO-443 collapse as the earlier station check -- the row is keyed on the BC, not the PRD.
@@ -399,6 +428,13 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await expect(drawer.getByText('Sin asignar')).toBeVisible();
 
     await drawer.getByRole('button', { name: 'Tomar orden' }).click();
+    // SDD-086 §D2 (FB-146): «Tomar orden» no longer claims blindly — it asks who the order goes to, with
+    // the caller's own `dev:<handle>` selected by default.
+    const claimModal = page.getByRole('dialog', { name: 'Tomar orden' });
+    await expect(claimModal.getByRole('radio', { name: `Yo (dev:${ALICE_HANDLE})` })).toBeChecked();
+    await claimModal.getByRole('button', { name: 'Tomar orden' }).click();
+    await expect(claimModal).toBeHidden();
+
     await expect(drawer.getByText('En curso')).toBeVisible();
     await expect(drawer.getByText(`dev:${ALICE_HANDLE}`)).toBeVisible();
     await expect(drawer.getByRole('button', { name: 'Tomar orden' })).toHaveCount(0);
@@ -490,6 +526,144 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     const archived = page.getByRole('row', { name: new RegExp(secondWorkOrderId) });
     await expect(archived).toBeVisible();
     await expect(archived.getByText('Archivada', { exact: true })).toBeVisible();
+  });
+
+  await test.step('Órdenes: el asignado elegible se elige al tomar y la lista lo muestra (SDD-086 D1/D2, FB-146)', async () => {
+    await page.getByRole('radio', { name: /Todas/ }).click();
+    await expect(page).not.toHaveURL(/status=/);
+
+    await page.getByRole('row', { name: new RegExp(agentWorkOrderId) }).click();
+    const drawer = page.getByRole('dialog');
+    await expect(drawer.getByText('Sin asignar')).toBeVisible();
+
+    await drawer.getByRole('button', { name: 'Tomar orden' }).click();
+    const claimModal = page.getByRole('dialog', { name: 'Tomar orden' });
+    // SDD-086 §D2: the alternative to «Yo» is delegating to a bot, with the `agent:<name>` charset.
+    await claimModal.getByRole('radio', { name: 'Un agente…' }).check();
+    await claimModal.getByRole('textbox', { name: 'Nombre del agente' }).fill(E2E_AGENT);
+    await claimModal.getByRole('button', { name: 'Tomar orden' }).click();
+    await expect(claimModal).toBeHidden();
+
+    const assignedDrawer = page.getByRole('dialog').filter({ hasText: agentWorkOrderId });
+    await expect(assignedDrawer.getByText('En curso')).toBeVisible();
+    await expect(assignedDrawer.getByText(`agent:${E2E_AGENT}`)).toBeVisible();
+    await assignedDrawer.getByRole('button', { name: 'Cerrar' }).click();
+
+    // The list itself is the real read (server-side page, refreshed after the claim).
+    await expect(page.getByRole('row', { name: new RegExp(agentWorkOrderId) })).toContainText(`agent:${E2E_AGENT}`);
+
+    // SDD-086 §D1, measured against the real server with the session's own cookie: someone else's
+    // `dev:<handle>` is refused with 403 and the order is left exactly as it was (still `pending`, no
+    // assignee) — never silently reassigned.
+    const origin = baseUrl;
+    const host = { host: new URL(baseUrl).host };
+    const signIn = await journey.app.inject({ method: 'POST', url: '/api/auth/sign-in/email', payload: { email: alice.email, password: PASSWORD }, headers: host });
+    const cookie = (signIn.headers['set-cookie'] as string).split(';')[0]!;
+    const apiBase = `/api/app/organizations/${org.slug}/projects/${project.slug}`;
+    const refused = await journey.app.inject({
+      method: 'POST',
+      url: `${apiBase}/work-orders/${refusedWorkOrderId}/claim`,
+      headers: await mutationHeaders(journey.app, host, origin, cookie),
+      payload: { assignee: 'dev:otro' },
+    });
+    expect(refused.statusCode).toBe(403);
+    const untouched = await journey.app.inject({ method: 'GET', url: `${apiBase}/work-orders/${refusedWorkOrderId}/context`, headers: { ...host, cookie } });
+    const untouchedOrder = (untouched.json() as { context: { workOrder: { status: string; assignedTo: string | null } } }).context.workOrder;
+    expect(untouchedOrder.status).toBe('pending');
+    expect(untouchedOrder.assignedTo).toBeNull();
+
+    // Without an explicit assignee the claim stays the contract it always had: the session's `dev:<handle>`.
+    const selfClaim = await journey.app.inject({
+      method: 'POST',
+      url: `${apiBase}/work-orders/${selfClaimWorkOrderId}/claim`,
+      headers: await mutationHeaders(journey.app, host, origin, cookie),
+      payload: {},
+    });
+    expect(selfClaim.statusCode).toBe(200);
+    expect((selfClaim.json() as { result: { assignedTo: string } }).result.assignedTo).toBe(`dev:${ALICE_HANDLE}`);
+  });
+
+  await test.step('Órdenes: la selección múltiple archiva en lote y un ítem fallido no aborta el resto (SDD-086 D4/D5/D6, FB-147)', async () => {
+    // Selecting is a real checkbox per row (SDD-086 §D5), and the count is announced twice: in the bar and
+    // through the table's own `aria-live` region.
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/ordenes`);
+    for (const id of batchIds) await page.getByRole('checkbox', { name: `Seleccionar ${id}` }).check();
+
+    const batchBar = page.getByRole('group', { name: 'Acciones en lote' });
+    await expect(batchBar.getByText('2 órdenes seleccionadas')).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: '2 órdenes seleccionadas' })).toBeVisible();
+    // Each selected row declares its own state, too.
+    await expect(page.getByRole('row', { name: new RegExp(batchIds[0]!) })).toHaveAttribute('aria-selected', 'true');
+
+    await batchBar.getByRole('button', { name: 'Archivar seleccionadas' }).click();
+    const batchModal = page.getByRole('dialog', { name: 'Archivar órdenes' });
+    await expect(batchModal.getByText('Las 2 órdenes seleccionadas')).toBeVisible();
+    await batchModal.getByLabel('Motivo (opcional)').fill('Obsoletas: las cubre otra orden del lote');
+    await batchModal.getByRole('button', { name: 'Archivar' }).click();
+    await expect(batchModal).toBeHidden();
+    await expect(page.getByRole('status').filter({ hasText: '2 órdenes archivadas' })).toBeVisible();
+
+    // Both leave «Todas» (SDD-064 D3)...
+    for (const id of batchIds) await expect(page.getByRole('row', { name: new RegExp(id) })).toHaveCount(0);
+    // ...and stay `archived` in the graph — read back from the server, never from the toast.
+    const archivedPage = await page.request.get(`${baseUrl}/api/app/organizations/${org.slug}/projects/${project.slug}/graph/work-orders?status=archived&limit=100&offset=0`);
+    expect(archivedPage.ok()).toBe(true);
+    const archivedBody = (await archivedPage.json()) as { items: { id: string; status: string }[] };
+    const readBack = archivedBody.items.filter((item) => batchIds.includes(item.id) && item.status === 'archived');
+    expect(readBack.map((item) => item.id).sort()).toEqual([...batchIds].sort());
+
+    // The chip keeps them reachable with the muted badge.
+    await page.getByRole('radio', { name: /Archivadas/ }).click();
+    for (const id of batchIds) {
+      const row = page.getByRole('row', { name: new RegExp(id) });
+      await expect(row).toBeVisible();
+      await expect(row.getByText('Archivada', { exact: true })).toBeVisible();
+    }
+
+    // D4's best-effort contract, seen from the screen: one item that cannot be claimed (already in
+    // progress) reports the server's own message without aborting the pending one next to it.
+    await page.getByRole('radio', { name: /Todas/ }).click();
+    for (const id of partialClaimIds) await page.getByRole('checkbox', { name: `Seleccionar ${id}` }).check();
+    await page.getByRole('group', { name: 'Acciones en lote' }).getByRole('button', { name: 'Tomar seleccionadas' }).click();
+    const claimBatchModal = page.getByRole('dialog', { name: 'Tomar órdenes' });
+    await expect(claimBatchModal.getByRole('radio', { name: `Yo (dev:${ALICE_HANDLE})` })).toBeChecked();
+    await claimBatchModal.getByRole('button', { name: 'Tomar órdenes' }).click();
+    await expect(claimBatchModal).toBeHidden();
+    await expect(page.getByRole('status').filter({ hasText: '1 de 2 tomadas' })).toBeVisible();
+
+    const failures = page.getByRole('list', { name: 'Órdenes que no se pudieron actualizar' });
+    await expect(failures).toBeVisible();
+    await expect(failures).toContainText(partialClaimIds[0]!);
+    await expect(page.getByRole('row', { name: new RegExp(partialClaimIds[1]!) })).toContainText(`dev:${ALICE_HANDLE}`);
+  });
+
+  await test.step('Órdenes: un proyecto sin órdenes explica de dónde salen y lleva a Construir (SDD-086 D7, FB-148)', async () => {
+    await page.goto(`${baseUrl}/o/${org.slug}`);
+    await page.getByRole('button', { name: 'Nuevo proyecto' }).click();
+    const newProjectModal = page.getByRole('dialog', { name: 'Nuevo proyecto' });
+    const emptyProjectSlug = `e2e-sin-ordenes-${Date.now()}`;
+    await newProjectModal.getByLabel('Nombre').fill('Proyecto sin órdenes');
+    await newProjectModal.getByLabel('Slug').fill(emptyProjectSlug);
+    await newProjectModal.getByRole('button', { name: 'Crear proyecto' }).click();
+    await expect(newProjectModal).toBeHidden();
+
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${emptyProjectSlug}/ordenes`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Órdenes de trabajo' })).toBeVisible();
+    await expect(page.getByText('Todavía no hay órdenes de trabajo para este proyecto')).toBeVisible();
+    // The line that used to be missing (FB-148): orders are generated, not created by hand.
+    await expect(page.getByText(/se generan del checklist/)).toBeVisible();
+    await expect(page.getByText(/de un blueprint publicado/)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Ir a Construir' }).click();
+    // Without a chosen work profile the journey lands on the line's own start (the business case).
+    await expect(page).toHaveURL(/\/construir\/(negocio|producto|developer)/);
+
+    // The filter-only empty state is untouched by D7 and still offers its own way out.
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/ordenes`);
+    await page.getByLabel('Buscar órdenes').fill('zzz-sin-coincidencias');
+    await expect(page.getByText('Ninguna orden coincide con estos filtros')).toBeVisible();
+    await page.getByRole('button', { name: 'Quitar filtros' }).click();
+    await expect(page.getByRole('row').first()).toBeVisible();
   });
 
   await test.step('Planta: claiming the work order moves the PRD to the real Construcción station', async () => {
