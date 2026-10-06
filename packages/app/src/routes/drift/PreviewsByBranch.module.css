@@ -1,0 +1,126 @@
+/* "Previews por rama" panel (SDD-070 D2/D4/D5, WO-637). Tokens only: no hex, no inline styles. */
+
+.sectionTitle {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+/*
+ * One 3-column grid, shared by the header and every row button so the right edge of "Issues"
+ * lines up with the issue counts: label + badge | count + delta | chevron. The middle track is
+ * fixed so rows stay aligned with each other; the first track can shrink to zero, which is what
+ * lets the branch label ellipsize at 375 px instead of pushing a horizontal scroll.
+ */
+.head,
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6.5rem 1rem;
+  column-gap: var(--space-3);
+  align-items: center;
+}
+
+.head {
+  padding: var(--space-2) 0;
+  border-bottom: var(--rule);
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.head > span:nth-child(2) {
+  text-align: right;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  width: 100%;
+  min-height: var(--hit-target);
+  padding: var(--space-2) 0;
+  border-bottom: var(--rule-row);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--relleno);
+}
+
+.row:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.branchCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Text, not a pill: no border, no accent color, no radius -- it must not read as a control (D5). */
+.badge {
+  color: var(--apagado);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.countCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.countZero {
+  color: var(--senal-texto);
+  font-weight: 700;
+}
+
+.countSome {
+  color: var(--paro);
+  font-weight: 700;
+}
+
+.delta {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deltaWorse {
+  color: var(--paro);
+}
+
+.deltaBetter {
+  color: var(--senal-texto);
+}
+
+.deltaSame {
+  color: var(--texto-secundario);
+}
+
+.deltaUnknown {
+  color: var(--apagado);
+}
+
+.chevron {
+  color: var(--apagado);
+  font-size: var(--text-lg);
+  line-height: 1;
+}
