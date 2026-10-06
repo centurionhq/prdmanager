@@ -11,6 +11,42 @@ export function jsonResult(data: Record<string, unknown>): CallToolResult {
   return { content: [{ type: 'text', text: jsonText(data) }], structuredContent: data };
 }
 
+export interface ByteCappedResultOptions<T extends Record<string, unknown>> {
+  /** Hard ceiling, in bytes, of the envelope the client sees (the serialized `CallToolResult`). */
+  maxBytes: number;
+  /** Rows the page in `data` carries; the helper only ever asks for smaller pages. */
+  pageSize: number;
+  /** Rebuilds the envelope with at most `size` rows (1 <= size <= pageSize), honest about itself. */
+  build: (size: number) => T;
+}
+
+/**
+ * SDD-082 D4/D8: measures `Buffer.byteLength(JSON.stringify(jsonResult(data)), 'utf8')` (the body the transport
+ * carries, `structuredContent` included). If it exceeds `maxBytes`, bisects for the largest page size that fits and
+ * returns that whole page -- never a JSON cut in half. If not even a 1-row page fits it throws (`safeTool` turns it
+ * into a deterministic `isError`): a truncated JSON is worse than an error.
+ */
+export function cappedJsonResult<T extends Record<string, unknown>>(data: T, opts: ByteCappedResultOptions<T>): CallToolResult {
+  const fits = (candidate: T): boolean => Buffer.byteLength(JSON.stringify(jsonResult(candidate)), 'utf8') <= opts.maxBytes;
+  if (fits(data)) return jsonResult(data);
+
+  let low = 1;
+  let high = opts.pageSize - 1;
+  let best: T | undefined;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const candidate = opts.build(mid);
+    if (fits(candidate)) {
+      best = candidate;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  if (!best) throw new Error(`Result exceeds the ${opts.maxBytes}-byte limit even with a single row (page size ${opts.pageSize}); narrow the query.`);
+  return jsonResult(best);
+}
+
 export function textOnlyResult(text: string): CallToolResult {
   return { content: [{ type: 'text', text }] };
 }

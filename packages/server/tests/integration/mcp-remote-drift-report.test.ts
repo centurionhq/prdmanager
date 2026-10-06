@@ -101,11 +101,19 @@ describe('get_drift_report sobre PgProjectEngine (WO-605)', () => {
     };
   }
 
-  async function readReport(client: Client): Promise<Record<string, unknown> & { hasReport?: boolean; documents: number }> {
+  interface DriftBody {
+    hasReport?: boolean;
+    documents: number;
+    issues: { total: number; byKind: Record<string, number>; bySeverity: Record<string, number>; matched: number; items: { kind: string }[]; limit: number; offset: number; nextOffset: number | null; truncated: boolean };
+    governed: { total: number; synced: number; outOfSync: number; items?: unknown };
+    workOrderUpdates: { total: number };
+  }
+
+  async function readReport(client: Client): Promise<DriftBody> {
     const result = await client.callTool({ name: 'get_drift_report', arguments: {} });
     expect(result.isError).toBeFalsy();
     const content = result.content as { type: string; text: string }[];
-    return JSON.parse(content[0]!.text) as Record<string, unknown> & { hasReport?: boolean; documents: number };
+    return JSON.parse(content[0]!.text) as DriftBody;
   }
 
   async function seedFeature(orgId: string, projectId: string): Promise<void> {
@@ -187,8 +195,14 @@ describe('get_drift_report sobre PgProjectEngine (WO-605)', () => {
       const body = await readReport(remote.client);
 
       expect(body.hasReport).not.toBe(false);
-      // The persisted report, verbatim (JSON round-trip).
-      expect(body).toEqual(report);
+      // The bounded summary of the persisted report, never the raw report.
+      expect(body.documents).toBe(report.documents);
+      expect(body.issues.total).toBe(report.issues.length);
+      expect(body.issues.items.length).toBe(Math.min(25, report.issues.length));
+      expect(body.governed.total).toBe(report.governed.length);
+      expect(body.governed.synced).toBe(report.governed.filter((g) => g.status === 'synced').length);
+      expect(body.workOrderUpdates.total).toBe(report.workOrderUpdates.length);
+      expect(body.governed.items).toBeUndefined();
     } finally {
       await remote.close();
     }
@@ -198,6 +212,84 @@ describe('get_drift_report sobre PgProjectEngine (WO-605)', () => {
     const baselineAfter = await readBaseline(projectId);
     const lastReportAfter = await readLastReport(projectId);
     expect(baselineAfter.rows).toEqual(baselineBefore.rows);
+    expect(lastReportAfter.rows).toEqual(lastReportBefore.rows);
+  });
+
+  test('reporte grande persistido: el envelope nunca supera 64 KiB y la página se achica (SDD-082)', async () => {
+    const { orgId, projectId, engine, deps } = await makeProject();
+    const kinds = ['broken_link', 'blueprint_changed', 'code_out_of_sync', 'work_order_out_of_sync'];
+    const issues = Array.from({ length: 1200 }, (_, n) => ({
+      kind: kinds[n % kinds.length]!,
+      severity: n % 3 === 0 ? 'error' : 'warning',
+      nodeId: `SDD-${String(n % 50).padStart(3, '0')}`,
+      message: `issue ${n}: ${'x'.repeat(2048)}`,
+    }));
+    const governed = Array.from({ length: 2000 }, (_, n) => ({
+      blueprintId: `SDD-${String(n % 50).padStart(3, '0')}`,
+      key: `k${n}`,
+      path: `src/file-${n}.ts`,
+      symbol: `sym${n}`,
+      status: n % 4 === 0 ? 'out_of_sync' : 'synced',
+      reason: n % 4 === 0 ? 'code_changed' : 'unchanged',
+      hash: 'h'.repeat(64),
+    }));
+    const report = {
+      documents: 10,
+      errors: [{ path: 'docs/bad.md', error: 'boom' }],
+      issues,
+      governed,
+      workOrderUpdates: [{ id: 'WO-001', sourcePath: 'docs/work-orders/WO-001.md', from: 'pending', to: 'done' }],
+      baselineWritten: false,
+      hasBlockingIssues: true,
+    };
+    await pg.ownerPool.query(
+      `INSERT INTO project_code_state (project_id, org_id, last_report) VALUES ($1, $2, $3::jsonb)
+       ON CONFLICT (project_id) DO UPDATE SET last_report = EXCLUDED.last_report`,
+      [projectId, orgId, JSON.stringify(report)],
+    );
+    const lastReportBefore = await pg.ownerPool.query('SELECT md5(last_report::text) AS h FROM project_code_state WHERE project_id = $1', [projectId]);
+    const refreshSpy = vi.spyOn(engine, 'refresh');
+    const inspectSpy = vi.spyOn(engine, 'inspect');
+
+    const remote = await openRemote(deps);
+    try {
+      const result = await remote.client.callTool({ name: 'get_drift_report', arguments: {} });
+      expect(result.isError).toBeFalsy();
+      const envelopeBytes = Buffer.byteLength(JSON.stringify(result));
+      const textBytes = Buffer.byteLength((result.content as { text: string }[])[0]!.text, 'utf8');
+      expect(envelopeBytes).toBeLessThanOrEqual(65_536);
+      expect(textBytes).toBeLessThanOrEqual(65_536);
+      const body = JSON.parse((result.content as { text: string }[])[0]!.text) as DriftBody;
+
+      expect(body.issues.total).toBe(1200);
+      expect(body.issues.items.length).toBeLessThan(25);
+      expect(body.issues.items.length).toBeGreaterThan(0);
+      expect(body.issues.limit).toBe(body.issues.items.length);
+      expect(body.issues.truncated).toBe(true);
+      expect(body.issues.nextOffset).toBe(body.issues.limit);
+      expect(body.issues.matched).toBe(1200);
+      expect(Object.values(body.issues.byKind).reduce((a, b) => a + b, 0)).toBe(1200);
+      expect(body.issues.bySeverity.error! + body.issues.bySeverity.warning!).toBe(1200);
+      expect(body.governed.total).toBe(2000);
+      expect(body.governed.synced + body.governed.outOfSync).toBe(2000);
+      expect(body.governed.items).toBeUndefined();
+
+      const brokenCount = issues.filter((i) => i.kind === 'broken_link').length;
+      const filteredResult = await remote.client.callTool({ name: 'get_drift_report', arguments: { kind: 'broken_link', limit: 50, offset: 50 } });
+      expect(filteredResult.isError).toBeFalsy();
+      expect(Buffer.byteLength(JSON.stringify(filteredResult))).toBeLessThanOrEqual(65_536);
+      const filtered = JSON.parse((filteredResult.content as { text: string }[])[0]!.text) as DriftBody;
+      expect(filtered.issues.items.every((i) => i.kind === 'broken_link')).toBe(true);
+      expect(filtered.issues.matched).toBe(brokenCount);
+      if (filtered.issues.limit === 50 && brokenCount > 100) expect(filtered.issues.nextOffset).toBe(100);
+      else expect(filtered.issues.nextOffset).toBe(filtered.issues.offset + filtered.issues.limit < brokenCount ? filtered.issues.offset + filtered.issues.limit : null);
+    } finally {
+      await remote.close();
+    }
+
+    expect(refreshSpy).not.toHaveBeenCalled();
+    expect(inspectSpy).not.toHaveBeenCalled();
+    const lastReportAfter = await pg.ownerPool.query('SELECT md5(last_report::text) AS h FROM project_code_state WHERE project_id = $1', [projectId]);
     expect(lastReportAfter.rows).toEqual(lastReportBefore.rows);
   });
 

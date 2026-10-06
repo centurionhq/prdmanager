@@ -1,9 +1,10 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { docId, type RefreshReport } from '@prdm/core';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { docId, DRIFT_REPORT_MAX_BYTES, MAX_ISSUE_PAGE_LIMIT, summarizeRefreshReport, type DriftReportSummaryOptions, type IssueKind, type RefreshReport } from '@prdm/core';
 import type { PrdmDeps } from './deps.js';
 import { requireDocumentsPort } from './deps.js';
-import { DESTRUCTIVE_IDEMPOTENT, jsonResult, READ_ONLY, safeTool, WRITE_IDEMPOTENT } from './shared.js';
+import { cappedJsonResult, DESTRUCTIVE_IDEMPOTENT, jsonResult, READ_ONLY, safeTool, WRITE_IDEMPOTENT } from './shared.js';
 
 /**
  * WO ids only (architect gate, ADR-002 D15): acknowledging a Blueprint, Feature or `all` re-baselines other
@@ -12,6 +13,35 @@ import { DESTRUCTIVE_IDEMPOTENT, jsonResult, READ_ONLY, safeTool, WRITE_IDEMPOTE
  */
 const ACK_TARGET_PATTERN = /^WO-\d{3,9}$/;
 const ackTarget = z.string().regex(ACK_TARGET_PATTERN, 'acknowledge_sync only accepts a Work Order id (e.g. WO-001); acknowledging a Blueprint, Feature or "all" is CLI-only (`prdm sync ack`)');
+
+/** Runtime list of `IssueKind` (core only exports the type); the exhaustiveness guard breaks the build if core adds a kind. */
+const ISSUE_KINDS = [
+  'broken_link',
+  'invalid_link_target',
+  'feature_changed',
+  'blueprint_changed',
+  'code_out_of_sync',
+  'work_order_out_of_sync',
+  'status_write_failed',
+  'impacts_warning',
+  'deprecated_field',
+  'lifecycle_violation',
+  'awaiting_ci_report',
+  'landed_but_open',
+] as const satisfies readonly IssueKind[];
+type MissingIssueKind = Exclude<IssueKind, (typeof ISSUE_KINDS)[number]>;
+type AssertNever<T extends never> = T;
+type IssueKindsAreExhaustive = AssertNever<MissingIssueKind>;
+
+const driftReportInput = {
+  kind: z.enum(ISSUE_KINDS).optional().describe('Only issues of this kind (see byKind in the response).'),
+  severity: z.enum(['error', 'warning']).optional().describe('Only issues of this severity (see bySeverity in the response).'),
+  limit: z.number().int().min(1).max(MAX_ISSUE_PAGE_LIMIT).optional().describe('Page size of issues.items, default 25, maximum 50.'),
+  offset: z.number().int().min(0).optional().describe('Rows of the filtered set to skip, default 0.'),
+};
+
+const SUMMARY_SHAPE =
+  'Returns a bounded summary, never the raw report: `documents`, `hasBlockingIssues`, `baselineWritten`, `errors{total,items,truncated}`, `issues{total,byKind,bySeverity,matched,items,limit,offset,nextOffset,truncated}`, `governed{total,synced,outOfSync,byReason}` (the full governed list is never returned) and `workOrderUpdates{total,items}`. Filter issues with `kind` and `severity`; page with `limit` (default 25, maximum 50) and `offset`, continuing from `nextOffset` (null at the end). `issues.total`, `byKind` and `bySeverity` always describe the whole report while `matched` counts the filtered set. The response is capped at 64 KiB: if a page does not fit, it is shrunk and `issues.truncated` is true — request the next page with `offset: nextOffset`.';
 
 function reportResult(report: RefreshReport) {
   return jsonResult({ ...report });
@@ -27,23 +57,29 @@ function reportResult(report: RefreshReport) {
  */
 export function registerDriftReportTool(server: McpServer, deps: PrdmDeps, opts: { refresh: boolean }): void {
   const description = opts.refresh
-    ? 'Re-scans the repository and reports drift: scan errors, issues (broken links, changed Blueprints/Features, code out of sync, stale Work Orders), the current governed-code state and any Work Order status changes it just applied. Check `hasBlockingIssues` before claiming or completing work.'
-    : 'Returns the last computed drift report (scan errors, issues, governed-code state, Work Order status changes) without recomputing it — over the remote MCP this never re-scans; only a CI-verified code report can update it. `hasReport: false` means no report exists yet for this project.';
+    ? `Re-scans the repository and reports drift: scan errors, issues (broken links, changed Blueprints/Features, code out of sync, stale Work Orders), the current governed-code state and any Work Order status changes it just applied. Check \`hasBlockingIssues\` before claiming or completing work. ${SUMMARY_SHAPE}`
+    : `Returns the last computed drift report (scan errors, issues, governed-code state, Work Order status changes) without recomputing it — over the remote MCP this never re-scans; only a CI-verified code report can update it. \`hasReport: false\` means no report exists yet for this project. ${SUMMARY_SHAPE}`;
 
   server.registerTool(
     'get_drift_report',
     {
       title: 'Get drift report',
       description,
-      inputSchema: {},
+      inputSchema: driftReportInput,
       annotations: { title: 'Get drift report', ...WRITE_IDEMPOTENT },
     },
-    safeTool(async () => {
-      if (!opts.refresh) {
-        const last = await deps.engine.lastReport();
-        return last ? reportResult(last) : jsonResult({ hasReport: false });
-      }
-      return reportResult(await deps.engine.refresh());
+    safeTool(async (args: DriftReportSummaryOptions): Promise<CallToolResult> => {
+      const report = opts.refresh ? await deps.engine.refresh() : await deps.engine.lastReport();
+      if (!report) return jsonResult({ hasReport: false });
+      const summary = summarizeRefreshReport(report, args);
+      return cappedJsonResult(
+        { ...summary },
+        {
+          maxBytes: DRIFT_REPORT_MAX_BYTES,
+          pageSize: summary.issues.limit,
+          build: (size) => ({ ...summarizeRefreshReport(report, { ...args, limit: size }) }),
+        },
+      );
     }),
   );
 }
