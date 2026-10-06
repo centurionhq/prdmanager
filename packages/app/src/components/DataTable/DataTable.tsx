@@ -1,5 +1,5 @@
 import { ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
-import { useId, type ChangeEvent, type KeyboardEvent, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ChangeEvent, type KeyboardEvent, type ReactElement, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import type { SortState } from '../../lib/filter-sort';
 import { toggleSort } from '../../lib/filter-sort';
@@ -23,6 +23,11 @@ export interface DataTableColumn<T> {
   readonly primary?: boolean;
 }
 
+export interface DataTableSelection {
+  readonly selectedIds: ReadonlySet<string>;
+  readonly onChange: (next: ReadonlySet<string>) => void;
+}
+
 export interface DataTableProps<T> {
   readonly caption: string;
   readonly columns: readonly DataTableColumn<T>[];
@@ -33,6 +38,8 @@ export interface DataTableProps<T> {
   readonly onRowClick?: (row: T) => void;
   readonly selectedId?: string;
   readonly emptyState?: ReactNode;
+  /** Opt-in multi-select: prepends a checkbox column and a select-all header checkbox. */
+  readonly selection?: DataTableSelection;
 }
 
 const MOBILE_QUERY = '(max-width: 640px)';
@@ -75,6 +82,34 @@ function cellContent<T>(column: DataTableColumn<T>, row: T): ReactNode {
     return <span className={styles.rowLink}>{column.render(row)}</span>;
   }
   return column.render(row);
+}
+
+function selectionAnnouncement(count: number): string {
+  if (count === 0) return 'Ninguna orden seleccionada';
+  return count === 1 ? '1 orden seleccionada' : `${count} órdenes seleccionadas`;
+}
+
+interface SelectAllCheckboxProps {
+  readonly checked: boolean;
+  readonly indeterminate: boolean;
+  readonly onToggle: () => void;
+}
+
+function SelectAllCheckbox({ checked, indeterminate, onToggle }: SelectAllCheckboxProps): ReactElement {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      className={styles.checkbox}
+      aria-label="Seleccionar todas las filas"
+      checked={checked}
+      onChange={onToggle}
+    />
+  );
 }
 
 interface MobileSortBarProps<T> {
@@ -144,6 +179,7 @@ export function DataTable<T>({
   onRowClick,
   selectedId,
   emptyState,
+  selection,
 }: DataTableProps<T>): ReactElement {
   const isMobile = useMediaQuery(MOBILE_QUERY);
   const primaryColumn = columns.find(isPrimaryColumn);
@@ -159,13 +195,54 @@ export function DataTable<T>({
     onRowClick(row);
   }
 
+  const selectedIds = selection?.selectedIds;
+  const pageIds = rows.map(getRowId);
+  const selectedOnPage = selectedIds ? pageIds.filter((id) => selectedIds.has(id)).length : 0;
+  const allSelected = pageIds.length > 0 && selectedOnPage === pageIds.length;
+
+  function handleToggleAll(): void {
+    if (!selection) return;
+    const next = new Set(selection.selectedIds);
+    for (const id of pageIds) {
+      if (allSelected) next.delete(id);
+      else next.add(id);
+    }
+    selection.onChange(next);
+  }
+
+  function handleToggleRow(rowId: string): void {
+    if (!selection) return;
+    const next = new Set(selection.selectedIds);
+    if (next.has(rowId)) next.delete(rowId);
+    else next.add(rowId);
+    selection.onChange(next);
+  }
+
   return (
     <div className={styles.wrapper}>
       {onSortChange ? <MobileSortBar columns={columns} sort={sort} onSortChange={onSortChange} /> : null}
+      {selection && isMobile ? (
+        <div className={styles.selectionBar}>
+          <label className={styles.selectionBarLabel}>
+            <SelectAllCheckbox checked={allSelected} indeterminate={selectedOnPage > 0 && !allSelected} onToggle={handleToggleAll} />
+            <span>Seleccionar todas las filas</span>
+          </label>
+          <span className={styles.selectionBarCount}>{selectionAnnouncement(selection.selectedIds.size)}</span>
+        </div>
+      ) : null}
       <table className={styles.table}>
         <caption className="visually-hidden">{caption}</caption>
         <thead>
           <tr>
+            {selection && !isMobile ? (
+              <th scope="col" className={styles.selectCell}>
+                <SelectAllCheckbox
+                  checked={allSelected}
+                  indeterminate={selectedOnPage > 0 && !allSelected}
+                  onToggle={handleToggleAll}
+                />
+              </th>
+            ) : null}
             {columns.map((column) => {
               const sortState = ariaSortFor(column, sort);
               const showSortButton = Boolean(column.sortValue) && !isMobile;
@@ -193,24 +270,39 @@ export function DataTable<T>({
         <tbody>
           {rows.length === 0 && emptyState ? (
             <tr>
-              <td className={styles.emptyCell} colSpan={columns.length}>
+              <td className={styles.emptyCell} colSpan={columns.length + (selection ? 1 : 0)}>
                 {emptyState}
               </td>
             </tr>
           ) : (
             rows.map((row) => {
               const rowId = getRowId(row);
-              const selected = rowId === selectedId;
+              const selected = selectedIds ? selectedIds.has(rowId) : rowId === selectedId;
               const hasRowLink = Boolean(primaryColumn);
               return (
                 <tr
                   key={rowId}
                   className={styles.row}
-                  aria-selected={selectedId === undefined ? undefined : selected}
+                  aria-selected={selection || selectedId !== undefined ? selected : undefined}
                   tabIndex={onRowClick && !hasRowLink ? 0 : undefined}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   onKeyDown={onRowClick && !hasRowLink ? (event) => handleRowKeyDown(event, row) : undefined}
                 >
+                  {selection ? (
+                    <td className={styles.selectCell}>
+                      <input
+                        type="checkbox"
+                        className={styles.checkbox}
+                        aria-label={`Seleccionar ${rowId}`}
+                        checked={selected}
+                        onChange={(event) => {
+                          event.stopPropagation();
+                          handleToggleRow(rowId);
+                        }}
+                        onClick={(event) => event.stopPropagation()}
+                      />
+                    </td>
+                  ) : null}
                   {columns.map((column) => (
                     <td
                       key={column.key}
@@ -226,6 +318,11 @@ export function DataTable<T>({
           )}
         </tbody>
       </table>
+      {selection ? (
+        <div role="status" className="visually-hidden">
+          {selectionAnnouncement(selection.selectedIds.size)}
+        </div>
+      ) : null}
     </div>
   );
 }

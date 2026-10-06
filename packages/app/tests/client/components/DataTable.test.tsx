@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DataTable, type DataTableColumn } from '../../../src/components/DataTable/DataTable';
@@ -273,6 +274,206 @@ describe('DataTable', () => {
       const link = screen.getByRole('link', { name: 'WO-304' });
       const row = link.closest('tr');
       expect(row?.hasAttribute('tabindex')).toBe(false);
+    });
+  });
+});
+
+describe('DataTable selection', () => {
+  function renderSelectable(selected: readonly string[], extra: { onRowClick?: (row: Row) => void; rows?: readonly Row[]; emptyState?: ReactNode } = {}) {
+    const onChange = vi.fn();
+    render(
+      <DataTable
+        caption="Órdenes"
+        columns={makeColumns()}
+        rows={extra.rows ?? rows}
+        getRowId={(row) => row.id}
+        onRowClick={extra.onRowClick}
+        emptyState={extra.emptyState}
+        selection={{ selectedIds: new Set(selected), onChange }}
+      />,
+    );
+    return onChange;
+  }
+
+  function selectAll(): HTMLInputElement {
+    return screen.getByRole('checkbox', { name: 'Seleccionar todas las filas' }) as HTMLInputElement;
+  }
+
+  it('renders no checkbox without the selection prop', () => {
+    render(<DataTable caption="Órdenes" columns={makeColumns()} rows={rows} getRowId={(row) => row.id} />);
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+  });
+
+  it('renders a checkbox per row plus select-all with accessible names', () => {
+    renderSelectable([]);
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar todas las filas' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar WO-304' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar WO-310' })).toBeTruthy();
+  });
+
+  it('adds a row id preserving the already selected ones', async () => {
+    const user = userEvent.setup();
+    const onChange = renderSelectable(['WO-310']);
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar WO-304' }));
+    const next = onChange.mock.calls[0]?.[0] as ReadonlySet<string>;
+    expect([...next].sort()).toEqual(['WO-304', 'WO-310']);
+  });
+
+  it('removes a row id when its checkbox is unchecked, keeping the others', async () => {
+    const user = userEvent.setup();
+    const onChange = renderSelectable(['WO-304', 'WO-310']);
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar WO-304' }));
+    const next = onChange.mock.calls[0]?.[0] as ReadonlySet<string>;
+    expect([...next]).toEqual(['WO-310']);
+  });
+
+  it('does not mutate the received selectedIds set', async () => {
+    const user = userEvent.setup();
+    const selectedIds = new Set(['WO-310']);
+    const onChange = vi.fn();
+    render(
+      <DataTable caption="Órdenes" columns={makeColumns()} rows={rows} getRowId={(row) => row.id} selection={{ selectedIds, onChange }} />,
+    );
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar WO-304' }));
+    expect([...selectedIds]).toEqual(['WO-310']);
+  });
+
+  it('select-all with empty selection selects every row of the page', async () => {
+    const user = userEvent.setup();
+    const onChange = renderSelectable([]);
+    await user.click(selectAll());
+    expect([...(onChange.mock.calls[0]?.[0] as ReadonlySet<string>)].sort()).toEqual(['WO-304', 'WO-310']);
+  });
+
+  it('select-all with every row selected removes them, preserving ids from other pages', async () => {
+    const user = userEvent.setup();
+    const onChange = renderSelectable(['WO-304', 'WO-310']);
+    await user.click(selectAll());
+    expect((onChange.mock.calls[0]?.[0] as ReadonlySet<string>).size).toBe(0);
+  });
+
+  it('select-all keeps ids outside the page when deselecting', async () => {
+    const user = userEvent.setup();
+    const onChange = renderSelectable(['WO-304', 'WO-310', 'WO-999']);
+    await user.click(selectAll());
+    expect([...(onChange.mock.calls[0]?.[0] as ReadonlySet<string>)]).toEqual(['WO-999']);
+  });
+
+  it('select-all with a partial selection selects the union', async () => {
+    const user = userEvent.setup();
+    const onChange = renderSelectable(['WO-304']);
+    await user.click(selectAll());
+    expect([...(onChange.mock.calls[0]?.[0] as ReadonlySet<string>)].sort()).toEqual(['WO-304', 'WO-310']);
+  });
+
+  it('reflects partial and full selection on the select-all checkbox', () => {
+    renderSelectable(['WO-304']);
+    expect(selectAll().indeterminate).toBe(true);
+    expect(selectAll().checked).toBe(false);
+  });
+
+  it('checks select-all when every row is selected and is not indeterminate', () => {
+    renderSelectable(['WO-304', 'WO-310']);
+    expect(selectAll().checked).toBe(true);
+    expect(selectAll().indeterminate).toBe(false);
+  });
+
+  it('is not indeterminate without selection', () => {
+    renderSelectable([]);
+    expect(selectAll().indeterminate).toBe(false);
+    expect(selectAll().checked).toBe(false);
+  });
+
+  it('exposes aria-selected on every row from selectedIds', () => {
+    renderSelectable(['WO-310']);
+    expect(screen.getByRole('cell', { name: 'WO-310' }).closest('tr')?.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('cell', { name: 'WO-304' }).closest('tr')?.getAttribute('aria-selected')).toBe('false');
+  });
+
+  it('announces the batch size in a status region', () => {
+    const { unmount } = render(
+      <DataTable caption="Órdenes" columns={makeColumns()} rows={rows} getRowId={(row) => row.id} selection={{ selectedIds: new Set(['a', 'b']), onChange: vi.fn() }} />,
+    );
+    expect(screen.getByRole('status').textContent).toBe('2 órdenes seleccionadas');
+    unmount();
+    const one = render(
+      <DataTable caption="Órdenes" columns={makeColumns()} rows={rows} getRowId={(row) => row.id} selection={{ selectedIds: new Set(['a']), onChange: vi.fn() }} />,
+    );
+    expect(screen.getByRole('status').textContent).toBe('1 orden seleccionada');
+    one.unmount();
+    renderSelectable([]);
+    expect(screen.getByRole('status').textContent).toBe('Ninguna orden seleccionada');
+  });
+
+  it('does not call onRowClick when a row checkbox is clicked', async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    const onChange = renderSelectable([], { onRowClick });
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar WO-304' }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it('extends the empty state colSpan by one for the selection column', () => {
+    renderSelectable([], { rows: [], emptyState: <span>Vacío</span> });
+    const cell = screen.getByText('Vacío').closest('td');
+    expect(cell?.colSpan).toBe(makeColumns().length + 1);
+  });
+
+  describe('select-all placement', () => {
+    function selectAllCheckboxes(): HTMLElement[] {
+      return screen.getAllByRole('checkbox').filter((box) => box.getAttribute('aria-label') === 'Seleccionar todas las filas');
+    }
+
+    it('on desktop renders select-all inside the thead', () => {
+      mockMobileMediaQuery(false);
+      renderSelectable([]);
+      expect(selectAll().closest('thead')).not.toBeNull();
+    });
+
+    it('on desktop renders a single select-all that lives in the table', () => {
+      mockMobileMediaQuery(false);
+      renderSelectable([]);
+      expect(selectAllCheckboxes()).toHaveLength(1);
+      expect(selectAll().closest('table')).not.toBeNull();
+    });
+
+    it('on mobile keeps a single select-all outside the table and the row checkboxes', () => {
+      mockMobileMediaQuery(true);
+      renderSelectable([]);
+      expect(selectAllCheckboxes()).toHaveLength(1);
+      expect(selectAll().closest('table')).toBeNull();
+      expect(screen.getByRole('checkbox', { name: 'Seleccionar WO-304' })).toBeTruthy();
+    });
+
+    it('on mobile leaves no focusable control in the hidden thead', () => {
+      mockMobileMediaQuery(true);
+      renderSelectable([]);
+      const thead = screen.getAllByRole('columnheader')[0]?.closest('thead');
+      expect(thead?.querySelector('input, button, a, select')).toBeNull();
+    });
+
+    it('on mobile the bar select-all selects every row of the page', async () => {
+      mockMobileMediaQuery(true);
+      const user = userEvent.setup();
+      const onChange = renderSelectable([]);
+      await user.click(selectAll());
+      expect([...(onChange.mock.calls[0]?.[0] as ReadonlySet<string>)].sort()).toEqual(['WO-304', 'WO-310']);
+    });
+
+    it('on mobile shows the same count text as the status region', () => {
+      mockMobileMediaQuery(true);
+      const { unmount } = render(
+        <DataTable caption="Órdenes" columns={makeColumns()} rows={rows} getRowId={(row) => row.id} selection={{ selectedIds: new Set(), onChange: vi.fn() }} />,
+      );
+      expect(screen.getAllByText('Ninguna orden seleccionada')).toHaveLength(2);
+      unmount();
+      render(
+        <DataTable caption="Órdenes" columns={makeColumns()} rows={rows} getRowId={(row) => row.id} selection={{ selectedIds: new Set(['WO-304', 'WO-310']), onChange: vi.fn() }} />,
+      );
+      expect(screen.getAllByText('2 órdenes seleccionadas')).toHaveLength(2);
+      expect(screen.getByRole('status').textContent).toBe('2 órdenes seleccionadas');
     });
   });
 });
