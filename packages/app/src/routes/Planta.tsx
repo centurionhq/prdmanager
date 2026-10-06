@@ -10,7 +10,7 @@ import { Link } from 'react-router';
 import type { SuccessMetricsDto } from '@prdm/contracts';
 import { getLineBoard, getMetrics } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
-import { useApiQuery } from '../api/use-api-query.js';
+import { useApiQuery, type ApiQueryStatus } from '../api/use-api-query.js';
 import { Drawer, EmptyState, ErrorState, LineBoard, PageHeader, Skeleton } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { formatDateTime } from '../lib/format-date.js';
@@ -207,13 +207,60 @@ function CommitsTable({ rows }: { readonly rows: readonly UntracedCommit[] }): R
 }
 
 interface KpiStripProps {
-  readonly metrics: SuccessMetricsDto;
+  readonly metrics: SuccessMetricsDto | undefined;
+  readonly status: ApiQueryStatus;
+  readonly error: unknown;
+  readonly onRetry: () => void;
   readonly awaitingFirstReport: boolean;
   readonly orgSlug: string;
   readonly projectSlug: string;
 }
 
-function KpiStrip({ metrics, awaitingFirstReport, orgSlug, projectSlug }: KpiStripProps): ReactElement {
+/**
+ * SDD-085 D2/D3: the strip owns its loading and failure (a failing `get_metrics` never takes the line down with
+ * it) and, awaiting the first CI report, collapses into a single line that points at how to connect.
+ */
+function KpiStrip({ metrics, status, error, onRetry, awaitingFirstReport, orgSlug, projectSlug }: KpiStripProps): ReactElement {
+  if (status === 'error') {
+    return (
+      <section aria-label="Indicadores de la planta" className={styles.kpiStrip}>
+        <div className={styles.stripPlate}>
+          <ErrorState title="No pudimos cargar los indicadores" body={errorMessage(error)} onRetry={onRetry} />
+        </div>
+      </section>
+    );
+  }
+  if (status === 'cargando' || metrics === undefined) {
+    return (
+      <section aria-label="Indicadores de la planta" className={styles.kpiStrip}>
+        <div className={styles.stripPlate}>
+          <Skeleton rows={1} columns={5} />
+        </div>
+      </section>
+    );
+  }
+  if (awaitingFirstReport) {
+    return (
+      <section aria-label="Indicadores de la planta" className={styles.kpiStrip}>
+        <div className={styles.stripPlate}>
+          <p className={styles.kpiFirstReport}>Todavía no hay reporte de CI: los indicadores llegan con el primero</p>
+          <Link className={styles.kpiFirstReportLink} to={`/o/${orgSlug}/p/${projectSlug}/construir/developer`}>
+            Conectar mi entorno
+          </Link>
+        </div>
+      </section>
+    );
+  }
+  return <KpiItems metrics={metrics} orgSlug={orgSlug} projectSlug={projectSlug} />;
+}
+
+interface KpiItemsProps {
+  readonly metrics: SuccessMetricsDto;
+  readonly orgSlug: string;
+  readonly projectSlug: string;
+}
+
+function KpiItems({ metrics, orgSlug, projectSlug }: KpiItemsProps): ReactElement {
   const { featuresTotal, featuresTraced } = metrics.traceability;
   // SDD-079 D4: la invariante del servidor es featuresTraced + orphanFeatures.length === featuresTotal.
   // El faltante es la MISMA lista que filtra el Árbol, así que el número de acá y el del chip coinciden.
@@ -260,14 +307,8 @@ function KpiStrip({ metrics, awaitingFirstReport, orgSlug, projectSlug }: KpiStr
       {items.map((item) => (
         <div key={item.label} className={styles.kpiItem}>
           <span className={styles.kpiLabel}>{item.label}</span>
-          {awaitingFirstReport ? (
-            <span className={styles.kpiLabel}>Esperando el primer reporte de CI</span>
-          ) : (
-            <>
-              {item.value}
-              {item.note}
-            </>
-          )}
+          {item.value}
+          {item.note}
         </div>
       ))}
     </section>
@@ -286,9 +327,6 @@ export function Planta(): ReactElement {
   );
   const metricsQuery = useApiQuery(`metrics:${orgSlug}:${projectSlug}`, () => getMetrics(orgSlug, projectSlug), [orgSlug, projectSlug], () => false);
 
-  const isLoading = lineBoardQuery.status === 'cargando' || metricsQuery.status === 'cargando';
-  const failure = lineBoardQuery.status === 'error' ? lineBoardQuery : metricsQuery.status === 'error' ? metricsQuery : null;
-
   return (
     <div>
       <PageHeader title="Planta" />
@@ -298,21 +336,24 @@ export function Planta(): ReactElement {
           exactly when someone most needs to be told where to start. */}
       <ProfileBand />
 
-      {isLoading ? (
-        <div className={styles.loading}>
-          <Skeleton rows={6} />
-          <Skeleton rows={1} columns={5} />
-        </div>
-      ) : null}
+      {lineBoardQuery.status === 'cargando' ? <Skeleton rows={6} /> : null}
 
-      {!isLoading && failure ? <ErrorState title="No pudimos cargar la planta" body={errorMessage(failure.error)} onRetry={failure.retry} /> : null}
+      {lineBoardQuery.status === 'error' ? <ErrorState title="No pudimos cargar la planta" body={errorMessage(lineBoardQuery.error)} onRetry={lineBoardQuery.retry} /> : null}
 
-      {!isLoading && !failure && lineBoardQuery.status === 'vacio' ? <EmptyState title="Todavía no hay features en la línea" /> : null}
+      {lineBoardQuery.status === 'vacio' ? <EmptyState title="Todavía no hay features en la línea" /> : null}
 
-      {!isLoading && !failure && lineBoardQuery.data && metricsQuery.data && lineBoardQuery.status !== 'vacio' ? (
+      {lineBoardQuery.data && lineBoardQuery.status !== 'vacio' ? (
         <div className={styles.page}>
           <LineBoard orgSlug={orgSlug} projectSlug={projectSlug} lineBoard={lineBoardQuery.data} />
-          <KpiStrip metrics={metricsQuery.data} awaitingFirstReport={project.awaitingFirstReport} orgSlug={orgSlug} projectSlug={projectSlug} />
+          <KpiStrip
+            metrics={metricsQuery.data}
+            status={metricsQuery.status}
+            error={metricsQuery.error}
+            onRetry={metricsQuery.retry}
+            awaitingFirstReport={project.awaitingFirstReport}
+            orgSlug={orgSlug}
+            projectSlug={projectSlug}
+          />
         </div>
       ) : null}
     </div>

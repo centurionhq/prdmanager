@@ -8,10 +8,20 @@ import type { Metrics } from './types';
 
 export const METRICS: Metrics = {
   agentHumanEfficiency: {
-    completedWorkOrders: 28,
-    measuredWorkOrders: 28,
+    completedWorkOrders: 486,
+    measuredWorkOrders: 482,
     avgResolutionHours: 2.35,
     medianResolutionHours: 0.09,
+    // WO-683 (SDD-085): the WO-672 note, one order per reason, mixing null and set dates.
+    unmeasured: {
+      total: 4,
+      workOrders: [
+        { id: 'WO-001', status: 'done', reason: 'missing_claim', claimedAt: null, completedAt: null },
+        { id: 'WO-002', status: 'done', reason: 'missing_completion', claimedAt: '2026-09-27T18:21:00.000Z', completedAt: null },
+        { id: 'WO-003', status: 'done', reason: 'invalid_timestamp', claimedAt: null, completedAt: null },
+        { id: 'WO-004', status: 'done', reason: 'negative_duration', claimedAt: '2026-09-27T18:21:00.000Z', completedAt: '2026-09-26T10:00:00.000Z' },
+      ],
+    },
   },
   systemIntegrity: {
     governedTotal: 3254,

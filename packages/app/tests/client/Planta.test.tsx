@@ -611,12 +611,60 @@ describe('Planta', () => {
     });
   });
 
-  it('explains missing metrics instead of showing a fabricated 0% when awaiting the first report', async () => {
-    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
-    vi.spyOn(client, 'getMetrics').mockResolvedValue(EMPTY_METRICS);
-    renderPlanta({ awaitingFirstReport: true });
+  describe('indicadores acotados (SDD-085 D1-D4)', () => {
+    const FIRST_REPORT = 'Todavía no hay reporte de CI: los indicadores llegan con el primero';
 
-    expect(await screen.findAllByText(/esperando el primer reporte de ci/i)).not.toHaveLength(0);
+    it('la línea se ve aunque las métricas fallen (SDD-085 D1/D2)', async () => {
+      vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+      vi.spyOn(client, 'getMetrics').mockRejectedValue(new Error('metrics down'));
+      renderPlanta();
+
+      expect((await screen.findAllByText('BC-001')).length).toBeGreaterThan(0);
+      expect(screen.getByRole('heading', { name: 'La línea' })).toBeTruthy();
+      const strip = await screen.findByRole('region', { name: 'Indicadores de la planta' });
+      expect(await within(strip).findByText('No pudimos cargar los indicadores')).toBeTruthy();
+      expect(within(strip).getByRole('button', { name: 'Reintentar' })).toBeTruthy();
+      expect(screen.queryByText(/no pudimos cargar la planta/i)).toBeNull();
+    });
+
+    it('el reintento del strip vuelve a pedir las métricas y las muestra (SDD-085 D2)', async () => {
+      vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+      const getMetrics = vi.spyOn(client, 'getMetrics').mockRejectedValueOnce(new Error('metrics down')).mockResolvedValue(METRICS);
+      renderPlanta();
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Reintentar' }));
+      expect(await screen.findByText('99,6 %')).toBeTruthy();
+      expect(getMetrics).toHaveBeenCalledTimes(2);
+    });
+
+    it('la línea no espera a las métricas (SDD-085 D1)', async () => {
+      vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+      vi.spyOn(client, 'getMetrics').mockImplementation(() => new Promise(() => {}));
+      renderPlanta();
+
+      expect((await screen.findAllByText('BC-001')).length).toBeGreaterThan(0);
+    });
+
+    it('con el primer reporte pendiente, el strip es una sola línea con el link a conectar (SDD-085 D3)', async () => {
+      vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+      vi.spyOn(client, 'getMetrics').mockResolvedValue(EMPTY_METRICS);
+      renderPlanta({ awaitingFirstReport: true });
+
+      expect(await screen.findAllByText(FIRST_REPORT)).toHaveLength(1);
+      expect(screen.getByRole('link', { name: 'Conectar mi entorno' }).getAttribute('href')).toBe('/o/acme/p/web/construir/developer');
+      expect(screen.queryByText('Resolución mediana de una orden')).toBeNull();
+      expect(screen.queryByText(/esperando el primer reporte de ci/i)).toBeNull();
+    });
+
+    it('con reporte no aparece la línea del primer reporte ni el link (SDD-085 D3)', async () => {
+      vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+      vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+      renderPlanta({ awaitingFirstReport: false });
+
+      await screen.findByText('5 min');
+      expect(screen.queryByText(FIRST_REPORT)).toBeNull();
+      expect(screen.queryByRole('link', { name: 'Conectar mi entorno' })).toBeNull();
+    });
   });
 
   it('clicking a feature row navigates to its node in the feature tree', async () => {

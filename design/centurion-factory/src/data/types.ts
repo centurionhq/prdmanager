@@ -197,6 +197,17 @@ export interface Metrics {
     readonly measuredWorkOrders: number;
     readonly avgResolutionHours: number;
     readonly medianResolutionHours: number;
+    /** WO-672 (SDD-081 D7): completed orders the median leaves out (contracts `unmeasured`). */
+    readonly unmeasured: {
+      readonly total: number;
+      readonly workOrders: readonly {
+        readonly id: string;
+        readonly status: string;
+        readonly reason: string;
+        readonly claimedAt: string | null;
+        readonly completedAt: string | null;
+      }[];
+    };
   };
   readonly systemIntegrity: {
     readonly governedTotal: number;

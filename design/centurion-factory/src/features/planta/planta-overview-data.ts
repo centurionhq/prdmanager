@@ -15,12 +15,21 @@ export interface PlantaKpiDetail {
   readonly truncatedCopy: string | null;
 }
 
+/** WO-672 (SDD-081 D7): the "N de M órdenes sin medición" note under the first KPI. */
+export interface PlantaKpiNote {
+  readonly context: string;
+  readonly summary: string;
+  readonly rows: readonly { readonly id: string; readonly reason: string; readonly dates: string }[];
+}
+
 export interface PlantaKpi {
   readonly label: string;
   readonly value: string;
   /** Secondary line under the value (commit KPIs only). */
   readonly percent?: string;
   readonly detail?: PlantaKpiDetail;
+  /** Unmeasured-orders note (first KPI only, and only when there are unmeasured orders). */
+  readonly note?: PlantaKpiNote;
 }
 
 const SHORT_SHA_LENGTH = 7;
@@ -66,10 +75,41 @@ function formatCommitRefsPercent(traceability: Metrics['traceability']): string 
   return traceability.commitsTotal === 0 ? 'Sin datos' : formatPercent((traceability.commitsWithRefs / traceability.commitsTotal) * 100);
 }
 
+const COUNT_FORMATTER = new Intl.NumberFormat('es-AR');
+
+const UNMEASURED_REASON_COPY: Readonly<Record<string, string>> = {
+  missing_claim: 'sin fecha de reclamo',
+  missing_completion: 'sin fecha de cierre',
+  invalid_timestamp: 'fecha inválida',
+  negative_duration: 'cierre anterior al reclamo',
+};
+
+function formatInstant(iso: string | null): string {
+  return iso === null ? '—' : formatDateTimeEs(iso);
+}
+
+/** Read defensively, like the app: no `unmeasured`, a non-numeric `total` or `total === 0` means no note. */
+function buildUnmeasuredNote(efficiency: Metrics['agentHumanEfficiency']): PlantaKpiNote | undefined {
+  const unmeasured = efficiency.unmeasured as Metrics['agentHumanEfficiency']['unmeasured'] | undefined;
+  const total = unmeasured?.total;
+  if (typeof total !== 'number' || !(total > 0)) return undefined;
+  const orders = Array.isArray(unmeasured?.workOrders) ? unmeasured.workOrders : [];
+  return {
+    context: `${COUNT_FORMATTER.format(total)} de ${COUNT_FORMATTER.format(efficiency.completedWorkOrders)} órdenes sin medición`,
+    summary: total === 1 ? 'Ver la 1 orden' : `Ver las ${COUNT_FORMATTER.format(total)} órdenes`,
+    rows: orders.map((order) => ({
+      id: order.id,
+      reason: UNMEASURED_REASON_COPY[order.reason] ?? order.reason,
+      dates: `reclamo ${formatInstant(order.claimedAt)} · cierre ${formatInstant(order.completedAt)}`,
+    })),
+  };
+}
+
 /** The 5 KPIs, left→right in product order (WO-648): the two commit KPIs stay adjacent, refs last. */
 export function buildKpis(metrics = METRICS): readonly PlantaKpi[] {
+  const note = buildUnmeasuredNote(metrics.agentHumanEfficiency);
   return [
-    { label: 'Resolución mediana de una orden', value: formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours) },
+    { label: 'Resolución mediana de una orden', value: formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours), ...(note ? { note } : {}) },
     { label: 'Código sincronizado', value: formatPercent(metrics.systemIntegrity.syncedPercent) },
     { label: 'Features trazadas', value: formatPercent(metrics.traceability.featurePercent) },
     commitKpi('Commits trazados', 'traced', metrics.traceability.commitsTraced, formatPercent(metrics.traceability.commitPercent), metrics.traceability),

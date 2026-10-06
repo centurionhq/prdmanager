@@ -73,13 +73,25 @@
   </section>
 
   <!-- WO-669 (SDD-080 D6/D9): las dos celdas de commits pasan a ser control (n/total + porcentaje secundario); el drawer abierto de este artboard sigue siendo el de órdenes de WO-681 y el de commits se ve en PlantaBandaMobile.dc.html. -->
-  <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 16px; border-bottom: 1px solid #C9CFCD;">
-    <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 12px 12px 0; border-bottom: 1px solid #C9CFCD;"><span style="font-size: 13px; color: #565D63;">Resolución mediana</span><span class="num" style="font-size: 26px; font-weight: 700; font-stretch: 112%;">5 min</span></div>
+  <!-- WO-683 (SDD-085 D2/D3): el strip tiene sus propios estados, elegibles con el control «Estado de los indicadores» de este artboard. La nota de órdenes sin medición de WO-672 va con el desplegable cerrado, como lo renderiza la app (abierto agrega una fila por orden y el marco de 390 px no lo soporta). -->
+  <sc-if value="{{ indListo }}" hint-placeholder-val="{{ true }}">
+    <section aria-label="Indicadores de la planta" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 16px; border-bottom: 1px solid #C9CFCD;">
+    <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 12px 12px 0; border-bottom: 1px solid #C9CFCD;"><span style="font-size: 13px; color: #565D63;">Resolución mediana</span><span class="num" style="font-size: 26px; font-weight: 700; font-stretch: 112%;">5 min</span><span style="font-size: 13px; color: #565D63;">4 de 486 órdenes sin medición</span><details style="min-width: 0; font-size: 13px; color: #565D63;"><summary style="cursor: pointer;">Ver las 4 órdenes</summary><ul aria-label="Órdenes sin medición" style="display: flex; flex-direction: column; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none;"><li style="display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere;"><a class="id" href="#" style="color: #17191C;">WO-001</a><span>sin fecha de reclamo</span><span style="font-size: 12px;">reclamo — · cierre —</span></li><li style="display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere;"><a class="id" href="#" style="color: #17191C;">WO-002</a><span>sin fecha de cierre</span><span style="font-size: 12px;">reclamo 27/09/2026, 18:21 · cierre —</span></li><li style="display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere;"><a class="id" href="#" style="color: #17191C;">WO-003</a><span>fecha inválida</span><span style="font-size: 12px;">reclamo — · cierre —</span></li><li style="display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere;"><a class="id" href="#" style="color: #17191C;">WO-004</a><span>cierre anterior al reclamo</span><span style="font-size: 12px;">reclamo 27/09/2026, 18:21 · cierre 26/09/2026, 10:00</span></li></ul></details></div>
     <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 0 12px 12px; border-left: 1px solid #C9CFCD; border-bottom: 1px solid #C9CFCD;"><span style="font-size: 13px; color: #565D63;">Código sincronizado</span><span class="num" style="font-size: 26px; font-weight: 700; font-stretch: 112%;">99,6 %</span></div>
     <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 12px 12px 0; border-bottom: 1px solid #C9CFCD;"><span style="font-size: 13px; color: #565D63;">Features trazadas</span><a class="num" href="#" style="font-size: 26px; font-weight: 700; font-stretch: 112%; color: #1F4FA0; text-decoration: none;">21/46</a><span style="font-size: 13px; color: #565D63;">faltan 25</span></div>
     <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 0 12px 12px; border-left: 1px solid #C9CFCD; border-bottom: 1px solid #C9CFCD;"><span style="font-size: 13px; color: #565D63;">Commits trazados</span><button type="button" class="num" aria-expanded="false" aria-label="Commits trazados: 166/250" style="align-self: flex-start; padding: 0; border: 0; background: none; color: #17191C; text-align: left; font-family: inherit; font-size: 26px; font-weight: 700; font-stretch: 112%;">166/250</button><span style="font-size: 13px; color: #565D63;">66,4 %</span></div>
     <div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 2px; padding: 12px 0;"><span style="font-size: 13px; color: #565D63;">Commits con Refs</span><button type="button" class="num" aria-expanded="false" aria-label="Commits con Refs: 172/250" style="align-self: flex-start; padding: 0; border: 0; background: none; color: #17191C; text-align: left; font-family: inherit; font-size: 26px; font-weight: 700; font-stretch: 112%;">172/250</button><span style="font-size: 13px; color: #565D63;">68,8 %</span></div>
   </section>
+    </sc-if>
+    <sc-if value="{{ indCargando }}" hint-placeholder-val="{{ false }}">
+    <section aria-label="Indicadores de la planta" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 16px; border-bottom: 1px solid #C9CFCD;"><div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0;"><span style="display: block; height: 10px; width: 70%; background: #DDE1DF;"></span><span style="display: block; height: 24px; width: 45%; background: #DDE1DF;"></span></div><div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0;"><span style="display: block; height: 10px; width: 70%; background: #DDE1DF;"></span><span style="display: block; height: 24px; width: 45%; background: #DDE1DF;"></span></div><div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0;"><span style="display: block; height: 10px; width: 70%; background: #DDE1DF;"></span><span style="display: block; height: 24px; width: 45%; background: #DDE1DF;"></span></div><div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0;"><span style="display: block; height: 10px; width: 70%; background: #DDE1DF;"></span><span style="display: block; height: 24px; width: 45%; background: #DDE1DF;"></span></div><div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0;"><span style="display: block; height: 10px; width: 70%; background: #DDE1DF;"></span><span style="display: block; height: 24px; width: 45%; background: #DDE1DF;"></span></div></section>
+    </sc-if>
+    <sc-if value="{{ indError }}" hint-placeholder-val="{{ false }}">
+    <section aria-label="Indicadores de la planta" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 16px; border-bottom: 1px solid #C9CFCD;"><div style="grid-column: 1 / -1; min-width: 0; padding: 12px 0;"><div role="alert" style="display: flex; gap: 12px; padding: 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-left: 4px solid #B8322A; border-radius: 2px;"><div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;"><span style="font-size: 16px; font-weight: 700;">No pudimos cargar los indicadores</span><span style="font-size: 14px; color: #33383D;">El servidor no respondió. La línea y las órdenes siguen en pie.</span><div style="align-self: flex-start; height: 44px; display: flex; align-items: center; padding: 0 16px; border: 1px solid #1F4FA0; color: #1F4FA0; font-weight: 600; font-size: 14px; border-radius: 2px;">Reintentar</div></div></div></div></section>
+    </sc-if>
+    <sc-if value="{{ indPrimerReporte }}" hint-placeholder-val="{{ false }}">
+    <section aria-label="Indicadores de la planta" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 16px; border-bottom: 1px solid #C9CFCD;"><div style="grid-column: 1 / -1; min-width: 0; padding: 12px 0;"><p style="margin: 0; font-size: 13px; color: #565D63;">Todavía no hay reporte de CI: los indicadores llegan con el primero</p><a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; color: #1F4FA0;">Conectar mi entorno</a></div></section>
+    </sc-if>
 
   <section style="display: flex; flex-direction: column; gap: 4px; padding: 12px 16px 0; min-height: 0; overflow: hidden;">
     <div style="display: flex; align-items: baseline; justify-content: space-between;"><h2 style="margin: 0; font-size: 18px; font-weight: 700;">Drift reciente</h2><a style="font-size: 14px;">Ver todo</a></div>
@@ -128,5 +140,18 @@
   </aside>
 </div>
 </x-dc>
+<script data-dc-script data-props='{"indicadores":{"editor":"enum","default":"listo","options":["listo","cargando","error","primer_reporte"],"section":"Estado de los indicadores"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const estado = this.props.indicadores ?? 'listo';
+    return {
+      indListo: estado === 'listo',
+      indCargando: estado === 'cargando',
+      indError: estado === 'error',
+      indPrimerReporte: estado === 'primer_reporte'
+    };
+  }
+}
+</script>
 </body>
 </html>
