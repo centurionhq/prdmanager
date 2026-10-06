@@ -6,6 +6,7 @@ import {
   getMetrics,
   getWorkOrderContext,
   LABEL_BY_KIND,
+  mirrorPathFor,
   NODE_LABELS,
   renderMermaid,
   renderText,
@@ -43,6 +44,7 @@ async function unpublishedNode(deps: PrdmDeps, id: string): Promise<NodeDetail |
       body: latestVersion?.renderedMarkdown ?? '',
       tags: [],
       source_path: document.sourcePath,
+      mirrorPath: mirrorPathFor(document.docId),
       created_at: null,
       workflowState: document.workflowState,
       indexed: false,
@@ -57,7 +59,7 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
     {
       title: 'Get node',
       description:
-        'Fetches a single graph node by id (MRD/PRD/FR/SDD/ADR/WO/ART/FB) with its title, body, status and every incoming/outgoing relationship. Use this when you already know an id and need its full detail. If the id is not in the graph, falls back to the project\'s unpublished documents: a draft/in_review document comes back with its real workflowState, indexed: false and no links.',
+        'Fetches a single graph node by id (MRD/PRD/FR/SDD/ADR/WO/ART/FB) with its title, body, status and every incoming/outgoing relationship. Use this when you already know an id and need its full detail. If the id is not in the graph, falls back to the project\'s unpublished documents: a draft/in_review document comes back with its real workflowState, indexed: false and no links. Each node publishes source_path (the canonical published path; it may not exist on disk because in remote mode docs/ only ships model/) and mirrorPath (the readable copy that prdm sync leaves in the checkout, .prdm/remote/docs/<ID>.md).',
       inputSchema: { id: docId },
       annotations: { title: 'Get node', ...READ_ONLY },
     },
@@ -125,7 +127,7 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
     {
       title: 'List work orders',
       description:
-        'Lists Work Orders, optionally filtered by status (pending/in_progress/done/out_of_sync) and/or the Blueprint id they implement. Use this to find work to claim.',
+        'Lists Work Orders, optionally filtered by status (pending/in_progress/done/out_of_sync) and/or the Blueprint id they implement. Use this to find work to claim. Each item publishes sourcePath (the canonical published path; it may not exist on disk because in remote mode docs/ only ships model/) and mirrorPath (the readable copy that prdm sync leaves in the checkout, .prdm/remote/docs/<ID>.md).',
       inputSchema: { status: z.enum(WORK_ORDER_STATUSES).optional(), blueprint_id: docId.optional() },
       annotations: { title: 'List work orders', ...READ_ONLY },
     },

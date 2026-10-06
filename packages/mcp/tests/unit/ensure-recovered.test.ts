@@ -20,7 +20,7 @@ function trackedDeps(calls: string[]): PrdmDeps {
     writeSnapshot: async () => undefined,
     getNode: async (id: string) => {
       calls.push('store.getNode');
-      return { node: { id, label: 'Feature', kind: 'PRD', title: 't', status: 'draft', body: '', tags: [], source_path: 'x.md', created_at: null }, links: [] };
+      return { node: { id, label: 'Feature', kind: 'PRD', title: 't', status: 'draft', body: '', tags: [], source_path: 'x.md', mirrorPath: '.prdm/remote/docs/' + id + '.md', created_at: null }, links: [] };
     },
     search: async () => {
       calls.push('store.search');
