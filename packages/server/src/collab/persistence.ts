@@ -21,17 +21,39 @@
  * content — the very next `onStoreDocument` debounce then persists it to `working_state` for good, so
  * this only ever runs once per document.
  *
- * Deliberately does not write to `doc_updates` itself (WO-149's `onChange` hook owns that) — this
- * extension only ever *reads* it, so `documents.snapshotSeq` staying `0` (no rows yet) is just the
- * "nothing to replay" case, exercised by every test until WO-149 lands.
+ * WO-596 (SDD-008 bug fix): the WO-447 seed above used to live only in the live in-memory `Y.Doc`,
+ * never written to `doc_updates` (WO-149's `onChange`/`beforeSync` hook only ever logs real incoming
+ * client sync messages) until the next debounced `onStoreDocument` flush. Any reconstruction of "the
+ * document as it is right now" from durable storage alone (`reconstruct-ydoc.ts`'s `reconstructFromScratch`
+ * — used by version capture on publish, comment-anchor resolution, blame, and restore) done in that
+ * window replayed real client edits, whose Yjs structs reference the seed's structs by `left`/predecessor,
+ * onto a `Y.Doc` that never received the seed at all: those structs' dependencies could never resolve, so
+ * the reconstruction silently came out empty/incomplete (confirmed to reproduce deterministically, not as
+ * flakiness). The seed transaction below is now durably journaled the same way `restore.ts` journals its
+ * own server-authored Y.Doc mutations that aren't a client sync message — a real `doc_updates` row,
+ * `actorKind: 'system'`, written via `writeDocUpdateBatch` after (necessarily — that writer opens its own
+ * transaction/advisory lock) the read transaction below commits — so every reader of `doc_updates` sees
+ * the same complete document a live session already does.
+ *
+ * That journal write can fail (a transient DB error) in a way nothing in this hook could before WO-596 —
+ * unlike `onStoreDocument`'s own failures, Hocuspocus does not swallow a thrown `onLoadDocument`: it closes
+ * the connection and rethrows, so the client's load genuinely fails. This is self-healing, not silent data
+ * loss: nothing was journaled, so `documents` is exactly as if this load never ran, and the next connection
+ * attempt retries the same seed-if-untouched branch cleanly. `pending_editable_patch` (WO-139, applied to
+ * the in-memory `Y.Doc` inside the same read transaction) is deliberately *not* cleared until after the
+ * seed diff above is durably journaled, for the same reason: clearing it any earlier and then having the
+ * journal write fail would strand the patch (already committed as cleared, but its fields never reached any
+ * client). Safe to retry regardless of exactly where a failure lands — `applyPendingPatch` only ever calls
+ * `fm.set(key, value)`, idempotent on a `Y.Map` no matter how many times a reconnect reapplies it.
  */
 import { and, desc, eq, gt } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import * as Y from 'yjs';
 import { parseDocument } from '@prdm/core';
 import { resolveDocumentById, schema, withTenantTx, type PgDatabase } from '@prdm/db';
-import { assertValidRoot, BODY_ROOT, FRONTMATTER_ROOT, InvalidDocumentRootError, type FrontmatterValue } from '@prdm/collab';
+import { assertValidRoot, BODY_ROOT, decodeUpdateRanges, FRONTMATTER_ROOT, InvalidDocumentRootError, type FrontmatterValue } from '@prdm/collab';
 import { parseDocumentName } from './document-name.js';
+import { writeDocUpdateBatch } from './doc-update-writer.js';
 import { createDocSizeTracker, type DocSizeTracker } from './doc-size-tracker.js';
 import { defaultLiveYDocCache, type LiveYDocCache } from './reconstruct-ydoc.js';
 
@@ -145,7 +167,16 @@ export function createCollabPersistenceExtension(deps: CollabPersistenceDeps): C
       const resolved = await resolveDocumentById(pool, parsed.documentId);
       if (!resolved) throw new Error(`document ${parsed.documentId} does not exist`);
 
-      await withTenantTx(pool, resolved.orgId, async (tx) => {
+      // WO-596: the transaction below returns the seed's own diff (if the seed step actually ran) and
+      // whether a pending patch needs clearing, but does NOT clear it itself -- that has to wait until
+      // *after* the seed diff is durably journaled (below). Clearing it here, in the same transaction that
+      // reads it, would let a subsequent `writeDocUpdateBatch` failure strand the patch: already committed
+      // as cleared in `documents`, but its fields only ever reached this one in-memory `Y.Doc`, which a
+      // failed load never hands to any client. Deferring the clear until after the journal write means a
+      // failure there instead leaves `pending_editable_patch` set for the next connection attempt to retry
+      // -- safe to retry either way, since `applyPendingPatch` only ever calls `fm.set(key, value)`, and a
+      // `Y.Map` set is idempotent regardless of how many times the same value lands.
+      const { seedUpdate, pendingPatch } = await withTenantTx(pool, resolved.orgId, async (tx): Promise<{ seedUpdate: Uint8Array | null; pendingPatch: Record<string, unknown> | null }> => {
         const [row] = await tx
           .select()
           .from(schema.documents)
@@ -158,6 +189,7 @@ export function createCollabPersistenceExtension(deps: CollabPersistenceDeps): C
 
         const replayed = await replayTail(tx, document, row.id, row.snapshotSeq);
 
+        let seedUpdate: Uint8Array | null = null;
         if (!row.workingState && !replayed) {
           const [latestVersion] = await tx
             .select({ renderedMarkdown: schema.documentVersions.renderedMarkdown })
@@ -165,14 +197,35 @@ export function createCollabPersistenceExtension(deps: CollabPersistenceDeps): C
             .where(eq(schema.documentVersions.documentId, row.id))
             .orderBy(desc(schema.documentVersions.versionNo))
             .limit(1);
-          if (latestVersion) seedFromMarkdown(document, latestVersion.renderedMarkdown, row.sourcePath);
+          if (latestVersion) {
+            const before = Y.encodeStateVector(document);
+            seedFromMarkdown(document, latestVersion.renderedMarkdown, row.sourcePath);
+            seedUpdate = Y.encodeStateAsUpdate(document, before);
+          }
         }
 
+        let pendingPatch: Record<string, unknown> | null = null;
         if (row.pendingEditablePatch && typeof row.pendingEditablePatch === 'object' && !Array.isArray(row.pendingEditablePatch)) {
-          applyPendingPatch(document, row.pendingEditablePatch as Record<string, unknown>);
-          await tx.update(schema.documents).set({ pendingEditablePatch: null }).where(eq(schema.documents.id, row.id));
+          pendingPatch = row.pendingEditablePatch as Record<string, unknown>;
+          applyPendingPatch(document, pendingPatch);
         }
+
+        return { seedUpdate, pendingPatch };
       });
+
+      if (seedUpdate && seedUpdate.length > 0) {
+        const update = Buffer.from(seedUpdate);
+        const { structRanges, deleteRanges } = decodeUpdateRanges(update);
+        await writeDocUpdateBatch(pool, resolved.orgId, parsed.documentId, [
+          { update, structRanges, deleteRanges, actorKind: 'system', userId: null, onBehalfOf: null, agentId: null, connectionId: null },
+        ]);
+      }
+
+      if (pendingPatch) {
+        await withTenantTx(pool, resolved.orgId, async (tx) => {
+          await tx.update(schema.documents).set({ pendingEditablePatch: null }).where(eq(schema.documents.id, parsed.documentId));
+        });
+      }
 
       // WO-221: seed the running byte counter from the document's real, fully-hydrated encoded size —
       // computed once here (a normal document load, never on the `beforeSync` hot path) so a server

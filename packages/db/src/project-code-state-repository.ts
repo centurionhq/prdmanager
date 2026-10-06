@@ -7,6 +7,7 @@
  */
 import { eq, sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
+import type { PgDatabase } from './pool.js';
 import { projectCodeState } from './schema/documents.js';
 import { withTenantTx } from './tenant.js';
 
@@ -73,4 +74,34 @@ export async function recordBaselineHead(pool: Pool, input: RecordBaselineHeadIn
       .values({ projectId: input.projectId, orgId: input.orgId, impactsHashes: merged, latestBaselineHeadSha: input.headSha, governedWarnings })
       .onConflictDoUpdate({ target: projectCodeState.projectId, set: { impactsHashes: merged, latestBaselineHeadSha: input.headSha, ...(governedWarnings !== undefined ? { governedWarnings } : {}) } });
   });
+}
+
+/**
+ * WO-604: lee el último `RefreshReport` persistido por `PgProjectEngine.refresh()` para este proyecto.
+ * `null` si nunca hubo un refresh guardado (o si el proyecto no tiene fila en `project_code_state`).
+ * Scoped por transacción (recibe `tx`) para poder leerse dentro de la misma `withTenantTx` que el resto
+ * de las lecturas del engine — no dispara ningún refresh (SDD-007: "estado guardado, nunca dispara refresh").
+ */
+export async function readProjectLastReport(tx: PgDatabase, projectId: string): Promise<unknown | null> {
+  const [row] = await tx
+    .select({ lastReport: projectCodeState.lastReport })
+    .from(projectCodeState)
+    .where(eq(projectCodeState.projectId, projectId));
+  return (row?.lastReport as unknown) ?? null;
+}
+
+/**
+ * WO-604: escribe (o pisa) el último `RefreshReport` del proyecto. Upsert por `project_id` que NUNCA
+ * toca `impacts_hashes`/`latest_baseline_head_sha`/`governed_warnings` — solo `last_report` — para no
+ * pisar lo que `recordBaselineHead` (WO-181/WO-333) haya persistido. Se llama dentro de la misma
+ * transacción (y bajo el mismo `WRITE_LOCK_SALT`) que el `refresh()` que lo produce.
+ */
+export async function writeProjectLastReport(
+  tx: PgDatabase,
+  input: { projectId: string; orgId: string; report: unknown },
+): Promise<void> {
+  await tx
+    .insert(projectCodeState)
+    .values({ projectId: input.projectId, orgId: input.orgId, lastReport: input.report })
+    .onConflictDoUpdate({ target: projectCodeState.projectId, set: { lastReport: input.report } });
 }

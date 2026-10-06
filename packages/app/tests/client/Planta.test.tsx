@@ -179,6 +179,32 @@ describe('Planta', () => {
     expect(screen.getByText('99,6 %')).toBeTruthy();
     expect(screen.getByText('100 %')).toBeTruthy();
     expect(screen.getByText('66,4 %')).toBeTruthy();
+    expect(screen.getByText('70 %')).toBeTruthy();
+  });
+
+  it('keeps "Commits trazados" and "Commits con Refs" as two distinct KPIs when their numbers differ (WO-606)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue({
+      ...METRICS,
+      traceability: { featuresTotal: 4, featuresTraced: 4, featurePercent: 100, commitsTotal: 20, commitsWithRefs: 10, commitsTraced: 6, commitPercent: 30 },
+    });
+    renderPlanta();
+
+    const withRefs = (await screen.findByText('Commits con Refs')).closest('div')?.textContent ?? '';
+    const traced = screen.getByText('Commits trazados').closest('div')?.textContent ?? '';
+    expect(withRefs).toContain('50 %');
+    expect(withRefs).not.toContain('30 %');
+    expect(traced).toContain('30 %');
+    expect(traced).not.toContain('50 %');
+  });
+
+  it('shows "Sin datos" for "Commits con Refs" when there are no commits', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(EMPTY_METRICS);
+    renderPlanta();
+
+    const withRefs = (await screen.findByText('Commits con Refs')).closest('div')?.textContent ?? '';
+    expect(withRefs).toContain('Sin datos');
   });
 
   it('explains missing metrics instead of showing a fabricated 0% when awaiting the first report', async () => {

@@ -17,7 +17,7 @@
  * Reuses `./harness.ts`'s real-server bootstrap (real Postgres/Neo4j, the real built `@prdm/app` bundle) —
  * same convention as `full-journey.spec.ts`/`accessibility.spec.ts`, never a second parallel setup.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { PASSWORD, startJourney, stopJourney, type Journey } from './harness.js';
 
 let journey: Journey;
@@ -54,9 +54,14 @@ async function switchToPreviewTab(page: Page): Promise<void> {
   await page.getByRole('tab', { name: 'Vista previa' }).click();
 }
 
+/** A freshly created PRD's live `Y.Doc` is NOT empty -- "Nuevo documento" seeds it from the PRD template
+ * (`packages/core/src/templates/index.ts`: "## Resumen/## Requisitos/## Fuera de alcance" already in the
+ * body). `Control+a` selects that seeded content before typing, so `text` replaces it outright -- see
+ * WO-594's commit message for how the stale "starts genuinely empty" assumption here was found. */
 async function typeIntoEmptyBody(page: Page, text: string): Promise<void> {
   await switchToMarkdownTab(page);
   await page.locator('.cm-content').click();
+  await page.keyboard.press('Control+a');
   await typeLines(page, text);
 }
 
@@ -92,6 +97,23 @@ async function installCspViolationListener(page: Page): Promise<void> {
 
 async function readCspViolations(page: Page): Promise<string[]> {
   return page.evaluate(() => (globalThis as unknown as { __cspViolations: string[] }).__cspViolations);
+}
+
+/** WO-600: a paragraph's own `<p data-block-from>` also hosts `PreviewEditor.tsx`'s `MarginSlot` --
+ * `data-blame-slot`/`data-cursor-slot` spans that `BlameMargin.tsx`/`RemoteCursors.tsx` portal decoration
+ * into (a real author-initial badge once blame data arrives, timing-dependent on the real `blame:stale`
+ * broadcast -- not a fixed delay this test controls). Both are real element children of the same `<p>`,
+ * so a bare `.textContent`/`toHaveText()` on the whole paragraph is flaky against exactly when that
+ * portal has rendered. Reading only genuine text nodes (`nodeType === 3`) gets the paragraph's own prose
+ * regardless of whether/what a decoration has rendered next to it -- this is an intentional, already
+ * unit-tested DOM shape (`BlameMargin.test.tsx`), not something to work around by waiting on the badge. */
+async function paragraphText(paragraph: Locator): Promise<string> {
+  return paragraph.evaluate((el) =>
+    Array.from(el.childNodes)
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .map((node) => node.textContent)
+      .join(''),
+  );
 }
 
 const ORIGINAL_SECOND_LINE = 'Segundo parrafo original que tampoco debe cambiar.';
@@ -154,7 +176,7 @@ test('a Vista previa edit stays lossless, syncs live, is blamed correctly, and f
     await pageBob.keyboard.press('End');
     await pageBob.keyboard.type(EDIT_SUFFIX);
 
-    await expect(paragraph).toHaveText(`${ORIGINAL_FIRST_PARAGRAPH}${EDIT_SUFFIX}`);
+    await expect.poll(() => paragraphText(paragraph)).toBe(`${ORIGINAL_FIRST_PARAGRAPH}${EDIT_SUFFIX}`);
   });
 
   const expectedBody = buildBody(`${ORIGINAL_FIRST_PARAGRAPH}${EDIT_SUFFIX}`);
@@ -166,7 +188,7 @@ test('a Vista previa edit stays lossless, syncs live, is blamed correctly, and f
   await test.step('Alice (the other collaborator) sees the same edit propagate via the live Yjs sync', async () => {
     await switchToPreviewTab(pageAlice);
     const aliceParagraph = pageAlice.locator('p[data-block-from]', { hasText: ORIGINAL_FIRST_PARAGRAPH });
-    await expect(aliceParagraph).toHaveText(`${ORIGINAL_FIRST_PARAGRAPH}${EDIT_SUFFIX}`);
+    await expect.poll(() => paragraphText(aliceParagraph)).toBe(`${ORIGINAL_FIRST_PARAGRAPH}${EDIT_SUFFIX}`);
     await expect.poll(() => readMarkdownSource(pageAlice)).toBe(expectedBody);
   });
 

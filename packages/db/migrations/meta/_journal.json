@@ -162,6 +162,13 @@
       "when": 1790002825259,
       "tag": "0022_user_work_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791248973389,
+      "tag": "0023_thick_expediter",
+      "breakpoints": true
     }
   ]
 }
