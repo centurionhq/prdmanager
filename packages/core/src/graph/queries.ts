@@ -106,8 +106,11 @@ export const LIST_WORK_ORDERS = `
   MATCH (wo:WorkOrder {project_id: $projectId})
   WHERE ($status IS NULL OR wo.status = $status)
     AND ($blueprint IS NULL OR EXISTS { (wo)-[:IMPLEMENTS]->(:Blueprint {project_id: $projectId, id: $blueprint}) })
+  WITH wo,
+       COLLECT { MATCH (c:Commit {project_id: $projectId})-[:RESOLVES]->(wo)
+                 RETURN c.sha AS sha ORDER BY c.date DESC, c.sha DESC LIMIT 1 } AS landed
   RETURN wo.id AS id, wo.title AS title, wo.status AS status, wo.assigned_to AS assignedTo, wo.source_path AS sourcePath,
-         wo.created_at AS createdAt, wo.claimed_at AS claimedAt,
+         wo.created_at AS createdAt, wo.claimed_at AS claimedAt, landed[0] AS landedCommitSha,
          COLLECT { MATCH (wo)-[:IMPLEMENTS]->(b:Blueprint {project_id: $projectId}) RETURN b.id ORDER BY b.id } AS blueprints
   ORDER BY wo.id`;
 
