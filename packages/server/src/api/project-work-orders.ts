@@ -5,11 +5,8 @@
  * `claimWorkOrder`, `completeWorkOrder` — so the Centurion Factory app can drive them without a personal
  * token.
  *
- * `claim`'s assignee is always built server-side as `dev:<user_profile.handle>` (never accepted from the
- * request body — `claimWorkOrderInputSchema` is intentionally an empty `strictObject`, same convention as
- * `./close-feature.ts`'s `by`), the same rule SDD-010's remote MCP `claim_work_order` already enforces for
- * a bearer caller (`@prdm/mcp`'s `denyAssignee`), just resolved from a session instead of a personal
- * token's own handle.
+ * `claim`'s assignee defaults to `dev:<user_profile.handle>`; the body may request `agent:<name>` or the
+ * caller's own `dev:<handle>` (SDD-086 D1, see `resolveClaimAssignee`) — any other `dev:<...>` is a 403.
  *
  * `complete`'s `commitSha` is mandatory (`completeWorkOrderInputSchema`); `@prdm/core`'s own
  * `completeWorkOrder` already refuses a sha that doesn't resolve to a `trust: 'baseline'` commit
@@ -19,7 +16,7 @@
  * every other domain-thrown `Error` gets.
  */
 import { archiveWorkOrder, claimWorkOrder, CommitNotVerifiedError, completeWorkOrder, getWorkOrderContext } from '@prdm/core';
-import { archiveWorkOrderInputSchema, can, claimWorkOrderInputSchema, completeWorkOrderInputSchema, type WorkOrderContextDto } from '@prdm/contracts';
+import { archiveWorkOrderInputSchema, batchWorkOrdersInputSchema, can, claimWorkOrderInputSchema, completeWorkOrderInputSchema, type WorkOrderContextDto } from '@prdm/contracts';
 import { createTenantDb, findUserProfile } from '@prdm/db';
 import type { Neo4jGraphDatabase } from '@prdm/core';
 import type { FastifyInstance } from 'fastify';
@@ -43,6 +40,24 @@ interface WorkOrderRouteParams {
   orgSlug: string;
   projectSlug: string;
   woId: string;
+}
+
+/**
+ * Resolves the effective assignee of a claim (SDD-086 D1). No `requested` → the caller's own
+ * `dev:<user_profile.handle>` (the contract this route always had). `agent:<name>` is accepted as-is
+ * (delegating to a bot). A `dev:<...>` is only accepted when it is exactly the caller's own handle;
+ * anyone else's handle is a 403 (assigning work to another person needs admin and nobody asked for it).
+ */
+async function resolveClaimAssignee(pool: Pool, userId: string, requested: string | undefined): Promise<string> {
+  if (requested !== undefined && requested.startsWith('agent:')) return requested;
+  const profile = await findUserProfile(pool, userId);
+  if (!profile) {
+    if (requested === undefined) throw new ConflictError('no user_profile handle for this account; cannot build an assignee');
+    throw new ForbiddenError('assignee must be agent:<name> or your own dev:<handle>');
+  }
+  const own = `dev:${profile.handle}`;
+  if (requested === undefined || requested === own) return own;
+  throw new ForbiddenError(`cannot assign ${requested}: assignee must be agent:<name> or your own ${own}`);
 }
 
 export function registerProjectWorkOrderRoutes(app: FastifyInstance, opts: RegisterProjectWorkOrderRoutesOptions): void {
@@ -77,9 +92,7 @@ export function registerProjectWorkOrderRoutes(app: FastifyInstance, opts: Regis
       const parsedBody = claimWorkOrderInputSchema.safeParse(req.body ?? {});
       if (!parsedBody.success) throw new ValidationError('invalid body');
 
-      const profile = await findUserProfile(pool, session.user.id);
-      if (!profile) throw new ConflictError('no user_profile handle for this account; cannot build an assignee');
-      const assignee = `dev:${profile.handle}`;
+      const assignee = await resolveClaimAssignee(pool, session.user.id, parsedBody.data.assignee);
 
       const neo4j = requireNeo4j(opts.neo4j);
       const engine = resolvePgProjectEngine(pool, neo4j, org.id, project);
@@ -184,6 +197,61 @@ export function registerProjectWorkOrderRoutes(app: FastifyInstance, opts: Regis
         });
 
       return { result };
+    },
+  );
+
+  /**
+   * `POST .../work-orders/batch` (SDD-086 D4): applies `archive` or `claim` to 1..200 work orders. Best-effort
+   * per item: a failing item (unknown id, wrong status, ...) is reported as `ok:false` with core's error and
+   * never aborts the rest; `results` keeps the order of `ids`. Permission depends on the action
+   * (`archive_work_order` / `claim_work_order`); a `claim` with someone else's `dev:<handle>` is a 403 of the
+   * whole request. The archive actor is `dev:<userId>`, same as the single-item route. Each applied item gets
+   * the same audit row as its single-item route.
+   */
+  app.post<{ Params: Omit<WorkOrderRouteParams, 'woId'> }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/work-orders/batch',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+      const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+
+      const parsed = batchWorkOrdersInputSchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError('invalid body');
+      const { action, ids, reason } = parsed.data;
+
+      const permission = action === 'archive' ? 'archive_work_order' : 'claim_work_order';
+      if (!can(subject, permission)) throw new ForbiddenError();
+
+      const assignee = action === 'claim' ? await resolveClaimAssignee(pool, session.user.id, parsed.data.assignee) : undefined;
+
+      const neo4j = requireNeo4j(opts.neo4j);
+      const engine = resolvePgProjectEngine(pool, neo4j, org.id, project);
+      const audit = createTenantDb(pool).forOrg(org.id).auditLog;
+      const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+      for (const id of ids) {
+        try {
+          if (assignee === undefined) await archiveWorkOrder(engine, id, `dev:${session.user.id}`, { reason });
+          else await claimWorkOrder(engine, id, assignee);
+        } catch (err) {
+          results.push({ id, ok: false, error: err instanceof Error ? err.message : String(err) });
+          continue;
+        }
+        await audit.record({
+          projectId: project.id,
+          actorType: 'user',
+          actorId: session.user.id,
+          action: assignee === undefined ? 'work_order.archived' : 'work_order.claimed',
+          target: id,
+          metadata: assignee === undefined ? { reason } : { assignee },
+          ip: req.ip,
+          userAgent: userAgentOf(req),
+        });
+        results.push({ id, ok: true });
+      }
+
+      const applied = results.filter((r) => r.ok).length;
+      return { results, archived: action === 'archive' ? applied : 0, claimed: action === 'claim' ? applied : 0 };
     },
   );
 }
