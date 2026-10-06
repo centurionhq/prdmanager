@@ -73,3 +73,12 @@ export function createKeyedRateLimiter(app: FastifyInstance, opts: CreateKeyedRa
     },
   };
 }
+
+const FIFTEEN_MINUTES_MS = 15 * 60_000;
+
+/** SDD-099 §D2: bucket propio del POST público de solicitud de acceso (no comparte contador con las
+ * invitaciones). La ruta no tiene cuenta, así que se llama con `check(req, undefined)`: sólo cuenta por
+ * IP, max 5 / 15 min. */
+export function buildAccessRequestRateLimiter(app: FastifyInstance): KeyedRateLimiter {
+  return createKeyedRateLimiter(app, { max: 5, timeWindowMs: FIFTEEN_MINUTES_MS });
+}

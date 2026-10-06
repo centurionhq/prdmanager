@@ -68,6 +68,7 @@ import type { Mailer } from './mailer.js';
 import { buildAuthRateLimiters } from './rate-limit/auth-rate-limits.js';
 import { buildBearerAuthRateLimiter } from './rate-limit/bearer-rate-limits.js';
 import { buildInvitationAcceptRateLimiter } from './rate-limit/invitation-rate-limits.js';
+import { buildAccessRequestRateLimiter } from './rate-limit/keyed-rate-limit.js';
 import { buildOrganizationInvitationRateLimiter } from './rate-limit/organization-invitation-rate-limits.js';
 import { registerSecurityHeaders } from './security-headers.js';
 
@@ -257,7 +258,14 @@ export function buildServer(deps: BuildServerDeps): FastifyInstance {
       registerCsrfEnforcement(app, env);
       registerOrganizationRoutes(app, { auth, pool, env });
       registerAdminOrganizationRoutes(app, { auth, pool, mailer, env });
-      registerOrganizationInvitationRoutes(app, { auth, pool, mailer, env, rateLimiter: buildOrganizationInvitationRateLimiter(app) });
+      registerOrganizationInvitationRoutes(app, {
+        auth,
+        pool,
+        mailer,
+        env,
+        rateLimiter: buildOrganizationInvitationRateLimiter(app),
+        accessRequestRateLimiter: buildAccessRequestRateLimiter(app),
+      });
       registerProjectRoutes(app, { auth, pool, env, collabRevocationHub });
       registerProjectOverviewRoutes(app, { auth, pool, env, neo4j });
       registerDocumentRoutes(app, { auth, pool, env, collabRevocationHub });
