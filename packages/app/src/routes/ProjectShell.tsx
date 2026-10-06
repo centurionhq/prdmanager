@@ -26,6 +26,7 @@ import { AppShell, type AppShellData } from '../components/shell/AppShell.js';
 import { projectRoleLabel } from '../components/shell/project-nav.js';
 import { FormError } from '../components/FormError.js';
 import { FormNotice } from '../components/FormNotice.js';
+import { NotFoundPanel } from '../components/NotFoundPanel/NotFoundPanel.js';
 import type { OrgShellContext } from './OrgShell.js';
 import formStyles from '../styles/forms.module.css';
 
@@ -139,7 +140,14 @@ export function ProjectShell(): ReactElement {
   }
 
   if (!project) {
-    return <FormNotice title="Proyecto no encontrado" subtitle="No pertenecés a este proyecto o no existe." />;
+    return (
+      <NotFoundPanel
+        brand="Centurion Factory"
+        title="Proyecto no encontrado"
+        body="No pertenecés a este proyecto o no existe."
+        action={{ to: `/o/${currentOrg.slug}`, label: `Ver los proyectos de ${currentOrg.name}` }}
+      />
+    );
   }
 
   const subject: PermissionSubject = { orgRole: currentOrg.role, projectRole: asProjectRole(project.myRole) };

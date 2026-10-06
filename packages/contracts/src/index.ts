@@ -1,4 +1,5 @@
 export * from './agent.js';
+export * from './app-route-map.js';
 export * from './audit.js';
 export * from './code-refs.js';
 export * from './code-reports.js';
