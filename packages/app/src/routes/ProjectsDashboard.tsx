@@ -54,6 +54,10 @@ const STATION_LABELS: Record<Station, string> = {
 };
 
 type ProjectFilter = 'active' | 'archived' | 'all';
+type LineFilter = 'all' | 'stopped' | 'drift' | 'awaiting';
+
+const PROJECT_FILTER_LABELS: Record<ProjectFilter, string> = { active: 'Activos', archived: 'Archivados', all: 'Todos' };
+const LINE_FILTER_LABELS: Record<LineFilter, string> = { all: 'Todos', stopped: 'Detenidos', drift: 'Con drift', awaiting: 'Esperando CI' };
 
 function stationPosition(station: Station): number {
   return STATIONS.indexOf(station) + 1;
@@ -194,6 +198,27 @@ function matchesFilter(project: ProjectOverviewDto, filter: ProjectFilter): bool
   return true;
 }
 
+function matchesLineFilter(project: ProjectOverviewDto, lineFilter: LineFilter): boolean {
+  if (lineFilter === 'stopped') return project.andonStation !== null;
+  if (lineFilter === 'drift') return project.driftErrors + project.driftWarnings > 0;
+  if (lineFilter === 'awaiting') return project.awaitingFirstReport;
+  return true;
+}
+
+function joinWithY(parts: readonly string[]): string {
+  if (parts.length < 2) return parts.join('');
+  return `${parts.slice(0, -1).join(', ')} y ${parts[parts.length - 1]}`;
+}
+
+function noMatchMessage(query: string, filter: ProjectFilter, lineFilter: LineFilter): string {
+  const active = [
+    query.trim() !== '' ? `la búsqueda «${query.trim()}»` : null,
+    filter !== 'all' ? `«${PROJECT_FILTER_LABELS[filter]}»` : null,
+    lineFilter !== 'all' ? `«${LINE_FILTER_LABELS[lineFilter]}»` : null,
+  ].filter((part): part is string => part !== null);
+  return active.length === 0 ? 'Ningún proyecto coincide con el filtro.' : `Ningún proyecto coincide con ${joinWithY(active)}.`;
+}
+
 interface ColumnActions {
   readonly orgSlug: string;
   readonly orgRole: PermissionSubject['orgRole'];
@@ -220,8 +245,18 @@ function buildColumns({ orgSlug, orgRole, onArchive, onUnarchive }: ColumnAction
         </span>
       ),
     },
-    { key: 'line', header: 'Estado de la línea', render: (project) => <LineStatus project={project} /> },
-    { key: 'drift', header: 'Drift', render: (project) => <DriftCell project={project} orgSlug={orgSlug} /> },
+    {
+      key: 'line',
+      header: 'Estado de la línea',
+      sortValue: (project) => stationPosition(project.andonStation ?? project.furthestStation),
+      render: (project) => <LineStatus project={project} />,
+    },
+    {
+      key: 'drift',
+      header: 'Drift',
+      sortValue: (project) => project.driftErrors * 100 + project.driftWarnings,
+      render: (project) => <DriftCell project={project} orgSlug={orgSlug} />,
+    },
     {
       key: 'orders',
       header: 'Órdenes en curso',
@@ -397,6 +432,7 @@ function ProjectsDashboardContent(): ReactElement {
   useDocumentTitle('Proyectos');
 
   const [filter, setFilter] = useState<ProjectFilter>('active');
+  const [lineFilter, setLineFilter] = useState<LineFilter>('all');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState<string>>({ key: 'activity', direction: 'desc' });
   const [modalOpen, setModalOpen] = useState(false);
@@ -426,13 +462,16 @@ function ProjectsDashboardContent(): ReactElement {
 
   const activeCount = projects.filter((project) => project.archivedAt === null).length;
   const archivedCount = projects.length - activeCount;
+  const stoppedCount = projects.filter((project) => matchesLineFilter(project, 'stopped')).length;
+  const driftCount = projects.filter((project) => matchesLineFilter(project, 'drift')).length;
+  const awaitingCount = projects.filter((project) => matchesLineFilter(project, 'awaiting')).length;
 
   const visible = useMemo(() => {
-    const byFilter = filterItems(projects, [(project) => matchesFilter(project, filter)]);
+    const byFilter = filterItems(projects, [(project) => matchesFilter(project, filter), (project) => matchesLineFilter(project, lineFilter)]);
     const searched = searchItems(byFilter, query, (project) => [project.name, project.slug]);
     const column = columns.find((entry) => entry.key === sort.key);
     return sortItems(searched, column?.sortValue ?? (() => undefined), sort.direction);
-  }, [projects, filter, query, sort, columns]);
+  }, [projects, filter, lineFilter, query, sort, columns]);
 
   if (projectsQuery.status === 'cargando') {
     return (
@@ -516,16 +555,29 @@ function ProjectsDashboardContent(): ReactElement {
         />
       ) : (
         <>
-          <FilterChips
-            label="Filtrar proyectos"
-            options={[
-              { value: 'active', label: 'Activos', count: activeCount },
-              { value: 'archived', label: 'Archivados', count: archivedCount },
-              { value: 'all', label: 'Todos' },
-            ]}
-            value={filter}
-            onChange={(value) => setFilter(value as ProjectFilter)}
-          />
+          <div className={styles.filters}>
+            <FilterChips
+              label="Filtrar proyectos"
+              options={[
+                { value: 'active', label: 'Activos', count: activeCount },
+                { value: 'archived', label: 'Archivados', count: archivedCount },
+                { value: 'all', label: 'Todos' },
+              ]}
+              value={filter}
+              onChange={(value) => setFilter(value as ProjectFilter)}
+            />
+            <FilterChips
+              label="Estado de la línea"
+              options={[
+                { value: 'all', label: 'Todos', count: projects.length },
+                { value: 'stopped', label: 'Detenidos', count: stoppedCount },
+                { value: 'drift', label: 'Con drift', count: driftCount },
+                { value: 'awaiting', label: 'Esperando CI', count: awaitingCount },
+              ]}
+              value={lineFilter}
+              onChange={(value) => setLineFilter(value as LineFilter)}
+            />
+          </div>
           <Legend />
           {actionError ? (
             <p role="alert" className={styles.actionError}>
@@ -539,7 +591,7 @@ function ProjectsDashboardContent(): ReactElement {
             getRowId={(project) => project.id}
             sort={sort}
             onSortChange={setSort}
-            emptyState={<p>Ningún proyecto coincide con el filtro.</p>}
+            emptyState={<p>{noMatchMessage(query, filter, lineFilter)}</p>}
           />
           <p className={styles.footnote}>¿No ves un proyecto? Pedile acceso a un admin de {currentOrg.name}.</p>
         </>

@@ -279,4 +279,108 @@ describe('ProjectsDashboard', () => {
     expect(within(legend).getAllByRole('listitem').length).toBeGreaterThanOrEqual(11);
     expect(within(legend).getByText(/detectadas por CI/)).toBeTruthy();
   });
+
+  describe('line status filter and severity sort', () => {
+    const lineProjects = (): ProjectOverviewDto[] => [
+      makeProject({ id: 'p1', slug: 'web', name: 'Web' }),
+      makeProject({ id: 'p2', slug: 'ystream', name: 'Ystream', andonStation: 'construccion', furthestStation: 'entregado' }),
+      makeProject({ id: 'p3', slug: 'driftoso', name: 'Driftoso', driftErrors: 1, furthestStation: 'producto' }),
+      makeProject({ id: 'p4', slug: 'esperando', name: 'Esperando', awaitingFirstReport: true }),
+      makeProject({ id: 'p5', slug: 'viejo', name: 'Viejo', archivedAt: '2026-01-01T00:00:00.000Z', andonStation: 'producto' }),
+    ];
+
+    function bodyRowNames(): string[] {
+      return screen
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => row.querySelector('td')?.textContent ?? '');
+    }
+
+    it('"Detenidos" keeps only rows with an andon station and combines with Archivados', async () => {
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue(lineProjects());
+      renderDashboard('member');
+
+      await screen.findByText('Web');
+      await userEvent.click(screen.getByRole('radio', { name: /Detenidos/ }));
+      expect(screen.getByText('Ystream')).toBeTruthy();
+      for (const name of ['Web', 'Driftoso', 'Esperando', 'Viejo']) expect(screen.queryByText(name)).toBeNull();
+
+      await userEvent.click(screen.getByRole('radio', { name: /Archivados/ }));
+      expect(screen.getByText('Viejo')).toBeTruthy();
+      expect(screen.queryByText('Ystream')).toBeNull();
+    });
+
+    it('"Con drift" keeps only rows with errors or warnings, not those awaiting CI', async () => {
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue(lineProjects());
+      renderDashboard('member');
+
+      await screen.findByText('Web');
+      await userEvent.click(screen.getByRole('radio', { name: /Con drift/ }));
+      expect(screen.getByText('Driftoso')).toBeTruthy();
+      for (const name of ['Web', 'Ystream', 'Esperando', 'Viejo']) expect(screen.queryByText(name)).toBeNull();
+    });
+
+    it('"Esperando CI" keeps only rows awaiting the first report', async () => {
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue(lineProjects());
+      renderDashboard('member');
+
+      await screen.findByText('Web');
+      await userEvent.click(screen.getByRole('radio', { name: /Esperando CI/ }));
+      expect(screen.getByText('Esperando', { selector: 'span' })).toBeTruthy();
+      for (const name of ['Web', 'Ystream', 'Driftoso', 'Viejo']) expect(screen.queryByText(name)).toBeNull();
+    });
+
+    it('names both active filters when the combination leaves no rows', async () => {
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue(lineProjects());
+      renderDashboard('member');
+
+      await screen.findByText('Web');
+      await userEvent.click(screen.getByRole('radio', { name: /Archivados/ }));
+      await userEvent.click(screen.getByRole('radio', { name: /Con drift/ }));
+
+      expect(await screen.findByText('Ningún proyecto coincide con «Archivados» y «Con drift».')).toBeTruthy();
+    });
+
+    it('shows the count of each line status chip over the full overview', async () => {
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue(lineProjects());
+      renderDashboard('member');
+
+      await screen.findByText('Web');
+      expect(within(screen.getByRole('radio', { name: /Detenidos/ })).getByText('2')).toBeTruthy();
+      expect(within(screen.getByRole('radio', { name: /Con drift/ })).getByText('1')).toBeTruthy();
+      expect(within(screen.getByRole('radio', { name: /Esperando CI/ })).getByText('1')).toBeTruthy();
+    });
+
+    it('sorts by "Estado de la línea" with the stopped line first', async () => {
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([
+        makeProject({ id: 'p1', slug: 'web', name: 'Web' }),
+        makeProject({ id: 'p2', slug: 'ystream', name: 'Ystream', andonStation: 'entrada', furthestStation: 'entregado' }),
+      ]);
+      renderDashboard('member');
+
+      await screen.findByText('Web');
+      await userEvent.click(screen.getByRole('button', { name: 'Estado de la línea' }));
+
+      expect(screen.getByRole('columnheader', { name: 'Estado de la línea' }).getAttribute('aria-sort')).toBe('ascending');
+      expect(bodyRowNames()[0]).toContain('Ystream');
+    });
+
+    it('sorts by "Drift" by severity: errors outweigh warnings', async () => {
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([
+        makeProject({ id: 'p1', slug: 'avisos', name: 'Avisos', driftErrors: 0, driftWarnings: 3 }),
+        makeProject({ id: 'p2', slug: 'errores', name: 'Errores', driftErrors: 2, driftWarnings: 0 }),
+      ]);
+      renderDashboard('member');
+
+      await screen.findByText('Avisos');
+      const header = (): HTMLElement => screen.getByRole('columnheader', { name: 'Drift' });
+      await userEvent.click(screen.getByRole('button', { name: 'Drift' }));
+      expect(header().getAttribute('aria-sort')).toBe('ascending');
+      expect(bodyRowNames()[0]).toContain('Avisos');
+
+      await userEvent.click(screen.getByRole('button', { name: 'Drift' }));
+      expect(header().getAttribute('aria-sort')).toBe('descending');
+      expect(bodyRowNames()[0]).toContain('Errores');
+    });
+  });
 });
