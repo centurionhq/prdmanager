@@ -83,6 +83,11 @@ export interface WorkOrderSummary {
   claimedAt?: string | null;
   /** Días completos desde `createdAt` calculados al leer; `null` cuando la WO no tiene fecha. */
   ageDays?: number | null;
+  /** Sha del commit más reciente que referencia esta WO (`(:Commit)-[:RESOLVES]->(wo)`), publicado
+   * por `listWorkOrders` (LIST_WORK_ORDERS), SDD-076 D2. `null` cuando ningún commit la nombra.
+   * La proyección paginada de `queryWorkOrders` (PRD-042 R2 / SDD-064) queda congelada y por eso lo
+   * deja sin definir; la marca NO cierra ni cambia el estado de la WO (SDD-076 D3). */
+  landedCommitSha?: string | null;
 }
 
 export type WorkOrderActorKind = 'agent' | 'dev' | 'unassigned';

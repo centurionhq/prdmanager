@@ -70,7 +70,8 @@ export function formatWorkOrderDocPaths(root: string, wo: Pick<WorkOrderSummary,
 }
 
 export function formatWorkOrderLine(wo: WorkOrderSummary, root: string): string {
-  return `${wo.id}  ${wo.status}  ${wo.assignedTo ?? '-'}  ${wo.blueprints.join(',') || '-'}  ${formatWorkOrderDocPaths(root, wo)}  ${wo.title}`;
+  const landed = wo.landedCommitSha ? `  ⚠ landed ${wo.landedCommitSha.slice(0, 7)}` : '';
+  return `${wo.id}  ${wo.status}  ${wo.assignedTo ?? '-'}  ${wo.blueprints.join(',') || '-'}  ${formatWorkOrderDocPaths(root, wo)}${landed}  ${wo.title}`;
 }
 
 async function runList(deps: CliDeps, options: { status?: WorkOrderStatus; blueprint?: string; json?: boolean }): Promise<void> {
