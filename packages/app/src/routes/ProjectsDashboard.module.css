@@ -1,0 +1,159 @@
+.lineCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.lineText {
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.segments {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.segment {
+  display: inline-block;
+  width: 20px;
+  height: 6px;
+  background: var(--regla);
+}
+
+.segmentReached {
+  background: var(--grafito);
+}
+
+.segmentStopped {
+  background: var(--andon);
+  outline: 2px solid var(--andon-texto);
+  outline-offset: 1px;
+}
+
+.nameCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.name {
+  font-weight: 600;
+}
+
+.meta {
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.cellLink {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+
+.cellLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-plate);
+}
+
+.driftStrong {
+  font-weight: 600;
+}
+
+.driftError {
+  color: var(--paro);
+}
+
+.driftWarning {
+  color: var(--andon-texto);
+}
+
+.driftAwaiting {
+  color: var(--apagado);
+}
+
+.driftOk {
+  color: var(--senal-texto);
+}
+
+.mark {
+  width: 8px;
+  height: 8px;
+  flex: none;
+}
+
+.markError {
+  background: var(--paro);
+}
+
+.markWarning {
+  background: var(--andon);
+  border-radius: 4px;
+}
+
+.markOk {
+  background: var(--senal);
+}
+
+.rowAction {
+  position: relative;
+  z-index: 1;
+}
+
+.legend {
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.legendTitle {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.legendList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendStations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.footnote {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.actionError {
+  color: var(--paro);
+  font-size: var(--text-sm);
+}

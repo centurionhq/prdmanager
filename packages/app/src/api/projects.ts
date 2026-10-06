@@ -42,6 +42,20 @@ export function updateProjectSettings(orgSlug: string, projectSlug: string, inpu
   }).then((r) => r.project);
 }
 
+/** `POST .../projects/:slug/archive` and `/unarchive` (SDD-078 D1, WO-661): needs the `archive` permission
+ * (project admin, inherited by org owner/admin); archiving hides the project from Activos, deletes nothing. */
+export function archiveProject(orgSlug: string, projectSlug: string): Promise<ProjectSummary> {
+  return request<{ project: ProjectSummary }>(`${projectsBase(orgSlug)}/${encodeURIComponent(projectSlug)}/archive`, { method: 'POST' }).then(
+    (r) => r.project,
+  );
+}
+
+export function unarchiveProject(orgSlug: string, projectSlug: string): Promise<ProjectSummary> {
+  return request<{ project: ProjectSummary }>(`${projectsBase(orgSlug)}/${encodeURIComponent(projectSlug)}/unarchive`, { method: 'POST' }).then(
+    (r) => r.project,
+  );
+}
+
 export function listProjectMembers(orgSlug: string, projectSlug: string): Promise<ProjectMemberDto[]> {
   return request<{ members: ProjectMemberDto[] }>(`${projectsBase(orgSlug)}/${encodeURIComponent(projectSlug)}/members`).then(
     (r) => r.members,

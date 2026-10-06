@@ -4,17 +4,22 @@
  * grid (line status, drift, orders in progress, role, last activity). See canvas/Proyectos.dc.html; the
  * top bar itself is `OrgShell`'s own header, unchanged by this WO.
  */
-import { useMemo, useState, type ChangeEvent, type FormEvent, type ReactElement } from 'react';
+import { useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactElement } from 'react';
+import { Link } from 'react-router';
 import {
+  PROJECT_ROLES,
   PROJECT_SLUG_PATTERN,
   STATIONS,
+  can,
   projectNameSchema,
   projectSlugSchema,
   type CreateProjectInput,
   type ProjectOverviewDto,
+  type PermissionSubject,
+  type ProjectRole,
   type Station,
 } from '@prdm/contracts';
-import { createProject, getProjectsOverview } from '../api/client.js';
+import { archiveProject, createProject, getProjectsOverview, unarchiveProject } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { useApiMutation } from '../api/use-api-mutation.js';
 import { useApiQuery } from '../api/use-api-query.js';
@@ -29,11 +34,14 @@ import {
   PageHeader,
   SearchField,
   Skeleton,
+  ToastProvider,
+  useToast,
   type DataTableColumn,
 } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { filterItems, searchItems, sortItems, type SortState } from '../lib/filter-sort.js';
 import { useOrgShellContext } from './OrgShell.js';
+import styles from './ProjectsDashboard.module.css';
 
 const STATION_LABELS: Record<Station, string> = {
   entrada: 'Entrada',
@@ -56,18 +64,27 @@ function lineLabel(project: ProjectOverviewDto): string {
   return project.andonStation ? `${reached}, detenida en ${STATION_LABELS[project.andonStation]}` : reached;
 }
 
+function segmentLabel(station: Station, position: number, reached: number, andonAt: number): string {
+  if (position === andonAt) return `Detenida en ${STATION_LABELS[station]}`;
+  return `${STATION_LABELS[station]} · ${position <= reached ? 'alcanzada' : 'pendiente'}`;
+}
+
+function segmentClass(position: number, reached: number, andonAt: number): string {
+  if (position === andonAt) return `${styles.segment} ${styles.segmentStopped}`;
+  return position <= reached ? `${styles.segment} ${styles.segmentReached}` : styles.segment!;
+}
+
 function LineStatus({ project }: { readonly project: ProjectOverviewDto }): ReactElement {
   const reached = stationPosition(project.furthestStation);
   const andonAt = project.andonStation ? stationPosition(project.andonStation) : 0;
 
   return (
-    <span>
-      <span className="visually-hidden">{lineLabel(project)}</span>
-      <span aria-hidden="true" style={{ display: 'inline-flex', gap: 4 }}>
+    <span className={styles.lineCell}>
+      <span className={styles.lineText}>{lineLabel(project)}</span>
+      <span className={styles.segments}>
         {STATIONS.map((station, index) => {
           const position = index + 1;
-          const background = position === andonAt ? 'var(--andon)' : position <= reached ? 'var(--grafito)' : 'var(--regla)';
-          return <span key={station} style={{ display: 'inline-block', width: 20, height: 6, background }} />;
+          return <span key={station} role="img" aria-label={segmentLabel(station, position, reached, andonAt)} className={segmentClass(position, reached, andonAt)} />;
         })}
       </span>
     </span>
@@ -84,35 +101,72 @@ function driftTone(project: ProjectOverviewDto): DriftTone {
 }
 
 function driftLabel(project: ProjectOverviewDto): string {
-  if (project.driftErrors > 0) return `${project.driftErrors} ${project.driftErrors === 1 ? 'error' : 'errores'}`;
-  if (project.driftWarnings > 0) return `${project.driftWarnings} ${project.driftWarnings === 1 ? 'aviso' : 'avisos'}`;
-  if (project.awaitingFirstReport) return 'Esperando primer reporte de CI';
-  return 'Sin drift';
+  const errors = project.driftErrors > 0 ? `${project.driftErrors} ${project.driftErrors === 1 ? 'error' : 'errores'}` : null;
+  const warnings = project.driftWarnings > 0 ? `${project.driftWarnings} ${project.driftWarnings === 1 ? 'aviso' : 'avisos'}` : null;
+  if (errors || warnings) return [errors, warnings].filter(Boolean).join(' · ');
+  return project.awaitingFirstReport ? 'Esperando primer reporte de CI' : 'Sin drift';
 }
 
-const DRIFT_TEXT_COLOR: Record<DriftTone, string> = {
-  error: 'var(--paro)',
-  warning: 'var(--andon-texto)',
-  awaiting: 'var(--apagado)',
-  ok: 'var(--senal-texto)',
+const DRIFT_TEXT_CLASS: Record<DriftTone, string | undefined> = {
+  error: styles.driftError,
+  warning: styles.driftWarning,
+  awaiting: styles.driftAwaiting,
+  ok: styles.driftOk,
 };
 
-const DRIFT_MARK_COLOR: Record<Exclude<DriftTone, 'awaiting'>, string> = {
-  error: 'var(--paro)',
-  warning: 'var(--andon)',
-  ok: 'var(--senal)',
+const DRIFT_MARK_CLASS: Record<Exclude<DriftTone, 'awaiting'>, string | undefined> = {
+  error: styles.markError,
+  warning: styles.markWarning,
+  ok: styles.markOk,
 };
 
-function DriftCell({ project }: { readonly project: ProjectOverviewDto }): ReactElement {
+function DriftCell({ project, orgSlug }: { readonly project: ProjectOverviewDto; readonly orgSlug: string }): ReactElement {
   const tone = driftTone(project);
+  const className = [styles.cellLink, DRIFT_TEXT_CLASS[tone], tone === 'awaiting' ? undefined : styles.driftStrong].filter(Boolean).join(' ');
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: DRIFT_TEXT_COLOR[tone], fontWeight: tone === 'awaiting' ? 400 : 600 }}>
-      {tone === 'awaiting' ? null : (
-        <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: tone === 'warning' ? 4 : 0, background: DRIFT_MARK_COLOR[tone] }} />
-      )}
+    <Link to={`/o/${orgSlug}/p/${project.slug}/drift`} className={className}>
+      {tone === 'awaiting' ? null : <span aria-hidden="true" className={`${styles.mark} ${DRIFT_MARK_CLASS[tone]}`} />}
       {driftLabel(project)}
-    </span>
+    </Link>
   );
+}
+
+function AccessCell({ project, orgSlug }: { readonly project: ProjectOverviewDto; readonly orgSlug: string }): ReactElement {
+  const members = project.memberCount ?? 0;
+  const text = members > 0 ? `${members} ${members === 1 ? 'miembro' : 'miembros'}` : 'Sin miembros · nadie del equipo lo ve';
+  return (
+    <Link to={`/o/${orgSlug}/p/${project.slug}/ajustes/miembros`} className={`${styles.cellLink} num`}>
+      {text}
+    </Link>
+  );
+}
+
+function Legend(): ReactElement {
+  return (
+    <section className={styles.legend} aria-labelledby="projects-legend-title">
+      <h2 id="projects-legend-title" className={styles.legendTitle}>
+        Cómo leer la tabla
+      </h2>
+      <ol className={styles.legendStations} aria-label="Estaciones de la línea, en orden">
+        {STATIONS.map((station, index) => (
+          <li key={station}>
+            {STATION_LABELS[station]}
+            {index < STATIONS.length - 1 ? ' ·' : ''}
+          </li>
+        ))}
+      </ol>
+      <ul className={styles.legendList}>
+        <li>Un segmento con contorno está detenido: la línea se frenó en esa estación.</li>
+        <li>Drift: las diferencias entre lo que dice el grafo y lo que reporta el código, detectadas por CI.</li>
+        <li>Órdenes en curso: las que ya se empezaron y todavía no se cerraron.</li>
+        <li>Acceso: las personas del equipo que ven el proyecto.</li>
+      </ul>
+    </section>
+  );
+}
+
+function projectRoleOf(role: string): ProjectRole | undefined {
+  return PROJECT_ROLES.find((candidate) => candidate === role);
 }
 
 function roleLabel(role: string): string {
@@ -140,7 +194,14 @@ function matchesFilter(project: ProjectOverviewDto, filter: ProjectFilter): bool
   return true;
 }
 
-function buildColumns(orgSlug: string): readonly DataTableColumn<ProjectOverviewDto>[] {
+interface ColumnActions {
+  readonly orgSlug: string;
+  readonly orgRole: PermissionSubject['orgRole'];
+  readonly onArchive: (project: ProjectOverviewDto) => void;
+  readonly onUnarchive: (project: ProjectOverviewDto) => void;
+}
+
+function buildColumns({ orgSlug, orgRole, onArchive, onUnarchive }: ColumnActions): readonly DataTableColumn<ProjectOverviewDto>[] {
   return [
     {
       key: 'name',
@@ -148,25 +209,36 @@ function buildColumns(orgSlug: string): readonly DataTableColumn<ProjectOverview
       sortValue: (project) => project.name,
       rowLink: (project) => `/o/${orgSlug}/p/${project.slug}`,
       render: (project) => (
-        <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontWeight: 600 }}>{project.name}</span>
-            {project.archivedAt ? <span style={{ fontSize: 12, color: 'var(--apagado)' }}>Archivado</span> : null}
+        <span className={styles.nameCell}>
+          <span className={styles.nameRow}>
+            <span className={styles.name}>{project.name}</span>
+            {project.archivedAt ? <span className={styles.meta}>Archivado</span> : null}
           </span>
-          <span style={{ fontSize: 12, color: 'var(--apagado)' }}>
+          <span className={styles.meta}>
             <span className="id">{project.slug}</span> · <span className="num">{project.docCount} docs</span>
           </span>
         </span>
       ),
     },
     { key: 'line', header: 'Estado de la línea', render: (project) => <LineStatus project={project} /> },
-    { key: 'drift', header: 'Drift', render: (project) => <DriftCell project={project} /> },
+    { key: 'drift', header: 'Drift', render: (project) => <DriftCell project={project} orgSlug={orgSlug} /> },
     {
       key: 'orders',
       header: 'Órdenes en curso',
       align: 'end',
       sortValue: (project) => project.workOrdersInProgress,
-      render: (project) => <span className="num">{project.workOrdersInProgress}</span>,
+      render: (project) => (
+        <Link to={`/o/${orgSlug}/p/${project.slug}/ordenes`} className={`${styles.cellLink} num`}>
+          {project.workOrdersInProgress}
+        </Link>
+      ),
+    },
+    {
+      key: 'acceso',
+      header: 'Acceso',
+      align: 'end',
+      sortValue: (project) => project.memberCount ?? 0,
+      render: (project) => <AccessCell project={project} orgSlug={orgSlug} />,
     },
     { key: 'role', header: 'Tu rol', render: (project) => roleLabel(project.myRole) },
     {
@@ -175,6 +247,21 @@ function buildColumns(orgSlug: string): readonly DataTableColumn<ProjectOverview
       align: 'end',
       sortValue: (project) => (project.lastActivityAt ? new Date(project.lastActivityAt).getTime() : undefined),
       render: (project) => <span className="num">{formatRelativeActivity(project.lastActivityAt)}</span>,
+    },
+    {
+      key: 'acciones',
+      header: 'Acciones',
+      render: (project) => {
+        if (!can({ orgRole, projectRole: projectRoleOf(project.myRole) }, 'archive')) return null;
+        const archived = project.archivedAt !== null;
+        return (
+          <span className={styles.rowAction}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => (archived ? onUnarchive(project) : onArchive(project))}>
+              {archived ? 'Desarchivar' : 'Archivar'}
+            </Button>
+          </span>
+        );
+      },
     },
   ];
 }
@@ -273,17 +360,68 @@ function NewProjectModal({ open, orgSlug, onClose, onCreated }: NewProjectModalP
   );
 }
 
-export function ProjectsDashboard(): ReactElement {
+interface ArchiveProjectModalProps {
+  readonly project: ProjectOverviewDto | null;
+  readonly submitting: boolean;
+  readonly error: string | null;
+  readonly onCancel: () => void;
+  readonly onConfirm: () => void;
+}
+
+function ArchiveProjectModal({ project, submitting, error, onCancel, onConfirm }: ArchiveProjectModalProps): ReactElement {
+  return (
+    <Modal
+      open={project !== null}
+      title={`Archivar ${project?.name ?? ''}`}
+      description="El proyecto sale de Activos y queda en Archivados. No se borra nada y podés desarchivarlo cuando quieras."
+      onClose={onCancel}
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancelar
+          </Button>
+          <Button type="button" variant="primary" disabled={submitting} onClick={onConfirm}>
+            Archivar
+          </Button>
+        </>
+      }
+    >
+      {error ? <p role="alert">{error}</p> : null}
+    </Modal>
+  );
+}
+
+function ProjectsDashboardContent(): ReactElement {
   const { orgSlug, currentOrg } = useOrgShellContext();
+  const { show } = useToast();
   useDocumentTitle('Proyectos');
 
   const [filter, setFilter] = useState<ProjectFilter>('active');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortState<string>>({ key: 'activity', direction: 'desc' });
   const [modalOpen, setModalOpen] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<ProjectOverviewDto | null>(null);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const archiveMutation = useApiMutation((project: ProjectOverviewDto) => archiveProject(orgSlug, project.slug));
+  const unarchiveMutation = useApiMutation((project: ProjectOverviewDto) => unarchiveProject(orgSlug, project.slug));
 
   const projectsQuery = useApiQuery(`projects-overview:${orgSlug}`, () => getProjectsOverview(orgSlug), [orgSlug]);
-  const columns = useMemo(() => buildColumns(orgSlug), [orgSlug]);
+  const orgRole = currentOrg.role;
+  const unarchiveRef = useRef<(project: ProjectOverviewDto) => Promise<void>>(async () => undefined);
+  const columns = useMemo(
+    () =>
+      buildColumns({
+        orgSlug,
+        orgRole,
+        onArchive: (project) => {
+          setArchiveError(null);
+          setArchiveTarget(project);
+        },
+        onUnarchive: (project) => void unarchiveRef.current(project),
+      }),
+    [orgSlug, orgRole],
+  );
   const projects = projectsQuery.data ?? [];
 
   const activeCount = projects.filter((project) => project.archivedAt === null).length;
@@ -315,6 +453,38 @@ export function ProjectsDashboard(): ReactElement {
   }
 
   const canCreate = isOrgAdmin(currentOrg.role);
+
+  function cancelArchive(): void {
+    setArchiveTarget(null);
+    setArchiveError(null);
+  }
+
+  async function handleUnarchive(project: ProjectOverviewDto): Promise<void> {
+    setActionError(null);
+    try {
+      await unarchiveMutation.mutate(project);
+    } catch (err) {
+      setActionError(errorMessage(err));
+      return;
+    }
+    projectsQuery.retry();
+    show(`${project.name} volvió a Activos`, { tone: 'success' });
+  }
+  unarchiveRef.current = handleUnarchive;
+
+  async function confirmArchive(): Promise<void> {
+    if (!archiveTarget) return;
+    try {
+      await archiveMutation.mutate(archiveTarget);
+    } catch (err) {
+      setArchiveError(errorMessage(err));
+      return;
+    }
+    const { name } = archiveTarget;
+    cancelArchive();
+    projectsQuery.retry();
+    show(`${name} quedó archivado`, { tone: 'success' });
+  }
 
   function handleCreated(): void {
     setModalOpen(false);
@@ -356,6 +526,12 @@ export function ProjectsDashboard(): ReactElement {
             value={filter}
             onChange={(value) => setFilter(value as ProjectFilter)}
           />
+          <Legend />
+          {actionError ? (
+            <p role="alert" className={styles.actionError}>
+              {actionError}
+            </p>
+          ) : null}
           <DataTable
             caption="Proyectos"
             columns={columns}
@@ -365,11 +541,26 @@ export function ProjectsDashboard(): ReactElement {
             onSortChange={setSort}
             emptyState={<p>Ningún proyecto coincide con el filtro.</p>}
           />
-          <p style={{ fontSize: 14, color: 'var(--apagado)' }}>¿No ves un proyecto? Pedile acceso a un admin de {currentOrg.name}.</p>
+          <p className={styles.footnote}>¿No ves un proyecto? Pedile acceso a un admin de {currentOrg.name}.</p>
         </>
       )}
 
+      <ArchiveProjectModal
+        project={archiveTarget}
+        submitting={archiveMutation.status === 'cargando'}
+        error={archiveError}
+        onCancel={cancelArchive}
+        onConfirm={() => void confirmArchive()}
+      />
       {canCreate ? <NewProjectModal open={modalOpen} orgSlug={orgSlug} onClose={() => setModalOpen(false)} onCreated={handleCreated} /> : null}
     </div>
+  );
+}
+
+export function ProjectsDashboard(): ReactElement {
+  return (
+    <ToastProvider>
+      <ProjectsDashboardContent />
+    </ToastProvider>
   );
 }

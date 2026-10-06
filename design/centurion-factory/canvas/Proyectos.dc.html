@@ -65,9 +65,18 @@
       </sc-for>
     </div>
 
+    <section style="padding: 12px 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px; color: #33383D; display: flex; flex-direction: column; gap: 6px;">
+      <div style="font-weight: 600;">Cómo leer la tabla</div>
+      <div>Entrada · Caso de negocio · Producto · Diseño técnico · Planificación · Construcción · Entregado</div>
+      <div>Un segmento con contorno está detenido: la línea se frenó en esa estación.</div>
+      <div>Drift: las diferencias entre lo que dice el grafo y lo que reporta el código, detectadas por CI.</div>
+      <div>Órdenes en curso: las que ya se empezaron y todavía no se cerraron.</div>
+      <div>Acceso: las personas del equipo que ven el proyecto.</div>
+    </section>
+
     <section style="display: flex; flex-direction: column;">
-      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 176px 280px 136px 120px 136px; column-gap: 16px; padding: 8px 12px; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD;">
-        <div>Proyecto</div><div>Estado de la línea</div><div>Drift</div><div style="text-align: right;">Órdenes en curso</div><div>Tu rol</div><div style="text-align: right;">Última actividad</div>
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 200px 260px 120px 150px 100px 120px 110px; column-gap: 16px; padding: 8px 12px; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD;">
+        <div>Proyecto</div><div>Estado de la línea</div><div>Drift</div><div style="text-align: right;">Órdenes en curso</div><div style="text-align: right;">Acceso</div><div>Tu rol</div><div style="text-align: right;">Última actividad</div><div>Acciones</div>
       </div>
       <sc-for list="{{ rows }}" as="row" hint-placeholder-count="4">
         <div tabindex="0" style="{{ row.rowStyle }}">
@@ -80,42 +89,57 @@
             </div>
             <div style="display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: #565D63; white-space: nowrap;"><span class="id">{{ row.slug }}</span><span>·</span><span class="num">{{ row.docs }}</span></div>
           </div>
-          <div title="{{ row.lineLabel }}" style="display: flex; align-items: center; gap: 4px;">
-            <span style="{{ row.seg1 }}"></span><span style="{{ row.seg2 }}"></span><span style="{{ row.seg3 }}"></span><span style="{{ row.seg4 }}"></span><span style="{{ row.seg5 }}"></span><span style="{{ row.seg6 }}"></span>
+          <div style="display: flex; flex-direction: column; gap: 4px; font-size: 14px;">
+            <span>{{ row.lineLabel }}</span>
+            <span style="display: flex; align-items: center; gap: 4px;"><span style="{{ row.seg1 }}"></span><span style="{{ row.seg2 }}"></span><span style="{{ row.seg3 }}"></span><span style="{{ row.seg4 }}"></span><span style="{{ row.seg5 }}"></span><span style="{{ row.seg6 }}"></span><span style="{{ row.seg7 }}"></span></span>
           </div>
-          <div style="{{ row.driftStyle }}">
+          <a style="{{ row.driftStyle }}">
             <sc-if value="{{ row.hasMark }}" hint-placeholder-val="{{ true }}">
               <span style="{{ row.markStyle }}"></span>
             </sc-if>
             {{ row.driftLabel }}
-          </div>
-          <div class="num" style="{{ row.ordersStyle }}">{{ row.orders }}</div>
+          </a>
+          <a class="num" style="{{ row.ordersStyle }}">{{ row.orders }}</a>
+          <a class="num" style="text-align: right; font-size: 14px;">{{ row.access }}</a>
           <div style="font-size: 14px; color: #33383D;">{{ row.role }}</div>
           <div class="num" style="text-align: right; font-size: 14px; color: #565D63; white-space: nowrap;">{{ row.activity }}</div>
+          <sc-if value="{{ row.canArchive }}" hint-placeholder-val="{{ true }}">
+            <button type="button" onClick="{{ row.act }}" style="height: 32px; padding: 0 10px; background: transparent; border: 1px solid transparent; border-radius: 2px; font-family: inherit; font-size: 14px; font-weight: 600; color: #1F4FA0; cursor: pointer;">{{ row.actLabel }}</button>
+          </sc-if>
         </div>
       </sc-for>
       <div style="padding: 16px 12px 0; font-size: 14px; color: #565D63;">¿No ves un proyecto? Pedile acceso a un admin de Centurion HQ.</div>
     </section>
   </main>
+  <sc-if value="{{ confirmOpen }}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-label="{{ confirmTitle }}" style="position: absolute; top: 280px; left: 520px; width: 440px; padding: 24px; background: #FBFCFB; border: 1px solid #17191C; border-radius: 4px; display: flex; flex-direction: column; gap: 16px;">
+      <h2 style="margin: 0; font-size: 20px; font-weight: 800;">{{ confirmTitle }}</h2>
+      <p style="margin: 0; font-size: 14px; color: #33383D;">El proyecto sale de Activos y queda en Archivados. No se borra nada y podés desarchivarlo cuando quieras.</p>
+      <div style="display: flex; justify-content: flex-end; gap: 12px;">
+        <button type="button" onClick="{{ cancelConfirm }}" style="height: 40px; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-family: inherit; font-size: 14px; cursor: pointer;">Cancelar</button>
+        <button type="button" onClick="{{ doConfirm }}" style="height: 40px; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; border: 0; border-radius: 2px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">Archivar</button>
+      </div>
+    </div>
+  </sc-if>
 </div>
 </x-dc>
 <script data-dc-script data-props='{}'>
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { filter: 'active' };
+    this.state = { filter: 'active', confirming: null };
   }
 
   renderVals() {
-    const stations = ['Ingesta', 'Definición', 'Diseño', 'Planificación', 'Ejecución', 'Cierre'];
+    const stations = ['Entrada', 'Caso de negocio', 'Producto', 'Diseño técnico', 'Planificación', 'Construcción', 'Entregado'];
 
     // reached: stations reached by the most advanced feature. driftAt: station index (1-based) flagged in andon, 0 if none.
     const projects = [
-      { name: 'prdmanager', slug: 'centurion-hq/prdmanager', docs: '292 docs', archived: false, reached: 6, driftAt: 5, drift: 'error', driftLabel: '3 errores', orders: 9, role: 'Admin', activity: 'hace 4 min', focused: true },
-      { name: 'data-report-ms', slug: 'centurion-hq/data-report-ms', docs: '12 docs', archived: false, reached: 3, driftAt: 0, drift: 'awaiting', driftLabel: 'Esperando primer reporte de CI', orders: 0, role: 'Admin', activity: 'hace 1 h', focused: false },
-      { name: 'ystream', slug: 'centurion-hq/ystream', docs: '41 docs', archived: false, reached: 4, driftAt: 0, drift: 'ok', driftLabel: 'Sin drift', orders: 2, role: 'Editor', activity: 'ayer', focused: false },
-      { name: 'dbmazz', slug: 'centurion-hq/dbmazz', docs: '67 docs', archived: false, reached: 5, driftAt: 5, drift: 'warning', driftLabel: '1 aviso', orders: 4, role: 'Developer', activity: 'hace 3 d', focused: false },
-      { name: 'centurion-core', slug: 'centurion-hq/centurion-core', docs: 'prototipo V1', archived: true, reached: 6, driftAt: 0, drift: 'ok', driftLabel: 'Sin drift', orders: 0, role: 'Viewer', activity: '02/08/2026', focused: false }
+      { name: 'prdmanager', slug: 'centurion-hq/prdmanager', docs: '292 docs', archived: false, reached: 7, driftAt: 5, drift: 'error', driftLabel: '3 errores · 1 aviso', members: 6, orders: 9, role: 'Admin', activity: 'hace 4 min', focused: true },
+      { name: 'data-report-ms', slug: 'centurion-hq/data-report-ms', docs: '12 docs', archived: false, reached: 4, driftAt: 0, drift: 'awaiting', driftLabel: 'Esperando primer reporte de CI', members: 0, orders: 0, role: 'Admin', activity: 'hace 1 h', focused: false },
+      { name: 'ystream', slug: 'centurion-hq/ystream', docs: '41 docs', archived: false, reached: 5, driftAt: 0, drift: 'ok', driftLabel: 'Sin drift', members: 1, orders: 2, role: 'Editor', activity: 'ayer', focused: false },
+      { name: 'dbmazz', slug: 'centurion-hq/dbmazz', docs: '67 docs', archived: false, reached: 6, driftAt: 5, drift: 'warning', driftLabel: '1 aviso', members: 3, orders: 4, role: 'Developer', activity: 'hace 3 d', focused: false },
+      { name: 'centurion-core', slug: 'centurion-hq/centurion-core', docs: 'prototipo V1', archived: true, reached: 7, driftAt: 0, drift: 'ok', driftLabel: 'Sin drift', members: 2, orders: 0, role: 'Viewer', activity: '02/08/2026', focused: false }
     ];
 
     const filters = [
@@ -146,6 +170,7 @@ class Component extends DCLogic {
     });
 
     const segBase = 'width: 20px; height: 6px;';
+    const stopped = ' outline: 2px solid #7A5A00; outline-offset: 1px;';
     const drift = {
       error: { style: 'color: #B8322A; font-weight: 600;', mark: 'width: 8px; height: 8px; background: #B8322A;' },
       warning: { style: 'color: #7A5A00; font-weight: 600;', mark: 'width: 8px; height: 8px; border-radius: 4px; background: #F5C400;' },
@@ -153,26 +178,30 @@ class Component extends DCLogic {
       awaiting: { style: 'color: #565D63; font-weight: 400;', mark: '' }
     };
 
-    const rowBase = 'display: grid; grid-template-columns: minmax(0, 1fr) 176px 280px 136px 120px 136px; column-gap: 16px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #DDE1DF; cursor: pointer;';
+    const rowBase = 'display: grid; grid-template-columns: minmax(0, 1fr) 200px 260px 120px 150px 100px 120px 110px; column-gap: 16px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #DDE1DF; cursor: pointer;';
 
     const rows = visible.map((p) => {
       const d = drift[p.drift];
-      const seg = (n) => segBase + ' background: ' + (n === p.driftAt ? '#F5C400' : (n <= p.reached ? '#17191C' : '#C9CFCD')) + ';';
-      const lineLabel = 'Llega a ' + stations[p.reached - 1] + (p.driftAt ? ', con drift en ' + stations[p.driftAt - 1] : '');
+      const seg = (n) => segBase + ' background: ' + (n === p.driftAt ? '#F5C400' : (n <= p.reached ? '#17191C' : '#C9CFCD')) + ';' + (n === p.driftAt ? stopped : '');
+      const lineLabel = 'Llega a ' + stations[p.reached - 1] + (p.driftAt ? ', detenida en ' + stations[p.driftAt - 1] : '');
       return {
         name: p.name,
         slug: p.slug,
         docs: p.docs,
         isArchived: p.archived,
-        seg1: seg(1), seg2: seg(2), seg3: seg(3), seg4: seg(4), seg5: seg(5), seg6: seg(6),
+        seg1: seg(1), seg2: seg(2), seg3: seg(3), seg4: seg(4), seg5: seg(5), seg6: seg(6), seg7: seg(7),
         lineLabel: lineLabel,
         hasMark: d.mark !== '',
         markStyle: 'flex: none; ' + d.mark,
-        driftStyle: 'display: flex; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; ' + d.style,
+        driftStyle: 'display: flex; text-decoration: none; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; ' + d.style,
         driftLabel: p.driftLabel,
         orders: p.orders,
         ordersStyle: 'text-align: right; font-size: 14px; ' + (p.orders === 0 ? 'color: #565D63;' : 'color: #17191C; font-weight: 600;'),
+        access: p.members > 0 ? p.members + (p.members === 1 ? ' miembro' : ' miembros') : 'Sin miembros · nadie del equipo lo ve',
         role: p.role,
+        canArchive: p.role === 'Admin',
+        actLabel: p.archived ? 'Desarchivar' : 'Archivar',
+        act: () => (p.archived ? null : this.setState({ confirming: p.name })),
         activity: p.activity,
         rowStyle: p.focused
           ? rowBase + ' background: #FBFCFB; outline: 2px solid #1F4FA0; outline-offset: -2px; border-radius: 2px;'
@@ -180,7 +209,7 @@ class Component extends DCLogic {
       };
     });
 
-    return { chips: chips, rows: rows };
+    return { chips: chips, rows: rows, confirmOpen: this.state.confirming !== null, confirmTitle: 'Archivar ' + this.state.confirming, cancelConfirm: () => this.setState({ confirming: null }), doConfirm: () => this.setState({ confirming: null }) };
   }
 }
 </script>
