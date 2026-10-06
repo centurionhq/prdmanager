@@ -54,7 +54,7 @@ describe('AjustesLayout', () => {
     expect(within(screen.getByRole('navigation', { name: 'Ajustes' })).getAllByRole('link')).toHaveLength(6);
   });
 
-  it('every destination keeps the route it had, so no link anywhere else in the app breaks', () => {
+  it('points the account group at the organization-level screens, where those two now live (SDD-089/WO-697)', () => {
     renderLayout('/o/acme/p/web/ajustes/general');
 
     const hrefs = within(screen.getByRole('navigation', { name: 'Ajustes' })).getAllByRole('link').map((a) => a.getAttribute('href'));
@@ -63,8 +63,8 @@ describe('AjustesLayout', () => {
       '/o/acme/p/web/ajustes/miembros',
       '/o/acme/p/web/ajustes/tokens',
       '/o/acme/p/web/ajustes/auditoria',
-      '/o/acme/p/web/ajustes/perfil',
-      '/o/acme/p/web/ajustes/tokens-personales',
+      '/o/acme/ajustes/perfil',
+      '/o/acme/ajustes/tokens-personales',
     ]);
   });
 

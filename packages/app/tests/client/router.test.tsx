@@ -98,6 +98,8 @@ describe('app router', () => {
       vi.spyOn(client, 'listOrganizations').mockResolvedValue([makeOrgSummary()]);
       vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProjectOverview()]);
       vi.spyOn(client, 'getSession').mockResolvedValue(null);
+      vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null, workProfile: null });
+      vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([]);
     });
 
     it('redirects a legacy .../graph path to .../arbol', async () => {
@@ -115,11 +117,11 @@ describe('app router', () => {
       expect(await screen.findByRole('heading', { name: 'General' })).toBeTruthy();
     });
 
-    it('redirects /settings/tokens to the first visible project\'s ajustes/tokens-personales', async () => {
+    it("redirects /settings/tokens to the organization's ajustes/tokens-personales (SDD-089/WO-697)", async () => {
       const router = createMemoryRouter(routes, { initialEntries: ['/settings/tokens'] });
       render(<RouterProvider router={router} />);
 
-      await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme/p/web/ajustes/tokens-personales'));
+      await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme/ajustes/tokens-personales'));
     });
 
     it('the /ajustes index redirects to /ajustes/general', async () => {
@@ -127,6 +129,47 @@ describe('app router', () => {
       render(<RouterProvider router={router} />);
 
       await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme/p/web/ajustes/general'));
+    });
+  });
+
+  describe('SDD-089 organization-level account routes (WO-697)', () => {
+    it('redirects the project-scoped perfil to the organization one', async () => {
+      vi.spyOn(client, 'listOrganizations').mockResolvedValue([makeOrgSummary()]);
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProjectOverview()]);
+      vi.spyOn(client, 'getSession').mockResolvedValue(null);
+      vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null, workProfile: null });
+
+      const router = createMemoryRouter(routes, { initialEntries: ['/o/acme/p/web/ajustes/perfil'] });
+      render(<RouterProvider router={router} />);
+
+      await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme/ajustes/perfil'));
+      expect(await screen.findByRole('heading', { name: 'Perfil' })).toBeTruthy();
+    });
+
+    it('redirects the project-scoped tokens-personales to the organization one', async () => {
+      vi.spyOn(client, 'listOrganizations').mockResolvedValue([makeOrgSummary()]);
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProjectOverview()]);
+      vi.spyOn(client, 'getSession').mockResolvedValue(null);
+      vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([]);
+
+      const router = createMemoryRouter(routes, { initialEntries: ['/o/acme/p/web/ajustes/tokens-personales'] });
+      render(<RouterProvider router={router} />);
+
+      await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme/ajustes/tokens-personales'));
+    });
+
+    it('mounts the personal-tokens screen if the caller belongs to no project at all: the org comes from the URL (WO-697/WO-607)', async () => {
+      vi.spyOn(client, 'listOrganizations').mockResolvedValue([makeOrgSummary({ slug: 'centurionhq', name: 'Centurion HQ' })]);
+      const listProjects = vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([]);
+      const listTokens = vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([]);
+
+      const router = createMemoryRouter(routes, { initialEntries: ['/o/centurionhq/ajustes/tokens-personales'] });
+      render(<RouterProvider router={router} />);
+
+      expect(await screen.findByRole('heading', { level: 2, name: 'Tokens personales' })).toBeTruthy();
+      await waitFor(() => expect(listTokens).toHaveBeenCalledWith('centurionhq'));
+      expect(router.state.location.pathname).toBe('/o/centurionhq/ajustes/tokens-personales');
+      expect(listProjects).not.toHaveBeenCalled();
     });
   });
 

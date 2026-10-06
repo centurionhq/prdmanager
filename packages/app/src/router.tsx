@@ -7,6 +7,11 @@
 // moved under its own `/o/:orgSlug/p/:projectSlug` route (`ProjectShell`, WO-351), which renders the ported
 // Centurion Factory `AppShell` instead of `OrgShell`'s own header. Three legacy paths (`/settings/tokens`,
 // `.../graph`, `.../settings`) redirect to their new home rather than disappear outright.
+//
+// SDD-089/WO-697: the two account screens (perfil, tokens personales) live at the organization level
+// (`/o/:orgSlug/ajustes/{perfil,tokens-personales}`, under `OrgShell`) so they are reachable without
+// belonging to any project. The project-scoped paths they used to have stay as `Navigate` redirects, the
+// same ADR-008 pattern as `.../graph` and `.../settings`.
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 import { AdminOrganizations } from './routes/AdminOrganizations.js';
 import { AjustesAuditoria } from './routes/AjustesAuditoria.js';
@@ -31,6 +36,7 @@ import { OrgMembersSettings } from './routes/OrgMembersSettings.js';
 import { OrgShell } from './routes/OrgShell.js';
 import { PersonalTokensSettings } from './routes/PersonalTokensSettings.js';
 import { Planta } from './routes/Planta.js';
+import { ProjectAccountRedirect } from './routes/ProjectAccountRedirect.js';
 import { ProjectGraph } from './routes/ProjectGraph.js';
 import { ProjectShell } from './routes/ProjectShell.js';
 import { ProjectsDashboard } from './routes/ProjectsDashboard.js';
@@ -52,6 +58,8 @@ export const routes: RouteObject[] = [
       { index: true, element: <ProjectsDashboard /> },
       { path: 'ajustes/miembros', element: <OrgMembersSettings /> },
       { path: 'ajustes/auditoria', element: <OrgAjustesAuditoria /> },
+      { path: 'ajustes/perfil', element: <AjustesPerfil /> },
+      { path: 'ajustes/tokens-personales', element: <PersonalTokensSettings /> },
       { path: '*', element: <OrgNotFound /> },
     ],
   },
@@ -77,8 +85,8 @@ export const routes: RouteObject[] = [
           { path: 'general', element: <AjustesGeneral /> },
           { path: 'miembros', element: <AjustesMiembros /> },
           { path: 'tokens', element: <AjustesTokens /> },
-          { path: 'tokens-personales', element: <PersonalTokensSettings /> },
-          { path: 'perfil', element: <AjustesPerfil /> },
+          { path: 'tokens-personales', element: <ProjectAccountRedirect screen="tokens-personales" /> },
+          { path: 'perfil', element: <ProjectAccountRedirect screen="perfil" /> },
           { path: 'auditoria', element: <AjustesAuditoria /> },
         ],
       },

@@ -4,7 +4,7 @@ import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as client from '../../src/api/client.js';
 import { PersonalTokensSettings } from '../../src/routes/PersonalTokensSettings.js';
-import { makeProjectShellContext } from './fixtures.js';
+import { makeOrgSummary, makeProjectShellContext } from './fixtures.js';
 
 const TOKEN: import('@prdm/contracts').TokenSummaryDto = {
   id: 'tok1',
@@ -23,8 +23,10 @@ const TOKEN: import('@prdm/contracts').TokenSummaryDto = {
 const SHELL_ORG = 'shell-org';
 
 /** The project shell resolves the organization (`/o/:orgSlug/...`) and hands it down the `AjustesLayout`
- * outlet; that is the only organization this screen may use. Membership is the shell's business too — an
- * organization the caller does not belong to never reaches this screen (`ProjectShell` renders
+ * outlet; that is the only organization this screen may use. Since SDD-089/WO-697 the screen lives at the
+ * organization level and mounts under `OrgShell` too, so it reads the slug through `useShellOrgSlug()`,
+ * which only needs the org shell context. Membership is the shell's business too — an
+ * organization the caller does not belong to never reaches this screen (`OrgShell`/`ProjectShell` render
  * "Organización no encontrada" instead), which is why this screen no longer calls `listOrganizations()`
  * nor renders the "pertenecer a una organización" notice the canvas never had. */
 function renderPersonalTokens(orgSlug: string = SHELL_ORG): void {
@@ -34,6 +36,23 @@ function renderPersonalTokens(orgSlug: string = SHELL_ORG): void {
       {
         path: '/ctx',
         element: <Outlet context={{ ...context, orgSlug, currentOrg: { ...context.currentOrg, slug: orgSlug } }} />,
+        children: [{ index: true, element: <PersonalTokensSettings /> }],
+      },
+    ],
+    { initialEntries: ['/ctx'] },
+  );
+  render(<RouterProvider router={router} />);
+}
+
+/** Same screen, but under a bare `OrgShellContext` (no project fields at all): SDD-089 moved it out of the
+ * project, so a platform-level organization is enough for it to work. */
+function renderPersonalTokensInOrgShell(orgSlug: string): void {
+  const currentOrg = makeOrgSummary({ slug: orgSlug, name: 'Centurion HQ' });
+  const router = createMemoryRouter(
+    [
+      {
+        path: '/ctx',
+        element: <Outlet context={{ orgSlug, organizations: [currentOrg], currentOrg }} />,
         children: [{ index: true, element: <PersonalTokensSettings /> }],
       },
     ],
@@ -68,6 +87,14 @@ describe('PersonalTokensSettings', () => {
 
     await waitFor(() => expect(list).toHaveBeenLastCalledWith('globex'));
     expect(screen.queryByRole('combobox', { name: 'Organización' })).toBeNull();
+  });
+
+  it('works under a bare organization shell, with no project at all (SDD-089/WO-697)', async () => {
+    const list = vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([TOKEN]);
+    renderPersonalTokensInOrgShell('centurionhq');
+
+    expect(await screen.findByText('laptop')).toBeTruthy();
+    expect(list).toHaveBeenCalledWith('centurionhq');
   });
 
   it('creates a token for the shell organization, shows the secret exactly once, and lists the new token', async () => {
