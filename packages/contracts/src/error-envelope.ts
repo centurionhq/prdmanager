@@ -14,6 +14,8 @@ export const ERROR_CODES = [
   // Request body too large, rejected by the route's bodyLimit — 413.
   'payload_too_large',
   'internal_error',
+  // A DB pool/statement timeout: the request is retryable, not a server bug — 503.
+  'service_unavailable',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

@@ -5,9 +5,9 @@
  * detected in SaaS and `systemIntegrity` stayed 0/0 forever.
  */
 import { randomUUID } from 'node:crypto';
-import { getMetrics, Neo4jGraphDatabase, sha256, type GraphStore } from '@prdm/core';
-import { createTenantDb, replaceProjectCodeRefs } from '@prdm/db';
-import { createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
+import { DatabaseBusyError, generateWorkOrders, getMetrics, Neo4jGraphDatabase, sha256, type GraphStore } from '@prdm/core';
+import { createPool, createTenantDb, replaceProjectCodeRefs } from '@prdm/db';
+import { createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, testPgConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { createPgProjectEngine, type PgProjectEngine } from '../../src/engine/pg-project-engine.js';
 import { buildProjectSettings, saasProjectRoot } from '../../src/engine/pg-project-settings.js';
@@ -182,5 +182,87 @@ describe('PgProjectEngine.buildDriftInput reads project_code_refs (WO-334)', () 
     const metrics = await getMetrics(store);
     expect(metrics.systemIntegrity.governedTotal).toBeGreaterThan(0);
     expect(metrics.systemIntegrity.syncedPercent).not.toBeNull();
+  });
+
+  const TASKS_BLUEPRINT = `---
+id: ${BLUEPRINT_ID}
+type: SDD
+title: "Example blueprint"
+architects: ["FR-001"]
+impacts_paths: ["src/a.ts"]
+---
+
+## Tareas
+
+- [ ] Primera tarea
+`;
+
+  async function seedBlueprintWithTasks(orgId: string, projectId: string): Promise<void> {
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+       VALUES ($1, $2, 'FR-001', 'FR', 'Example feature', 'docs/fr/FR-001-example.md', 'collab', 'published', $3)`,
+      [orgId, projectId, FEATURE_TEMPLATE],
+    );
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+       VALUES ($1, $2, $3, 'SDD', 'Example blueprint', 'docs/sdd/SDD-001-example.md', 'collab', 'published', $4)`,
+      [orgId, projectId, BLUEPRINT_ID, TASKS_BLUEPRINT],
+    );
+    await pg.ownerPool.query(`UPDATE "projects" SET graph_dirty = true WHERE id = $1`, [projectId]);
+  }
+
+  async function readGraphDirty(projectId: string): Promise<boolean> {
+    const { rows } = await pg.ownerPool.query(`SELECT graph_dirty FROM "projects" WHERE id = $1`, [projectId]);
+    return rows[0].graph_dirty as boolean;
+  }
+
+  async function countDoc(projectId: string, docId: string): Promise<number> {
+    const { rows } = await pg.ownerPool.query(`SELECT count(*)::int AS n FROM "documents" WHERE project_id = $1 AND doc_id = $2`, [projectId, docId]);
+    return rows[0].n as number;
+  }
+
+  test('(f) a pool with no free connection surfaces DatabaseBusyError quickly instead of hanging (WO-646)', async () => {
+    const { orgId, projectId, store } = await makeEngine();
+    const project = await createTenantDb(pg.appPool).forOrg(orgId).projects.findById(projectId);
+    if (!project) throw new Error('project fixture not found');
+    const pool = createPool({ connectionString: testPgConfig().appUrl, maxConnections: 1, connectionTimeoutMillis: 250 });
+    const engine = createPgProjectEngine({ pool, orgId, projectId, settings: buildProjectSettings(project), hashAlgoVersion: 1, store });
+    const held = await pool.connect();
+    try {
+      const startedAt = Date.now();
+      await expect(engine.lastReport()).rejects.toBeInstanceOf(DatabaseBusyError);
+      expect(Date.now() - startedAt).toBeLessThan(2000);
+    } finally {
+      held.release();
+      await pool.end();
+    }
+  });
+
+  test('(g) generateWorkOrders with deferProjection commits the write but leaves the graph for recover() (WO-646)', async () => {
+    const { engine, orgId, projectId, store } = await makeEngine();
+    await seedBlueprintWithTasks(orgId, projectId);
+
+    const result = await generateWorkOrders(engine, BLUEPRINT_ID, { deferProjection: true });
+
+    expect(result.created).toHaveLength(1);
+    const woId = result.created[0]!.id;
+    expect(await countDoc(projectId, woId)).toBe(1);
+    expect(await readGraphDirty(projectId)).toBe(true);
+    expect(await store.getNode(woId)).toBeFalsy();
+
+    expect((await engine.recover()).recovered).toBe(true);
+    expect(await readGraphDirty(projectId)).toBe(false);
+    expect(await store.getNode(woId)).toBeTruthy();
+    expect((await engine.recover()).recovered).toBe(false);
+  });
+
+  test('(h) generateWorkOrders without options still projects inside the request (WO-646)', async () => {
+    const { engine, orgId, projectId, store } = await makeEngine();
+    await seedBlueprintWithTasks(orgId, projectId);
+
+    const result = await generateWorkOrders(engine, BLUEPRINT_ID);
+
+    expect(await readGraphDirty(projectId)).toBe(false);
+    expect(await store.getNode(result.created[0]!.id)).toBeTruthy();
   });
 });

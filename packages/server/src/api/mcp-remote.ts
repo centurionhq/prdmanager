@@ -38,6 +38,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ErrorCode, McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
+  errorResult,
   registerPrdmTools,
   registerRemoteAuthoringTools,
   registerRemoteWriteTools,
@@ -50,7 +51,7 @@ import { can, type PermissionSubject } from '@prdm/contracts';
 import { createTenantDb, findMembership, findUserProfile, resolveProjectByGraphProjectId, type OrgRole, type ProjectRecord } from '@prdm/db';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
-import type { Neo4jGraphDatabase } from '@prdm/core';
+import { classifyDbTimeout, type Neo4jGraphDatabase } from '@prdm/core';
 import { isOrgAdmin } from './projects.js';
 import { rejectUntrustedOrigin } from './trusted-origin.js';
 import { buildPrdmConfig } from '../engine/pg-project-settings.js';
@@ -204,6 +205,20 @@ async function resolveProjectSubject(pool: Pool, orgId: string, projectId: strin
   return { orgRole: auth.orgRole, projectRole: membership.role };
 }
 
+/** WO-647: el audit es el primer consumidor del pool dentro del `beforeCall`, ya hijackeado: un timeout de
+ * BD ahí no puede llegar al handler global, así que se convierte en el resultado explícito (`database_busy`
+ * / `statement_timeout`); para resources/prompts `instrumentMcpCalls` lo vuelve `McpError` (mismo camino que
+ * `onDenied`). Cualquier otro error se propaga. */
+async function auditOrExplicitDbError(audit: () => Promise<void>): Promise<CallToolResult | undefined> {
+  try {
+    await audit();
+    return undefined;
+  } catch (err) {
+    if (classifyDbTimeout(err)) return errorResult(err);
+    throw err;
+  }
+}
+
 async function auditToolCall(pool: Pool, orgId: string, projectId: string | undefined, token: RequestToken, toolName: string): Promise<void> {
   await createTenantDb(pool)
     .forOrg(orgId)
@@ -295,8 +310,7 @@ async function handleProjectMcpPost(req: FastifyRequest<{ Params: McpRouteParams
     if (!token.scopes.includes(requiredScope)) return missingScopeResult(requiredScope);
     const allowed = await rateLimiter.check(req, token.tokenId);
     if (!allowed) return rateLimitedResult();
-    await auditToolCall(pool, resolved.orgId, resolved.projectId, token, toolName);
-    return undefined;
+    return auditOrExplicitDbError(() => auditToolCall(pool, resolved.orgId, resolved.projectId, token, toolName));
   });
 
   registerPrdmTools(server, deps, { profile: 'remote' });
@@ -353,8 +367,7 @@ async function handleBareMcpPost(req: FastifyRequest, reply: FastifyReply, opts:
     if (!token.scopes.includes('mcp:read')) return missingScopeResult('mcp:read');
     const allowed = await rateLimiter.check(req, token.tokenId);
     if (!allowed) return rateLimitedResult();
-    await auditToolCall(pool, auth.orgId, undefined, token, toolName);
-    return undefined;
+    return auditOrExplicitDbError(() => auditToolCall(pool, auth.orgId, undefined, token, toolName));
   });
   registerListProjectsTool(server, pool, auth, token);
 
