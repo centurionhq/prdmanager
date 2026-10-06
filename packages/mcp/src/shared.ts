@@ -1,4 +1,4 @@
-import { DatabaseBusyError, StatementTimedOutError } from '@prdm/core';
+import { classifyDbTimeout } from '@prdm/core';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { PrdmDeps } from './deps.js';
 import { ensureRecovered } from './recover.js';
@@ -22,10 +22,11 @@ function explicitError(data: { error: string; message: string }): CallToolResult
 
 /** Never leaks stack traces: only Error#message (or String(err)) is sent to the client. */
 export function errorResult(err: unknown): CallToolResult {
-  if (err instanceof DatabaseBusyError) {
+  const dbTimeout = classifyDbTimeout(err);
+  if (dbTimeout === 'busy') {
     return explicitError({ error: 'database_busy', message: 'database busy: no pooled connection became available in time, retry shortly' });
   }
-  if (err instanceof StatementTimedOutError) {
+  if (dbTimeout === 'statement') {
     return explicitError({ error: 'statement_timeout', message: 'statement timed out: the database did not answer within the statement timeout' });
   }
   const message = err instanceof Error ? err.message : String(err);

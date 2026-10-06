@@ -137,6 +137,27 @@ export class StatementTimedOutError extends Error {
   }
 }
 
+const DB_ERROR_CAUSE_DEPTH = 3;
+
+/**
+ * Única verdad sobre "este error es un timeout de la base" (WO-647, gate de SDD-073 D2): la usan el engine
+ * Pg (que lo envuelve en el error tipado), el handler global de Fastify y `errorResult` del MCP. Reconoce los
+ * dos errores tipados y, recorriendo `cause` (hasta 3 niveles), el error crudo del driver: el connect timeout
+ * de pg-pool o el cancel de Postgres por `statement_timeout` (SQLSTATE 57014). Cualquier otro error es
+ * `undefined` y quien llama lo propaga sin tocar.
+ */
+export function classifyDbTimeout(err: unknown): 'busy' | 'statement' | undefined {
+  if (err instanceof DatabaseBusyError) return 'busy';
+  if (err instanceof StatementTimedOutError) return 'statement';
+  let current: unknown = err;
+  for (let depth = 0; depth < DB_ERROR_CAUSE_DEPTH && current instanceof Error; depth++) {
+    if (/timeout exceeded when trying to connect/.test(current.message)) return 'busy';
+    if ((current as { code?: unknown }).code === '57014' && /statement timeout/i.test(current.message)) return 'statement';
+    current = current.cause;
+  }
+  return undefined;
+}
+
 export class Engine implements ProjectEngine {
   private queue: Promise<unknown> = Promise.resolve();
   private readonly ops: EngineOps;

@@ -7,7 +7,8 @@ import { randomUUID } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { Neo4jGraphDatabase } from '@prdm/core';
-import { createMemberFixture, createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
+import { createPool } from '@prdm/db';
+import { createMemberFixture, createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, testPgConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { DEFAULT_MCP_TOOL_RATE_LIMIT_PER_MINUTE } from '../../src/api/mcp-remote.js';
 import { buildServer } from '../../src/build-server.js';
@@ -376,5 +377,44 @@ describe('remote MCP endpoint (SDD-010, WO-184)', () => {
 
     await client.close();
     await app.close();
+  }, 30_000);
+
+  // WO-647 (gate de SDD-073 D2): con el pool entero retenido, el primer consumidor es la auth bearer del preHandler
+  // (antes del hijack), no el engine; el 503 tiene que salir del handler global, no de un 500 `internal_error`.
+  test('answers 503 service_unavailable + retry-after: 5 on the real MCP transport when the pool is saturated', async () => {
+    const { app, baseUrl } = await startApp();
+    const { project, secret } = await setupProject(app);
+
+    const poolUrl = new URL(testPgConfig().appUrl);
+    poolUrl.searchParams.set('application_name', 'wo647-saturation');
+    const pool = createPool({ connectionString: poolUrl.toString(), maxConnections: 1, connectionTimeoutMillis: 250 });
+    const app2 = buildServer({ env, pool, mailer: new FakeMailer(), logger: false, neo4j });
+    const held = await pool.connect();
+    try {
+      await app2.ready();
+      await app2.listen({ port: 0, host: '127.0.0.1' });
+      const address = app2.server.address();
+      if (address === null || typeof address === 'string') throw new Error('expected a bound TCP address');
+      await held.query('BEGIN');
+      await held.query('SELECT 1');
+
+      const saturated = await pg.ownerPool.query<{ n: number }>("SELECT count(*)::int AS n FROM pg_stat_activity WHERE application_name = 'wo647-saturation'");
+      expect(saturated.rows[0]!.n).toBe(1);
+
+      const res = await fetch(`http://127.0.0.1:${address.port}/mcp/${project.graphProjectId}`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${secret}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+      });
+      expect(res.status).toBe(503);
+      expect(res.headers.get('retry-after')).toBe('5');
+      expect(await res.json()).toEqual({ error: { code: 'service_unavailable', message: 'database busy, retry shortly' } });
+    } finally {
+      await held.query('ROLLBACK').catch(() => undefined);
+      held.release();
+      await pool.end();
+      await app2.close();
+      await app.close();
+    }
   }, 30_000);
 });

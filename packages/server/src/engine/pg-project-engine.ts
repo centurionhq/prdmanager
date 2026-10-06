@@ -110,6 +110,7 @@ import {
   type ScannedFile,
   type ScanResult,
   type TransactionOptions,
+  classifyDbTimeout,
   DatabaseBusyError,
   StatementTimedOutError,
   type WorkOrderUpdate,
@@ -252,20 +253,6 @@ export interface PgProjectEngineOptions {
    * currently-open live editor stays stale until it reloads. Defaults to a single stderr line, same shape
    * as `onProjectionError`'s own default. */
   onLiveDocSyncError?: (err: unknown) => void;
-}
-
-const DB_ERROR_CAUSE_DEPTH = 3;
-
-/** Walks `err` and its `cause` chain (up to 3 levels) looking for a pg-pool connect timeout or a Postgres
- * `statement_timeout` cancel (SQLSTATE 57014); anything else is `undefined` and gets re-thrown untouched. */
-function classifyDbTimeout(err: unknown): 'busy' | 'statement' | undefined {
-  let current: unknown = err;
-  for (let depth = 0; depth < DB_ERROR_CAUSE_DEPTH && current instanceof Error; depth++) {
-    if (/timeout exceeded when trying to connect/.test(current.message)) return 'busy';
-    if ((current as { code?: unknown }).code === '57014' && /statement timeout/i.test(current.message)) return 'statement';
-    current = current.cause;
-  }
-  return undefined;
 }
 
 /** Translates a pool/statement timeout into the typed core error (cause kept), logging the driver's
