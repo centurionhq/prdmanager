@@ -110,6 +110,58 @@ export const LIST_WORK_ORDERS = `
          COLLECT { MATCH (wo)-[:IMPLEMENTS]->(b:Blueprint {project_id: $projectId}) RETURN b.id ORDER BY b.id } AS blueprints
   ORDER BY wo.id`;
 
+/**
+ * Filtros compartidos por los tres CALL de `QUERY_WORK_ORDERS` (blueprint/actor/assignedTo/q), parametrizados por el alias
+ * de la WO. `$q` llega ya en minúsculas; el estado NO está acá porque `statusCounts` se calcula sin él (D5).
+ */
+const woBaseFilter = (a: string): string => `
+    ($blueprint IS NULL OR EXISTS { (${a})-[:IMPLEMENTS]->(:Blueprint {project_id: $projectId, id: $blueprint}) })
+    AND ($assignedTo IS NULL OR ${a}.assigned_to = $assignedTo)
+    AND ($actorKind IS NULL
+         OR ($actorKind = 'unassigned' AND (${a}.assigned_to IS NULL OR ${a}.assigned_to = ''))
+         OR ($actorKind = 'agent' AND ${a}.assigned_to STARTS WITH 'agent:')
+         OR ($actorKind = 'dev' AND ${a}.assigned_to STARTS WITH 'dev:'))
+    AND ($q IS NULL
+         OR toLower(${a}.id) CONTAINS $q
+         OR toLower(coalesce(${a}.title, '')) CONTAINS $q
+         OR toLower(coalesce(${a}.assigned_to, '')) CONTAINS $q
+         OR EXISTS { MATCH (${a})-[:IMPLEMENTS]->(b:Blueprint {project_id: $projectId}) WHERE toLower(b.id) CONTAINS $q })`;
+
+/**
+ * Vista paginada de WOs (SDD-064 D1..D8): `LIST_WORK_ORDERS` queda intacto. Los tres `CALL` devuelven siempre una fila
+ * (collect/count/sum agregan incluso sobre vacío). Sin `$status` se excluyen las archivadas (D3); `statusCounts` ignora el estado.
+ */
+export const QUERY_WORK_ORDERS = `
+  CALL () {
+    MATCH (wo:WorkOrder {project_id: $projectId})
+    WHERE ${woBaseFilter('wo')}
+      AND (($status IS NULL AND wo.status <> 'archived') OR wo.status = $status)
+    WITH wo ORDER BY wo.id SKIP $offset LIMIT $limit
+    OPTIONAL MATCH (wo)-[:IMPLEMENTS]->(bp:Blueprint {project_id: $projectId})
+    WITH wo, collect(bp.id) AS blueprints
+    ORDER BY wo.id
+    RETURN collect({id: wo.id, title: wo.title, status: wo.status, assignedTo: wo.assigned_to, sourcePath: wo.source_path,
+                    blueprints: [x IN blueprints WHERE x IS NOT NULL]}) AS items
+  }
+  CALL () {
+    MATCH (w2:WorkOrder {project_id: $projectId})
+    WHERE ${woBaseFilter('w2')}
+      AND (($status IS NULL AND w2.status <> 'archived') OR w2.status = $status)
+    RETURN count(w2) AS total
+  }
+  CALL () {
+    MATCH (w3:WorkOrder {project_id: $projectId})
+    WHERE ${woBaseFilter('w3')}
+    RETURN sum(CASE WHEN w3.status <> 'archived' THEN 1 ELSE 0 END) AS all,
+           sum(CASE WHEN w3.status = 'pending' THEN 1 ELSE 0 END) AS pending,
+           sum(CASE WHEN w3.status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
+           sum(CASE WHEN w3.status = 'out_of_sync' THEN 1 ELSE 0 END) AS out_of_sync,
+           sum(CASE WHEN w3.status = 'done' THEN 1 ELSE 0 END) AS done,
+           sum(CASE WHEN w3.status = 'archived' THEN 1 ELSE 0 END) AS archived
+  }
+  RETURN items, total,
+         {all: all, pending: pending, in_progress: in_progress, out_of_sync: out_of_sync, done: done, archived: archived} AS statusCounts`;
+
 export const WORK_ORDER_CONTEXT = `
   MATCH (wo:WorkOrder {project_id: $projectId, id: $id})
   RETURN wo {.*, label: 'WorkOrder'} AS workOrder,
@@ -174,6 +226,7 @@ export const SCOPED_QUERIES: readonly string[] = [
   BRANCH,
   FULL_GRAPH,
   LIST_WORK_ORDERS,
+  QUERY_WORK_ORDERS,
   WORK_ORDER_CONTEXT,
   METRICS_RAW,
   CLEAR_PROJECT,

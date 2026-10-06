@@ -21,6 +21,7 @@ function fakeStore(): GraphStore {
     branch: async () => ({ nodes: [], edges: [] }),
     fullGraph: async () => ({ nodes: [], edges: [] }),
     listWorkOrders: async () => [],
+    queryWorkOrders: async () => ({ items: [], total: 0, statusCounts: { all: 0, pending: 0, in_progress: 0, out_of_sync: 0, done: 0, archived: 0 } }),
     workOrderContext: async () => null,
     metricsRaw: async () => ({ docs: [], workOrders: [] }) as never,
   };

@@ -110,7 +110,13 @@ describe('/api/app/organizations/:orgSlug/projects/:projectSlug/graph/* and .../
 
     const workOrders = await app.inject({ method: 'GET', url: `/api/app/organizations/${org.slug}/projects/${project.slug}/graph/work-orders`, headers: { ...AUTH_HOST(), cookie: viewerCookie } });
     expect(workOrders.statusCode).toBe(200);
-    expect(Array.isArray(workOrders.json())).toBe(true);
+    expect(workOrders.json()).toMatchObject({ total: expect.any(Number), items: expect.any(Array), statusCounts: expect.objectContaining({ all: expect.any(Number) }) });
+    expect(workOrders.json().items).toHaveLength(workOrders.json().total);
+
+    const badActor = await app.inject({ method: 'GET', url: `/api/app/organizations/${org.slug}/projects/${project.slug}/graph/work-orders?actorKind=bogus`, headers: { ...AUTH_HOST(), cookie: viewerCookie } });
+    expect(badActor.statusCode).toBe(400);
+    const badLimit = await app.inject({ method: 'GET', url: `/api/app/organizations/${org.slug}/projects/${project.slug}/graph/work-orders?limit=0`, headers: { ...AUTH_HOST(), cookie: viewerCookie } });
+    expect(badLimit.statusCode).toBe(400);
 
     const drift = await app.inject({ method: 'GET', url: `/api/app/organizations/${org.slug}/projects/${project.slug}/drift`, headers: { ...AUTH_HOST(), cookie: viewerCookie } });
     expect(drift.statusCode).toBe(200);

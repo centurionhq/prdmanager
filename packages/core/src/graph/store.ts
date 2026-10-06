@@ -4,7 +4,7 @@ import { assertProjectId, type ProjectRef } from '../project/types.js';
 import { CLEAR_PROJECT, PROJECT_FINGERPRINT_CHECK } from './queries.js';
 import * as reads from './store-read.js';
 import { ProjectFingerprintMismatch, writeSnapshot } from './store-write.js';
-import type { GraphSnapshot, GraphStore, MetricsRaw, NodeDetail, SearchHit, Subgraph, WorkOrderContextRaw, WorkOrderSummary } from './types.js';
+import type { GraphSnapshot, GraphStore, MetricsRaw, NodeDetail, SearchHit, Subgraph, WorkOrderContextRaw, WorkOrderPage, WorkOrderQueryFilter, WorkOrderSummary } from './types.js';
 
 /**
  * Project-scoped `GraphStore` (ADR-002 D1): every method is bound to one `ProjectRef` and every query it runs is
@@ -56,6 +56,10 @@ export class Neo4jGraphStore implements GraphStore {
 
   async fullGraph(): Promise<Subgraph> {
     return reads.fullGraph(this.driver, this.database, this.project.id);
+  }
+
+  async queryWorkOrders(filter: WorkOrderQueryFilter = {}): Promise<WorkOrderPage> {
+    return reads.queryWorkOrders(this.driver, this.database, this.project.id, filter);
   }
 
   async listWorkOrders(filter: { status?: string; blueprint?: string } = {}): Promise<WorkOrderSummary[]> {
