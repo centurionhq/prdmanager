@@ -16,9 +16,11 @@ import {
   type PermissionSubject,
   type ProjectOverviewDto,
   type ProjectRole,
+  workProfileSchema,
+  type WorkProfile,
 } from '@prdm/contracts';
 import { LoadingState } from '@prdm/ui';
-import { getProjectsOverview, getSession, listOrganizations } from '../api/client.js';
+import { getProfile, getProjectsOverview, getSession, listOrganizations, setWorkProfile } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { AppShell, type AppShellData } from '../components/shell/AppShell.js';
 import { projectRoleLabel } from '../components/shell/project-nav.js';
@@ -31,6 +33,13 @@ export interface ProjectShellContext extends OrgShellContext {
   projectSlug: string;
   project: ProjectOverviewDto;
   subject: PermissionSubject;
+  /** WO-544 (SDD-051): the way of working this person picked on the Planta's entry band. `null` means they
+   * have not chosen yet, which the band renders on purpose (it asks) -- never a default to guess. It is a
+   * routing preference and nothing authorizes off it: `subject` above is still the only thing `can()` sees. */
+  workProfile: WorkProfile | null;
+  /** Picks a profile. Updates immediately and puts the previous one back (rethrowing) if the server
+   * refuses, so the band never shows a choice that was not actually kept. */
+  chooseWorkProfile: (profile: WorkProfile) => Promise<void>;
 }
 
 /** Nested project screens call this instead of re-fetching the organization/project list themselves. */
@@ -48,10 +57,29 @@ interface Loaded {
   personName: string;
 }
 
+/** The profile is a UX preference, so failing to read it must not take the whole project down with it:
+ * it degrades to "has not chosen", and the entry band simply asks again. Everything else the shell loads
+ * is load-bearing and still fails loudly.
+ *
+ * The answer is *validated*, not trusted: a server still on the previous release answers without the field
+ * at all (`undefined`, which is not the `null` the band treats as "ask"), and a newer one could send a value
+ * this build has no copy for. Both mean "not chosen". Trusting the type here is what took the whole Planta
+ * down in production the day this shipped ahead of the server. */
+function loadWorkProfile(): Promise<WorkProfile | null> {
+  return getProfile().then(
+    (profile) => {
+      const parsed = workProfileSchema.safeParse(profile.workProfile);
+      return parsed.success ? parsed.data : null;
+    },
+    () => null,
+  );
+}
+
 export function ProjectShell(): ReactElement {
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [workProfile, setWorkProfileState] = useState<WorkProfile | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,9 +88,13 @@ export function ProjectShell(): ReactElement {
 
     if (!orgSlug) return undefined;
 
-    Promise.all([listOrganizations(), getProjectsOverview(orgSlug), getSession()])
-      .then(([organizations, projects, session]) => {
+    // WO-544: the profile is a fourth member of the *same* Promise.all that already gates this whole
+    // subtree behind `LoadingState`. That is the point: the entry band never mounts before it knows the
+    // profile, so there is no intermediate state of its own to draw, and no extra round trip in series.
+    Promise.all([listOrganizations(), getProjectsOverview(orgSlug), getSession(), loadWorkProfile()])
+      .then(([organizations, projects, session, profile]) => {
         if (cancelled) return;
+        setWorkProfileState(profile);
         setLoaded({ organizations, projects, personName: session?.user.name ?? session?.user.email ?? 'Vos' });
       })
       .catch((err: unknown) => {
@@ -73,6 +105,17 @@ export function ProjectShell(): ReactElement {
       cancelled = true;
     };
   }, [orgSlug, projectSlug]);
+
+  async function chooseWorkProfile(next: WorkProfile): Promise<void> {
+    const previous = workProfile;
+    setWorkProfileState(next);
+    try {
+      await setWorkProfile({ workProfile: next });
+    } catch (err) {
+      setWorkProfileState(previous);
+      throw err;
+    }
+  }
 
   if (error) {
     return (
@@ -107,6 +150,8 @@ export function ProjectShell(): ReactElement {
     projectSlug: project.slug,
     project,
     subject,
+    workProfile,
+    chooseWorkProfile,
   };
   const shellData: AppShellData = {
     orgSlug: currentOrg.slug,

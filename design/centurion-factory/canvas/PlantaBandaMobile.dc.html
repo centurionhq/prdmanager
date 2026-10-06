@@ -1,0 +1,237 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; }
+    .code { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.5; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<!-- 390×844. Todo control táctil respeta el mínimo de 44px. -->
+<div style="width: 390px; height: 844px; display: flex; flex-direction: column; background: #E9ECEB; overflow: hidden;">
+
+  <header style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #C9CFCD; background: #E9ECEB;">
+    <div style="display: flex; flex-direction: column; min-width: 0;">
+      <span style="font-size: 12px; color: #565D63;">Centurion HQ</span>
+      <span style="font-size: 17px; font-weight: 700;">{{ tituloPantalla }}</span>
+    </div>
+    <div style="flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17191C" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+    </div>
+  </header>
+
+  <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+
+    <!-- Banda sin perfil: las tres placas se apilan -->
+    <sc-if value="{{ esSinPerfil }}" hint-placeholder-val="{{ true }}">
+      <section aria-labelledby="banda-m" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; background: #FBFCFB; border-bottom: 1px solid #C9CFCD;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <h2 id="banda-m" style="margin: 0; font-size: 18px; font-weight: 700;">¿Qué venís a hacer acá?</h2>
+          <p style="margin: 0; font-size: 13px; color: #565D63; line-height: 1.4;">Elegí una vez. Podés cambiarlo cuando quieras.</p>
+        </div>
+        <div role="radiogroup" aria-labelledby="banda-m" style="display: flex; flex-direction: column; gap: 8px;">
+          <div role="radio" aria-checked="false" tabindex="0" style="display: flex; flex-direction: column; gap: 3px; min-height: 44px; padding: 12px 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+            <span style="font-size: 15px; font-weight: 700;">Traigo una necesidad del negocio</span>
+            <span style="font-size: 13px; color: #33383D; line-height: 1.4;">Escribí por qué conviene hacer algo, guiado.</span>
+          </div>
+          <div role="radio" aria-checked="false" tabindex="-1" style="display: flex; flex-direction: column; gap: 3px; min-height: 44px; padding: 12px 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+            <span style="font-size: 15px; font-weight: 700;">Defino qué se construye</span>
+            <span style="font-size: 13px; color: #33383D; line-height: 1.4;">Convertí una iniciativa aprobada en requisitos.</span>
+          </div>
+          <div role="radio" aria-checked="false" tabindex="-1" style="display: flex; flex-direction: column; gap: 3px; min-height: 44px; padding: 12px 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+            <span style="font-size: 15px; font-weight: 700;">Escribo el código</span>
+            <span style="font-size: 13px; color: #33383D; line-height: 1.4;">Conectá tu editor para tomar órdenes.</span>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- Banda con perfil: una línea, apilada para que el botón entre entero -->
+    <sc-if value="{{ esConPerfil }}" hint-placeholder-val="{{ false }}">
+      <section aria-label="Tu próximo paso" style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: #FBFCFB; border-bottom: 1px solid #C9CFCD;">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+            <span style="font-size: 12px; color: #565D63;">{{ perfilEtiqueta }}</span>
+            <span style="font-size: 16px; font-weight: 700; line-height: 1.3;">{{ proximoPaso }}</span>
+          </div>
+          <a style="flex: none; font-size: 14px; min-height: 44px; display: flex; align-items: center;">Cambiar</a>
+        </div>
+        <div style="min-height: 44px; display: flex; align-items: center; justify-content: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 15px; border-radius: 2px;">{{ botonTexto }}</div>
+      </section>
+    </sc-if>
+
+    <!-- Destino: negocio -->
+    <sc-if value="{{ esNegocioDestino }}" hint-placeholder-val="{{ false }}">
+      <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 16px;">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <span class="id" style="color: #565D63;">BC-014 · Borrador</span>
+          <h2 style="margin: 0; font-size: 20px; font-weight: 800; font-stretch: 112%; line-height: 1.15;">Notificar cuando una orden se atrasa</h2>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span class="num" style="font-size: 13px; color: #565D63;">2 de 4 secciones escritas</span>
+          <div style="display: flex; gap: 10px; padding: 12px 14px; background: #FBFCFB; border: 1px solid #1F4FA0; border-radius: 2px;">
+            <span style="flex: none; width: 14px; height: 14px; margin-top: 3px; border: 1px solid #1F4FA0;"></span>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-size: 15px; font-weight: 600;">Cómo sabremos que funcionó</span>
+              <span style="font-size: 13px; color: #33383D; line-height: 1.4;">Una métrica con su valor de hoy y el que buscás.</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px; padding: 12px 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+            <span style="flex: none; width: 14px; height: 14px; margin-top: 3px; border: 1px solid #C9CFCD;"></span>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-size: 15px; font-weight: 600;">Cuánto cuesta, a grandes rasgos</span>
+              <span style="font-size: 13px; color: #33383D; line-height: 1.4;">Qué se toca y qué no. Orden de magnitud.</span>
+            </div>
+          </div>
+        </div>
+        <div style="padding: 12px 14px; background: #F1F3F2; border-left: 3px solid #1F4FA0; font-size: 13px; line-height: 1.45;">
+          <strong>Después de esto.</strong> Publicado, queda aprobado y recién ahí se le pueden colgar requisitos.
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- Destino: producto -->
+    <sc-if value="{{ esProductoDestino }}" hint-placeholder-val="{{ false }}">
+      <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 16px;">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 800; font-stretch: 112%; line-height: 1.2;">¿De qué iniciativa salen?</h2>
+        <p style="margin: 0; font-size: 14px; color: #33383D; line-height: 1.45;">Todo lo que se construye cuelga de una iniciativa aprobada.</p>
+        <div role="radiogroup" aria-label="Elegí la iniciativa" style="display: flex; flex-direction: column; gap: 8px;">
+          <div role="radio" aria-checked="true" tabindex="0" style="display: flex; gap: 12px; min-height: 44px; padding: 14px; background: #FBFCFB; border: 1px solid #1F4FA0; border-radius: 2px;">
+            <span style="flex: none; width: 14px; height: 14px; margin-top: 4px; border: 1px solid #1F4FA0; background: #1F4FA0;"></span>
+            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;">
+              <span style="font-size: 15px; font-weight: 700; line-height: 1.3;">Mejorar experiencia de negocio, producto y developers</span>
+              <span class="id" style="color: #565D63;">BC-013 · Aprobada</span>
+            </div>
+          </div>
+          <div role="radio" aria-checked="false" tabindex="-1" style="display: flex; gap: 12px; min-height: 44px; padding: 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+            <span style="flex: none; width: 14px; height: 14px; margin-top: 4px; border: 1px solid #C9CFCD;"></span>
+            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;">
+              <span style="font-size: 15px; font-weight: 700; line-height: 1.3;">Un agente que trabaja bien pero no se ve trabajar</span>
+              <span class="id" style="color: #565D63;">BC-010 · Aprobada</span>
+            </div>
+          </div>
+        </div>
+        <div style="min-height: 44px; display: flex; align-items: center; justify-content: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 15px; border-radius: 2px;">Escribir los requisitos</div>
+      </div>
+    </sc-if>
+
+    <!-- Destino: developer -->
+    <sc-if value="{{ esDeveloperDestino }}" hint-placeholder-val="{{ false }}">
+      <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 16px;">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 800; font-stretch: 112%; line-height: 1.2;">Conectar tu entorno</h2>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+          <span style="width: 10px; height: 10px; border-radius: 5px; background: #565D63;"></span>
+          <span style="font-size: 14px; font-weight: 600;">Sin conectar</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; gap: 12px; padding: 12px 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+            <span style="flex: none; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 11px; background: #1F4FA0; color: #FFFFFF; font-size: 12px; font-weight: 700;">1</span>
+            <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1;">
+              <span style="font-size: 15px; font-weight: 700;">Crear tu credencial</span>
+              <div style="min-height: 44px; display: flex; align-items: center; justify-content: center; padding: 0 14px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Crear credencial</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 12px; padding: 12px 14px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+            <span style="flex: none; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 11px; background: #F1F3F2; color: #565D63; font-size: 12px; font-weight: 700;">2</span>
+            <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1;">
+              <span style="font-size: 15px; font-weight: 700;">Vincular el repositorio</span>
+              <div style="display: flex; align-items: flex-start; gap: 8px; padding: 10px; background: #17191C; border-radius: 2px;">
+                <code class="code" style="color: #E9ECEB; white-space: pre-wrap; word-break: break-all; min-width: 0;">prdm link centurionhq/prdmanager --mcp</code>
+              </div>
+              <div style="min-height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid #C9CFCD; color: #1F4FA0; font-size: 14px; border-radius: 2px;">Copiar</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- La línea, sólo cuando estamos en la Planta -->
+    <sc-if value="{{ muestraLinea }}" hint-placeholder-val="{{ true }}">
+      <section style="background: #17191C; color: #E9ECEB; padding: 16px; flex: 1; overflow: hidden;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px;">
+          <h2 style="margin: 0; font-size: 18px; font-weight: 700; font-stretch: 118%;">La línea</h2>
+          <span style="font-size: 13px; color: #C4CAD0;">4 iniciativas</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-top: 1px solid #2E3338;">
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-size: 13px; color: #C4CAD0; line-height: 1.25;">Caso de negocio</span>
+            <span style="font-size: 11px; color: #8E979F;">Negocio</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px;"><span class="id" style="color: #8E979F;">BC-002</span><span style="font-size: 15px;">Reducir el churn de cuentas</span><span style="font-size: 13px; color: #C4CAD0;">aprobado, sin requisitos todavía</span></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-top: 1px solid #2E3338;">
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-size: 13px; color: #F5C400; font-weight: 700; line-height: 1.25;">Construcción</span>
+            <span style="font-size: 11px; color: #8E979F;">Tecnología</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;"><span class="id" style="color: #8E979F;">BC-001</span><span style="font-size: 15px;">Importador incremental de repos</span><span class="num" style="font-size: 13px; color: #F5C400; font-weight: 600;">14 de 22 hechas · 3 paradas</span></div>
+        </div>
+      </section>
+    </sc-if>
+  </div>
+
+  <nav aria-label="Navegación principal" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid #C9CFCD; background: #FBFCFB; padding: 4px 0;">
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; font-weight: 600; color: #17191C;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17191C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V8l8-4 8 4v12"></path><path d="M4 14h16"></path></svg>
+      Planta
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; color: #565D63;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"></circle><circle cx="18" cy="12" r="2"></circle><circle cx="6" cy="18" r="2"></circle><path d="M8 6h4a2 2 0 0 1 2 2v2M8 18h4a2 2 0 0 0 2-2v-2"></path></svg>
+      Árbol
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; color: #565D63;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="1"></rect><path d="M9 9h6M9 13h6M9 17h3"></path></svg>
+      Documentos
+    </div>
+    <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; color: #565D63;">
+      <span class="num" style="position: absolute; top: 8px; left: 50%; margin-left: 6px; min-width: 16px; height: 16px; padding: 0 4px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 11px; font-weight: 700; border-radius: 2px;">3</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4L2 20h20z"></path><path d="M12 10v4"></path><circle cx="12" cy="17.5" r="0.5"></circle></svg>
+      Drift
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px; font-size: 12px; color: #565D63;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg>
+      Más
+    </div>
+  </nav>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"estado":{"editor":"enum","default":"banda_sin_perfil","options":["banda_sin_perfil","banda_con_perfil","destino_negocio","destino_producto","destino_developer"],"section":"Estado"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const estado = this.props.estado ?? 'banda_sin_perfil';
+    const enPlanta = estado === 'banda_sin_perfil' || estado === 'banda_con_perfil';
+    const titulos = {
+      banda_sin_perfil: 'Planta',
+      banda_con_perfil: 'Planta',
+      destino_negocio: 'Tu caso de negocio',
+      destino_producto: 'Escribir requisitos',
+      destino_developer: 'Conectar tu entorno'
+    };
+    return {
+      tituloPantalla: titulos[estado] ?? 'Planta',
+      esSinPerfil: estado === 'banda_sin_perfil',
+      esConPerfil: estado === 'banda_con_perfil',
+      esNegocioDestino: estado === 'destino_negocio',
+      esProductoDestino: estado === 'destino_producto',
+      esDeveloperDestino: estado === 'destino_developer',
+      muestraLinea: enPlanta,
+      perfilEtiqueta: 'Definís qué se construye',
+      proximoPaso: 'Convertir una iniciativa aprobada en requisitos',
+      botonTexto: 'Escribir los requisitos'
+    };
+  }
+}
+</script>
+</body>
+</html>

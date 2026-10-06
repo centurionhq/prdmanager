@@ -30,6 +30,12 @@ export type { DataTableColumn, DataTableProps } from './DataTable/DataTable';
 export { FilterChips } from './FilterChips/FilterChips';
 export type { FilterChipOption, FilterChipsProps } from './FilterChips/FilterChips';
 
+export { OptionPlates } from './OptionPlates/OptionPlates';
+export type { OptionPlate, OptionPlatesProps } from './OptionPlates/OptionPlates';
+
+export { CopyBlock } from './CopyBlock/CopyBlock';
+export type { CopyBlockProps } from './CopyBlock/CopyBlock';
+
 export { SearchField } from './SearchField/SearchField';
 export type { SearchFieldProps } from './SearchField/SearchField';
 
@@ -44,6 +50,27 @@ export type { ToastContextValue, ToastOptions, ToastProviderProps, ToastTone } f
 
 export { PageHeader } from './PageHeader/PageHeader';
 export type { PageHeaderProps } from './PageHeader/PageHeader';
+
+export { SectionHeader } from './SectionHeader/SectionHeader';
+export type { SectionHeaderProps } from './SectionHeader/SectionHeader';
+
+export { TextField } from './TextField/TextField';
+export type { TextFieldProps } from './TextField/TextField';
+
+export { SelectField } from './SelectField/SelectField';
+export type { SelectFieldProps, SelectOption } from './SelectField/SelectField';
+
+export { ReadOnlyField } from './ReadOnlyField/ReadOnlyField';
+export type { ReadOnlyFieldProps } from './ReadOnlyField/ReadOnlyField';
+
+export { Notice } from './Notice/Notice';
+export type { NoticeProps } from './Notice/Notice';
+
+export { Panel } from './Panel/Panel';
+export type { PanelProps } from './Panel/Panel';
+
+export { SubNav } from './SubNav/SubNav';
+export type { SubNavGroup, SubNavItem, SubNavProps } from './SubNav/SubNav';
 
 export { Tabs } from './Tabs/Tabs';
 export type { TabDef, TabsClassNames, TabsProps } from './Tabs/Tabs';

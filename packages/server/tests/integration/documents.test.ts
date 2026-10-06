@@ -84,6 +84,130 @@ describe('/api/app/organizations/:orgSlug/projects/:projectSlug/documents/* (WO-
     await app.close();
   });
 
+  describe('SDD-052: a document born chained to what justifies it', () => {
+    async function createVia(app: ReturnType<typeof buildServer>, cookie: string, org: { slug: string }, project: { slug: string }, payload: unknown) {
+      return app.inject({
+        method: 'POST',
+        url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents`,
+        headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie),
+        payload: payload as Record<string, unknown>,
+      });
+    }
+
+    async function countDocuments(projectId: string): Promise<number> {
+      const { rows } = await pg.ownerPool.query(`SELECT count(*)::int AS n FROM "documents" WHERE project_id = $1`, [projectId]);
+      return rows[0].n as number;
+    }
+
+    test('seeds justified_by in the one and only first version, with the server-managed fields still winning', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { editor, org, project } = await setupOrgAndProject();
+      const cookie = await signIn(app, editor.email);
+      const bc = await createVia(app, cookie, org, project, { kind: 'BC', title: 'Mejorar la entrada' });
+      expect(bc.json().document.docId).toBe('BC-001');
+
+      const created = await createVia(app, cookie, org, project, { kind: 'PRD', title: 'Aviso de orden atrasada', fields: { justified_by: ['BC-001'] } });
+
+      expect(created.statusCode).toBe(200);
+      const doc = created.json().document;
+      expect(doc.docId).toBe('PRD-001');
+      expect(doc.latestVersion.versionNo).toBe(1);
+      expect(doc.latestVersion.renderedMarkdown).toContain('justified_by: ["BC-001"]');
+      expect(doc.latestVersion.renderedMarkdown).not.toContain('justified_by: []');
+      expect(doc.latestVersion.renderedMarkdown).toContain('id: "PRD-001"');
+      expect(doc.latestVersion.renderedMarkdown).toContain('status: "draft"');
+      const { rows } = await pg.ownerPool.query(`SELECT count(*)::int AS n FROM "document_versions" dv JOIN "documents" d ON d.id = dv.document_id WHERE d.doc_id = 'PRD-001'`);
+      expect(rows[0].n).toBe(1);
+
+      await app.close();
+    });
+
+    test('the bare { kind, title } every existing caller sends still works and seeds nothing', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { editor, org, project } = await setupOrgAndProject();
+      const cookie = await signIn(app, editor.email);
+
+      const created = await createVia(app, cookie, org, project, { kind: 'PRD', title: 'Sin encadenar' });
+
+      expect(created.statusCode).toBe(200);
+      expect(created.json().document.latestVersion.renderedMarkdown).toContain('justified_by: []');
+
+      await app.close();
+    });
+
+    test('refuses (404) an id that does not exist in the project, and creates nothing', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { editor, org, project } = await setupOrgAndProject();
+      const cookie = await signIn(app, editor.email);
+
+      const res = await createVia(app, cookie, org, project, { kind: 'PRD', title: 'Huerfano', fields: { justified_by: ['BC-999'] } });
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json().error.message).toContain('BC-999');
+      expect(await countDocuments(project.id)).toBe(0);
+
+      await app.close();
+    });
+
+    test('refuses (400) any other key, even next to a valid justified_by, and creates nothing', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { editor, org, project } = await setupOrgAndProject();
+      const cookie = await signIn(app, editor.email);
+      await createVia(app, cookie, org, project, { kind: 'BC', title: 'Mejorar la entrada' });
+
+      const res = await createVia(app, cookie, org, project, { kind: 'PRD', title: 'Aprobado de entrada', fields: { justified_by: ['BC-001'], status: 'approved' } });
+
+      expect(res.statusCode).toBe(400);
+      expect(await countDocuments(project.id)).toBe(1);
+
+      await app.close();
+    });
+
+    test('SDD-053: a BC is born chained to the feedback it came from, the same way a PRD is to its BC', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { editor, org, project } = await setupOrgAndProject();
+      const cookie = await signIn(app, editor.email);
+      await pg.ownerPool.query(
+        `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+         VALUES ($1, $2, 'FB-001', 'FB', 'Lo que dijo un cliente', 'docs/fb/FB-001.md', 'generated', 'published', $3)`,
+        [org.id, project.id, '---\nid: FB-001\ntype: FB\ntitle: "Lo que dijo un cliente"\nstatus: new\nroot: true\n---\n\nNadie sabe dónde empezar.\n'],
+      );
+
+      const created = await createVia(app, cookie, org, project, { kind: 'BC', title: 'Que arrancar no frene el trabajo', fields: { justified_by: ['FB-001'] } });
+
+      expect(created.statusCode).toBe(200);
+      expect(created.json().document.latestVersion.renderedMarkdown).toContain('justified_by: ["FB-001"]');
+
+      await app.close();
+    });
+
+    test('refuses (400) justified_by on a kind that is not justified by a business case', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { editor, org, project } = await setupOrgAndProject();
+      const cookie = await signIn(app, editor.email);
+      await createVia(app, cookie, org, project, { kind: 'BC', title: 'Mejorar la entrada' });
+
+      const res = await createVia(app, cookie, org, project, { kind: 'ART', title: 'Notas', fields: { justified_by: ['BC-001'] } });
+
+      expect(res.statusCode).toBe(400);
+      expect(await countDocuments(project.id)).toBe(1);
+
+      await app.close();
+    });
+
+    test('a viewer is still forbidden, and the existence of the id is never revealed to them', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { viewer, org, project } = await setupOrgAndProject();
+      const cookie = await signIn(app, viewer.email);
+
+      const res = await createVia(app, cookie, org, project, { kind: 'PRD', title: 'Nope', fields: { justified_by: ['BC-999'] } });
+
+      expect(res.statusCode).toBe(403);
+
+      await app.close();
+    });
+  });
+
   test('WO cannot be created from a template (only the generator creates work orders)', async () => {
     const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
     const { editor, org, project } = await setupOrgAndProject();

@@ -1,0 +1,9 @@
+.notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--texto-secundario);
+  background: var(--relleno);
+  border-left: 3px solid var(--regla);
+}

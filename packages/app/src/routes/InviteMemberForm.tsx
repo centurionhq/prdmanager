@@ -7,8 +7,9 @@ import { useState, type FormEvent, type ReactElement } from 'react';
 import { ORG_ROLES, PROJECT_ROLES, type OrgRole, type ProjectInvitationGrant, type ProjectRole, type ProjectSummary } from '@prdm/contracts';
 import { createOrganizationInvitation } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
+import { Button, SelectField, TextField } from '../components/index.js';
 import { FormError } from '../components/FormError.js';
-import styles from '../styles/forms.module.css';
+import styles from './InviteMemberForm.module.css';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -18,17 +19,22 @@ interface GrantDraft {
   role: ProjectRole;
 }
 
+const orgRoleOptions = (roles: readonly OrgRole[]) => roles.map((r) => ({ value: r, label: r }));
+const projectRoleOptions = PROJECT_ROLES.map((r) => ({ value: r, label: r }));
+
 export function InviteMemberForm({
   orgSlug,
   projects,
   canInviteOwner,
   onInvited,
+  onCancel,
 }: {
   orgSlug: string;
   projects: ProjectSummary[];
   /** SDD-006 §Autenticación: "un admin no puede invitar a un nuevo owner" — only an org owner may. */
   canInviteOwner: boolean;
   onInvited: () => void;
+  onCancel?: () => void;
 }): ReactElement {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<OrgRole>('member');
@@ -74,74 +80,41 @@ export function InviteMemberForm({
   }
 
   return (
-    <form className={styles.card} onSubmit={handleSubmit} noValidate>
-      <h2 className={styles.title}>Invitar miembro</h2>
-      <div className={styles.field}>
-        <label htmlFor="invite-email">Email</label>
-        <input
-          id="invite-email"
-          type="email"
-          required
-          value={email}
-          data-touched={touched}
-          aria-describedby={touched && !emailValid ? 'invite-email-hint' : undefined}
-          aria-invalid={touched && !emailValid}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        {touched && !emailValid && (
-          <span id="invite-email-hint" className={styles.hint}>
-            Ingresá un email válido.
-          </span>
-        )}
-      </div>
-      <div className={styles.field}>
-        <label htmlFor="invite-role">Rol en la organización</label>
-        <select id="invite-role" value={role} onChange={(e) => setRole(e.target.value as OrgRole)}>
-          {availableRoles.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-      </div>
-      {projects.length > 0 && (
-        <fieldset className={styles.field}>
-          <legend>Acceso a proyectos (opcional)</legend>
+    <form className={styles.form} onSubmit={handleSubmit} noValidate>
+      <TextField label="Email" type="email" value={email} onChange={setEmail} required error={touched && !emailValid ? 'Ingresá un email válido.' : null} />
+      <SelectField label="Rol en la organización" value={role} onChange={(value) => setRole(value as OrgRole)} options={orgRoleOptions(availableRoles)} />
+
+      {projects.length > 0 ? (
+        <fieldset className={styles.projects}>
+          <legend className={styles.legend}>Acceso a proyectos (opcional)</legend>
           {projects.map((project) => {
             const draft = draftFor(project.id);
             return (
-              <div key={project.id} className={styles.field}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={draft.enabled}
-                    onChange={(e) => updateGrant(project.id, { enabled: e.target.checked })}
-                  />{' '}
-                  {project.name}
+              <div key={project.id} className={styles.project}>
+                <label className={styles.check}>
+                  <input type="checkbox" checked={draft.enabled} onChange={(e) => updateGrant(project.id, { enabled: e.target.checked })} />
+                  <span>{project.name}</span>
                 </label>
-                {draft.enabled && (
-                  <select
-                    aria-label={`Rol en ${project.name}`}
-                    value={draft.role}
-                    onChange={(e) => updateGrant(project.id, { role: e.target.value as ProjectRole })}
-                  >
-                    {PROJECT_ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                {draft.enabled ? (
+                  <SelectField label={`Rol en ${project.name}`} hideLabel value={draft.role} onChange={(value) => updateGrant(project.id, { role: value as ProjectRole })} options={projectRoleOptions} />
+                ) : null}
               </div>
             );
           })}
         </fieldset>
-      )}
+      ) : null}
+
+      <p className={styles.note}>Le mandamos un enlace de un solo uso que vence en 7 días.</p>
       <FormError message={error} />
       <div className={styles.actions}>
-        <button type="submit" className={styles.primaryButton} disabled={submitting}>
+        {onCancel ? (
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancelar
+          </Button>
+        ) : null}
+        <Button type="submit" variant="primary" disabled={submitting}>
           Invitar
-        </button>
+        </Button>
       </div>
     </form>
   );

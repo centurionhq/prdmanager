@@ -477,6 +477,11 @@ export function registerBaseIsolationRoutes(): void {
     skip: 'scoped to the caller\'s own session, user_profile is a global 1:1 with user — no org/project id in the path to probe (WO-432)',
   });
 
+  registerIsolationProbe('POST', '/api/app/profile/work-profile', {
+    mutating: true,
+    skip: 'scoped to the caller\'s own session, user_work_profile is a global 1:1 with user — no org/project id in the path to probe (WO-542)',
+  });
+
   // SDD-010 (WO-178): resolved through `resolveProjectByGraphProjectId` before `app.org_id` is ever
   // set, so an org-B bearer token targeting org A's `graphProjectId` must 404 exactly like a
   // nonexistent project id would — no `sameOrgOtherProject` case: an unscoped org-A token is allowed

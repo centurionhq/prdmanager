@@ -17,7 +17,7 @@ describe('AjustesPerfil (WO-432)', () => {
 
   it('shows a set-once form when the caller has no handle yet', async () => {
     vi.spyOn(client, 'getSession').mockResolvedValue({ user: { id: 'u1', email: 'tano@example.com', name: 'Tano' } });
-    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null });
+    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null, workProfile: null });
 
     renderAjustesPerfil();
 
@@ -27,7 +27,7 @@ describe('AjustesPerfil (WO-432)', () => {
 
   it('shows the handle read-only once it is already set, with no form', async () => {
     vi.spyOn(client, 'getSession').mockResolvedValue({ user: { id: 'u1', email: 'tano@example.com', name: 'Tano' } });
-    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: 'tano' });
+    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: 'tano', workProfile: null });
 
     renderAjustesPerfil();
 
@@ -37,7 +37,7 @@ describe('AjustesPerfil (WO-432)', () => {
 
   it('sets the handle and then displays it read-only', async () => {
     vi.spyOn(client, 'getSession').mockResolvedValue({ user: { id: 'u1', email: 'tano@example.com', name: 'Tano' } });
-    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null });
+    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null, workProfile: null });
     const setHandle = vi.spyOn(client, 'setProfileHandle').mockResolvedValue({ handle: 'tano' });
 
     renderAjustesPerfil();
@@ -52,7 +52,7 @@ describe('AjustesPerfil (WO-432)', () => {
 
   it('surfaces a server error (e.g. handle already taken) without crashing', async () => {
     vi.spyOn(client, 'getSession').mockResolvedValue({ user: { id: 'u1', email: 'tano@example.com', name: 'Tano' } });
-    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null });
+    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null, workProfile: null });
     vi.spyOn(client, 'setProfileHandle').mockRejectedValue(new client.ApiClientError(409, 'conflict', 'handle "tano" is not available'));
 
     renderAjustesPerfil();

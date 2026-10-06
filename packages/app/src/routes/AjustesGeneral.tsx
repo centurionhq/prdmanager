@@ -6,15 +6,19 @@
  * Every other `projectSettingsSchema` field (folders, git, triage, lifecycle, ignore, GitHub linkage)
  * stays out of this form deliberately: there's no dedicated canvas for a full settings editor yet, and
  * "no inventes campos nuevos" means this WO doesn't design one from scratch.
+ *
+ * SDD-056/PRD-036: rebuilt on the design-system pieces (`SectionHeader`, `Panel`, `TextField`, `ReadOnlyField`,
+ * `Button`) against `AjustesGeneral.dc.html`. Same fields, same request, same messages. The canvas draws the
+ * project name as editable; there is no endpoint that renames a project, so it stays read-only here.
  */
 import { useState, type FormEvent, type ReactElement } from 'react';
 import { updateProjectSettings } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
-import { IdTag } from '../components/index.js';
+import { Button, Panel, ReadOnlyField, SectionHeader, TextField } from '../components/index.js';
 import { FormError } from '../components/FormError.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { useProjectShellContext } from './ProjectShell.js';
-import styles from '../styles/forms.module.css';
+import styles from './AjustesGeneral.module.css';
 
 export function AjustesGeneral(): ReactElement {
   const { orgSlug, projectSlug, project, currentOrg } = useProjectShellContext();
@@ -47,33 +51,35 @@ export function AjustesGeneral(): ReactElement {
   }
 
   return (
-    <div>
-      <h2 className={styles.title}>{project.name}</h2>
-      <p className={styles.subtitle}>
-        <IdTag id={project.slug} /> · organización {currentOrg.name}
-      </p>
+    <div className={styles.screen}>
+      <SectionHeader title="General" subtitle="Datos del proyecto y su rama oficial." />
 
-      <form className={styles.card} onSubmit={handleSubmit} noValidate>
-        <div className={styles.field}>
-          <label htmlFor="general-default-branch">Rama por defecto</label>
-          <input
-            id="general-default-branch"
-            type="text"
-            required
+      <Panel>
+        <form className={styles.form} onSubmit={handleSubmit} noValidate>
+          <ReadOnlyField label="Proyecto" value={project.name} />
+          <ReadOnlyField label="Identificador" value={project.slug} mono hint={`Es el que usás en los comandos: prdm link ${orgSlug}/${project.slug}.`} />
+          <ReadOnlyField label="Organización" value={currentOrg.name} />
+          <TextField
+            label="Rama por defecto"
             value={defaultBranch}
-            aria-invalid={!branchValid}
-            onChange={(e) => setDefaultBranch(e.target.value)}
+            onChange={setDefaultBranch}
+            required
+            error={branchValid ? null : 'Escribí el nombre de la rama.'}
+            hint="La baseline oficial de drift se calcula sobre esta rama."
           />
-          <span className={styles.hint}>La baseline oficial de drift se calcula sobre esta rama.</span>
-        </div>
-        <FormError message={error} />
-        {saved && <p className={styles.success}>Guardado.</p>}
-        <div className={styles.actions}>
-          <button type="submit" className={styles.primaryButton} disabled={submitting || !branchValid}>
-            Guardar
-          </button>
-        </div>
-      </form>
+          <FormError message={error} />
+          <div className={styles.actions}>
+            {saved ? (
+              <p role="status" className={styles.saved}>
+                Guardado.
+              </p>
+            ) : null}
+            <Button type="submit" variant="primary" disabled={submitting || !branchValid}>
+              Guardar
+            </Button>
+          </div>
+        </form>
+      </Panel>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import * as requestModule from '../../src/api/request.js';
 import {
   claimWorkOrder,
   completeWorkOrder,
+  createDocument,
   getDriftIssues,
   getDriftReportDetail,
   getFeatureBranch,
@@ -17,6 +18,7 @@ import {
   getMetrics,
   getOrgAuditLog,
   getProjectAuditLog,
+  getProfile,
   getProjectsOverview,
   getWorkOrderContext,
   listCodeRefs,
@@ -24,6 +26,7 @@ import {
   listInbox,
   resendInvitation,
   searchGraph,
+  setWorkProfile,
   submitFeedback,
   triageFeedback,
 } from '../../src/api/client.js';
@@ -224,17 +227,27 @@ describe('listCodeRefs', () => {
   });
 });
 
-describe('getProjectAuditLog', () => {
-  it('GETs the project audit log with no params', async () => {
-    const page = { items: [], nextCursor: null };
-    const spy = spyOnRequest().mockResolvedValue(page);
+/** What the server really answers (`packages/server/src/api/audit-log.ts`, pinned by its own integration test):
+ * `{ entries, nextCursor }`. These tests once mocked `{ items, ... }` -- the shape the client *assumed* -- so both
+ * audit screens passed every test and crashed in the real app with "Cannot read properties of undefined". */
+const SERVER_ENTRY = { id: 'e1', actor: { type: 'user', id: 'u1' }, action: 'wo.claim', target: 'WO-001', metadata: {}, createdAt: '2026-09-20T10:00:00.000Z' };
 
-    await expect(getProjectAuditLog('acme', 'factory')).resolves.toEqual(page);
+describe('getProjectAuditLog', () => {
+  it('GETs the project audit log with no params, and reads the entries the server sends as items', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ entries: [SERVER_ENTRY], nextCursor: 'c1' });
+
+    await expect(getProjectAuditLog('acme', 'factory')).resolves.toEqual({ items: [SERVER_ENTRY], nextCursor: 'c1' });
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/audit-log');
   });
 
+  it('an answer that is not the shape the server promises fails loudly here, not deep inside a render', async () => {
+    spyOnRequest().mockResolvedValue({ items: [SERVER_ENTRY], nextCursor: null });
+
+    await expect(getProjectAuditLog('acme', 'factory')).rejects.toThrow(/auditor/i);
+  });
+
   it('GETs the project audit log with action/limit/cursor as query params', async () => {
-    const spy = spyOnRequest().mockResolvedValue({ items: [], nextCursor: null });
+    const spy = spyOnRequest().mockResolvedValue({ entries: [], nextCursor: null });
 
     await getProjectAuditLog('acme', 'factory', { action: 'wo.claim', limit: 10, cursor: 'xyz' });
     expect(spy).toHaveBeenCalledWith(
@@ -244,12 +257,17 @@ describe('getProjectAuditLog', () => {
 });
 
 describe('getOrgAuditLog', () => {
-  it('GETs the org-level audit log with no project scoping', async () => {
-    const page = { items: [], nextCursor: null };
-    const spy = spyOnRequest().mockResolvedValue(page);
+  it('GETs the org-level audit log with no project scoping, and reads the entries the server sends as items', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ entries: [SERVER_ENTRY], nextCursor: null });
 
-    await expect(getOrgAuditLog('acme')).resolves.toEqual(page);
+    await expect(getOrgAuditLog('acme')).resolves.toEqual({ items: [SERVER_ENTRY], nextCursor: null });
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/audit-log');
+  });
+
+  it('fails loudly on an answer that is not the promised shape', async () => {
+    spyOnRequest().mockResolvedValue({ rows: [] });
+
+    await expect(getOrgAuditLog('acme')).rejects.toThrow(/auditor/i);
   });
 });
 
@@ -259,5 +277,54 @@ describe('resendInvitation', () => {
 
     await expect(resendInvitation('acme', 'inv_1')).resolves.toBeUndefined();
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/invitations/inv_1/resend', { method: 'POST' });
+  });
+});
+
+describe('getProfile', () => {
+  it('GETs /api/app/profile once and returns the handle together with the work profile', async () => {
+    const profile = { handle: 'lucia', workProfile: 'developer' };
+    const spy = spyOnRequest().mockResolvedValue(profile);
+
+    await expect(getProfile()).resolves.toEqual(profile);
+    expect(spy).toHaveBeenCalledWith('/api/app/profile');
+    // One read, not two: the entry band must know the profile before it renders (SDD-051).
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports workProfile: null for someone who has not chosen yet, as-is', async () => {
+    const profile = { handle: null, workProfile: null };
+    spyOnRequest().mockResolvedValue(profile);
+
+    await expect(getProfile()).resolves.toEqual(profile);
+  });
+});
+
+describe('setWorkProfile', () => {
+  it('POSTs the chosen profile to /api/app/profile/work-profile and returns the stored one', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ workProfile: 'producto' });
+
+    await expect(setWorkProfile({ workProfile: 'producto' })).resolves.toEqual({ workProfile: 'producto' });
+    expect(spy).toHaveBeenCalledWith('/api/app/profile/work-profile', { method: 'POST', body: { workProfile: 'producto' } });
+  });
+});
+
+describe('createDocument', () => {
+  const detail = { docId: 'PRD-001', kind: 'PRD', title: 'Aviso', workflowState: 'draft' };
+
+  it('POSTs the bare { kind, title } untouched, so every caller that predates fields keeps its exact body', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ document: detail });
+
+    await expect(createDocument('acme', 'factory', { kind: 'PRD', title: 'Aviso' })).resolves.toEqual(detail);
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/documents', { method: 'POST', body: { kind: 'PRD', title: 'Aviso' } });
+  });
+
+  it('sends justified_by along when the document is born chained to an initiative (SDD-052)', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ document: detail });
+
+    await createDocument('acme', 'factory', { kind: 'PRD', title: 'Aviso', fields: { justified_by: ['BC-013'] } });
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/documents', {
+      method: 'POST',
+      body: { kind: 'PRD', title: 'Aviso', fields: { justified_by: ['BC-013'] } },
+    });
   });
 });

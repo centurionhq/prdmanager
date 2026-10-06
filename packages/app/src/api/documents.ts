@@ -4,6 +4,7 @@
  * generate-work-orders) every document detail screen needs.
  */
 import type {
+  CreateDocumentFields,
   DocumentDetail,
   DocumentKind,
   DocumentSummary,
@@ -33,7 +34,13 @@ export function listDocuments(
   return request<{ documents: DocumentSummary[] }>(`${documentsBase(orgSlug, projectSlug)}${query}`).then((r) => r.documents);
 }
 
-export function createDocument(orgSlug: string, projectSlug: string, input: { kind: DocumentKind; title: string }): Promise<DocumentDetail> {
+/** `fields` is optional on purpose: SDD-052 lets a document be born already chained to its business case, but the
+ * bare `{ kind, title }` the "Nuevo documento" modal sends stays exactly as it was. */
+export function createDocument(
+  orgSlug: string,
+  projectSlug: string,
+  input: { kind: DocumentKind; title: string; fields?: CreateDocumentFields },
+): Promise<DocumentDetail> {
   return request<{ document: DocumentDetail }>(documentsBase(orgSlug, projectSlug), { method: 'POST', body: input }).then((r) => r.document);
 }
 

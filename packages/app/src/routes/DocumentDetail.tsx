@@ -13,6 +13,7 @@ import { CloseFeatureAction } from './CloseFeatureAction.js';
 import { CollabEditor } from '../components/CollabEditor.js';
 import { DocumentPanelTabs } from './DocumentPanelTabs.js';
 import { FrontmatterForm } from '../components/FrontmatterForm.js';
+import { BusinessCaseGuide } from './documento/BusinessCaseGuide.js';
 import { MarkdownPreview } from '../components/MarkdownPreview.js';
 import { Button, DocumentStateBanner, EmptyState, ErrorState, IdTag, PublishReviewModal, Skeleton, StatusBadge } from '../components/index.js';
 import { CollabDocumentProvider } from '../collab/collab-document-context.js';
@@ -246,7 +247,14 @@ export function DocumentDetail(): ReactElement {
       {doc.origin === 'collab' ? (
         <CollabDocumentProvider documentName={formatCollabDocumentName(projectOverview.id, doc.id)} orgSlug={orgSlug} projectSlug={project} docId={doc.docId}>
           <div className={styles.collabLayout}>
-            <FrontmatterForm kind={doc.kind} />
+            <div className={styles.sidebar}>
+              {/* SDD-053: only a BC gets a writing guide -- it is the one kind someone writes without knowing
+                  the method, and its four sections are a real gate, not a convention. */}
+              {doc.kind === 'BC' ? <BusinessCaseGuide /> : null}
+              <div className={styles.sidebarBlock}>
+                <FrontmatterForm kind={doc.kind} />
+              </div>
+            </div>
             <CollabEditor subject={subject} archived={doc.workflowState === 'archived'} />
             <DocumentPanelTabs
               subject={subject}

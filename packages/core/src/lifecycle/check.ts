@@ -1,3 +1,4 @@
+import { BC_REQUIRED_SECTIONS } from '../domain/business-case.js';
 import type { ParsedDoc } from '../domain/schema.js';
 import type { GrandfatheredDoc } from '../project/types.js';
 import type { DriftIssue } from '../sync/monitor.js';
@@ -102,10 +103,9 @@ function checkFeature(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<str
   ];
 }
 
-/** PRD-011 §4.1/SDD-022: the four sections `templateFor('BC')` seeds -- checked the same way
- * `checkBlueprint` checks for a `## Tareas` heading (presence of the heading line, not its content). */
-const BC_REQUIRED_SECTIONS = ['## Problema', '## Impacto esperado', '## Métrica de éxito', '## Costo estimado'] as const;
-
+/** PRD-011 §4.1/SDD-022: the sections of `BC_REQUIRED_SECTIONS` (the same list the client's writing guide
+ * walks) missing from `body` -- checked the same way `checkBlueprint` checks for a `## Tareas` heading:
+ * presence of the heading line, not its content. */
 function missingBcSections(body: string): string[] {
   const lines = new Set(body.split('\n').map((line) => line.trim()));
   return BC_REQUIRED_SECTIONS.filter((heading) => !lines.has(heading));

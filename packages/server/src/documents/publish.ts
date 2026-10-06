@@ -14,11 +14,13 @@ import type { DocumentRecord, DocumentVersionRecord } from '@prdm/db';
 import { ConflictError } from '../errors.js';
 import type { PgProjectEngine } from '../engine/pg-project-engine.js';
 
-/** SDD-007 "status approved/active": a Feature is approved on publish, a Blueprint/Artifact is active;
+/** SDD-007 "status approved/active": a Feature is approved on publish -- a Business Case included, since it
+ * is label `Feature` too (SDD-022; without it a published BC keeps the `draft` it was created with and never
+ * counts as an initiative) -- a Blueprint/Artifact is active;
  * Feedback (human-authored via WO-136, unlike MCP-generated feedback) has no server-managed status of
  * its own and simply keeps whatever it already had. */
 export function publishedStatus(kind: DraftKind, current: FieldValue | undefined): FieldValue {
-  if (kind === 'MRD' || kind === 'PRD' || kind === 'FR') return 'approved';
+  if (kind === 'MRD' || kind === 'PRD' || kind === 'FR' || kind === 'BC') return 'approved';
   if (kind === 'SDD' || kind === 'ADR' || kind === 'ART') return 'active';
   return current ?? 'new';
 }

@@ -1,0 +1,194 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--apagado);
+}
+
+.dotOn {
+  background: var(--senal);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+}
+
+.number {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--relleno);
+  color: var(--apagado);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.numberDone {
+  background: var(--senal);
+  color: var(--blanco);
+}
+
+.numberCurrent {
+  background: var(--cianotipo);
+  color: var(--blanco);
+}
+
+.stepBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  flex: 1;
+}
+
+.stepHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.stepTitle {
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.stepState {
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.stepText {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--texto-secundario);
+}
+
+.stepActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+/* The button's own look, reused rather than copied: it is a link because it navigates. */
+.cta {
+  composes: button primary from '../components/Button/Button.module.css';
+  text-decoration: none;
+}
+
+.cta:hover {
+  color: var(--blanco);
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.card,
+.warning,
+.after {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-plate);
+}
+
+.card,
+.warning {
+  background: var(--superficie);
+  border: var(--rule);
+}
+
+.warning {
+  border-left: 3px solid var(--andon);
+}
+
+.after {
+  background: var(--relleno);
+}
+
+.cardTitle {
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.datum {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.datumLabel {
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.datum :global(.id) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--texto-secundario);
+  background: var(--relleno);
+  border-left: 3px solid var(--regla);
+}
+
+@media (max-width: 1023px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

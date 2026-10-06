@@ -15,16 +15,29 @@
  * is now set-once here via `POST /api/app/profile/handle`. It stays immutable once set (enforced in the
  * database, `packages/db/src/schema/user-profile.ts`), so once `getProfile` reports one, this screen only
  * ever displays it — never a second form to change it.
+ *
+ * SDD-056/PRD-036: rebuilt on the design-system pieces against `AjustesPerfil.dc.html`. Same behaviour. Two
+ * things the canvas draws are left out because nothing backs them: an editable name (see WO-365 above) and
+ * "Verificación en dos pasos", which has no endpoint; PRD-036 adds no functionality to Ajustes.
  */
 import { useEffect, useState, type FormEvent, type ReactElement } from 'react';
 import { useNavigate } from 'react-router';
 import type { AuthUser } from '../api/auth.js';
-import { Button } from '../components/index.js';
+import { Button, Panel, ReadOnlyField, SectionHeader, TextField } from '../components/index.js';
 import { getProfile, getSession, setProfileHandle, signOut } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { FormError } from '../components/FormError.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
-import styles from '../styles/forms.module.css';
+import styles from './AjustesPerfil.module.css';
+
+function initialsOf(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('');
+}
 
 export function AjustesPerfil(): ReactElement {
   const navigate = useNavigate();
@@ -73,60 +86,58 @@ export function AjustesPerfil(): ReactElement {
   }
 
   return (
-    <div>
-      <h2 className={styles.title}>Perfil</h2>
-      <p className={styles.subtitle}>Tu identidad en Centurion Factory.</p>
-      {error && <FormError message={error} />}
+    <div className={styles.screen}>
+      <SectionHeader title="Perfil" subtitle="Tu identidad en Centurion Factory." />
+      <FormError message={error} />
 
-      {user && (
-        <>
-          <div className={styles.field}>
-            <label htmlFor="profile-name">Nombre</label>
-            <input id="profile-name" type="text" value={user.name} disabled />
+      {user ? (
+        <div className={styles.identity}>
+          <span className={styles.avatar} aria-hidden="true">
+            {initialsOf(user.name)}
+          </span>
+          <div className={styles.identityText}>
+            <span className={styles.identityName}>{user.name}</span>
+            {handle ? <span className={`id ${styles.identityHandle}`}>dev:{handle}</span> : null}
           </div>
-          <div className={styles.field}>
-            <label htmlFor="profile-email">Email</label>
-            <div id="profile-email" className={styles.notice}>
-              {user.email} <span>No se puede cambiar</span>
-            </div>
-          </div>
-        </>
-      )}
+        </div>
+      ) : null}
 
-      {handle !== undefined && (
-        <div className={styles.field}>
-          <label htmlFor="profile-handle">Handle</label>
-          {handle !== null ? (
-            <div id="profile-handle" className={styles.notice}>
-              dev:{handle} <span>No se puede cambiar</span>
-            </div>
+      <Panel>
+        {user ? (
+          <>
+            <ReadOnlyField label="Nombre" value={user.name} />
+            <ReadOnlyField label="Email" value={user.email} note="No se puede cambiar" />
+          </>
+        ) : null}
+
+        {handle !== undefined ? (
+          handle !== null ? (
+            <ReadOnlyField label="Handle" value={handle} mono note={`Fijo: identifica tus commits como dev:${handle}`} />
           ) : (
-            <form onSubmit={(e) => void handleSetHandle(e)} noValidate>
-              <input
-                id="profile-handle"
-                type="text"
-                placeholder="tu-handle"
+            <form className={styles.form} onSubmit={(e) => void handleSetHandle(e)} noValidate>
+              <TextField
+                label="Handle"
                 value={handleInput}
-                onChange={(e) => setHandleInput(e.target.value)}
+                onChange={setHandleInput}
+                placeholder="tu-handle"
+                error={handleError}
+                hint="Se usa como tu identidad dev:<handle> al reclamar o archivar Work Orders. Se puede setear una sola vez."
               />
-              <span className={styles.hint}>
-                Se usa como tu identidad dev:&lt;handle&gt; al reclamar o archivar Work Orders. Se puede setear una sola
-                vez.
-              </span>
-              <FormError message={handleError} />
               <div className={styles.actions}>
-                <button type="submit" className={styles.primaryButton} disabled={submittingHandle || !handleInput.trim()}>
+                <Button type="submit" variant="primary" disabled={submittingHandle || !handleInput.trim()}>
                   Guardar handle
-                </button>
+                </Button>
               </div>
             </form>
-          )}
-        </div>
-      )}
+          )
+        ) : null}
+      </Panel>
 
-      <Button type="button" variant="destructive" onClick={() => void handleSignOut()}>
-        Cerrar sesión
-      </Button>
+      <div>
+        <Button type="button" variant="destructive" onClick={() => void handleSignOut()}>
+          Cerrar sesión
+        </Button>
+      </div>
     </div>
   );
 }

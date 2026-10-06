@@ -23,6 +23,11 @@ describe('publishedStatus', () => {
     expect(publishedStatus('FR', 'draft')).toBe('approved');
   });
 
+  test('a Business Case (label Feature, SDD-022) becomes approved too, and never keeps the draft it was created with', () => {
+    expect(publishedStatus('BC', 'draft')).toBe('approved');
+    expect(publishedStatus('BC', undefined)).toBe('approved');
+  });
+
   test('Blueprint/Artifact kinds become active', () => {
     expect(publishedStatus('SDD', 'draft')).toBe('active');
     expect(publishedStatus('ADR', 'draft')).toBe('active');

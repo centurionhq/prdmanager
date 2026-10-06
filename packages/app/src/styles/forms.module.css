@@ -1,119 +1,173 @@
-/* Shared form styling for the dashboard shell's auth/settings screens (SDD-006 "Dashboard (shell)"):
-   built entirely from @prdm/ui's "Stark HUD" tokens.css custom properties — no new palette. */
+/* Shared form styling for the dashboard shell's auth/settings screens (SDD-006 "Dashboard (shell)").
+
+   SDD-056/FB-035: re-tokenized onto the Centurion Factory token sheet (`./tokens.css`). This file was written
+   against the previous design system's variables (`--color-border`, `--space-md`, `--font-size-sm`, ...), which
+   ADR-008 stopped loading, so every rule that used one was silently dropped and the whole Ajustes section
+   rendered without borders, padding or button shapes. Same class names as before -- 23 files import this
+   sheet -- only the values changed; `tests/unit/css-tokens-defined.test.ts` now keeps it that way.
+
+   Buttons deliberately mirror `components/Button` (height, padding, weight, the four states) so a form that
+   still uses these classes and one that already uses the component are indistinguishable. */
 
 .page {
   min-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-xl);
+  padding: var(--space-8);
 }
 
 .card {
   width: 100%;
   max-width: 28rem;
-  background: var(--color-bg-elevated);
-  backdrop-filter: var(--panel-blur);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-xl);
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  padding: var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-3);
 }
 
 .title {
-  font-size: var(--font-size-xl);
+  font-size: var(--text-lg);
+  font-weight: 700;
   margin: 0;
 }
 
 .subtitle {
-  color: var(--color-fg-muted);
+  color: var(--apagado);
   margin: 0;
-  font-size: var(--font-size-sm);
+  font-size: var(--text-sm);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-1);
 }
 
 .field label {
-  font-size: var(--font-size-sm);
-  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+  color: var(--apagado);
 }
 
-.field input,
+/* Text-like controls only: a checkbox or radio inside a `.field` must keep its native size. */
+.field input:not([type='checkbox']):not([type='radio']),
 .field select {
-  background: var(--color-bg-inset);
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--color-fg);
-  padding: var(--space-sm);
-  font-size: var(--font-size-md);
+  height: var(--control-height);
+  background: var(--superficie);
+  border: var(--rule);
+  border-radius: var(--radius-input);
+  color: var(--grafito);
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
   font-family: inherit;
 }
 
+.field input:focus-visible,
+.field select:focus-visible {
+  outline: none;
+  border-color: var(--cianotipo);
+  box-shadow: var(--focus-ring);
+}
+
+.field input:disabled,
+.field select:disabled {
+  color: var(--apagado);
+  background: var(--relleno);
+  cursor: not-allowed;
+}
+
 .field input:invalid[data-touched='true'] {
-  border-color: var(--color-status-error);
+  border-color: var(--paro);
 }
 
 .hint {
-  color: var(--color-fg-subtle);
-  font-size: var(--font-size-xs);
+  color: var(--apagado);
+  font-size: var(--text-xs);
 }
 
 .actions {
   display: flex;
-  gap: var(--space-sm);
+  gap: var(--space-2);
   justify-content: flex-end;
 }
 
-.primaryButton {
-  background: var(--color-accent);
-  color: var(--color-accent-fg);
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: var(--space-sm) var(--space-lg);
-  font-size: var(--font-size-md);
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--control-height);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-plate);
+  border: 1px solid transparent;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.primaryButton:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.primaryButton {
+  background: var(--cianotipo);
+  color: var(--blanco);
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--cianotipo-hover);
 }
 
 .secondaryButton {
-  background: transparent;
-  color: var(--color-fg);
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  padding: var(--space-sm) var(--space-lg);
-  cursor: pointer;
+  background: var(--superficie);
+  border-color: var(--regla);
+  color: var(--grafito);
+}
+
+.secondaryButton:hover:not(:disabled) {
+  background: var(--relleno);
+}
+
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  background: var(--regla-fila);
+  border-color: var(--regla-fila);
+  color: var(--apagado);
+  cursor: not-allowed;
 }
 
 .error {
-  color: var(--color-status-error);
-  font-size: var(--font-size-sm);
+  color: var(--paro);
+  font-size: var(--text-sm);
   margin: 0;
 }
 
 .success {
-  color: var(--color-status-ok);
-  font-size: var(--font-size-sm);
+  color: var(--senal-texto);
+  font-size: var(--text-sm);
   margin: 0;
 }
 
 .link {
   background: none;
   border: none;
-  color: var(--color-accent);
+  color: var(--cianotipo);
   cursor: pointer;
   padding: 0;
-  font-size: var(--font-size-sm);
+  font-size: var(--text-sm);
   text-align: left;
+}
+
+.link:hover {
+  color: var(--cianotipo-hover);
 }
 
 /* UI/a11y review (Phase 3 gate): tables have no other place to shrink at narrow viewports, so the table
@@ -126,49 +180,55 @@
   width: 100%;
   min-width: max-content;
   border-collapse: collapse;
-  font-size: var(--font-size-sm);
+  font-size: var(--text-sm);
 }
 
 .table th,
 .table td {
   text-align: left;
-  padding: var(--space-sm);
-  border-bottom: var(--border-width) solid var(--color-border);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--rule-row);
 }
 
 .table th {
-  color: var(--color-fg-muted);
-  font-weight: 500;
+  color: var(--apagado);
+  font-weight: 600;
+  border-bottom: var(--rule);
 }
 
 .notice {
-  background: var(--color-bg-inset);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-sm) var(--space-md);
-  font-size: var(--font-size-sm);
-  color: var(--color-fg-muted);
+  background: var(--relleno);
+  border: var(--rule);
+  border-radius: var(--radius-plate);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--texto-secundario);
 }
 
+/* A secret shown exactly once. The accent is `--senal` (it was just created), never `--andon`, which is
+   reserved for drift and a line stop. */
 .secretPanel {
-  background: var(--color-bg-inset);
-  border: var(--border-width) solid var(--color-status-warning);
-  border-radius: var(--radius-sm);
-  padding: var(--space-md);
+  background: var(--superficie);
+  border: var(--rule);
+  border-left: 3px solid var(--senal);
+  border-radius: var(--radius-plate);
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-2);
 }
 
 .secretTitle {
   margin: 0;
-  font-size: var(--font-size-md);
+  font-size: var(--text-md);
+  font-weight: 600;
 }
 
 .secretValue {
   font-family: var(--font-mono);
+  font-size: var(--text-sm);
   word-break: break-all;
-  background: var(--color-bg);
-  padding: var(--space-sm);
-  border-radius: var(--radius-sm);
+  background: var(--relleno);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-plate);
 }

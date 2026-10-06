@@ -46,6 +46,8 @@ describe('PersonalTokensSettings', () => {
 
     await screen.findByText(/Todavía no hay tokens/);
 
+    // The form is one click away, not always on screen (SDD-056, canvas `AjustesTokens.dc.html`).
+    await userEvent.click(screen.getByRole('button', { name: 'Crear token' }));
     await userEvent.type(screen.getByLabelText('Nombre'), 'laptop');
     await userEvent.click(screen.getByLabelText('governance:read'));
     await userEvent.click(screen.getByRole('button', { name: 'Crear token' }));
@@ -53,7 +55,7 @@ describe('PersonalTokensSettings', () => {
     await waitFor(() => expect(create).toHaveBeenCalledWith('acme', expect.objectContaining({ name: 'laptop', scopes: ['governance:read'] })));
     expect(await screen.findByText('prdm_pat_abcd.SUPERSECRET')).toBeTruthy();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Cerrar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ya lo guardé' }));
     expect(screen.queryByText('prdm_pat_abcd.SUPERSECRET')).toBeNull();
   });
 
@@ -64,11 +66,34 @@ describe('PersonalTokensSettings', () => {
     render(<PersonalTokensSettings />);
 
     await screen.findByText(/Todavía no hay tokens/);
+    await userEvent.click(screen.getByRole('button', { name: 'Crear token' }));
     await userEvent.type(screen.getByLabelText('Nombre'), 'no-scopes');
     await userEvent.click(screen.getByRole('button', { name: 'Crear token' }));
 
     expect(await screen.findByText(/al menos un scope/)).toBeTruthy();
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('the organisation is chosen with a labelled select, and switching it reads that organisation\'s tokens', async () => {
+    vi.spyOn(client, 'listOrganizations').mockResolvedValue([
+      { id: 'org1', slug: 'acme', name: 'Acme', role: 'owner' },
+      { id: 'org2', slug: 'globex', name: 'Globex', role: 'owner' },
+    ]);
+    const list = vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([]);
+    render(<PersonalTokensSettings />);
+
+    await userEvent.selectOptions(await screen.findByLabelText('Organización'), 'globex');
+
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith('globex'));
+  });
+
+  it('has no second level-one heading of its own: the page already has its h1', async () => {
+    vi.spyOn(client, 'listOrganizations').mockResolvedValue([{ id: 'org1', slug: 'acme', name: 'Acme', role: 'owner' }]);
+    vi.spyOn(client, 'listPersonalTokens').mockResolvedValue([]);
+    render(<PersonalTokensSettings />);
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Tokens personales' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
   });
 
   it('revokes a token', async () => {
@@ -77,7 +102,7 @@ describe('PersonalTokensSettings', () => {
     const revoke = vi.spyOn(client, 'revokePersonalToken').mockResolvedValue(undefined);
     render(<PersonalTokensSettings />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Revocar' }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Revocar/ }));
     await waitFor(() => expect(revoke).toHaveBeenCalledWith('acme', 'tok1'));
   });
 });

@@ -10,20 +10,21 @@
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import type { CreatedTokenResponse, TokenScopeDto, TokenSummaryDto } from '@prdm/contracts';
-import { LoadingState } from '@prdm/ui';
 import { createCiToken, listCiTokens, revokeCiToken } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { CI_TOKEN_SCOPES } from '../auth/token-scopes.js';
+import { Button, SectionHeader, Skeleton } from '../components/index.js';
 import { FormError } from '../components/FormError.js';
 import { TokenCreateForm } from '../components/TokenCreateForm.js';
 import { TokenSecretPanel } from '../components/TokenSecretPanel.js';
 import { TokenTable } from '../components/TokenTable.js';
-import styles from '../styles/forms.module.css';
+import styles from './TokensScreen.module.css';
 
 export function CiTokensSection({ orgSlug, projectSlug }: { orgSlug: string; projectSlug: string }): ReactElement {
   const [tokens, setTokens] = useState<TokenSummaryDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [justCreated, setJustCreated] = useState<CreatedTokenResponse | null>(null);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     setTokens(null);
@@ -36,6 +37,7 @@ export function CiTokensSection({ orgSlug, projectSlug }: { orgSlug: string; pro
     const result = await createCiToken(orgSlug, projectSlug, { ...input, projectIds: [] });
     setJustCreated(result);
     setTokens((prev) => [...(prev ?? []), result.token]);
+    setCreating(false);
   }
 
   async function handleRevoke(tokenId: string): Promise<void> {
@@ -48,15 +50,22 @@ export function CiTokensSection({ orgSlug, projectSlug }: { orgSlug: string; pro
   }
 
   return (
-    <div>
-      <h2 className={styles.title}>Tokens de CI</h2>
-      <p className={styles.hint}>
-        La baseline oficial depende de la rama por defecto del proyecto y de un token de CI verificado por OIDC.
-      </p>
+    <div className={styles.screen}>
+      <SectionHeader
+        title="Tokens de CI"
+        subtitle="La baseline oficial depende de la rama por defecto del proyecto y de un token de CI verificado por OIDC."
+        actions={
+          creating ? null : (
+            <Button type="button" variant="primary" onClick={() => setCreating(true)}>
+              Crear token
+            </Button>
+          )
+        }
+      />
       <FormError message={error} />
-      {justCreated && <TokenSecretPanel secret={justCreated.secret} onDismiss={() => setJustCreated(null)} />}
-      {!tokens ? <LoadingState label="Cargando tokens de CI…" /> : <TokenTable tokens={tokens} onRevoke={(id) => void handleRevoke(id)} />}
-      <TokenCreateForm availableScopes={CI_TOKEN_SCOPES} onCreate={handleCreate} />
+      {justCreated ? <TokenSecretPanel secret={justCreated.secret} onDismiss={() => setJustCreated(null)} /> : null}
+      {creating ? <TokenCreateForm availableScopes={CI_TOKEN_SCOPES} onCreate={handleCreate} onCancel={() => setCreating(false)} /> : null}
+      {!tokens ? <Skeleton rows={3} /> : <TokenTable tokens={tokens} onRevoke={(id) => void handleRevoke(id)} />}
     </div>
   );
 }
