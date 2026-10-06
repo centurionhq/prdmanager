@@ -104,6 +104,23 @@ function isSafeNextPath(path: string): boolean {
   return path.startsWith('/') && !path.startsWith('//') && !path.includes('://');
 }
 
+/** Destino que nombra un `?next=`, sin resolver ningún nombre. */
+export interface LoginDestination {
+  orgSlug: string;
+  projSlug: string | null;
+}
+
+const LOGIN_DESTINATION_PATTERN = /^\/o\/([^/?#]+)(?:\/p\/([^/?#]+))?(?:\/|$)/;
+
+/** Reads the organization (and project) a `?next=` points at, using the same root-relative criterion as
+ * {@link buildLoginRedirectUrl}. Slugs are taken as-is (the router already decoded them). */
+export function loginDestinationFromNext(next: string | null | undefined): LoginDestination | null {
+  if (typeof next !== 'string' || !isSafeNextPath(next)) return null;
+  const match = LOGIN_DESTINATION_PATTERN.exec(next.split(/[?#]/)[0] ?? '');
+  if (!match) return null;
+  return { orgSlug: match[1]!, projSlug: match[2] ?? null };
+}
+
 /** Exported for tests; every other caller reaches this only via {@link request}'s own 401 handling. */
 export function buildLoginRedirectUrl(currentPath: string): string {
   return isSafeNextPath(currentPath) ? `/login?next=${encodeURIComponent(currentPath)}` : '/login';

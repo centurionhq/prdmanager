@@ -132,17 +132,17 @@
       <main class="split">
         <section class="ctx" aria-label="A dónde entrás">
           <div style="display: flex; flex-direction: column; gap: var(--space-2);">
-            <h2 class="ctx-h">Te invitaron a trabajar en Planta de acero</h2>
-            <p class="muted" style="margin: 0;">Para entrar tenés que tener una cuenta con acceso a esta organización. El acceso es solo por invitación.</p>
+            <h2 class="ctx-h">Te invitaron a trabajar en prdmanager</h2>
+            <p class="muted" style="margin: 0;">Para entrar tenés que tener una cuenta con acceso a esta organización.</p>
           </div>
           <div class="ctx-card">
             <div class="ctx-row">
-              <span class="org-mark" aria-hidden="true">CH</span>
-              <div><div class="ctx-label">Organización</div><div class="ctx-name">Centurion HQ</div></div>
+              <span class="org-mark" aria-hidden="true">C</span>
+              <div><div class="ctx-label">Organización</div><div class="ctx-name">centurionhq</div></div>
             </div>
             <div class="ctx-row">
               <span class="proj-mark" aria-hidden="true"><i></i></span>
-              <div><div class="ctx-label">Proyecto</div><div class="ctx-name">Planta de acero</div></div>
+              <div><div class="ctx-label">Proyecto</div><div class="ctx-name">prdmanager</div></div>
             </div>
           </div>
           <p class="small" style="margin: 0;">¿Tenés un email de invitación? Abrí el enlace que te mandamos para crear tu cuenta.</p>
@@ -152,8 +152,8 @@
         <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
           <section class="panel" aria-labelledby="t-login">
             <div style="display: flex; flex-direction: column; gap: var(--space-1);">
-              <h1 id="t-login" class="h1">Entrá a Centurion HQ</h1>
-              <div class="muted">Usá el email con el que te invitaron.</div>
+              <h1 id="t-login" class="h1">Entrá a centurionhq</h1>
+              <div class="muted">Vas a entrar al proyecto prdmanager de la organización centurionhq.</div>
             </div>
             <sc-if value="{{ hasLoginError }}" hint-placeholder-val="{{ false }}">
               <div role="alert" class="alert"><span><b>Email o contraseña incorrectos.</b> Revisá los datos e intentá de nuevo. Si no recordás la contraseña, podés restablecerla.</span></div>
@@ -256,6 +256,10 @@
           </section>
         </sc-if>
       </main>
+      <footer style="display: flex; flex-direction: column; align-items: center; gap: var(--space-1); padding: var(--space-4) 0; text-align: center;">
+        <span class="small">El acceso es por invitación: si todavía no tenés cuenta, pedile a quien te compartió el enlace que te invite.</span>
+        <span class="small">Centurion Factory</span>
+      </footer>
     </div>
   </div>
 </div>

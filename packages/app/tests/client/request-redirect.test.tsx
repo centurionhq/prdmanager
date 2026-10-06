@@ -1,9 +1,37 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildLoginRedirectUrl, request } from '../../src/api/request.js';
+import { buildLoginRedirectUrl, loginDestinationFromNext, request } from '../../src/api/request.js';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
+
+describe('loginDestinationFromNext', () => {
+  it('names organization and project from a project route', () => {
+    expect(loginDestinationFromNext('/o/centurionhq/p/prdmanager/planta')).toEqual({ orgSlug: 'centurionhq', projSlug: 'prdmanager' });
+  });
+
+  it.each(['/o/centurionhq/ajustes/miembros', '/o/centurionhq'])('names only the organization for %s', (next) => {
+    expect(loginDestinationFromNext(next)).toEqual({ orgSlug: 'centurionhq', projSlug: null });
+  });
+
+  it('ignores query and hash after the destination', () => {
+    expect(loginDestinationFromNext('/o/centurionhq/p/prdmanager/planta?estado=vacio#x')).toEqual({
+      orgSlug: 'centurionhq',
+      projSlug: 'prdmanager',
+    });
+  });
+
+  it.each([null, undefined, '/proyectos'])('returns null for %s', (next) => {
+    expect(loginDestinationFromNext(next)).toBeNull();
+  });
+
+  it.each(['//evil.com/o/centurionhq/p/prdmanager', 'https://evil.com/o/centurionhq', '/\\evil.com', '/\t/evil.com'])(
+    'returns null for open-redirect pattern %j',
+    (next) => {
+      expect(loginDestinationFromNext(next)).toBeNull();
+    },
+  );
+});
 
 describe('buildLoginRedirectUrl', () => {
   it('appends a root-relative path as next=', () => {

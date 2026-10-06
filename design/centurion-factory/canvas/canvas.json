@@ -177,15 +177,6 @@
       "is_interactive": true
     },
     {
-      "file": "LoginMobile.dc.html",
-      "title": "Login · 390",
-      "x": 3200,
-      "y": 0,
-      "w": 390,
-      "h": 844,
-      "page": "page-3"
-    },
-    {
       "file": "AjustesMiembros.dc.html",
       "title": "Ajustes · miembros e invitación",
       "x": 0,
