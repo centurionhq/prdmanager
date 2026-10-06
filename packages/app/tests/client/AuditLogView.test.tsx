@@ -93,6 +93,25 @@ describe('AuditLogView (WO-582, SDD-056)', () => {
     expect(screen.queryByRole('table')).toBeNull();
   });
 
+  it('shows the actor by the name the server sends, not the uuid, and keeps tipo:id as the tooltip (WO-695)', async () => {
+    const named = { ...entry('a', 'named.entry'), actor: { type: 'user', id: 'u1', name: 'Ana Pérez' } } as AuditLogEntryDto;
+    render(<AuditLogView scopeKey="acme/web" load={vi.fn().mockResolvedValue({ items: [named], nextCursor: null })} />);
+
+    const cell = await screen.findByText('Ana Pérez');
+
+    expect(cell.getAttribute('title')).toBe('user:u1');
+    expect(screen.queryByText('u1')).toBeNull();
+    expect(screen.queryByText('user:u1')).toBeNull();
+  });
+
+  it('still draws tipo:id for an entry from an older server with no actor name (WO-695)', async () => {
+    render(<AuditLogView scopeKey="acme/web" load={vi.fn().mockResolvedValue({ items: [entry('a', 'old.entry')], nextCursor: null })} />);
+
+    const cell = await screen.findByText('user:u1');
+
+    expect(cell.getAttribute('title')).toBe('user:u1');
+  });
+
   it('says it could not load, and retrying reads again', async () => {
     const load = vi.fn().mockRejectedValueOnce(new Error('sin conexión')).mockResolvedValueOnce({ items: [entry('a', 'back.again')], nextCursor: null });
     render(<AuditLogView scopeKey="acme/web" load={load} />);
