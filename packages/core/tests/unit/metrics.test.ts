@@ -32,6 +32,7 @@ describe('computeMetrics', () => {
         commitsTraced: 0,
         commitPercent: null,
       },
+      pendingQueue: { total: 0, unassigned: 0, oldestDays: null, over7Days: 0 },
     });
   });
 
@@ -47,9 +48,9 @@ describe('computeMetrics', () => {
     const metrics = computeMetrics(
       raw({
         workOrders: [
-          { id: 'WO-001', status: 'done', claimedAt: null, completedAt: null },
-          { id: 'WO-002', status: 'todo', claimedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-01T02:00:00.000Z' },
-          { id: 'WO-003', status: 'out_of_sync', claimedAt: null, completedAt: null },
+          { id: 'WO-001', status: 'done', assignedTo: null, createdAt: null, claimedAt: null, completedAt: null },
+          { id: 'WO-002', status: 'todo', assignedTo: null, createdAt: null, claimedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-01T02:00:00.000Z' },
+          { id: 'WO-003', status: 'out_of_sync', assignedTo: null, createdAt: null, claimedAt: null, completedAt: null },
         ],
       }),
     );
@@ -64,10 +65,10 @@ describe('computeMetrics', () => {
     const metrics = computeMetrics(
       raw({
         workOrders: [
-          { id: 'WO-001', status: 'done', claimedAt: 'not-a-date', completedAt: '2026-01-01T02:00:00.000Z' },
-          { id: 'WO-002', status: 'done', claimedAt: '2026-01-01T02:00:00.000Z', completedAt: null },
-          { id: 'WO-003', status: 'done', claimedAt: '2026-01-02T00:00:00.000Z', completedAt: '2026-01-01T00:00:00.000Z' },
-          { id: 'WO-004', status: 'done', claimedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-01T04:00:00.000Z' },
+          { id: 'WO-001', status: 'done', assignedTo: null, createdAt: null, claimedAt: 'not-a-date', completedAt: '2026-01-01T02:00:00.000Z' },
+          { id: 'WO-002', status: 'done', assignedTo: null, createdAt: null, claimedAt: '2026-01-01T02:00:00.000Z', completedAt: null },
+          { id: 'WO-003', status: 'done', assignedTo: null, createdAt: null, claimedAt: '2026-01-02T00:00:00.000Z', completedAt: '2026-01-01T00:00:00.000Z' },
+          { id: 'WO-004', status: 'done', assignedTo: null, createdAt: null, claimedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-01T04:00:00.000Z' },
         ],
       }),
     );
@@ -82,6 +83,8 @@ describe('computeMetrics', () => {
     const workOrders = [1, 5, 3].map((hours, i) => ({
       id: `WO-00${i}`,
       status: 'done',
+      assignedTo: null,
+      createdAt: null,
       claimedAt: '2026-01-01T00:00:00.000Z',
       completedAt: new Date(Date.parse('2026-01-01T00:00:00.000Z') + hours * 3_600_000).toISOString(),
     }));
@@ -95,6 +98,8 @@ describe('computeMetrics', () => {
     const workOrders = [1, 2, 3, 4].map((hours, i) => ({
       id: `WO-00${i}`,
       status: 'done',
+      assignedTo: null,
+      createdAt: null,
       claimedAt: '2026-01-01T00:00:00.000Z',
       completedAt: new Date(Date.parse('2026-01-01T00:00:00.000Z') + hours * 3_600_000).toISOString(),
     }));
@@ -108,12 +113,54 @@ describe('computeMetrics', () => {
     const workOrders = [1, 2, 2].map((hours, i) => ({
       id: `WO-00${i}`,
       status: 'done',
+      assignedTo: null,
+      createdAt: null,
       claimedAt: '2026-01-01T00:00:00.000Z',
       completedAt: new Date(Date.parse('2026-01-01T00:00:00.000Z') + hours * 3_600_000).toISOString(),
     }));
     const metrics = computeMetrics(raw({ workOrders }));
 
     expect(metrics.agentHumanEfficiency.avgResolutionHours).toBe(1.67);
+  });
+});
+
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+const queueWo = (overrides: Partial<MetricsRaw['workOrders'][number]>): MetricsRaw['workOrders'][number] => ({
+  id: 'WO-100',
+  status: 'pending',
+  assignedTo: null,
+  createdAt: null,
+  claimedAt: null,
+  completedAt: null,
+  ...overrides,
+});
+
+describe('computeMetrics pendingQueue', () => {
+  const empty = { total: 0, unassigned: 0, oldestDays: null, over7Days: 0 };
+
+  test('is empty for no work orders and ignores non-pending statuses', () => {
+    expect(computeMetrics(raw()).pendingQueue).toEqual(empty);
+    const workOrders = ['done', 'in_progress', 'out_of_sync', 'archived'].map((status) => queueWo({ status, createdAt: daysAgo(30) }));
+    expect(computeMetrics(raw({ workOrders })).pendingQueue).toEqual(empty);
+  });
+
+  test('counts a pending work order without date or owner', () => {
+    const metrics = computeMetrics(raw({ workOrders: [queueWo({})] }));
+    expect(metrics.pendingQueue).toEqual({ total: 1, unassigned: 1, oldestDays: null, over7Days: 0 });
+  });
+
+  test('reports the oldest age and the work orders older than 7 days', () => {
+    const workOrders = [
+      queueWo({ id: 'WO-1', assignedTo: 'agent:prdm-engineer', createdAt: daysAgo(3) }),
+      queueWo({ id: 'WO-2', assignedTo: '', createdAt: daysAgo(10) }),
+    ];
+    expect(computeMetrics(raw({ workOrders })).pendingQueue).toEqual({ total: 2, unassigned: 1, oldestDays: 10, over7Days: 1 });
+  });
+
+  test('treats a future createdAt as age 0', () => {
+    const metrics = computeMetrics(raw({ workOrders: [queueWo({ createdAt: daysAgo(-5) })] }));
+    expect(metrics.pendingQueue.oldestDays).toBe(0);
+    expect(metrics.pendingQueue.over7Days).toBe(0);
   });
 });
 
