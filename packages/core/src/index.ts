@@ -26,6 +26,7 @@ export * from './sync/symbol-cache.js';
 export * from './sync/git.js';
 export * from './sync/issue-attribution.js';
 export * from './sync/monitor.js';
+export * from './sync/report-summary.js';
 export * from './lifecycle/check.js';
 export * from './lifecycle/close.js';
 export * from './lifecycle/station.js';
