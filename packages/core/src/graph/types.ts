@@ -132,7 +132,14 @@ export interface MetricsRaw {
   commitsTotal: number;
   commitsWithRefs: number;
   commitsTraced: number;
-  workOrders: { id: string; status: string; claimedAt: string | null; completedAt: string | null }[];
+  workOrders: {
+    id: string;
+    status: string;
+    assignedTo: string | null;
+    createdAt: string | null;
+    claimedAt: string | null;
+    completedAt: string | null;
+  }[];
 }
 
 export interface ProjectRecord {

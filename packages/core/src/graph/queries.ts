@@ -201,7 +201,7 @@ export const METRICS_RAW = `
   }
   CALL () {
     MATCH (wo:WorkOrder {project_id: $projectId}) WITH wo ORDER BY wo.id
-    RETURN collect({id: wo.id, status: wo.status, claimedAt: wo.claimed_at, completedAt: wo.completed_at}) AS workOrders
+    RETURN collect({id: wo.id, status: wo.status, assignedTo: wo.assigned_to, createdAt: wo.created_at, claimedAt: wo.claimed_at, completedAt: wo.completed_at}) AS workOrders
   }
   RETURN governedTotal, governedSynced, featuresTotal, featuresTraced, commitsTotal, commitsWithRefs, commitsTraced, workOrders`;
 

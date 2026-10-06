@@ -68,6 +68,7 @@ function metrics(overrides: Partial<SuccessMetrics> = {}): SuccessMetrics {
     agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null },
     systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
     traceability: { featuresTotal: 0, featuresTraced: 0, featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null },
+    pendingQueue: { total: 0, unassigned: 0, oldestDays: null, over7Days: 0 },
     ...overrides,
   };
 }
@@ -89,6 +90,23 @@ describe('formatMetrics', () => {
     );
     expect(text).toContain('avg resolution: 4h');
     expect(text).toContain('governed: 1/2 synced (50%)');
+  });
+});
+
+describe('formatMetrics pending queue', () => {
+  test('renders the empty queue block', () => {
+    const text = formatMetrics(metrics());
+    expect(text).toContain('Pending Queue:');
+    expect(text).toContain('total: 0 (unassigned: 0)');
+    expect(text).toContain('oldest: n/a');
+    expect(text).toContain('over 7 days: 0');
+  });
+
+  test('renders concrete queue numbers', () => {
+    const text = formatMetrics(metrics({ pendingQueue: { total: 5, unassigned: 2, oldestDays: 17, over7Days: 3 } }));
+    expect(text).toContain('total: 5 (unassigned: 2)');
+    expect(text).toContain('oldest: 17d');
+    expect(text).toContain('over 7 days: 3');
   });
 });
 

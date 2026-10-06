@@ -1,7 +1,9 @@
+import { ageDaysFrom } from '../graph/work-order-age.js';
 import type { GraphStore, MetricsRaw } from '../graph/types.js';
 
 const COMPLETED_STATUSES = new Set(['done', 'out_of_sync']);
 const MS_PER_HOUR = 3_600_000;
+const STALE_PENDING_DAYS = 7;
 
 export interface AgentHumanEfficiency {
   completedWorkOrders: number;
@@ -26,10 +28,18 @@ export interface Traceability {
   commitPercent: number | null;
 }
 
+export interface PendingQueue {
+  total: number;
+  unassigned: number;
+  oldestDays: number | null;
+  over7Days: number;
+}
+
 export interface SuccessMetrics {
   agentHumanEfficiency: AgentHumanEfficiency;
   systemIntegrity: SystemIntegrity;
   traceability: Traceability;
+  pendingQueue: PendingQueue;
 }
 
 function round(value: number, decimals: number): number {
@@ -73,6 +83,18 @@ function computeEfficiency(workOrders: MetricsRaw['workOrders']): AgentHumanEffi
   };
 }
 
+function computePendingQueue(workOrders: MetricsRaw['workOrders']): PendingQueue {
+  const pending = workOrders.filter((wo) => wo.status === 'pending');
+  const ages = pending.map((wo) => ageDaysFrom(wo.createdAt)).filter((age): age is number => age !== null);
+
+  return {
+    total: pending.length,
+    unassigned: pending.filter((wo) => (wo.assignedTo ?? '') === '').length,
+    oldestDays: ages.length === 0 ? null : Math.max(...ages),
+    over7Days: ages.filter((age) => age > STALE_PENDING_DAYS).length,
+  };
+}
+
 export function computeMetrics(raw: MetricsRaw): SuccessMetrics {
   return {
     agentHumanEfficiency: computeEfficiency(raw.workOrders),
@@ -90,6 +112,7 @@ export function computeMetrics(raw: MetricsRaw): SuccessMetrics {
       commitsTraced: raw.commitsTraced,
       commitPercent: percent(raw.commitsTraced, raw.commitsTotal),
     },
+    pendingQueue: computePendingQueue(raw.workOrders),
   };
 }
 
