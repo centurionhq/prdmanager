@@ -66,7 +66,6 @@ describe('mutating CLI commands reject in remote mode (WO-191)', () => {
     { name: 'fr create', args: ['fr', 'create', '--title', 'x', '--parent', 'PRD-001'] },
     { name: 'ingest artifact', args: ['ingest', 'artifact', '/nonexistent/file.txt', '--source', 'other'] },
     { name: 'close', args: ['close', 'PRD-001', '--ack', '--by', 'agent:x'] },
-    { name: 'sync ack', args: ['sync', 'ack', 'all'] },
     { name: 'migrate docs', args: ['migrate', 'docs'] },
   ];
 
@@ -77,6 +76,13 @@ describe('mutating CLI commands reject in remote mode (WO-191)', () => {
       expect(stderr.some((l) => l.includes('not available for a remote-linked project'))).toBe(true);
     });
   }
+
+  test('"sync ack" is no longer blocked in remote mode (SDD-087): it asks for --reason instead', async () => {
+    const code = await run('sync', 'ack', 'all');
+    expect(code).not.toBe(0);
+    expect(stderr.some((l) => l.includes('not available for a remote-linked project'))).toBe(false);
+    expect(stderr.some((l) => l.includes('--reason is required'))).toBe(true);
+  });
 
   test('read-only "wo list" is not caught by the mutating-command guard', async () => {
     const code = await run('wo', 'list');

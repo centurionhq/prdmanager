@@ -67,6 +67,7 @@ describe('detectDrift', () => {
 
     const uncovered = detectDrift(input({ docs, baseline }));
     expect(uncovered.governed[0]).toMatchObject({ status: 'out_of_sync', reason: 'code_changed' });
+    expect(uncovered.issues).toMatchObject([{ kind: 'code_out_of_sync', severity: 'error', nodeId: 'SDD-001', target: 'src/sync/a.ts' }]);
 
     const covered = detectDrift(input({ docs, baseline, commits: [commit(['src/sync/a.ts'], ['WO-001'])] }));
     expect(covered.governed[0]).toMatchObject({ status: 'synced', reason: 'resolved_by_commit' });
@@ -119,16 +120,19 @@ describe('detectDrift', () => {
     expect(detectDrift(input({ docs: after, baseline: acked.baseline })).issues).toEqual([]);
   });
 
-  test('missing governed code is out of sync and governs warnings are surfaced', () => {
+  test('a declared pattern that resolves to no file is an impacts_warning naming it, not code_out_of_sync (WO-692)', () => {
     const docs = [mrd(), prd(), sdd()];
     const result = detectDrift(
       input({ docs, governed: new Map([['SDD-001', [ref('src/sync/gone.ts', null)]]]), governWarnings: [{ blueprintId: 'SDD-001', message: 'no files' }] }),
     );
     expect(result.governed[0]).toMatchObject({ status: 'out_of_sync', reason: 'missing' });
     expect(result.issues.map((i) => [i.kind, i.severity])).toEqual([
-      ['code_out_of_sync', 'error'],
+      ['impacts_warning', 'warning'],
       ['impacts_warning', 'warning'],
     ]);
+    expect(result.issues[0]).toMatchObject({ nodeId: 'SDD-001', target: 'src/sync/gone.ts' });
+    expect(result.issues[0]?.message).toContain('src/sync/gone.ts');
+    expect(result.issues.some((i) => i.kind === 'code_out_of_sync')).toBe(false);
   });
 
   test('surfaces a deprecated_field warning for docs still using the legacy governs/todo aliases', () => {
@@ -170,6 +174,17 @@ describe('detectDrift', () => {
     );
     expect(deletedByWorkOrder.governed.find((g) => g.key === 'src/sync/old.ts')).toMatchObject({ status: 'synced', reason: 'resolved_by_commit' });
     expect(deletedByWorkOrder.baseline.governs['SDD-001']).toEqual({ 'src/sync/a.ts': 'h1' });
+  });
+
+  test('a vanished baseline key stays code_out_of_sync/missing until the ack drops it (WO-692)', () => {
+    const docs = [mrd(), prd(), sdd()];
+    const stale: Baseline = { ...baselineOf(docs), governs: { 'SDD-001': { 'src/sync/a.ts': 'h1', 'src/sync/old.ts': 'o' } } };
+    const result = detectDrift(input({ docs, baseline: stale }));
+    expect(result.issues).toMatchObject([{ kind: 'code_out_of_sync', severity: 'error', target: 'src/sync/old.ts' }]);
+
+    const acked = acknowledge(input({ docs, baseline: stale }), 'all');
+    expect(acked.discardedKeys).toEqual([{ blueprintId: 'SDD-001', key: 'src/sync/old.ts' }]);
+    expect(acked.baseline.governs['SDD-001']).toEqual({ 'src/sync/a.ts': 'h1' });
   });
 
   test('code resolved by a commit advances the baseline so later unrelated commits do not re-flag it', () => {
@@ -302,6 +317,14 @@ describe('acknowledge', () => {
     expect(result.workOrderHashUpdates.map((u) => u.id)).toEqual(['WO-001']);
     const afterAck = after.map((d) => (d.node.id === 'WO-001' ? wo('WO-001', 'done', `blueprint_hashes: {"SDD-001": "${after[2]?.node.contentHash}"}`) : d));
     expect(detectDrift(input({ docs: afterAck, baseline: result.baseline })).issues).toEqual([]);
+  });
+
+  test('acknowledging all reports and drops baseline keys the current impacts_paths no longer resolve', () => {
+    const docs = [mrd(), prd(), sdd()];
+    const baseline: Baseline = { ...baselineOf(docs), governs: { 'SDD-001': { 'src/sync/a.ts': 'h1', 'packages/core/tests': null } } };
+    const result = acknowledge(input({ docs, baseline }), 'all');
+    expect(result.discardedKeys).toEqual([{ blueprintId: 'SDD-001', key: 'packages/core/tests' }]);
+    expect(result.baseline.governs['SDD-001']).toEqual({ 'src/sync/a.ts': 'h1' });
   });
 
   test('rejects unknown targets', () => {

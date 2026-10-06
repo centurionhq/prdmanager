@@ -4,6 +4,7 @@
  * test proving exactly one request ever writes.
  */
 import { MAX_CODE_REPORT_BODY_BYTES } from '@prdm/contracts';
+import { scanContents } from '@prdm/core';
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, openTestPg, truncateAll, type PgTestDb } from '@prdm/testkit';
 import type { Pool } from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
@@ -397,5 +398,61 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports (WO-180)', () => {
     expect(loader).toHaveBeenCalledTimes(1);
 
     await app.close();
+  });
+
+  describe('lifecycle.grandfathered (WO-690, SDD-087)', () => {
+    const FB = '---\nid: FB-901\ntype: FB\ntitle: "Dolor"\nstatus: new\nroot: true\n---\n\nUn dolor.\n';
+    const PRD = '---\nid: PRD-901\ntype: PRD\ntitle: "Legado"\nstatus: approved\njustified_by: ["FB-901"]\n---\n\nCuerpo.\n';
+
+    async function seedLegacyPrd(orgId: string, projectId: string, grandfatheredHash: (actual: string) => string) {
+      for (const [docId, kind, content] of [['FB-901', 'FB', FB], ['PRD-901', 'PRD', PRD]] as const) {
+        await pg.ownerPool.query(
+          `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+           VALUES ($1, $2, $3, $4, $3, $5, 'collab', 'published', $6)`,
+          [orgId, projectId, docId, kind, `docs/${kind.toLowerCase()}/${docId}.md`, content],
+        );
+      }
+      const actual = scanContents([{ path: 'docs/prd/PRD-901.md', content: PRD }]).docs[0]!.node.contentHash;
+      await pg.ownerPool.query(`UPDATE "projects" SET settings = $2::jsonb WHERE id = $1`, [
+        projectId,
+        JSON.stringify({ lifecycle: { grandfathered: [{ id: 'PRD-901', hash: grandfatheredHash(actual) }] } }),
+      ]);
+    }
+
+    async function report(app: ReturnType<typeof buildServer>, graphProjectId: string, secret: string) {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/projects/${graphProjectId}/code-reports`,
+        headers: { authorization: `Bearer ${secret}`, 'idempotency-key': `gf-${Math.random()}` },
+        payload: baseReport(),
+      });
+      expect(res.statusCode).toBe(200);
+      return res.json().issues as { kind: string; severity: string; message: string; id?: string }[];
+    }
+
+    test('a grandfathered document whose hash matches raises no lifecycle_violation', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { org, project, secret } = await seedOwnerAndCiToken(app);
+      await seedLegacyPrd(org.id, project.id, (actual) => actual);
+
+      const issues = await report(app, project.graphProjectId, secret);
+
+      expect(issues.filter((i) => i.kind === 'lifecycle_violation' && i.message.includes('PRD-901'))).toEqual([]);
+      await app.close();
+    });
+
+    test('a grandfathered document whose hash changed warns "grandfathering lapsed", never errors for it', async () => {
+      const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+      const { org, project, secret } = await seedOwnerAndCiToken(app);
+      await seedLegacyPrd(org.id, project.id, () => '0'.repeat(64));
+
+      const issues = await report(app, project.graphProjectId, secret);
+
+      const lapsed = issues.filter((i) => i.message.includes('grandfathering lapsed'));
+      expect(lapsed).toHaveLength(1);
+      expect(lapsed[0]!.severity).toBe('warning');
+      expect(issues.filter((i) => i.message.includes('grandfathering lapsed') && i.severity === 'error')).toEqual([]);
+      await app.close();
+    });
   });
 });

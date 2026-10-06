@@ -9,7 +9,8 @@ import { createFixtureRepo, makeTmpDir, removeDir } from '@prdm/testkit';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { CliError } from '../../src/errors.js';
 import { saveCredentials, saveProjectPin } from '../../src/remote/credentials.js';
-import { runRemoteSync } from '../../src/remote/sync.js';
+import { formatRefreshReport } from '../../src/format.js';
+import { runRemoteAck, runRemoteSync } from '../../src/remote/sync.js';
 
 const SETTINGS = { folders: {}, ignore: [], git: {}, triage: {}, lifecycle: {}, default_branch: 'main', github_repository: null, github_repository_id: null, github_owner_id: null, hash_algo_version: 1 };
 
@@ -160,5 +161,78 @@ describe('runRemoteSync (WO-195)', () => {
 
     await runRemoteSync(root, remoteFile('https://app.example.test'), {}, { stdout: () => undefined, env: { XDG_CONFIG_HOME: xdgHome, GITHUB_REF_NAME: 'feature/x' }, fetchImpl });
     expect(sentBranch).toBe('feature/x');
+  });
+});
+
+describe('runRemoteAck (WO-691)', () => {
+  const ACK_REPORT = { documents: 0, errors: [], governed: [], issues: [], workOrderUpdates: [], baselineWritten: true, hasBlockingIssues: false };
+
+  function linkAndLogin(): void {
+    saveCredentials({ 'https://app.example.test': { token: 't' } }, { XDG_CONFIG_HOME: xdgHome });
+    saveProjectPin(root, { server: 'https://app.example.test', graphProjectId: 'prj_0123456789abcdef' }, { XDG_CONFIG_HOME: xdgHome });
+  }
+
+  test('without --reason it fails and never calls the server', async () => {
+    linkAndLogin();
+    let called = false;
+    const fetchImpl = (async () => {
+      called = true;
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+
+    for (const reason of [undefined, '', '   ']) {
+      await expect(runRemoteAck(root, remoteFile('https://app.example.test'), 'all', { reason }, { stdout: () => undefined, env: { XDG_CONFIG_HOME: xdgHome }, fetchImpl })).rejects.toThrow(CliError);
+    }
+    expect(called).toBe(false);
+  });
+
+  test('validates --reason before resolving the server origin (CI=true, no PRDM_SERVER)', async () => {
+    let called = false;
+    const fetchImpl = (async () => {
+      called = true;
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+    const env = { XDG_CONFIG_HOME: xdgHome, CI: 'true' };
+
+    for (const [reason, expected] of [
+      [undefined, '--reason is required'],
+      ['   ', '--reason is required'],
+      ['x'.repeat(501), '--reason must be 500 characters or fewer'],
+    ] as const) {
+      const attempt = runRemoteAck(root, remoteFile('https://app.example.test'), 'all', { reason }, { stdout: () => undefined, env, fetchImpl });
+      await expect(attempt).rejects.toThrow(CliError);
+      await expect(attempt).rejects.toThrow(expected);
+      await expect(attempt).rejects.not.toThrow('PRDM_SERVER is required in CI');
+    }
+    expect(called).toBe(false);
+  });
+
+  test('posts { target, reason } with the bearer token and prints the report like local mode', async () => {
+    linkAndLogin();
+    const lines: string[] = [];
+    let seen: { url: string; auth: string | null; body: unknown } | undefined;
+    const fetchImpl = (async (url, init) => {
+      seen = { url: String(url), auth: new Headers(init!.headers).get('authorization'), body: JSON.parse(init!.body as string) };
+      return new Response(JSON.stringify({ report: ACK_REPORT }), { status: 200 });
+    }) as typeof fetch;
+
+    await runRemoteAck(root, remoteFile('https://app.example.test'), 'all', { reason: 'baseline reviewed' }, { stdout: (l) => lines.push(l), env: { XDG_CONFIG_HOME: xdgHome }, fetchImpl });
+
+    expect(seen?.url).toBe('https://app.example.test/api/v1/projects/prj_0123456789abcdef/drift/acknowledge');
+    expect(seen?.auth).toBe('Bearer t');
+    expect(seen?.body).toEqual({ target: 'all', reason: 'baseline reviewed' });
+    expect(lines).toEqual([formatRefreshReport(ACK_REPORT)]);
+    expect(lines[0]).toContain('documents: 0');
+    expect(lines[0]).toContain('issues: 0');
+    expect(lines[0]).toContain('baselineWritten: true');
+  });
+
+  test('a rejected response becomes a CliError carrying the status', async () => {
+    linkAndLogin();
+    const fetchImpl = (async () => new Response('forbidden', { status: 403 })) as typeof fetch;
+
+    await expect(
+      runRemoteAck(root, remoteFile('https://app.example.test'), 'all', { reason: 'x' }, { stdout: () => undefined, env: { XDG_CONFIG_HOME: xdgHome }, fetchImpl }),
+    ).rejects.toThrow(/403/);
   });
 });

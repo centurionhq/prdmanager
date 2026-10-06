@@ -6,10 +6,10 @@
  * fetched, read-only state), which is exactly what makes this trivially unit-testable in isolation
  * (SDD-010 "Tests": "adaptador de drift").
  */
-import type { Baseline, CodeRefState, CommitInfo, DriftInput, ParsedDoc } from '@prdm/core';
+import type { Baseline, CodeRefState, CommitInfo, DriftInput, LifecycleContext, ParsedDoc } from '@prdm/core';
 import type { CodeReportRequest } from '@prdm/contracts';
 
-export function codeReportToDriftInput(report: CodeReportRequest, docs: ParsedDoc[], baseline: Baseline): DriftInput {
+export function codeReportToDriftInput(report: CodeReportRequest, docs: ParsedDoc[], baseline: Baseline, lifecycle?: LifecycleContext): DriftInput {
   const governed = new Map<string, CodeRefState[]>();
   for (const entry of report.governed) governed.set(entry.blueprintId, entry.refs);
 
@@ -33,5 +33,6 @@ export function codeReportToDriftInput(report: CodeReportRequest, docs: ParsedDo
     baseline,
     commits,
     dirty: new Set(report.dirty),
+    lifecycle,
   };
 }
