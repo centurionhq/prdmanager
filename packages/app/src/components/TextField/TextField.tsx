@@ -14,6 +14,12 @@ export interface TextFieldProps {
   readonly type?: 'text' | 'email' | 'date';
   /** Client-side upper bound for a `date` field; the server stays the one that decides. */
   readonly max?: string;
+  /** Renders a `<textarea>` instead of an `<input>`. */
+  readonly multiline?: boolean;
+  readonly rows?: number;
+  /** The value is a literal (a path, a glob, a sha): the mono face. */
+  readonly mono?: boolean;
+  readonly inputMode?: 'text' | 'numeric' | 'decimal';
 }
 
 /**
@@ -22,30 +28,59 @@ export interface TextFieldProps {
  * than from a `.field` class it has to remember to wire up -- the label is always tied to the input, the hint
  * and the error are always described by it, and an invalid field is never only red.
  */
-export function TextField({ label, value, onChange, hint, error, placeholder, disabled, required, type = 'text', max }: TextFieldProps): ReactElement {
+export function TextField({
+  label,
+  value,
+  onChange,
+  hint,
+  error,
+  placeholder,
+  disabled,
+  required,
+  type = 'text',
+  max,
+  multiline = false,
+  rows,
+  mono = false,
+  inputMode,
+}: TextFieldProps): ReactElement {
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
   const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined;
+
+  const controlProps = {
+    id,
+    value,
+    placeholder,
+    disabled,
+    required,
+    inputMode,
+    'aria-invalid': error ? (true as const) : undefined,
+    'aria-describedby': describedBy,
+  };
 
   return (
     <div className={styles.field}>
       <label htmlFor={id} className={styles.label}>
         {label}
       </label>
-      <input
-        id={id}
-        type={type}
-        className={styles.input}
-        value={value}
-        placeholder={placeholder}
-        disabled={disabled}
-        required={required}
-        max={max}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy}
-        onChange={(event) => onChange?.(event.target.value)}
-      />
+      {multiline ? (
+        <textarea
+          {...controlProps}
+          className={[styles.input, styles.textarea, mono ? styles.mono : ''].filter(Boolean).join(' ')}
+          rows={rows}
+          onChange={(event) => onChange?.(event.target.value)}
+        />
+      ) : (
+        <input
+          {...controlProps}
+          type={type}
+          className={mono ? `${styles.input} ${styles.mono}` : styles.input}
+          max={max}
+          onChange={(event) => onChange?.(event.target.value)}
+        />
+      )}
       {hint ? (
         <span id={hintId} className={styles.hint}>
           {hint}

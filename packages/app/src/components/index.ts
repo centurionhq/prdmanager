@@ -57,6 +57,12 @@ export type { SectionHeaderProps } from './SectionHeader/SectionHeader';
 export { TextField } from './TextField/TextField';
 export type { TextFieldProps } from './TextField/TextField';
 
+export { CheckboxField } from './CheckboxField/CheckboxField';
+export type { CheckboxFieldProps } from './CheckboxField/CheckboxField';
+
+export { SettingsSection } from './SettingsSection/SettingsSection';
+export type { SettingsSectionProps } from './SettingsSection/SettingsSection';
+
 export { SelectField } from './SelectField/SelectField';
 export type { SelectFieldProps, SelectOption } from './SelectField/SelectField';
 
