@@ -65,6 +65,7 @@ const ESTADO_OPTIONS: readonly { value: EntradaEstado; label: string }[] = [
   { value: 'new', label: 'Sin triar' },
   { value: 'triaged', label: 'Triados' },
   { value: 'dismissed', label: 'Descartados' },
+  { value: 'closed', label: 'Cerrados' },
 ];
 
 const TIPO_OPTIONS: readonly { value: EntradaTipo; label: string }[] = [
@@ -141,11 +142,12 @@ function EntradaContent(): ReactElement {
   useEffect(() => setSelected(new Set()), [query]);
 
   const counts = useMemo(() => {
-    const result: Record<EntradaEstado, number> = { todos: items.length, new: 0, triaged: 0, dismissed: 0 };
+    const result: Record<EntradaEstado, number> = { todos: items.length, new: 0, triaged: 0, dismissed: 0, closed: 0 };
     for (const item of items) {
       if (item.status === 'new') result.new += 1;
       if (item.status === 'triaged') result.triaged += 1;
       if (item.status === 'dismissed') result.dismissed += 1;
+      if (item.status === 'closed') result.closed += 1;
     }
     return result;
   }, [items]);

@@ -368,6 +368,29 @@ describe('Entrada', () => {
       expect(screen.queryByText('FB-007')).toBeNull();
       expect(within(rowOf('FB-020')).queryByRole('button', { name: 'Descartar FB-020' })).toBeNull();
     });
+
+    it('reads a closed item as «Cerrado» and counts it once in the «Cerrados» chip (SDD-092 D7)', async () => {
+      const closed: InboxItemDto = { ...ITEMS[0]!, id: 'FB-030', title: 'Ya cerrado', status: 'closed' };
+      const dismissed: InboxItemDto = { ...ITEMS[0]!, id: 'FB-031', title: 'Descartado aparte', status: 'dismissed' };
+      vi.spyOn(client, 'listInbox').mockResolvedValue({ items: [...ITEMS, closed, dismissed], total: 4 });
+      renderPage();
+      await screen.findByText('FB-030');
+
+      const row = rowOf('FB-030');
+      expect(within(row).getByText('Cerrado')).toBeTruthy();
+      expect(within(row).queryByText('closed')).toBeNull();
+
+      // The chip counts the only closed item: the dismissed one beside it does not leak into the count.
+      const cerrados = screen.getByRole('radio', { name: /Cerrados/ });
+      expect(cerrados.textContent).toBe('Cerrados1');
+      expect(screen.getByRole('radio', { name: /Descartados/ }).textContent).toBe('Descartados1');
+
+      await userEvent.click(cerrados);
+
+      expect(screen.getByText('FB-030')).toBeTruthy();
+      expect(screen.queryByText('FB-007')).toBeNull();
+      expect(screen.queryByText('FB-031')).toBeNull();
+    });
   });
 
   describe('contrato de nombres accesibles (WO-622)', () => {
