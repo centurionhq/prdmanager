@@ -11,7 +11,7 @@ import { getDriftDashboard, getDriftIssues } from '../api/client.js';
 import { acknowledgeDrift, authorizeForcePushOverride } from '../api/graph.js';
 import { errorMessage } from '../api/error-message.js';
 import { useApiQuery } from '../api/use-api-query.js';
-import { Button, ErrorState, FilterChips, PageHeader, SearchField, SelectField, Severity, Skeleton, ToastProvider, useToast } from '../components/index.js';
+import { Button, ErrorState, FilterChips, PageHeader, SearchField, SelectField, Severity, Skeleton, ToastProvider, Tooltip, useToast } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { useProjectShellContext } from './ProjectShell.js';
 import { AcknowledgeModal } from './drift/AcknowledgeModal.js';
@@ -20,6 +20,10 @@ import { DriftIssuesList } from './drift/DriftIssuesList.js';
 import { ForcePushOverrideModal } from './drift/ForcePushOverrideModal.js';
 import { ReportDetailModal } from './drift/ReportDetailModal.js';
 import styles from './drift/Drift.module.css';
+
+const BLUEPRINT_TIP = 'Un blueprint (SDD/ADR) es el diseño técnico que gobierna qué archivos y símbolos deben coincidir con él.';
+const REASON_TIP =
+  'La razón la reporta el motor: el archivo cambió, el archivo ya no existe, cambió el diseño después de este código o cambió la feature.';
 
 function shortSha(sha: string): string {
   return sha.slice(0, 12);
@@ -168,6 +172,12 @@ function DriftContent(): ReactElement {
       <div className={styles.columns}>
         <div>
           <h2 className={styles.sectionTitle}>Issues</h2>
+          <p className={styles.legend}>
+            Un <Tooltip text={BLUEPRINT_TIP}><span>blueprint</span></Tooltip> (
+            <Tooltip text={BLUEPRINT_TIP}><span className="id">SDD-00N</span></Tooltip>) es el diseño que gobierna ese código. Cada fila dice qué
+            pasó y qué hacer; pasá el mouse por la{' '}
+            <Tooltip text={REASON_TIP}><span>razón</span></Tooltip> para ver el detalle.
+          </p>
           <div className={styles.filters} role="group" aria-label="Filtros de drift">
             <div className={styles.filterControls}>
               <FilterChips
