@@ -35,6 +35,60 @@
   font-stretch: var(--stretch-wide);
 }
 
+/* WO-672 (SDD-081 D7): the unmeasured-orders detail lives inside the first kpiItem, under the value. */
+.unmeasuredDetails {
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+/* WO-672 (SDD-081 D7) */
+.unmeasuredSummary {
+  cursor: pointer;
+}
+
+.unmeasuredSummary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* WO-672 (SDD-081 D7): capped so a long list scrolls instead of pushing the strip down. */
+.unmeasuredList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+  max-height: min(40vh, 320px);
+  overflow-y: auto;
+  font-size: var(--text-sm);
+}
+
+/* WO-672 (SDD-081 D7) */
+.unmeasuredRow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* WO-672 (SDD-081 D7) */
+.unmeasuredId {
+  color: inherit;
+}
+
+.unmeasuredId:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* WO-672 (SDD-081 D7) */
+.unmeasuredDates {
+  font-size: var(--text-xs);
+}
+
 @media (max-width: 767px) {
   .kpiStrip {
     grid-template-columns: repeat(2, minmax(0, 1fr));

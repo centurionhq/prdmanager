@@ -32,6 +32,26 @@ const METRICS_WITH_ORPHANS: SuccessMetricsDto = {
   },
 };
 
+/** WO-672 (SDD-081 D7): the four live cases (WO-001..WO-004), one reason per row, covering both date shapes. */
+const METRICS_WITH_UNMEASURED: SuccessMetricsDto = {
+  ...METRICS,
+  agentHumanEfficiency: {
+    completedWorkOrders: 486,
+    measuredWorkOrders: 482,
+    avgResolutionHours: 0.1,
+    medianResolutionHours: 0.083,
+    unmeasured: {
+      total: 4,
+      workOrders: [
+        { id: 'WO-001', status: 'done', reason: 'missing_claim', claimedAt: null, completedAt: null },
+        { id: 'WO-002', status: 'done', reason: 'missing_completion', claimedAt: '2026-09-27T18:21:00.000Z', completedAt: null },
+        { id: 'WO-003', status: 'done', reason: 'invalid_timestamp', claimedAt: null, completedAt: null },
+        { id: 'WO-004', status: 'done', reason: 'negative_duration', claimedAt: '2026-09-27T18:21:00.000Z', completedAt: '2026-09-26T10:00:00.000Z' },
+      ],
+    },
+  },
+};
+
 const EMPTY_METRICS: SuccessMetricsDto = {
   agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
@@ -250,8 +270,99 @@ describe('Planta', () => {
     ]);
     // Same order, each cell paired with its own number: "Commits con Refs" is commitsWithRefs/commitsTotal
     // (7/10 = 70 %), not the commitPercent (66,4 %) its neighbour "Commits trazados" shows.
-    expect(cells.map((cell) => cell.lastElementChild?.textContent)).toEqual(['5 min', '99,6 %', 'Todas trazadas', '66,4 %', '70 %']);
+    // WO-672: the first cell can end in the unmeasured <details>, so the value is read by position (the
+    // child right after the label), except the last-child note of "Features trazadas" ("Todas trazadas").
+    expect(cells.map((cell, index) => (index === 2 ? cell.lastElementChild : cell.children[1])?.textContent)).toEqual(['5 min', '99,6 %', 'Todas trazadas', '66,4 %', '70 %']);
     expect(cells[2]!.textContent).toContain('4/4');
+  });
+
+  it('adds nothing about unmeasured orders when there are none (WO-672)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    await screen.findByText('5 min');
+    expect(screen.queryByText(/órdenes sin medición/)).toBeNull();
+    expect(screen.queryByText(/Ver las/)).toBeNull();
+  });
+
+  it('says how many completed orders have no measurement, in a closed details that opens to one row each (WO-672)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS_WITH_UNMEASURED);
+    renderPlanta();
+
+    expect(await screen.findByText('4 de 486 órdenes sin medición')).toBeTruthy();
+    const summary = screen.getByText('Ver las 4 órdenes');
+    const details = summary.closest('details')!;
+    expect(details.open).toBe(false);
+
+    await userEvent.click(summary);
+    expect(details.open).toBe(true);
+    const list = within(details).getByRole('list', { name: 'Órdenes sin medición' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(4);
+  });
+
+  it('links each unmeasured order to its document (WO-672)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS_WITH_UNMEASURED);
+    renderPlanta();
+
+    const link = await screen.findByRole('link', { name: 'WO-001' });
+    expect(link.getAttribute('href')).toBe('/o/acme/p/web/documents/WO-001');
+  });
+
+  it('reads each reason in Spanish and never invents copy for an unknown one (WO-672)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    const base = METRICS_WITH_UNMEASURED.agentHumanEfficiency.unmeasured.workOrders;
+    vi.spyOn(client, 'getMetrics').mockResolvedValue({
+      ...METRICS_WITH_UNMEASURED,
+      agentHumanEfficiency: {
+        ...METRICS_WITH_UNMEASURED.agentHumanEfficiency,
+        unmeasured: { total: 5, workOrders: [...base, { id: 'WO-005', status: 'done', reason: 'future_reason' as never, claimedAt: null, completedAt: null }] },
+      },
+    });
+    renderPlanta();
+
+    await screen.findByText('Ver las 5 órdenes');
+    for (const copy of ['sin fecha de reclamo', 'sin fecha de cierre', 'fecha inválida', 'cierre anterior al reclamo', 'future_reason']) {
+      expect(screen.getByText(copy)).toBeTruthy();
+    }
+  });
+
+  it('formats the dates of an unmeasured order and shows a dash for the null ones (WO-672)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS_WITH_UNMEASURED);
+    renderPlanta();
+
+    await screen.findByText('Ver las 4 órdenes');
+    const first = screen.getByRole('link', { name: 'WO-001' }).closest('li')!;
+    expect(first.textContent).toContain('reclamo —');
+    expect(first.textContent).toContain('cierre —');
+    const second = screen.getByRole('link', { name: 'WO-002' }).closest('li')!;
+    expect(second.textContent).toContain('reclamo 27/09/2026, 18:21');
+    expect(second.textContent).toContain('cierre —');
+  });
+
+  it('keeps standing when an older server sends no unmeasured field (WO-672)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    const { unmeasured: _omitted, ...legacy } = METRICS.agentHumanEfficiency;
+    vi.spyOn(client, 'getMetrics').mockResolvedValue({ ...METRICS, agentHumanEfficiency: legacy } as unknown as SuccessMetricsDto);
+    renderPlanta();
+
+    expect(await screen.findByText('5 min')).toBeTruthy();
+    expect(screen.queryByText(/órdenes sin medición/)).toBeNull();
+  });
+
+  it('shows only the context line when the list is missing (WO-672)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue({
+      ...METRICS_WITH_UNMEASURED,
+      agentHumanEfficiency: { ...METRICS_WITH_UNMEASURED.agentHumanEfficiency, unmeasured: { total: 4 } },
+    } as unknown as SuccessMetricsDto);
+    renderPlanta();
+
+    expect(await screen.findByText('4 de 486 órdenes sin medición')).toBeTruthy();
+    expect(screen.queryByText(/Ver las/)).toBeNull();
   });
 
   it('makes "Features trazadas" a link to the filtered tree, with the missing count, when features lack code (SDD-079)', async () => {

@@ -13,6 +13,7 @@ import { errorMessage } from '../api/error-message.js';
 import { useApiQuery } from '../api/use-api-query.js';
 import { EmptyState, ErrorState, LineBoard, PageHeader, Skeleton } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
+import { formatDateTime } from '../lib/format-date.js';
 import { ProfileBand } from './inicio/ProfileBand.js';
 import styles from './Planta.module.css';
 import { useProjectShellContext } from './ProjectShell.js';
@@ -30,6 +31,66 @@ function formatMedianResolution(hours: number | null): string {
 /** Mirrors core's `percent()`: no commits means "no data", not a fabricated 0 %. */
 function formatCommitRefsPercent(traceability: SuccessMetricsDto['traceability']): string {
   return formatPercent(traceability.commitsTotal === 0 ? null : (traceability.commitsWithRefs / traceability.commitsTotal) * 100);
+}
+
+const COUNT_FORMATTER = new Intl.NumberFormat('es-AR');
+
+type Efficiency = SuccessMetricsDto['agentHumanEfficiency'];
+type UnmeasuredOrder = Efficiency['unmeasured']['workOrders'][number];
+
+const UNMEASURED_REASON_COPY: Readonly<Record<string, string>> = {
+  missing_claim: 'sin fecha de reclamo',
+  missing_completion: 'sin fecha de cierre',
+  invalid_timestamp: 'fecha inválida',
+  negative_duration: 'cierre anterior al reclamo',
+};
+
+function formatInstant(iso: string | null): string {
+  return iso === null ? '—' : formatDateTime(iso);
+}
+
+interface UnmeasuredNoteProps {
+  readonly efficiency: Efficiency;
+  readonly orgSlug: string;
+  readonly projectSlug: string;
+}
+
+/**
+ * WO-672 (SDD-081 D7): says how many completed orders the median leaves out and lists them. Read defensively
+ * (the response is not validated at runtime and front/back deploy separately): no `unmeasured`, a non-numeric
+ * `total` or `total === 0` render nothing; a missing list renders only the context line.
+ */
+function UnmeasuredNote({ efficiency, orgSlug, projectSlug }: UnmeasuredNoteProps): ReactElement | null {
+  const unmeasured = efficiency.unmeasured as Efficiency['unmeasured'] | undefined;
+  const total = unmeasured?.total;
+  if (typeof total !== 'number' || !(total > 0)) return null;
+  const orders: readonly UnmeasuredOrder[] | null = Array.isArray(unmeasured?.workOrders) ? unmeasured.workOrders : null;
+
+  return (
+    <>
+      <span className={styles.kpiLabel}>
+        {COUNT_FORMATTER.format(total)} de {COUNT_FORMATTER.format(efficiency.completedWorkOrders)} órdenes sin medición
+      </span>
+      {orders ? (
+        <details className={styles.unmeasuredDetails}>
+          <summary className={styles.unmeasuredSummary}>{total === 1 ? 'Ver la 1 orden' : `Ver las ${COUNT_FORMATTER.format(total)} órdenes`}</summary>
+          <ul className={styles.unmeasuredList} aria-label="Órdenes sin medición">
+            {orders.map((order) => (
+              <li key={order.id} className={styles.unmeasuredRow}>
+                <Link className={`id ${styles.unmeasuredId}`} to={`/o/${orgSlug}/p/${projectSlug}/documents/${encodeURIComponent(order.id)}`}>
+                  {order.id}
+                </Link>
+                <span>{UNMEASURED_REASON_COPY[order.reason] ?? order.reason}</span>
+                <span className={styles.unmeasuredDates}>
+                  reclamo {formatInstant(order.claimedAt)} · cierre {formatInstant(order.completedAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </>
+  );
 }
 
 interface KpiStripProps {
@@ -69,7 +130,7 @@ function KpiStrip({ metrics, awaitingFirstReport, orgSlug, projectSlug }: KpiStr
 
   const plain = (value: string): ReactNode => <span className={`num ${styles.kpiValue}`}>{value}</span>;
   const items: { label: string; value: ReactNode; note: ReactNode }[] = [
-    { label: 'Resolución mediana de una orden', value: plain(formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours)), note: null },
+    { label: 'Resolución mediana de una orden', value: plain(formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours)), note: <UnmeasuredNote efficiency={metrics.agentHumanEfficiency} orgSlug={orgSlug} projectSlug={projectSlug} /> },
     { label: 'Código sincronizado', value: plain(formatPercent(metrics.systemIntegrity.syncedPercent)), note: null },
     { label: 'Features trazadas', value: traced.value, note: traced.note },
     { label: 'Commits trazados', value: plain(formatPercent(metrics.traceability.commitPercent)), note: null },
