@@ -59,6 +59,8 @@ export function registerProjectOverviewRoutes(app: FastifyInstance, opts: Regist
       const tenantDb = createTenantDb(pool).forOrg(org.id);
       const projects = isOrgAdmin(org.role) ? await tenantDb.projects.list() : await tenantDb.projects.listForUser(session.user.id);
 
+      const memberCounts = await tenantDb.members.countByProject();
+
       const overviews = await Promise.all(
         projects.map(async (project): Promise<ProjectOverviewDto | null> => {
           const myRole = await resolveMyRole(pool, org, project, session.user.id);
@@ -78,6 +80,7 @@ export function registerProjectOverviewRoutes(app: FastifyInstance, opts: Regist
             archivedAt: project.archivedAt ? project.archivedAt.toISOString() : null,
             myRole,
             ...computed,
+            memberCount: memberCounts[project.id] ?? 0,
           };
         }),
       );

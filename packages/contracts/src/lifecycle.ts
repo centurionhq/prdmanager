@@ -62,6 +62,7 @@ export const projectOverviewSchema = projectSummarySchema.extend({
   awaitingFirstReport: z.boolean(),
   workOrdersInProgress: z.number().int().min(0),
   myRole: z.string(),
+  memberCount: z.number().int().min(0).optional(),
   lastActivityAt: z.string().nullable(),
 });
 export type ProjectOverviewDto = z.infer<typeof projectOverviewSchema>;
