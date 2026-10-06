@@ -8,10 +8,10 @@
  * orders at all, the empty state says where they come from (a blueprint's `## Tareas` checklist) and
  * opens the way to Construir.
  */
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, GitCommitHorizontal } from 'lucide-react';
 import { useMemo, useRef, useState, type ChangeEvent, type ReactElement, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import type { WorkOrderPage, WorkOrderSummary } from '@prdm/core';
+import type { DeliverableKind, WorkOrderPage, WorkOrderSummary } from '@prdm/core';
 import { batchWorkOrders, getProfile, queryWorkOrders } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { useApiQuery } from '../api/use-api-query.js';
@@ -35,17 +35,22 @@ import { useDocumentTitle } from '../hooks/use-document-title.js';
 import type { SortState } from '../lib/filter-sort.js';
 import { WORK_PROFILE_COPY } from './inicio/work-profiles.js';
 import { BatchOrderModal, type BatchOrderAction, type BatchOrderInput } from './ordenes/BatchOrderModal.js';
+import { DELIVERABLE_COPY_LIST, deliverableCopy } from './ordenes/deliverable-label.js';
 import { OrderDrawer } from './ordenes/OrderDrawer.js';
 import {
   asWorkOrderStatus,
   ORDENES_ACTOR_OPTIONS,
   ORDENES_ACTOR_SELF_OPTION,
   ORDENES_BLUEPRINT_ALL,
+  countDeliverables,
+  matchesDeliverable,
   ORDENES_DEFAULT_SORT,
+  ORDENES_DELIVERABLE_OPTIONS,
   ORDENES_NO_HANDLE_HINT,
   ORDENES_PAGE_SIZE,
   ORDENES_STATUS_OPTIONS,
   parseActorFilter,
+  parseDeliverableFilter,
   parsePage,
   parseStatusFilter,
   sortWorkOrders,
@@ -117,6 +122,21 @@ function batchToastMessage(action: BatchOrderAction, applied: number, total: num
   return `${applied} de ${total} ${plural}; no se pudieron ${archive ? 'archivar' : 'tomar'}: ${named}${rest}`;
 }
 
+function DeliverableMarker({ kind, label }: { readonly kind: DeliverableKind; readonly label: string }): ReactElement {
+  const Icono = kind === 'gate' ? ClipboardCheck : GitCommitHorizontal;
+  return (
+    <span className={styles.deliverable}>
+      <Icono aria-hidden="true" size={14} className={styles.deliverableIcon} />
+      {label}
+    </span>
+  );
+}
+
+function deliverableCell(order: WorkOrderSummary): ReactElement {
+  const copy = deliverableCopy(order.deliverableKind);
+  return <DeliverableMarker kind={copy.kind} label={copy.label} />;
+}
+
 function buildColumns(): readonly DataTableColumn<WorkOrderSummary>[] {
   return [
     { key: 'id', header: 'Orden', render: (order) => <IdTag id={order.id} />, sortValue: (order) => order.id, width: '96px' },
@@ -129,6 +149,7 @@ function buildColumns(): readonly DataTableColumn<WorkOrderSummary>[] {
       sortValue: (order) => order.status,
       width: '160px',
     },
+    { key: 'deliverable', header: 'Entregable', render: deliverableCell, width: '112px' },
     {
       key: 'assignedTo',
       header: 'Asignada a',
@@ -158,6 +179,7 @@ function OrdenesContent(): ReactElement {
   const status = parseStatusFilter(searchParams.get('status'));
   const blueprintId = searchParams.get('blueprint') ?? ORDENES_BLUEPRINT_ALL;
   const actor = parseActorFilter(searchParams.get('actor'));
+  const tipo = parseDeliverableFilter(searchParams.get('tipo'));
   const query = searchParams.get('q') ?? '';
   const page = parsePage(searchParams.get('page'));
 
@@ -180,7 +202,8 @@ function OrdenesContent(): ReactElement {
   const data = listQuery.data ?? (listQuery.status === 'cargando' ? lastDataRef.current : undefined);
   const items = useMemo(() => data?.items ?? [], [data]);
   const total = data?.total ?? 0;
-  const rows = useMemo(() => sortWorkOrders(items, sort), [items, sort]);
+  const rows = useMemo(() => sortWorkOrders(items.filter((order) => matchesDeliverable(order, tipo)), sort), [items, tipo, sort]);
+  const deliverableCounts = useMemo(() => countDeliverables(items), [items]);
   const selectedIds = useMemo(() => [...selected].sort(), [selected]);
 
   const statusOptions = ORDENES_STATUS_OPTIONS.map((option) => ({
@@ -217,7 +240,7 @@ function OrdenesContent(): ReactElement {
   function resetFilters(): void {
     setSearchParams((previous) => {
       const next = new URLSearchParams(previous);
-      for (const key of ['status', 'blueprint', 'actor', 'q', 'page']) next.delete(key);
+      for (const key of ['status', 'blueprint', 'actor', 'tipo', 'q', 'page']) next.delete(key);
       return next;
     });
   }
@@ -278,7 +301,7 @@ function OrdenesContent(): ReactElement {
     return <ErrorState title="No pudimos cargar las órdenes de trabajo" body={errorMessage(listQuery.error)} onRetry={listQuery.retry} />;
   }
 
-  const hasActiveFilter = status !== 'todas' || blueprintId !== ORDENES_BLUEPRINT_ALL || effectiveActor !== 'todos' || query !== '';
+  const hasActiveFilter = status !== 'todas' || blueprintId !== ORDENES_BLUEPRINT_ALL || effectiveActor !== 'todos' || tipo !== 'todas' || query !== '';
   const offset = (page - 1) * ORDENES_PAGE_SIZE;
   const totalPages = Math.max(1, Math.ceil(total / ORDENES_PAGE_SIZE));
   const selfUnavailable = profileReady && handle === null;
@@ -306,6 +329,12 @@ function OrdenesContent(): ReactElement {
               onChange={(value) => setParam('status', value === 'todas' ? undefined : value)}
               options={statusOptions}
             />
+            <FilterChips
+              label="Tipo"
+              value={tipo}
+              onChange={(value) => setParam('tipo', value === 'todas' ? undefined : value)}
+              options={ORDENES_DELIVERABLE_OPTIONS.map((option) => ({ ...option, count: deliverableCounts[option.value] }))}
+            />
             <div className={styles.selects}>
               <PlateSelect label="Blueprint" value={blueprintId} onChange={(value) => setParam('blueprint', value === ORDENES_BLUEPRINT_ALL ? undefined : value)}>
                 <option value={ORDENES_BLUEPRINT_ALL}>Blueprint: todos</option>
@@ -328,6 +357,14 @@ function OrdenesContent(): ReactElement {
             </div>
             {selfUnavailable ? <p className={styles.actorHint}>{ORDENES_NO_HANDLE_HINT}</p> : null}
           </div>
+
+          <ul className={styles.deliverableLegend} aria-label="Cómo se cierra cada tipo de entregable">
+            {DELIVERABLE_COPY_LIST.map((copy) => (
+              <li key={copy.kind}>
+                <DeliverableMarker kind={copy.kind} label={copy.label} /> — {copy.legend}
+              </li>
+            ))}
+          </ul>
 
           {selected.size >= 2 ? (
             <div className={styles.batchBar} role="group" aria-label="Acciones en lote">
@@ -374,7 +411,7 @@ function OrdenesContent(): ReactElement {
 
           {total > 0 ? (
             <p className={styles.footer}>
-              Mostrando <span className="num">{items.length === 0 ? 0 : offset + items.length}</span> de <span className="num">{total}</span> órdenes
+              Mostrando <span className="num">{rows.length === 0 ? 0 : offset + rows.length}</span> de <span className="num">{total}</span> órdenes
             </p>
           ) : null}
 

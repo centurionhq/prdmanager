@@ -128,3 +128,21 @@
   align-items: center;
   gap: var(--space-3);
 }
+
+.deliverable {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.deliverableIcon {
+  flex-shrink: 0;
+}
+
+.closureRoute {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}

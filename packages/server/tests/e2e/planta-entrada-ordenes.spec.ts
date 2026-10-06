@@ -483,7 +483,7 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await expect(page.locator('p', { hasText: 'Mostrando 1 de 1 órdenes' })).toBeVisible();
     await expect(page.getByRole('row', { name: new RegExp(workOrderId) })).toBeVisible();
 
-    await page.getByRole('radio', { name: /Todas/ }).click();
+    await page.getByRole('radiogroup', { name: 'Estado' }).getByRole('radio', { name: /Todas/ }).click();
     await expect(page).not.toHaveURL(/status=/);
     await expect(page.locator('p', { hasText: `Mostrando 25 de ${SDD_TASKS.length} órdenes` })).toBeVisible();
   });
@@ -529,7 +529,7 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
   });
 
   await test.step('Órdenes: el asignado elegible se elige al tomar y la lista lo muestra (SDD-086 D1/D2, FB-146)', async () => {
-    await page.getByRole('radio', { name: /Todas/ }).click();
+    await page.getByRole('radiogroup', { name: 'Estado' }).getByRole('radio', { name: /Todas/ }).click();
     await expect(page).not.toHaveURL(/status=/);
 
     await page.getByRole('row', { name: new RegExp(agentWorkOrderId) }).click();
@@ -622,7 +622,7 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
 
     // D4's best-effort contract, seen from the screen: one item that cannot be claimed (already in
     // progress) reports the server's own message without aborting the pending one next to it.
-    await page.getByRole('radio', { name: /Todas/ }).click();
+    await page.getByRole('radiogroup', { name: 'Estado' }).getByRole('radio', { name: /Todas/ }).click();
     for (const id of partialClaimIds) await page.getByRole('checkbox', { name: `Seleccionar ${id}` }).check();
     await page.getByRole('group', { name: 'Acciones en lote' }).getByRole('button', { name: 'Tomar seleccionadas' }).click();
     const claimBatchModal = page.getByRole('dialog', { name: 'Tomar órdenes' });
@@ -687,7 +687,7 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/ordenes`);
     await expect(page.getByRole('heading', { level: 1, name: 'Órdenes de trabajo' })).toBeVisible();
     // The filters are still reachable at 375 px, and the table still shows real rows (stacked layout).
-    await expect(page.getByRole('radio', { name: /Todas/ })).toBeVisible();
+    await expect(page.getByRole('radiogroup', { name: 'Estado' }).getByRole('radio', { name: /Todas/ })).toBeVisible();
     await expect(page.getByRole('row').first()).toBeVisible();
     expect(await cspViolations(page)).toEqual([]);
     mkdirSync(SHOTS_DIR, { recursive: true });

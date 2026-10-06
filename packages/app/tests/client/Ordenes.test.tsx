@@ -11,9 +11,9 @@ import { Ordenes } from '../../src/routes/Ordenes.js';
 import { makeProjectShellContext } from './fixtures.js';
 
 const ORDERS: WorkOrderSummary[] = [
-  { id: 'WO-304', title: 'Escaneo incremental por hash', status: 'in_progress', assignedTo: 'agent:claude', blueprints: ['SDD-012'], sourcePath: 'docs/work-orders/WO-304.md', mirrorPath: '.prdm/remote/docs/WO-304.md' },
-  { id: 'WO-310', title: 'Resumen del importador', status: 'pending', assignedTo: null, blueprints: ['SDD-012'], sourcePath: 'docs/work-orders/WO-310.md', mirrorPath: '.prdm/remote/docs/WO-310.md' },
-  { id: 'WO-301', title: 'Tabla de hashes', status: 'done', assignedTo: 'dev:martin', blueprints: ['SDD-013'], sourcePath: 'docs/work-orders/WO-301.md', mirrorPath: '.prdm/remote/docs/WO-301.md' },
+  { id: 'WO-304', title: 'Escaneo incremental por hash', status: 'in_progress', assignedTo: 'agent:claude', blueprints: ['SDD-012'], deliverableKind: 'code', sourcePath: 'docs/work-orders/WO-304.md', mirrorPath: '.prdm/remote/docs/WO-304.md' },
+  { id: 'WO-310', title: 'Resumen del importador', status: 'pending', assignedTo: null, blueprints: ['SDD-012'], deliverableKind: 'code', sourcePath: 'docs/work-orders/WO-310.md', mirrorPath: '.prdm/remote/docs/WO-310.md' },
+  { id: 'WO-301', title: 'Tabla de hashes', status: 'done', assignedTo: 'dev:martin', blueprints: ['SDD-013'], deliverableKind: 'gate', sourcePath: 'docs/work-orders/WO-301.md', mirrorPath: '.prdm/remote/docs/WO-301.md' },
   { id: 'WO-320', title: 'Índice de búsqueda incremental', status: 'archived', assignedTo: null, blueprints: ['SDD-013'], sourcePath: 'docs/work-orders/WO-320.md', mirrorPath: '.prdm/remote/docs/WO-320.md' },
 ];
 
@@ -92,6 +92,69 @@ describe('Ordenes', () => {
     expect(await screen.findByText('WO-304')).toBeTruthy();
     expect(screen.getByText('WO-310')).toBeTruthy();
     expect(screen.getByText('WO-301')).toBeTruthy();
+  });
+
+  it('renders the deliverable class per row, with a code fallback and the legend', async () => {
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    renderPage();
+
+    const rowOf = async (id: string) => within((await screen.findByText(id)).closest('tr') as HTMLElement);
+    expect((await rowOf('WO-301')).getByText('Gate')).toBeTruthy();
+    expect((await rowOf('WO-304')).getByText('Código')).toBeTruthy();
+    expect((await rowOf('WO-320')).getByText('Código')).toBeTruthy();
+    expect(screen.getByText(/se cierra con evidencia \(`archive_work_order` \+ motivo\)/)).toBeTruthy();
+  });
+
+  it('the Tipo filter keeps the right rows and writes ?tipo to the URL', async () => {
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    const router = renderPage();
+    await screen.findByText('WO-304');
+
+    const group = screen.getByRole('radiogroup', { name: 'Tipo' });
+    expect(within(group).getByRole('radio', { name: /Código/ }).textContent).toContain('3');
+    await userEvent.click(within(group).getByRole('radio', { name: /Gate/ }));
+
+    expect(screen.getByText('WO-301')).toBeTruthy();
+    for (const id of ['WO-304', 'WO-310', 'WO-320']) expect(screen.queryByText(id)).toBeNull();
+    expect(router.state.location.search).toBe('?tipo=gate');
+  });
+
+  describe('a gate in the drawer (SDD-093 D8)', () => {
+    async function openGate() {
+      vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+      vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(fakeContext({ id: 'WO-304', status: 'in_progress', deliverableKind: 'gate' }));
+      renderPage();
+      await userEvent.click(await screen.findByText('WO-304'));
+      return screen.findByRole('button', { name: 'Archivar' });
+    }
+
+    it('does not offer Completar and offers Archivar as the closure', async () => {
+      const archiveButton = await openGate();
+
+      expect(archiveButton).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Completar' })).toBeNull();
+      expect(screen.getAllByText(/se cierra con evidencia/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Gate').length).toBeGreaterThan(0);
+    });
+
+    it('requires a motive to archive', async () => {
+      const archive = vi
+        .spyOn(client, 'archiveWorkOrder')
+        .mockResolvedValue({ id: 'WO-304', status: 'archived', archivedAt: '2026-01-01T00:00:00.000Z', archivedBy: 'dev:ana' });
+      await userEvent.click(await openGate());
+
+      const modal = await screen.findByRole('dialog', { name: 'Archivar orden' });
+      const confirm = within(modal).getByRole('button', { name: 'Archivar' }) as HTMLButtonElement;
+      expect(within(modal).getByLabelText('Motivo (obligatorio)')).toBeTruthy();
+      expect(confirm.disabled).toBe(true);
+      await userEvent.click(confirm);
+      expect(archive).not.toHaveBeenCalled();
+
+      await userEvent.type(within(modal).getByLabelText('Motivo (obligatorio)'), 'Corrida del gate: `npm run test:unit`, 12/12 verde');
+      expect(confirm.disabled).toBe(false);
+      await userEvent.click(confirm);
+      await waitFor(() => expect(archive).toHaveBeenCalledWith('acme', 'web', 'WO-304', 'Corrida del gate: `npm run test:unit`, 12/12 verde'));
+    });
   });
 
   it('shows the project-empty state with no filters, and "Quitar filtros" when filters match nothing', async () => {
@@ -175,7 +238,7 @@ describe('Ordenes', () => {
     await screen.findByText('WO-304');
 
     expect(within(screen.getByRole('radio', { name: /Pendientes/ })).getByText('7')).toBeTruthy();
-    expect(within(screen.getByRole('radio', { name: /Todas/ })).getByText('12')).toBeTruthy();
+    expect(within(within(screen.getByRole('radiogroup', { name: 'Estado' })).getByRole('radio', { name: /Todas/ })).getByText('12')).toBeTruthy();
   });
 
   it('filters "Asignada a: mí" by the session handle', async () => {

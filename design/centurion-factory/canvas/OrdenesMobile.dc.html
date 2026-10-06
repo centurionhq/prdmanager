@@ -35,19 +35,28 @@
     <div style="flex: none; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px;">Tomadas por mí <span class="num" style="font-size: 13px; color: #565D63;">0</span></div>
   </div>
 
+  <div role="radiogroup" aria-label="Tipo" style="flex: none; height: 56px; overflow: hidden; display: flex; align-items: center; gap: 6px; padding: 0 16px; white-space: nowrap;">
+    <div style="flex: none; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #17191C; color: #E9ECEB; border: 1px solid #17191C; border-radius: 2px; font-size: 14px; font-weight: 600;">Todas <span class="num" style="font-size: 13px; color: #C9CFCD;">11</span></div>
+    <div style="flex: none; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px;">Código <span class="num" style="font-size: 13px; color: #565D63;">10</span></div>
+    <div style="flex: none; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px;">Gate <span class="num" style="font-size: 13px; color: #565D63;">1</span></div>
+  </div>
+
   <main style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; border-top: 1px solid #C9CFCD;">
     <div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #DDE1DF; background: #FBFCFB;">
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 22px;">
         <span class="id">WO-310</span>
-        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; background: #B8322A; color: #FFFFFF; font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">Fuera de sincronía</span>
+        <span style="display: inline-flex; align-items: center; gap: 8px;"><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: #33383D; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="m9 14 2 2 4-4"></path></svg>Gate</span>
+        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; background: #B8322A; color: #FFFFFF; font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">Fuera de sincronía</span></span>
       </div>
       <div style="font-size: 15px; line-height: 20px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Resumen del importador en la CLI</div>
       <div style="font-size: 13px; line-height: 18px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="id" style="color: #1F4FA0;">SDD-012</span> · <span class="id">agent:claude</span></div>
+      <div style="font-size: 12px; line-height: 16px; color: #565D63;">se cierra con evidencia (<span class="id">archive_work_order</span> + motivo)</div>
     </div>
     <div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #DDE1DF;">
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 22px;">
         <span class="id">WO-304</span>
-        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #1F4FA0; color: #1F4FA0; background: rgba(31,79,160,0.08); font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">En curso</span>
+        <span style="display: inline-flex; align-items: center; gap: 8px;"><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: #33383D; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M3 12h6"></path><path d="M15 12h6"></path></svg>Código</span>
+        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #1F4FA0; color: #1F4FA0; background: rgba(31,79,160,0.08); font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">En curso</span></span>
       </div>
       <div style="font-size: 15px; line-height: 20px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Escaneo incremental por hash de archivo</div>
       <div style="font-size: 13px; line-height: 18px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="id" style="color: #1F4FA0;">SDD-012</span> · <span class="id">agent:claude</span></div>
@@ -55,7 +64,8 @@
     <div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #DDE1DF;">
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 22px;">
         <span class="id">WO-307</span>
-        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #1F4FA0; color: #1F4FA0; background: rgba(31,79,160,0.08); font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">En curso</span>
+        <span style="display: inline-flex; align-items: center; gap: 8px;"><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: #33383D; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M3 12h6"></path><path d="M15 12h6"></path></svg>Código</span>
+        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #1F4FA0; color: #1F4FA0; background: rgba(31,79,160,0.08); font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">En curso</span></span>
       </div>
       <div style="font-size: 15px; line-height: 20px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Reintento de subida con idempotencia</div>
       <div style="font-size: 13px; line-height: 18px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="id" style="color: #1F4FA0;">SDD-012</span> · <span class="id">dev:martin</span></div>
@@ -63,7 +73,8 @@
     <div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #DDE1DF;">
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 22px;">
         <span class="id">WO-276</span>
-        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #C9CFCD; color: #565D63; font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">Pendiente</span>
+        <span style="display: inline-flex; align-items: center; gap: 8px;"><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: #33383D; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M3 12h6"></path><path d="M15 12h6"></path></svg>Código</span>
+        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #C9CFCD; color: #565D63; font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">Pendiente</span></span>
       </div>
       <div style="font-size: 15px; line-height: 20px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Componentes StatusBadge, IdTag, Skeleton, EmptyState y ErrorState, con tests</div>
       <div style="font-size: 13px; line-height: 18px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="id" style="color: #1F4FA0;">SDD-011</span> · Sin asignar</div>
@@ -71,7 +82,8 @@
     <div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #DDE1DF;">
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 22px;">
         <span class="id">WO-275</span>
-        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #C9CFCD; color: #565D63; font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">Pendiente</span>
+        <span style="display: inline-flex; align-items: center; gap: 8px;"><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: #33383D; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M3 12h6"></path><path d="M15 12h6"></path></svg>Código</span>
+        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #C9CFCD; color: #565D63; font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">Pendiente</span></span>
       </div>
       <div style="font-size: 15px; line-height: 20px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Router con createBrowserRouter y AppShell con sidebar desktop, barra inferior mobile, skip link y título por ruta, con tests</div>
       <div style="font-size: 13px; line-height: 18px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="id" style="color: #1F4FA0;">SDD-011</span> · Sin asignar</div>
@@ -79,7 +91,8 @@
     <div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #DDE1DF;">
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 22px;">
         <span class="id">WO-301</span>
-        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #1E7F4F; color: #1E7F4F; background: rgba(30,127,79,0.08); font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">Hecha</span>
+        <span style="display: inline-flex; align-items: center; gap: 8px;"><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: #33383D; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M3 12h6"></path><path d="M15 12h6"></path></svg>Código</span>
+        <span style="height: 22px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #1E7F4F; color: #1E7F4F; background: rgba(30,127,79,0.08); font-size: 12px; font-weight: 600; border-radius: 2px; white-space: nowrap;">Hecha</span></span>
       </div>
       <div style="font-size: 15px; line-height: 20px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Tabla de hashes por archivo en Postgres</div>
       <div style="font-size: 13px; line-height: 18px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="id" style="color: #1F4FA0;">SDD-012</span> · <span class="id">agent:claude</span></div>

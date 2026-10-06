@@ -6,6 +6,7 @@
 import type { WorkOrderQueryFilter, WorkOrderSummary } from '@prdm/core';
 import type { StatusBadgeWorkOrderStatus } from '../../components/index.js';
 import { sortItems, type SortState } from '../../lib/filter-sort.js';
+import { asDeliverableKind } from './deliverable-label.js';
 
 const KNOWN_WORK_ORDER_STATUSES: readonly StatusBadgeWorkOrderStatus[] = ['pending', 'in_progress', 'out_of_sync', 'done', 'archived'];
 
@@ -30,6 +31,20 @@ export const ORDENES_STATUS_OPTIONS: readonly OrdenesStatusOption[] = [
   { value: 'out_of_sync', label: 'Fuera de sincronía' },
   { value: 'done', label: 'Hechas' },
   { value: 'archived', label: 'Archivadas' },
+];
+
+export type OrdenesDeliverableFilter = 'todas' | 'code' | 'gate';
+
+export interface OrdenesDeliverableOption {
+  readonly value: OrdenesDeliverableFilter;
+  readonly label: string;
+}
+
+/** Same pattern as `ORDENES_STATUS_OPTIONS`; `FilterChips` adds the count. */
+export const ORDENES_DELIVERABLE_OPTIONS: readonly OrdenesDeliverableOption[] = [
+  { value: 'todas', label: 'Todas' },
+  { value: 'code', label: 'Código' },
+  { value: 'gate', label: 'Gate' },
 ];
 
 export interface OrdenesActorOption {
@@ -61,6 +76,23 @@ const ACTOR_KIND_BY_FILTER: Partial<Record<OrdenesActorFilter, NonNullable<WorkO
 /** Unknown values fall back to the default so a hand-edited URL never breaks the screen. */
 export function parseStatusFilter(value: string | null): OrdenesStatusFilter {
   return ORDENES_STATUS_OPTIONS.some((option) => option.value === value) ? (value as OrdenesStatusFilter) : 'todas';
+}
+
+/** Unknown values fall back to «todas», like `parseStatusFilter`. */
+export function parseDeliverableFilter(value: string | null): OrdenesDeliverableFilter {
+  return ORDENES_DELIVERABLE_OPTIONS.some((option) => option.value === value) ? (value as OrdenesDeliverableFilter) : 'todas';
+}
+
+/** Client-side: the server's page query (SDD-064) does not filter by deliverable class yet. */
+export function matchesDeliverable(order: Pick<WorkOrderSummary, 'deliverableKind'>, filter: OrdenesDeliverableFilter): boolean {
+  return filter === 'todas' || asDeliverableKind(order.deliverableKind) === filter;
+}
+
+/** Counts over the rows of the visible page; `todas` is every row. */
+export function countDeliverables(orders: readonly Pick<WorkOrderSummary, 'deliverableKind'>[]): Record<OrdenesDeliverableFilter, number> {
+  const counts: Record<OrdenesDeliverableFilter, number> = { todas: orders.length, code: 0, gate: 0 };
+  for (const order of orders) counts[asDeliverableKind(order.deliverableKind)] += 1;
+  return counts;
 }
 
 export function parseActorFilter(value: string | null): OrdenesActorFilter {
