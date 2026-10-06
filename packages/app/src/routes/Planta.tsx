@@ -25,6 +25,11 @@ function formatMedianResolution(hours: number | null): string {
   return hours === null ? 'Sin datos' : `${Math.round(hours * 60)} min`;
 }
 
+/** Mirrors core's `percent()`: no commits means "no data", not a fabricated 0 %. */
+function formatCommitRefsPercent(traceability: SuccessMetricsDto['traceability']): string {
+  return formatPercent(traceability.commitsTotal === 0 ? null : (traceability.commitsWithRefs / traceability.commitsTotal) * 100);
+}
+
 interface KpiStripProps {
   readonly metrics: SuccessMetricsDto;
   readonly awaitingFirstReport: boolean;
@@ -35,7 +40,8 @@ function KpiStrip({ metrics, awaitingFirstReport }: KpiStripProps): ReactElement
     { label: 'Resolución mediana de una orden', value: formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours) },
     { label: 'Código sincronizado', value: formatPercent(metrics.systemIntegrity.syncedPercent) },
     { label: 'Features trazadas', value: formatPercent(metrics.traceability.featurePercent) },
-    { label: 'Commits con Refs', value: formatPercent(metrics.traceability.commitPercent) },
+    { label: 'Commits trazados', value: formatPercent(metrics.traceability.commitPercent) },
+    { label: 'Commits con Refs', value: formatCommitRefsPercent(metrics.traceability) },
   ];
 
   return (
@@ -72,7 +78,7 @@ export function Planta(): ReactElement {
       {isLoading ? (
         <div className={styles.loading}>
           <Skeleton rows={6} />
-          <Skeleton rows={1} columns={4} />
+          <Skeleton rows={1} columns={5} />
         </div>
       ) : null}
 
