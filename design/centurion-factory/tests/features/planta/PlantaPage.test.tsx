@@ -45,7 +45,9 @@ describe('PlantaPage', () => {
     expect(await screen.findByText('5 min')).toBeTruthy();
     expect(screen.getByText('99,6 %')).toBeTruthy();
     expect(screen.getByText('100 %')).toBeTruthy();
-    expect(screen.getByText('66,4 %')).toBeTruthy();
+    // WO-648: the demo data happens to have commitsTraced === commitsWithRefs (166/250), so the two
+    // commit cells read the same number -- only their labels tell them apart.
+    expect(screen.getAllByText('66,4 %')).toHaveLength(2);
   });
 
   it('links "Ver todo el drift" to /drift and "Ver órdenes" to /ordenes', async () => {

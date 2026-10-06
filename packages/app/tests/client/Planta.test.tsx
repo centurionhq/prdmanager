@@ -182,6 +182,25 @@ describe('Planta', () => {
     expect(screen.getByText('70 %')).toBeTruthy();
   });
 
+  it('renders the 5 KPIs in product order, with the two commit KPIs adjacent (WO-648)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    const strip = await screen.findByRole('region', { name: 'Indicadores de la planta' });
+    const cells = [...strip.children];
+    expect(cells.map((cell) => cell.firstElementChild?.textContent)).toEqual([
+      'Resolución mediana de una orden',
+      'Código sincronizado',
+      'Features trazadas',
+      'Commits trazados',
+      'Commits con Refs',
+    ]);
+    // Same order, each cell paired with its own number: "Commits con Refs" is commitsWithRefs/commitsTotal
+    // (7/10 = 70 %), not the commitPercent (66,4 %) its neighbour "Commits trazados" shows.
+    expect(cells.map((cell) => cell.lastElementChild?.textContent)).toEqual(['5 min', '99,6 %', '100 %', '66,4 %', '70 %']);
+  });
+
   it('keeps "Commits trazados" and "Commits con Refs" as two distinct KPIs when their numbers differ (WO-606)', async () => {
     vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
     vi.spyOn(client, 'getMetrics').mockResolvedValue({
