@@ -17,8 +17,9 @@
  * without review risks the same class of failure in the other direction (e.g. a file touched by an
  * unrelated commit that happened to carry the wrong `Refs:` trailer).
  */
+import { codeReportResponseSchema } from '@prdm/contracts';
 import { isGovernedPath, workOrdersImplementing, type ParsedDoc, type PolicyBlueprint } from '@prdm/core';
-import { findCommitsReferencingAny } from '@prdm/db';
+import { findCommitsReferencingAny, listCodeReports } from '@prdm/db';
 import type { Pool } from 'pg';
 
 export interface ImpactsPathsDrift {
@@ -55,4 +56,102 @@ export async function computeImpactsPathsDrift(pool: Pool, orgId: string, projec
   const suggestedAdditions = [...allFiles].filter((file) => !isGovernedPath(file, [policyBlueprint])).sort();
 
   return { blueprintId, currentPatterns, suggestedAdditions, basedOnCommits: relevantCommits.map((c) => c.sha).sort() };
+}
+
+/** SDD-072 D2: a pattern is "actually shared" once this many commits outside the blueprint's own Work Orders touch it. */
+const MIN_FOREIGN_COMMITS_TO_NARROW = 3;
+/** SDD-072 D2: ...or once this many blueprints (this one included) declare the exact same pattern. */
+const MIN_DECLARING_BLUEPRINTS_TO_NARROW = 6;
+const CODE_REPORTS_SCAN_LIMIT = 200;
+
+export interface ImpactsPathsRemovalSuggestion {
+  pattern: string;
+  /** Paths (sorted) that foreign commits touched and that the pattern matches. */
+  matchedPaths: readonly string[];
+  /** Shas (sorted) of the foreign commits that touched at least one of `matchedPaths`. */
+  foreignCommits: readonly string[];
+  /** Ids (sorted) of the OTHER blueprints declaring exactly this pattern. */
+  alsoDeclaredBy: readonly string[];
+  /** `code_out_of_sync` issues attributed to this pattern across the project's stored code reports. */
+  driftIssueCount: number;
+}
+
+export interface ImpactsPathsNarrowing {
+  blueprintId: string;
+  currentPatterns: readonly string[];
+  /** Ordered by `pattern`. */
+  suggestedRemovals: readonly ImpactsPathsRemovalSuggestion[];
+  /** Shas (sorted) of the own + foreign commits considered. */
+  basedOnCommits: readonly string[];
+}
+
+function patternMatches(type: 'SDD' | 'ADR', blueprintId: string, pattern: string, file: string): boolean {
+  return isGovernedPath(file, [{ type, id: blueprintId, impactsPaths: [pattern] }]);
+}
+
+/** Targets of the `code_out_of_sync` issues attributed to `blueprintId` across every stored code report. */
+async function codeOutOfSyncTargets(pool: Pool, orgId: string, projectId: string, blueprintId: string): Promise<string[]> {
+  const rows = await listCodeReports(pool, { orgId, projectId, limit: CODE_REPORTS_SCAN_LIMIT });
+  const targets: string[] = [];
+  for (const row of rows) {
+    const parsed = codeReportResponseSchema.safeParse(row.result);
+    if (!parsed.success) continue;
+    for (const issue of parsed.data.issues) {
+      if (issue.kind === 'code_out_of_sync' && issue.nodeId === blueprintId && issue.target !== undefined) targets.push(issue.target);
+    }
+  }
+  return targets;
+}
+
+/**
+ * Inverse mirror of {@link computeImpactsPathsDrift} (SDD-072 D2, WO-642): which of the blueprint's current
+ * `impacts_paths` patterns are surplus. A pattern is suggested for removal iff (a) no commit referencing
+ * this blueprint's own Work Orders touched a file it matches, and (b) it is de-facto shared -- at least
+ * {@link MIN_FOREIGN_COMMITS_TO_NARROW} foreign commits touch it, or {@link MIN_DECLARING_BLUEPRINTS_TO_NARROW}
+ * blueprints (this one included) declare it verbatim. Read-only: applying a removal goes through the same
+ * audited `sync` codepath as additions. A blueprint without Work Orders has no footprint, hence no evidence
+ * that anything is surplus.
+ */
+export async function computeImpactsPathsNarrowing(pool: Pool, orgId: string, projectId: string, docs: readonly ParsedDoc[], blueprintId: string): Promise<ImpactsPathsNarrowing | null> {
+  const blueprint = docs.find((d) => d.node.id === blueprintId && d.node.label === 'Blueprint');
+  if (!blueprint) return null;
+
+  const currentPatterns = blueprint.impactsPaths;
+  const empty: ImpactsPathsNarrowing = { blueprintId, currentPatterns, suggestedRemovals: [], basedOnCommits: [] };
+  const ownWoIds = workOrdersImplementing(docs, blueprintId).map((wo) => wo.node.id);
+  if (ownWoIds.length === 0) return empty;
+
+  const ownWoIdSet = new Set(ownWoIds);
+  const otherBlueprints = docs.filter((d) => d.node.label === 'Blueprint' && d.node.id !== blueprintId);
+  const foreignWoIds = [...new Set(otherBlueprints.flatMap((bp) => workOrdersImplementing(docs, bp.node.id).map((wo) => wo.node.id)))].filter((id) => !ownWoIdSet.has(id));
+
+  const ownCommits = await findCommitsReferencingAny(pool, orgId, projectId, ownWoIds);
+  const ownShas = new Set(ownCommits.map((c) => c.sha));
+  const foreignCommits = foreignWoIds.length === 0 ? [] : (await findCommitsReferencingAny(pool, orgId, projectId, foreignWoIds)).filter((c) => !ownShas.has(c.sha));
+
+  const type = blueprint.frontmatter.type as 'SDD' | 'ADR';
+  const ownFiles = new Set(ownCommits.flatMap((c) => c.files));
+  const driftTargets = await codeOutOfSyncTargets(pool, orgId, projectId, blueprintId);
+
+  const suggestedRemovals: ImpactsPathsRemovalSuggestion[] = [];
+  for (const pattern of [...currentPatterns].sort()) {
+    if ([...ownFiles].some((file) => patternMatches(type, blueprintId, pattern, file))) continue;
+
+    const touching = foreignCommits.filter((c) => c.files.some((file) => patternMatches(type, blueprintId, pattern, file)));
+    const alsoDeclaredBy = otherBlueprints.filter((bp) => bp.impactsPaths.includes(pattern)).map((bp) => bp.node.id).sort();
+    const isShared = touching.length >= MIN_FOREIGN_COMMITS_TO_NARROW || alsoDeclaredBy.length + 1 >= MIN_DECLARING_BLUEPRINTS_TO_NARROW;
+    if (!isShared) continue;
+
+    const matchedPaths = [...new Set(touching.flatMap((c) => c.files).filter((file) => patternMatches(type, blueprintId, pattern, file)))].sort();
+    suggestedRemovals.push({
+      pattern,
+      matchedPaths,
+      foreignCommits: touching.map((c) => c.sha).sort(),
+      alsoDeclaredBy,
+      driftIssueCount: driftTargets.filter((target) => patternMatches(type, blueprintId, pattern, target)).length,
+    });
+  }
+
+  const basedOnCommits = [...new Set([...ownShas, ...foreignCommits.map((c) => c.sha)])].sort();
+  return { blueprintId, currentPatterns, suggestedRemovals, basedOnCommits };
 }

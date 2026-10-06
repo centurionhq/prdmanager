@@ -98,6 +98,57 @@ describe('impacts-paths drift/sync (WO-430)', () => {
     return { owner, editor, org, project };
   }
 
+  /** Like `setup()`, but SDD-001 inherits `packages/shared/**` that SDD-002's WO touches 3 times (a narrowing candidate). */
+  async function setupNarrowable() {
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    const org = await createOrganizationFixture(pg);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: `saas://project/${project.id}` });
+    await store.clear();
+
+    const blueprint = (id: string, paths: string[]) =>
+      `---\nid: ${id}\ntype: SDD\ntitle: "Blueprint ${id}"\narchitects: ["FR-001"]\nimpacts_paths: ${JSON.stringify(paths)}\n---\n\n## Contexto\n\n## Tareas\n\n- [ ] x\n`;
+    const workOrder = (id: string, sdd: string) => `---\nid: ${id}\ntype: WO\ntitle: "Do ${id}"\nstatus: done\nimplements: ["${sdd}"]\n---\n\ntask\n`;
+    const docs: Array<[string, string, string, string, string]> = [
+      ['FR-001', 'FR', 'Example feature', 'docs/fr/FR-001.md', FEATURE_TEMPLATE],
+      ['SDD-001', 'SDD', 'Blueprint SDD-001', 'docs/sdd/SDD-001.md', blueprint('SDD-001', ['packages/core/tests/**', 'packages/shared/**'])],
+      ['SDD-002', 'SDD', 'Blueprint SDD-002', 'docs/sdd/SDD-002.md', blueprint('SDD-002', ['packages/shared/**'])],
+      ['WO-001', 'WO', 'Do WO-001', 'docs/work-orders/WO-001.md', workOrder('WO-001', 'SDD-001')],
+      ['WO-002', 'WO', 'Do WO-002', 'docs/work-orders/WO-002.md', workOrder('WO-002', 'SDD-002')],
+    ];
+    for (const [docId, kind, title, sourcePath, raw] of docs) {
+      await pg.ownerPool.query(
+        `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'published', $8)`,
+        [org.id, project.id, docId, kind, title, sourcePath, kind === 'WO' ? 'generated' : 'collab', raw],
+      );
+    }
+
+    const token = await createCiToken(pg.appPool, { orgId: org.id, projectIds: [project.id], name: 'ci', scopes: ['reports:baseline'], expiresAt: new Date(Date.now() + 86_400_000), createdBy: owner.id });
+    const commit = (sha: string, refs: string[], files: string[]) => ({ sha, author: 'Alice', date: '2026-09-17T00:00:00.000Z', subject: `feat: x\n\nRefs: ${refs.join(', ')}`, refs, files });
+    await upsertReportedCommits(pg.appPool, {
+      projectId: project.id,
+      orgId: org.id,
+      tokenId: token.record.id,
+      trust: 'baseline',
+      branch: 'main',
+      commits: [
+        commit('a'.repeat(40), ['WO-001'], ['packages/core/tests/unit/foo.test.ts']),
+        commit('b'.repeat(40), ['WO-002'], ['packages/shared/x.ts']),
+        commit('c'.repeat(40), ['WO-002'], ['packages/shared/x.ts']),
+        commit('d'.repeat(40), ['WO-002'], ['packages/shared/x.ts']),
+      ],
+    });
+
+    return { owner, org, project };
+  }
+
+  async function publishedRaw(projectId: string, docId: string): Promise<string> {
+    const { rows } = await pg.ownerPool.query(`SELECT published_raw FROM "documents" WHERE project_id = $1 AND doc_id = $2`, [projectId, docId]);
+    return rows[0].published_raw;
+  }
+
   test('GET drift surfaces the SDD-016-shaped suggestion for an admin (view-gated, not sync-gated)', async () => {
     const app = buildApp();
     const { editor, org, project } = await setup();
@@ -165,6 +216,75 @@ describe('impacts-paths drift/sync (WO-430)', () => {
     });
 
     expect(res.statusCode).toBe(403);
+    await app.close();
+  });
+
+  test('POST sync applies only removals when there are no additions, and audits them', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await setupNarrowable();
+    const ownerCookie = await signIn(app, owner.email);
+    const base = `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/SDD-001/impacts-paths`;
+
+    const preview = await app.inject({ method: 'GET', url: `${base}/drift`, headers: { ...AUTH_HOST(), cookie: ownerCookie } });
+    expect(preview.statusCode).toBe(200);
+    expect(preview.json().drift.suggestedAdditions).toEqual([]);
+    expect(preview.json().narrowing.suggestedRemovals.map((r: { pattern: string }) => r.pattern)).toEqual(['packages/shared/**']);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `${base}/sync`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
+      payload: { expectedSuggestion: [], expectedRemovals: ['packages/shared/**'], reason: 'patrón heredado sin WOs propias que lo toquen' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().impactsPaths.sort()).toEqual(['packages/core/tests/**']);
+    expect(await publishedRaw(project.id, 'SDD-001')).not.toContain('packages/shared/**');
+
+    const { rows: auditRows } = await pg.ownerPool.query(`SELECT action, metadata FROM audit_log WHERE org_id = $1 AND action = 'document.impacts_paths_synced'`, [org.id]);
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0].metadata.removed).toEqual(['packages/shared/**']);
+    expect(auditRows[0].metadata.reason).toBe('patrón heredado sin WOs propias que lo toquen');
+
+    await app.close();
+  });
+
+  test('POST sync rejects (409) stale expectedRemovals and leaves the document untouched', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await setupNarrowable();
+    const ownerCookie = await signIn(app, owner.email);
+    const before = await publishedRaw(project.id, 'SDD-001');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/SDD-001/impacts-paths/sync`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
+      payload: { expectedSuggestion: [], expectedRemovals: ['packages/shared/**', 'packages/otro/**'], reason: 'x' },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(await publishedRaw(project.id, 'SDD-001')).toBe(before);
+
+    await app.close();
+  });
+
+  test('POST sync rejects (409) when there is nothing to apply', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await setupNarrowable();
+    const ownerCookie = await signIn(app, owner.email);
+    const before = await publishedRaw(project.id, 'SDD-002');
+
+    // SDD-002 owns the WOs touching its only pattern: no additions and no removals.
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/documents/SDD-002/impacts-paths/sync`,
+      headers: await mutationHeaders(app, AUTH_HOST(), ORIGIN(), ownerCookie),
+      payload: { expectedSuggestion: [], expectedRemovals: [], reason: 'x' },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(await publishedRaw(project.id, 'SDD-002')).toBe(before);
+
     await app.close();
   });
 
