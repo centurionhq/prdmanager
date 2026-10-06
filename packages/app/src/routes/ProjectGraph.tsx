@@ -498,7 +498,10 @@ export function ProjectGraph(): ReactElement {
     [orgSlug, projectSlug],
     () => false,
   );
-  const orphanFeatures = metricsQuery.data?.traceability.orphanFeatures;
+  // El frontend y el backend se despliegan por separado: `orphanFeatures` es requerido en el contrato,
+  // pero la respuesta no se valida en runtime, así que un server anterior a WO-665 no lo manda y acá no
+  // hay chip ni filtro (nunca una pantalla rota).
+  const orphanFeatures = Array.isArray(metricsQuery.data?.traceability.orphanFeatures) ? metricsQuery.data.traceability.orphanFeatures : null;
   const orphanRefs = useMemo(() => new Set((orphanFeatures ?? []).map((feature) => feature.id)), [orphanFeatures]);
   // SDD-079 D6: sin lista no hay filtro que ofrecer -- ni chip, ni filtro, aunque el param venga puesto.
   const showCodeFilter = orphanRefs.size > 0;

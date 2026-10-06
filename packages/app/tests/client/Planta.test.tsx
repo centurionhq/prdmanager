@@ -286,6 +286,26 @@ describe('Planta', () => {
     expect(screen.queryByRole('link', { name: /features trazadas/i })).toBeNull();
   });
 
+  it('does not crash and claims nothing about the missing list when the server predates the field (SDD-079, separate deploys)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    // The frontend and the backend deploy separately: an older server answers without `orphanFeatures`.
+    const stale = {
+      ...METRICS,
+      traceability: { featuresTotal: 4, featuresTraced: 3, featurePercent: 75, commitsTotal: 10, commitsWithRefs: 7, commitsTraced: 6, commitPercent: 66.4 },
+    } as unknown as SuccessMetricsDto;
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(stale);
+    renderPlanta();
+
+    const strip = await screen.findByRole('region', { name: 'Indicadores de la planta' });
+    // The ratio is a known old field, so it still shows; the missing count is not, so nothing is claimed.
+    expect(within(strip).getByText('3/4')).toBeTruthy();
+    expect(within(strip).queryByText(/faltan/)).toBeNull();
+    expect(within(strip).queryByText('Todas trazadas')).toBeNull();
+    expect(screen.queryByRole('link', { name: /features trazadas/i })).toBeNull();
+    // ...and the rest of the strip is still there: the strip did not blow the page up.
+    expect(within(strip).getByText('99,6 %')).toBeTruthy();
+  });
+
   it('keeps "Commits trazados" and "Commits con Refs" as two distinct KPIs when their numbers differ (WO-606)', async () => {
     vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
     vi.spyOn(client, 'getMetrics').mockResolvedValue({
