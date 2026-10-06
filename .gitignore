@@ -20,3 +20,11 @@ packages/web/playwright/.cache/
 packages/server/test-results/
 .prdm/remote/
 .prdm/baseline.json
+
+# Estado local de los bots (nunca compartido ni versionado): cada agente corre en su
+# propio worktree y guarda acá su identidad, sus planes y sus definiciones de subagentes.
+# El checkout compartido del swarm quedaba sucio con estos 4 paths (FB-064).
+.SOUL.md
+.claude/agents/
+.hermes/
+.worktrees/
