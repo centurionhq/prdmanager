@@ -99,7 +99,7 @@ describe('DriftDashboard', () => {
     renderPage();
 
     const previewsHeading = await screen.findByRole('heading', { name: 'Previews por rama' });
-    const section = previewsHeading.closest('div')!;
+    const section = previewsHeading.closest('section')!;
     expect(within(section).getByText('feature/x')).toBeTruthy();
     expect(within(section).getByText('feature/y')).toBeTruthy();
     expect(within(section).getAllByText('vista previa')).toHaveLength(2);
@@ -642,5 +642,90 @@ describe('DriftDashboard · sha del reporte (SDD-069 WO-635)', () => {
     expect(writeText).toHaveBeenCalledWith(COMMIT_SHA);
     expect(detail).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------
+// SDD-070 / WO-638 — the "Previews por rama" panel is now the real `PreviewsByBranch` component (WO-637)
+// mounted with the project's own shell data: `official`/`previews` for the delta, `default_branch` for the
+// reference name and `github_repository` for the branch label. The panel and the history share one modal.
+// ---------------------------------------------------------------------------------------------------
+
+const PREVIEW_SHA = 'a1b2c3d4e5f6' + 'a'.repeat(28);
+
+function previewDashboard(
+  overrides: Partial<DriftDashboardDto> = {},
+): DriftDashboardDto {
+  return {
+    official: fakeReport({ id: 'official-1', mode: 'baseline', branch: 'main', tokenName: 'ci-pipeline', issueCount: 226 }),
+    previews: [
+      fakeReport({ id: 'p1', branch: '32/merge', tokenName: 'ana-personal', issueCount: 380, headSha: PREVIEW_SHA }),
+      fakeReport({ id: 'p2', branch: 'feat/mejora', tokenName: 'bob-personal', issueCount: 142, headSha: 'c'.repeat(40) }),
+    ],
+    history: [],
+    ...overrides,
+  };
+}
+
+describe('DriftDashboard · previews por rama montadas (SDD-070 WO-638)', () => {
+  beforeEach(() => clearQueryCache());
+  afterEach(() => vi.restoreAllMocks());
+
+  it('mounts the panel with the official report, the previews, the default branch and the repository', async () => {
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue(previewDashboard());
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+
+    renderPage({ default_branch: 'trunk', github_repository: REPOSITORY });
+
+    // `32/merge` reads as `PR #32` and the delta is named after the project's own default branch, never a
+    // literal "main" (the shell really carries `default_branch: 'trunk'` here).
+    const row = await screen.findByRole('button', { name: 'Ver los 380 issues del reporte de PR #32' });
+    expect(row.tagName).toBe('BUTTON');
+    expect(screen.getByText('PR #32')).toBeTruthy();
+    expect(screen.getByText('+154 vs trunk')).toBeTruthy();
+    expect(screen.getByText('-84 vs trunk')).toBeTruthy();
+    expect(screen.queryByText('+154 vs main')).toBeNull();
+  });
+
+  it('opens the right report detail from a preview row, through the same modal as a history row', async () => {
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue(
+      previewDashboard({ history: [fakeReport({ id: 'h1', mode: 'baseline', branch: 'main', tokenName: 'ci-pipeline' })] }),
+    );
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+    const detail = vi.spyOn(client, 'getDriftReportDetail').mockResolvedValue({
+      id: 'p1',
+      mode: 'preview',
+      headSha: PREVIEW_SHA,
+      branch: '32/merge',
+      tokenName: 'ana-personal',
+      issueCount: 380,
+      hasBlockingIssues: false,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      issues: [fakeIssue()],
+    });
+
+    renderPage({ github_repository: REPOSITORY });
+    await userEvent.click(await screen.findByRole('button', { name: 'Ver los 380 issues del reporte de PR #32' }));
+
+    expect(detail).toHaveBeenCalledWith('acme', 'web', 'p1');
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del reporte' });
+    const meta = await within(dialog).findByText(/ana-personal/);
+    expect(meta.textContent).toBe('PR #32 · a1b2c3d4e5f6 · ana-personal · 380 issues');
+    expect(within(dialog).getByRole('link', { name: 'PR #32' }).getAttribute('href')).toBe(
+      `https://github.com/${REPOSITORY}/pull/32`,
+    );
+  });
+
+  it('shows no numeric delta for any preview when there is no official report', async () => {
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue(previewDashboard({ official: null }));
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+
+    renderPage({ default_branch: 'trunk' });
+
+    const unknowns = await screen.findAllByText('— vs trunk');
+    expect(unknowns).toHaveLength(2);
+    expect(screen.queryByText(/^\+\d+ vs trunk$/)).toBeNull();
+    expect(screen.queryByText(/^-\d+ vs trunk$/)).toBeNull();
+    expect(screen.queryByText('0 vs trunk')).toBeNull();
   });
 });

@@ -7,6 +7,7 @@ import { errorMessage } from '../../api/error-message.js';
 import { ErrorState, Modal, Severity, Skeleton, Tooltip } from '../../components/index.js';
 import { splitMessage } from './drift-groups.js';
 import { issueCopy, REASON_LABELS, type GlossaryTerm, type IssueCopy } from './drift-issue-copy.js';
+import { branchDisplay } from './previews.js';
 import styles from './ReportDetailModal.module.css';
 
 function blueprintTipFor(issue: DriftIssueDto, copy: IssueCopy): string | undefined {
@@ -68,10 +69,41 @@ export interface ReportDetailModalProps {
   readonly orgSlug: string;
   readonly projectSlug: string;
   readonly reportId: string | undefined;
+  /** `project.settings.github_repository`, only used to link the branch label (SDD-070 D7): the modal never
+   * fetches the project, and with no repository the label stays plain text instead of a broken link. */
+  readonly githubRepository: string | null;
   readonly onClose: () => void;
 }
 
-export function ReportDetailModal({ orgSlug, projectSlug, reportId, onClose }: ReportDetailModalProps): ReactElement {
+/**
+ * SDD-070 D7: the report's branch leads the meta, readably (`PR #32` for `32/merge`) and linked to GitHub
+ * only when the project knows its own repository — `branchDisplay` owns both rules, the same ones the
+ * preview rows use, so the modal and the panel can never disagree about a branch.
+ */
+function ReportMeta({
+  detail,
+  githubRepository,
+}: {
+  readonly detail: DriftReportDetailDto;
+  readonly githubRepository: string | null;
+}): ReactElement {
+  const display = branchDisplay(detail.branch, githubRepository);
+  return (
+    <p className={styles.meta}>
+      {display.href !== null ? (
+        <a href={display.href} target="_blank" rel="noopener noreferrer" title={display.title}>
+          {display.label}
+        </a>
+      ) : (
+        <span title={display.title}>{display.label}</span>
+      )}{' '}
+      · <span className="id">{detail.headSha.slice(0, 12)}</span> · {detail.tokenName} · {detail.issueCount}{' '}
+      {detail.issueCount === 1 ? 'issue' : 'issues'}
+    </p>
+  );
+}
+
+export function ReportDetailModal({ orgSlug, projectSlug, reportId, githubRepository, onClose }: ReportDetailModalProps): ReactElement {
   const [detail, setDetail] = useState<DriftReportDetailDto | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,9 +127,7 @@ export function ReportDetailModal({ orgSlug, projectSlug, reportId, onClose }: R
       {!detail && !error ? <Skeleton rows={4} /> : null}
       {detail ? (
         <>
-          <p className={styles.meta}>
-            <span className="id">{detail.headSha.slice(0, 12)}</span> · {detail.tokenName} · {detail.issueCount} {detail.issueCount === 1 ? 'issue' : 'issues'}
-          </p>
+          <ReportMeta detail={detail} githubRepository={githubRepository} />
           {detail.issues.length === 0 ? (
             <p className={styles.empty}>Este reporte no encontró issues.</p>
           ) : (

@@ -19,6 +19,7 @@ import { AcknowledgeModal } from './drift/AcknowledgeModal.js';
 import { EMPTY_FILTERS, PROJECT_TARGET, acknowledgeableTargets, filterIssues, groupIssues, type DriftFilters } from './drift/drift-groups.js';
 import { DriftIssuesList } from './drift/DriftIssuesList.js';
 import { ForcePushOverrideModal } from './drift/ForcePushOverrideModal.js';
+import { PreviewsByBranch } from './drift/PreviewsByBranch.js';
 import { ReportDetailModal } from './drift/ReportDetailModal.js';
 import { reportFreshness } from './drift/report-freshness.js';
 import styles from './drift/Drift.module.css';
@@ -282,32 +283,13 @@ function DriftContent(): ReactElement {
         </div>
 
         <div className={styles.sidebar}>
-          <div>
-            <h2 className={styles.sectionTitle}>Previews por rama</h2>
-            {dashboard.previews.length === 0 ? (
-              <p>No hay reportes de vista previa todavía.</p>
-            ) : (
-              <>
-                <div className={styles.previewsHead}>
-                  <span>Rama</span>
-                  <span>Issues</span>
-                </div>
-                <ul className={styles.list}>
-                  {dashboard.previews.map((report) => (
-                    <li key={report.id} className={styles.previewRow}>
-                      <div className={styles.branchInfo}>
-                        <span className="id">{report.branch ?? '(rama desconocida)'}</span>
-                        <span className={styles.previewBadge}>vista previa</span>
-                      </div>
-                      <span className={[styles.issueCount, report.issueCount === 0 ? styles.issueCountZero : styles.issueCountSome].join(' ')}>
-                        {report.issueCount}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </div>
+          <PreviewsByBranch
+            previews={dashboard.previews}
+            official={dashboard.official}
+            defaultBranch={project.settings.default_branch}
+            githubRepository={project.settings.github_repository}
+            onOpenReport={setReportId}
+          />
 
           <div>
             <h2 className={styles.sectionTitle}>Historial</h2>
@@ -370,7 +352,13 @@ function DriftContent(): ReactElement {
         onClose={() => setAckOpen(false)}
         onConfirm={(target) => void handleAcknowledge(target)}
       />
-      <ReportDetailModal orgSlug={orgSlug} projectSlug={projectSlug} reportId={reportId} onClose={() => setReportId(undefined)} />
+      <ReportDetailModal
+        orgSlug={orgSlug}
+        projectSlug={projectSlug}
+        reportId={reportId}
+        githubRepository={project.settings.github_repository}
+        onClose={() => setReportId(undefined)}
+      />
       <ForcePushOverrideModal
         open={forcePushOpen}
         submitting={forcePushSubmitting}
