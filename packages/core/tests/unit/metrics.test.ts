@@ -22,7 +22,7 @@ describe('computeMetrics', () => {
     const metrics = computeMetrics(raw());
 
     expect(metrics).toEqual({
-      agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null },
+      agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, unmeasured: { total: 0, workOrders: [] } },
       systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
       traceability: {
         featuresTotal: 0,
@@ -134,6 +134,61 @@ describe('computeMetrics', () => {
     const metrics = computeMetrics(raw({ workOrders }));
 
     expect(metrics.agentHumanEfficiency.avgResolutionHours).toBe(1.67);
+  });
+});
+
+describe('computeMetrics unmeasured', () => {
+  const wo = (id: string, claimedAt: string | null, completedAt: string | null, status = 'done'): MetricsRaw['workOrders'][number] => ({
+    id, status, assignedTo: null, createdAt: null, claimedAt, completedAt,
+  });
+  const T0 = '2026-01-01T00:00:00.000Z';
+  const T1 = '2026-01-01T04:00:00.000Z';
+
+  test('assigns one reason per order and keeps measured + unmeasured == completed', () => {
+    const { agentHumanEfficiency: e } = computeMetrics(
+      raw({
+        workOrders: [
+          wo('WO-001', null, T1),
+          wo('WO-002', T0, null),
+          wo('WO-003', 'not-a-date', T1),
+          wo('WO-004', T1, T0, 'out_of_sync'),
+          wo('WO-005', T0, T1),
+          wo('WO-006', T0, null, 'pending'),
+        ],
+      }),
+    );
+
+    expect(e.unmeasured.workOrders.map((w) => [w.id, w.reason])).toEqual([
+      ['WO-001', 'missing_claim'],
+      ['WO-002', 'missing_completion'],
+      ['WO-003', 'invalid_timestamp'],
+      ['WO-004', 'negative_duration'],
+    ]);
+    expect(e.unmeasured.workOrders[3]).toEqual({ id: 'WO-004', status: 'out_of_sync', reason: 'negative_duration', claimedAt: T1, completedAt: T0 });
+    expect(e.unmeasured.total).toBe(4);
+    expect(e.measuredWorkOrders + e.unmeasured.total).toBe(e.completedWorkOrders);
+    expect(e.avgResolutionHours).toBe(4);
+    expect(e.medianResolutionHours).toBe(4);
+  });
+
+  test('applies precedence missing_claim > missing_completion > invalid_timestamp > negative_duration', () => {
+    const { unmeasured } = computeMetrics(
+      raw({ workOrders: [wo('WO-001', '', null), wo('WO-002', 'bad', null), wo('WO-003', 'bad', 'worse'), wo('WO-004', null, 'bad')] }),
+    ).agentHumanEfficiency;
+
+    expect(unmeasured.workOrders.map((w) => w.reason)).toEqual(['missing_claim', 'missing_completion', 'invalid_timestamp', 'missing_claim']);
+  });
+
+  test('orders unmeasured work orders by id regardless of input order', () => {
+    const { unmeasured } = computeMetrics(raw({ workOrders: [wo('WO-010', null, null), wo('WO-002', null, null), wo('WO-007', null, null)] })).agentHumanEfficiency;
+
+    expect(unmeasured.workOrders.map((w) => w.id)).toEqual(['WO-002', 'WO-007', 'WO-010']);
+  });
+
+  test('reports an empty gap when every completed order is measured', () => {
+    const { unmeasured } = computeMetrics(raw({ workOrders: [wo('WO-001', T0, T1)] })).agentHumanEfficiency;
+
+    expect(unmeasured).toEqual({ total: 0, workOrders: [] });
   });
 });
 

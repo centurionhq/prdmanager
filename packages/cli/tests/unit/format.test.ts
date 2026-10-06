@@ -65,7 +65,7 @@ describe('summarizeRefresh', () => {
 
 function metrics(overrides: Partial<SuccessMetrics> = {}): SuccessMetrics {
   return {
-    agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null },
+    agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, unmeasured: { total: 0, workOrders: [] } },
     systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
     traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null },
     pendingQueue: { total: 0, unassigned: 0, oldestDays: null, over7Days: 0 },
@@ -74,6 +74,25 @@ function metrics(overrides: Partial<SuccessMetrics> = {}): SuccessMetrics {
 }
 
 describe('formatMetrics', () => {
+  const unmeasuredWo = (id: string, reason: 'missing_claim' | 'negative_duration') => ({ id, status: 'done', reason, claimedAt: null, completedAt: null });
+  const efficiency = (unmeasured: { total: number; workOrders: ReturnType<typeof unmeasuredWo>[] }) => ({
+    completedWorkOrders: unmeasured.total, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, unmeasured,
+  });
+
+  test('lists unmeasured work orders with total, reason copy and ids', () => {
+    const text = formatMetrics(metrics({ agentHumanEfficiency: efficiency({ total: 2, workOrders: [unmeasuredWo('WO-001', 'missing_claim'), unmeasuredWo('WO-002', 'missing_claim')] }) }));
+    expect(text).toContain('ordenes sin medicion: 2 (sin fecha de reclamo: WO-001, WO-002)');
+  });
+
+  test('prints one line per reason present, in precedence order', () => {
+    const text = formatMetrics(metrics({ agentHumanEfficiency: efficiency({ total: 2, workOrders: [unmeasuredWo('WO-001', 'negative_duration'), unmeasuredWo('WO-002', 'missing_claim')] }) }));
+    expect(text).toContain('(sin fecha de reclamo: WO-002)\n  ordenes sin medicion: 2 (cierre anterior al reclamo: WO-001)');
+  });
+
+  test('prints nothing about unmeasured orders when total is 0', () => {
+    expect(formatMetrics(metrics())).not.toContain('sin medicion');
+  });
+
   test('renders n/a for null averages and percentages', () => {
     const text = formatMetrics(metrics());
     expect(text).toContain('avg resolution: n/a');
@@ -84,7 +103,7 @@ describe('formatMetrics', () => {
   test('renders concrete numbers when available', () => {
     const text = formatMetrics(
       metrics({
-        agentHumanEfficiency: { completedWorkOrders: 2, measuredWorkOrders: 2, avgResolutionHours: 4, medianResolutionHours: 4 },
+        agentHumanEfficiency: { completedWorkOrders: 2, measuredWorkOrders: 2, avgResolutionHours: 4, medianResolutionHours: 4, unmeasured: { total: 0, workOrders: [] } },
         systemIntegrity: { governedTotal: 2, governedSynced: 1, syncedPercent: 50 },
       }),
     );

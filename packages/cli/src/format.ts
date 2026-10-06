@@ -1,4 +1,4 @@
-import type { DriftIssue, RefreshReport, SearchHit, SuccessMetrics } from '@prdm/core';
+import type { DriftIssue, RefreshReport, SearchHit, SuccessMetrics, UnmeasuredReason } from '@prdm/core';
 
 const ISSUE_MARKER: Record<DriftIssue['severity'], string> = { error: '✗', warning: '⚠' };
 
@@ -60,6 +60,21 @@ function formatOrphanFeatures(orphans: SuccessMetrics['traceability']['orphanFea
   return [`  orphan features: ${orphans.length}`, ...orphans.map((f) => `    ${f.id} <${f.kind}> ${f.title} (${f.status})`)];
 }
 
+const UNMEASURED_REASON_COPY: Record<UnmeasuredReason, string> = {
+  missing_claim: 'sin fecha de reclamo',
+  missing_completion: 'sin fecha de cierre',
+  invalid_timestamp: 'fecha invalida',
+  negative_duration: 'cierre anterior al reclamo',
+};
+
+function formatUnmeasured({ total, workOrders }: SuccessMetrics['agentHumanEfficiency']['unmeasured']): string[] {
+  if (total === 0) return [];
+  return (Object.keys(UNMEASURED_REASON_COPY) as UnmeasuredReason[])
+    .map((reason) => ({ reason, ids: workOrders.filter((wo) => wo.reason === reason).map((wo) => wo.id) }))
+    .filter(({ ids }) => ids.length > 0)
+    .map(({ reason, ids }) => `  ordenes sin medicion: ${total} (${UNMEASURED_REASON_COPY[reason]}: ${ids.join(', ')})`);
+}
+
 export function formatMetrics(metrics: SuccessMetrics): string {
   const { agentHumanEfficiency: efficiency, systemIntegrity: integrity, traceability, pendingQueue: queue } = metrics;
   return [
@@ -67,6 +82,7 @@ export function formatMetrics(metrics: SuccessMetrics): string {
     `  completed work orders: ${efficiency.completedWorkOrders} (measured: ${efficiency.measuredWorkOrders})`,
     `  avg resolution: ${formatHours(efficiency.avgResolutionHours)}`,
     `  median resolution: ${formatHours(efficiency.medianResolutionHours)}`,
+    ...formatUnmeasured(efficiency.unmeasured),
     'Pending Queue:',
     `  total: ${queue.total} (unassigned: ${queue.unassigned})`,
     `  oldest: ${formatAge(queue.oldestDays)}`,

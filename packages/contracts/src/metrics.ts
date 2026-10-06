@@ -4,11 +4,27 @@
  */
 import { z } from 'zod';
 
+export const unmeasuredReasonSchema = z.enum(['missing_claim', 'missing_completion', 'invalid_timestamp', 'negative_duration']);
+
+export const unmeasuredWorkOrderSchema = z.object({
+  id: z.string().min(1),
+  status: z.string(),
+  reason: unmeasuredReasonSchema,
+  claimedAt: z.string().nullable(),
+  completedAt: z.string().nullable(),
+});
+
+export const unmeasuredSchema = z.object({
+  total: z.number().int().min(0),
+  workOrders: z.array(unmeasuredWorkOrderSchema),
+});
+
 export const agentHumanEfficiencySchema = z.object({
   completedWorkOrders: z.number().int().min(0),
   measuredWorkOrders: z.number().int().min(0),
   avgResolutionHours: z.number().nullable(),
   medianResolutionHours: z.number().nullable(),
+  unmeasured: unmeasuredSchema,
 });
 
 export const systemIntegritySchema = z.object({
