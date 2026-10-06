@@ -159,4 +159,124 @@ describe('ProjectsDashboard', () => {
     await waitFor(() => expect(create).toHaveBeenCalledWith('acme', { slug: 'new-proj', name: 'New Proj' }));
     expect(await screen.findByText('New Proj')).toBeTruthy();
   });
+
+  it('exposes seven distinct segment names and marks the stopped station', async () => {
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject({ furthestStation: 'construccion', andonStation: 'diseno_tecnico' })]);
+    renderDashboard('member');
+
+    await screen.findByText('Web');
+    const labels = screen.getAllByRole('img').map((node) => node.getAttribute('aria-label'));
+    expect(labels).toHaveLength(7);
+    expect(new Set(labels).size).toBe(7);
+    expect(labels).toContain('Detenida en Diseño técnico');
+    expect(labels).toContain('Entregado · pendiente');
+    expect(labels).toContain('Entrada · alcanzada');
+    expect(labels.filter((label) => label?.startsWith('Detenida en'))).toHaveLength(1);
+    expect(screen.getByText('Llega a Construcción, detenida en Diseño técnico')).toBeTruthy();
+  });
+
+  it('shows the archive action only with the archive permission', async () => {
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([
+      makeProject(),
+      makeProject({ id: 'proj2', slug: 'ystream', name: 'Ystream', myRole: 'viewer' }),
+    ]);
+    renderDashboard('member');
+
+    await screen.findByText('Web');
+    expect(screen.getAllByRole('button', { name: 'Archivar' })).toHaveLength(1);
+    const viewerRow = screen.getByText('Ystream').closest('tr')!;
+    expect(within(viewerRow).queryByRole('button')).toBeNull();
+  });
+
+  it('hides the archive action when no row grants it', async () => {
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject({ myRole: 'viewer' })]);
+    renderDashboard('member');
+
+    await screen.findByText('Web');
+    expect(screen.queryByRole('button', { name: 'Archivar' })).toBeNull();
+  });
+
+  it('confirming archive calls the API and refreshes the list', async () => {
+    const overview = vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject()]);
+    const archive = vi.spyOn(client, 'archiveProject').mockResolvedValue({} as never);
+    renderDashboard('member');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Archivar' }));
+    const dialog = screen.getByRole('dialog', { name: 'Archivar Web' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Archivar' }));
+
+    await waitFor(() => expect(archive).toHaveBeenCalledWith('acme', 'web'));
+    await waitFor(() => expect(overview).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Web quedó archivado')).toBeTruthy();
+  });
+
+  it('keeps the dialog open with an alert when archiving fails', async () => {
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject()]);
+    vi.spyOn(client, 'archiveProject').mockRejectedValue(new Error('boom'));
+    renderDashboard('member');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Archivar' }));
+    const dialog = screen.getByRole('dialog', { name: 'Archivar Web' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Archivar' }));
+
+    expect(await within(dialog).findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Archivar Web' })).toBeTruthy();
+  });
+
+  it('cancelling the archive dialog does not call the API', async () => {
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject()]);
+    const archive = vi.spyOn(client, 'archiveProject').mockResolvedValue({} as never);
+    renderDashboard('member');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Archivar' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Archivar Web' })).getByRole('button', { name: 'Cancelar' }));
+
+    expect(archive).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('unarchives without asking for confirmation', async () => {
+    const overview = vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject({ archivedAt: '2026-01-01T00:00:00.000Z' })]);
+    const unarchive = vi.spyOn(client, 'unarchiveProject').mockResolvedValue({} as never);
+    renderDashboard('member');
+
+    await userEvent.click(await screen.findByRole('radio', { name: /Archivados/ }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Desarchivar' }));
+
+    await waitFor(() => expect(unarchive).toHaveBeenCalledWith('acme', 'web'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(overview).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows who has access, linking to the members settings', async () => {
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([
+      makeProject({ memberCount: 0 }),
+      makeProject({ id: 'proj2', slug: 'ystream', name: 'Ystream', memberCount: 3 }),
+    ]);
+    renderDashboard('member');
+
+    const empty = await screen.findByRole('link', { name: 'Sin miembros · nadie del equipo lo ve' });
+    expect(empty.getAttribute('href')).toBe('/o/acme/p/web/ajustes/miembros');
+    expect(screen.getByRole('link', { name: '3 miembros' }).getAttribute('href')).toBe('/o/acme/p/ystream/ajustes/miembros');
+  });
+
+  it('links drift and orders to their screens', async () => {
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject({ driftErrors: 2, driftWarnings: 1, workOrdersInProgress: 7 })]);
+    renderDashboard('member');
+
+    const drift = await screen.findByRole('link', { name: /2 errores/ });
+    expect(drift.getAttribute('href')).toBe('/o/acme/p/web/drift');
+    expect(drift.textContent).toContain('2 errores · 1 aviso');
+    expect(screen.getByRole('link', { name: '7' }).getAttribute('href')).toBe('/o/acme/p/web/ordenes');
+  });
+
+  it('explains the line, drift, orders and access in a visible legend', async () => {
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject()]);
+    renderDashboard('member');
+
+    await screen.findByText('Web');
+    const legend = screen.getByRole('region', { name: 'Cómo leer la tabla' });
+    expect(within(legend).getAllByRole('listitem').length).toBeGreaterThanOrEqual(11);
+    expect(within(legend).getByText(/detectadas por CI/)).toBeTruthy();
+  });
 });
