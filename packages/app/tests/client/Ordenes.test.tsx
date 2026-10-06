@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WorkOrderContextDto } from '@prdm/contracts';
+import type { WorkOrderContextDto, WorkProfile } from '@prdm/contracts';
 import type { WorkOrderPage, WorkOrderStatusCounts, WorkOrderSummary } from '@prdm/core';
 import * as client from '../../src/api/client.js';
 import { ApiClientError } from '../../src/api/api-client-error.js';
@@ -44,13 +44,38 @@ function page(items: WorkOrderSummary[], total = items.length, counts: Partial<W
   return { items, total, statusCounts: { all: 0, pending: 0, in_progress: 0, out_of_sync: 0, done: 0, archived: 0, ...counts } };
 }
 
-function renderPage(initialEntries: string[] = ['/ctx']) {
+function renderPage(initialEntries: string[] = ['/ctx'], workProfile: WorkProfile | null = null) {
   const router = createMemoryRouter(
-    [{ path: '/ctx', element: <Outlet context={makeProjectShellContext('owner', 'admin')} />, children: [{ index: true, element: <Ordenes /> }] }],
+    [{ path: '/ctx', element: <Outlet context={makeProjectShellContext('owner', 'admin', workProfile)} />, children: [{ index: true, element: <Ordenes /> }] }],
     { initialEntries },
   );
   render(<RouterProvider router={router} />);
   return router;
+}
+
+/** `renderPage` with the three real Construir destinations mounted, to assert where «Ir a Construir» lands. */
+function renderPageWithConstruir(workProfile: WorkProfile | null = null) {
+  const router = createMemoryRouter(
+    [
+      { path: '/ctx', element: <Outlet context={makeProjectShellContext('owner', 'admin', workProfile)} />, children: [{ index: true, element: <Ordenes /> }] },
+      { path: '/o/acme/p/web/construir/negocio', element: <p>destino: negocio</p> },
+      { path: '/o/acme/p/web/construir/producto', element: <p>destino: producto</p> },
+      { path: '/o/acme/p/web/construir/developer', element: <p>destino: developer</p> },
+    ],
+    { initialEntries: ['/ctx'] },
+  );
+  render(<RouterProvider router={router} />);
+  return router;
+}
+
+async function selectOrders(ids: readonly string[]): Promise<void> {
+  for (const id of ids) await userEvent.click(screen.getByRole('checkbox', { name: `Seleccionar ${id}` }));
+}
+
+async function openBatch(action: 'Archivar' | 'Tomar'): Promise<HTMLElement> {
+  const bar = await screen.findByRole('group', { name: 'Acciones en lote' });
+  await userEvent.click(within(bar).getByRole('button', { name: `${action} seleccionadas` }));
+  return screen.findByRole('dialog', { name: action === 'Archivar' ? 'Archivar órdenes' : 'Tomar órdenes' });
 }
 
 describe('Ordenes', () => {
@@ -348,5 +373,178 @@ describe('Ordenes', () => {
     await userEvent.click(within(modal).getByRole('button', { name: 'Archivar' }));
 
     expect(await screen.findByText('No tenés permiso para archivar órdenes en este proyecto.')).toBeTruthy();
+  });
+
+  it('explains that orders are generated from a blueprint checklist and offers «Ir a Construir»', async () => {
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page([]));
+    const router = renderPageWithConstruir();
+
+    expect(await screen.findByText('Todavía no hay órdenes de trabajo para este proyecto')).toBeTruthy();
+    expect(screen.getByText(/## Tareas/)).toBeTruthy();
+    expect(screen.getByText(/se generan del checklist/)).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ir a Construir' }));
+
+    // Nobody has picked a work profile yet, so the line starts where it starts: the business case.
+    await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme/p/web/construir/negocio'));
+    expect(await screen.findByText('destino: negocio')).toBeTruthy();
+  });
+
+  it('sends whoever already chose a work profile to their own Construir path', async () => {
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page([]));
+    const router = renderPageWithConstruir('developer');
+
+    await screen.findByText('Todavía no hay órdenes de trabajo para este proyecto');
+    await userEvent.click(screen.getByRole('button', { name: 'Ir a Construir' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme/p/web/construir/developer'));
+  });
+
+  it('does not change the filtered-empty state, which keeps «Quitar filtros»', async () => {
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page([], 0));
+    renderPage(['/ctx?status=done']);
+
+    expect(await screen.findByText('Ninguna orden coincide con estos filtros')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Quitar filtros' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Ir a Construir' })).toBeNull();
+  });
+
+  it('shows the batch bar with its counter from two selected orders on', async () => {
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    renderPage();
+    await screen.findByText('WO-304');
+
+    await selectOrders(['WO-310']);
+    expect(screen.queryByRole('group', { name: 'Acciones en lote' })).toBeNull();
+
+    await selectOrders(['WO-301']);
+
+    const bar = await screen.findByRole('group', { name: 'Acciones en lote' });
+    expect(within(bar).getByText('2 órdenes seleccionadas')).toBeTruthy();
+    expect(within(bar).getByRole('button', { name: 'Archivar seleccionadas' })).toBeTruthy();
+    expect(within(bar).getByRole('button', { name: 'Tomar seleccionadas' })).toBeTruthy();
+  });
+
+  it('archives the whole selection in one batch, with an optional motive, and refreshes the list', async () => {
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    const batch = vi.spyOn(client, 'batchWorkOrders').mockResolvedValue({
+      results: [
+        { id: 'WO-301', ok: true },
+        { id: 'WO-310', ok: true },
+      ],
+      archived: 2,
+      claimed: 0,
+    });
+    renderPage();
+    await screen.findByText('WO-304');
+    await selectOrders(['WO-310', 'WO-301']);
+
+    const modal = await openBatch('Archivar');
+    await userEvent.type(within(modal).getByLabelText('Motivo (opcional)'), 'Quedaron obsoletas');
+    await userEvent.click(within(modal).getByRole('button', { name: 'Archivar' }));
+
+    await waitFor(() =>
+      expect(batch).toHaveBeenCalledWith('acme', 'web', { action: 'archive', ids: ['WO-301', 'WO-310'], reason: 'Quedaron obsoletas' }),
+    );
+    expect(await screen.findByText('2 órdenes archivadas')).toBeTruthy();
+    await waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(1));
+    expect(screen.queryByRole('group', { name: 'Acciones en lote' })).toBeNull();
+  });
+
+  it('reports the per-item failures of a batch with the server\'s own message, without aborting the rest', async () => {
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    vi.spyOn(client, 'batchWorkOrders').mockResolvedValue({
+      results: [
+        { id: 'WO-301', ok: true },
+        { id: 'WO-310', ok: false, error: 'la orden no está en un estado archivable' },
+      ],
+      archived: 1,
+      claimed: 0,
+    });
+    renderPage();
+    await screen.findByText('WO-304');
+    await selectOrders(['WO-310', 'WO-301']);
+
+    const modal = await openBatch('Archivar');
+    await userEvent.click(within(modal).getByRole('button', { name: 'Archivar' }));
+
+    expect(await screen.findByText(/1 de 2 archivadas/)).toBeTruthy();
+    const failures = screen.getByRole('list', { name: 'Órdenes que no se pudieron actualizar' });
+    expect(within(failures).getByText('WO-310')).toBeTruthy();
+    expect(within(failures).getByText(/la orden no está en un estado archivable/)).toBeTruthy();
+    // Best-effort: the item that did archive still refreshes the list.
+    await waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it('shows a rejected batch inside the dialog and keeps the selection', async () => {
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    vi.spyOn(client, 'batchWorkOrders').mockRejectedValue(
+      new ApiClientError(403, 'forbidden', 'No tenés permiso para archivar órdenes en este proyecto.'),
+    );
+    renderPage();
+    await screen.findByText('WO-304');
+    await selectOrders(['WO-310', 'WO-301']);
+
+    const modal = await openBatch('Archivar');
+    await userEvent.click(within(modal).getByRole('button', { name: 'Archivar' }));
+
+    expect(await within(modal).findByRole('alert')).toHaveProperty(
+      'textContent',
+      'No tenés permiso para archivar órdenes en este proyecto.',
+    );
+    expect(list.mock.calls.length).toBe(1);
+    expect(screen.getByRole('group', { name: 'Acciones en lote' })).toBeTruthy();
+    expect((screen.getByRole('checkbox', { name: 'Seleccionar WO-310' }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('takes the whole selection in one batch, defaulting to the session handle', async () => {
+    vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: 'ana', workProfile: null });
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    const batch = vi.spyOn(client, 'batchWorkOrders').mockResolvedValue({
+      results: [
+        { id: 'WO-301', ok: true },
+        { id: 'WO-310', ok: true },
+      ],
+      archived: 0,
+      claimed: 2,
+    });
+    renderPage();
+    await screen.findByText('WO-304');
+    await selectOrders(['WO-310', 'WO-301']);
+
+    const modal = await openBatch('Tomar');
+    expect((within(modal).getByRole('radio', { name: 'Yo (dev:ana)' }) as HTMLInputElement).checked).toBe(true);
+    await userEvent.click(within(modal).getByRole('button', { name: 'Tomar órdenes' }));
+
+    await waitFor(() =>
+      expect(batch).toHaveBeenCalledWith('acme', 'web', { action: 'claim', ids: ['WO-301', 'WO-310'], assignee: 'dev:ana' }),
+    );
+    expect(await screen.findByText('2 órdenes tomadas')).toBeTruthy();
+  });
+
+  it('refuses a batch over the server\'s own 200-id cap before calling it', async () => {
+    const many: WorkOrderSummary[] = Array.from({ length: 201 }, (_, index) => ({
+      id: `WO-${400 + index}`,
+      title: `Orden ${index}`,
+      status: 'pending',
+      assignedTo: null,
+      blueprints: ['SDD-012'],
+      sourcePath: `docs/work-orders/WO-${400 + index}.md`,
+      mirrorPath: `.prdm/remote/docs/WO-${400 + index}.md`,
+    }));
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(many, many.length));
+    const batch = vi.spyOn(client, 'batchWorkOrders').mockResolvedValue({ results: [], archived: 0, claimed: 0 });
+    renderPage();
+    await screen.findByText('WO-400');
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Seleccionar todas las filas' }));
+    const modal = await openBatch('Archivar');
+    await userEvent.click(within(modal).getByRole('button', { name: 'Archivar' }));
+
+    expect(await within(modal).findByRole('alert')).toHaveProperty(
+      'textContent',
+      'El lote acepta hasta 200 órdenes. Quitá algunas de la selección y volvé a intentar.',
+    );
+    expect(batch).not.toHaveBeenCalled();
   });
 });
