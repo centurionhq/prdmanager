@@ -365,6 +365,87 @@
   }
 }
 
+/* WO-681 (SDD-084 D3/D6): the station cell and its mobile mirror are buttons. */
+.cellButton,
+.mobileStationButton {
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cellButton {
+  width: 100%;
+  padding-right: 0;
+}
+
+.cellButton:focus-visible,
+.mobileStationButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (max-width: 767px) {
+  .mobileStationButton {
+    min-height: var(--hit-target);
+    padding: 0;
+  }
+}
+
+/* The drawer sits on the light surface, not on the dark band. */
+.ordersBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ordersSummary {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--texto-secundario);
+}
+
+.orderList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.orderRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--hit-target);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--regla-fila);
+  color: inherit;
+  text-decoration: none;
+}
+
+.orderRow:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.orderTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-md);
+}
+
+.orderStatusRaw {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.ordersEmpty {
+  margin: 0;
+  color: var(--apagado);
+}
+
 /* WO-281: the one orchestrated load reveal. Runs once per mount and yields to reduced motion. */
 @media (prefers-reduced-motion: no-preference) {
   .stationHeader {

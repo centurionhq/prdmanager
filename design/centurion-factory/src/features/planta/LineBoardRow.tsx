@@ -10,7 +10,11 @@ export interface LineBoardRowProps {
   readonly row: LineRow;
   readonly index: number;
   readonly andonStationIndex: number;
+  readonly isOrdersOpen: boolean;
+  readonly onOpenOrders: (row: LineRow) => void;
 }
+
+export const ordersPanelId = (featureId: string): string => `linea-ordenes-${featureId}`;
 
 const MARKER_CLASS: Record<LineRowKind, string> = {
   closed: styles.markerSenal ?? '',
@@ -61,7 +65,20 @@ function MarkerCell({ row }: { readonly row: LineRow }): ReactElement {
   );
 }
 
-function renderStationCell(row: LineRow, station: (typeof STATIONS)[number], cellIndex: number, andonStationIndex: number): ReactNode {
+interface OrdersControl {
+  readonly isOpen: boolean;
+  readonly onOpen: (row: LineRow) => void;
+}
+
+const ordersButtonLabel = (row: LineRow): string => `${row.feature.id} ${row.feature.title}: ver órdenes`;
+
+function renderStationCell(
+  row: LineRow,
+  station: (typeof STATIONS)[number],
+  cellIndex: number,
+  andonStationIndex: number,
+  orders: OrdersControl,
+): ReactNode {
   const ownIndex = stationIndex(row.feature.station);
   const isTrack = cellIndex < ownIndex;
   const isMarkerCell = cellIndex === ownIndex;
@@ -73,12 +90,20 @@ function renderStationCell(row: LineRow, station: (typeof STATIONS)[number], cel
   );
 
   // WO-680 (SDD-084 D4): the stopped cell is no longer the drift link — the notice above now carries
-  // that destination for every stopped initiative. WO-681 turns this cell into the orders button.
+  // that destination for every stopped initiative. WO-681 (SDD-084 D3): it is the orders button.
   if (isMarkerCell) {
     return (
-      <span key={station} className={classes}>
+      <button
+        key={station}
+        type="button"
+        className={joinClasses(classes, styles.cellButton)}
+        aria-expanded={orders.isOpen}
+        aria-controls={ordersPanelId(row.feature.id)}
+        aria-label={ordersButtonLabel(row)}
+        onClick={() => orders.onOpen(row)}
+      >
         <MarkerCell row={row} />
-      </span>
+      </button>
     );
   }
 
@@ -94,8 +119,9 @@ function renderStationCell(row: LineRow, station: (typeof STATIONS)[number], cel
 }
 
 /** One feature's row: identity link, per-station track/marker cells, and the mobile station label. */
-export function LineBoardRow({ row, index, andonStationIndex }: LineBoardRowProps): ReactElement {
+export function LineBoardRow({ row, index, andonStationIndex, isOrdersOpen, onOpenOrders }: LineBoardRowProps): ReactElement {
   const { feature, kind } = row;
+  const orders: OrdersControl = { isOpen: isOrdersOpen, onOpen: onOpenOrders };
   const rowStyle = { '--row-delay': `${700 + index * 90}ms` } as CSSProperties;
   const rowClasses = joinClasses(styles.row, kind === 'closed' ? styles.rowClosed : null);
 
@@ -112,8 +138,17 @@ export function LineBoardRow({ row, index, andonStationIndex }: LineBoardRowProp
           </span>
         ) : null}
       </Link>
-      <span className={styles.mobileStation}>{STATION_LABELS[feature.station]}</span>
-      <div className={styles.stations}>{STATIONS.map((station, cellIndex) => renderStationCell(row, station, cellIndex, andonStationIndex))}</div>
+      <button
+        type="button"
+        className={joinClasses(styles.mobileStation, styles.mobileStationButton)}
+        aria-expanded={isOrdersOpen}
+        aria-controls={ordersPanelId(feature.id)}
+        aria-label={ordersButtonLabel(row)}
+        onClick={() => onOpenOrders(row)}
+      >
+        {STATION_LABELS[feature.station]}
+      </button>
+      <div className={styles.stations}>{STATIONS.map((station, cellIndex) => renderStationCell(row, station, cellIndex, andonStationIndex, orders))}</div>
     </li>
   );
 }
