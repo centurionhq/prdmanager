@@ -392,4 +392,33 @@ describe('/api/app/organizations/:orgSlug/projects/:projectSlug/documents/* (WO-
 
     await app.close();
   });
+
+  test('WO-628: GET .../documents/:docId es project-scoped y devuelve el cuerpo de un documento no publicado', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { editor, org, project } = await setupOrgAndProject();
+    const projectB = await createProjectFixture(pg, { orgId: org.id });
+    await pg.ownerPool.query(`INSERT INTO "project_members" (project_id, user_id, org_id, role) VALUES ($1, $2, $3, 'editor')`, [projectB.id, editor.id, org.id]);
+    const cookie = await signIn(app, editor.email);
+    const base = (p: { slug: string }) => `/api/app/organizations/${org.slug}/projects/${p.slug}/documents`;
+    const create = async (p: { slug: string }, kind: string, title: string) =>
+      app.inject({ method: 'POST', url: base(p), headers: await mutationHeaders(app, AUTH_HOST, ORIGIN, cookie), payload: { kind, title } });
+
+    expect((await create(project, 'PRD', 'Feature A')).statusCode).toBe(200);
+    expect((await create(project, 'SDD', 'Design A')).statusCode).toBe(200);
+    expect((await create(projectB, 'PRD', 'Feature B')).statusCode).toBe(200);
+
+    const found = await app.inject({ method: 'GET', url: `${base(project)}/SDD-001`, headers: { cookie } });
+    expect(found.statusCode).toBe(200);
+    const { document } = found.json();
+    expect(document.workflowState).toBe('draft');
+    expect(document.latestVersion.renderedMarkdown).toContain('Design A');
+    expect(document.latestVersion.renderedMarkdown).toContain('id: "SDD-001"');
+    // The DTO exposes the field; version 1 is empty because of `createDraft` (packages/db/src/documents-repository.ts:123).
+    expect(typeof document.latestVersion.frontmatter).toBe('object');
+
+    expect((await app.inject({ method: 'GET', url: `${base(projectB)}/SDD-001`, headers: { cookie } })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'GET', url: `${base(project)}/SDD-999`, headers: { cookie } })).statusCode).toBe(404);
+
+    await app.close();
+  });
 });
