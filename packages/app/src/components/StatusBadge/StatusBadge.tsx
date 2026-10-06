@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import styles from './StatusBadge.module.css';
 
 export type StatusBadgeWorkflowStatus = 'draft' | 'in_review' | 'published' | 'archived';
-export type StatusBadgeWorkOrderStatus = 'pending' | 'in_progress' | 'out_of_sync' | 'done';
+export type StatusBadgeWorkOrderStatus = 'pending' | 'in_progress' | 'out_of_sync' | 'done' | 'archived';
 export type StatusBadgeFeatureStatus = 'draft' | 'proposed' | 'approved' | 'closed';
 
 export type StatusBadgeProps =
@@ -33,6 +33,9 @@ const WORK_ORDER_CONFIG: Record<StatusBadgeWorkOrderStatus, StatusConfig> = {
   in_progress: { label: 'En curso', tone: 'cianotipo', mark: 'cianotipo' },
   out_of_sync: { label: 'Fuera de sincronía', tone: 'paro', mark: 'paro' },
   done: { label: 'Hecha', tone: 'senal', mark: 'senal' },
+  // Same muted plate the workflow `archived` badge uses: the order left the active queue and stays in
+  // the graph read-only. Feminine label because the noun is "orden" (SDD-064, FB-069).
+  archived: { label: 'Archivada', tone: 'apagado', mark: 'regla', archived: true },
 };
 
 // "proposed" has no example on the canvas; it borrows the andon (aviso) tone used for

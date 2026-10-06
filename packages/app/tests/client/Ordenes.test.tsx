@@ -14,6 +14,7 @@ const ORDERS: WorkOrderSummary[] = [
   { id: 'WO-304', title: 'Escaneo incremental por hash', status: 'in_progress', assignedTo: 'agent:claude', blueprints: ['SDD-012'], sourcePath: 'docs/work-orders/WO-304.md' },
   { id: 'WO-310', title: 'Resumen del importador', status: 'pending', assignedTo: null, blueprints: ['SDD-012'], sourcePath: 'docs/work-orders/WO-310.md' },
   { id: 'WO-301', title: 'Tabla de hashes', status: 'done', assignedTo: 'dev:martin', blueprints: ['SDD-013'], sourcePath: 'docs/work-orders/WO-301.md' },
+  { id: 'WO-320', title: 'Índice de búsqueda incremental', status: 'archived', assignedTo: null, blueprints: ['SDD-013'], sourcePath: 'docs/work-orders/WO-320.md' },
 ];
 
 function fakeContext(overrides: Partial<WorkOrderContextDto['workOrder']> = {}): WorkOrderContextDto {
@@ -93,6 +94,19 @@ describe('Ordenes', () => {
     expect(screen.queryByText('WO-304')).toBeNull();
   });
 
+  it('shows archived orders only under the "Archivadas" chip, never mixed into "Todas"', async () => {
+    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+    renderPage();
+    await screen.findByText('WO-304');
+
+    expect(screen.queryByText('WO-320')).toBeNull();
+
+    await userEvent.click(screen.getByRole('radio', { name: /Archivadas/ }));
+
+    expect(screen.getByText('WO-320')).toBeTruthy();
+    expect(screen.queryByText('WO-304')).toBeNull();
+  });
+
   it('opens the drawer with the real context and claims a pending order', async () => {
     vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
     vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(fakeContext());
@@ -137,5 +151,73 @@ describe('Ordenes', () => {
     await userEvent.click(within(modal).getByRole('button', { name: 'Completar' }));
 
     expect(await screen.findByText(/todavía no fue verificado por CI/)).toBeTruthy();
+  });
+
+  it('archives a pending order with an optional reason, toasts and refreshes the list', async () => {
+    const list = vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+    vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(fakeContext());
+    const archive = vi
+      .spyOn(client, 'archiveWorkOrder')
+      .mockResolvedValue({ id: 'WO-310', status: 'archived', archivedAt: '2026-01-01T00:00:00.000Z', archivedBy: 'dev:ana' });
+    renderPage();
+
+    await userEvent.click(await screen.findByText('WO-310'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Archivar' }));
+
+    const modal = await screen.findByRole('dialog', { name: 'Archivar orden' });
+    await userEvent.type(within(modal).getByLabelText('Motivo (opcional)'), 'Quedó obsoleta');
+    await userEvent.click(within(modal).getByRole('button', { name: 'Archivar' }));
+
+    await waitFor(() => expect(archive).toHaveBeenCalledWith('acme', 'web', 'WO-310', 'Quedó obsoleta'));
+    expect(await screen.findByText('Orden archivada')).toBeTruthy();
+    await waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it('archives without a reason (an empty motive is a valid archive)', async () => {
+    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+    vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(fakeContext());
+    const archive = vi
+      .spyOn(client, 'archiveWorkOrder')
+      .mockResolvedValue({ id: 'WO-310', status: 'archived', archivedAt: '2026-01-01T00:00:00.000Z', archivedBy: 'dev:ana' });
+    renderPage();
+
+    await userEvent.click(await screen.findByText('WO-310'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Archivar' }));
+    const modal = await screen.findByRole('dialog', { name: 'Archivar orden' });
+    await userEvent.click(within(modal).getByRole('button', { name: 'Archivar' }));
+
+    await waitFor(() => expect(archive).toHaveBeenCalledWith('acme', 'web', 'WO-310', undefined));
+  });
+
+  it.each([
+    ['done', 'done'],
+    ['archived', 'archived'],
+  ])('never offers Archivar on a %s order', async (_label, status) => {
+    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+    vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(
+      fakeContext({ id: 'WO-301', status, assignedTo: 'dev:martin' }),
+    );
+    renderPage();
+
+    await userEvent.click(await screen.findByText('WO-301'));
+    expect(await screen.findByText('Al terminar una importación, la CLI muestra un resumen.')).toBeTruthy();
+
+    expect(screen.queryByRole('button', { name: 'Archivar' })).toBeNull();
+  });
+
+  it('surfaces the server\'s own message when the session lacks archive_work_order', async () => {
+    vi.spyOn(client, 'listWorkOrders').mockResolvedValue(ORDERS);
+    vi.spyOn(client, 'getWorkOrderContext').mockResolvedValue(fakeContext());
+    vi.spyOn(client, 'archiveWorkOrder').mockRejectedValue(
+      new ApiClientError(403, 'forbidden', 'No tenés permiso para archivar órdenes en este proyecto.'),
+    );
+    renderPage();
+
+    await userEvent.click(await screen.findByText('WO-310'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Archivar' }));
+    const modal = await screen.findByRole('dialog', { name: 'Archivar orden' });
+    await userEvent.click(within(modal).getByRole('button', { name: 'Archivar' }));
+
+    expect(await screen.findByText('No tenés permiso para archivar órdenes en este proyecto.')).toBeTruthy();
   });
 });
