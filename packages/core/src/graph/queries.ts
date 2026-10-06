@@ -110,7 +110,7 @@ export const LIST_WORK_ORDERS = `
        COLLECT { MATCH (c:Commit {project_id: $projectId})-[:RESOLVES]->(wo)
                  RETURN c.sha AS sha ORDER BY c.date DESC, c.sha DESC LIMIT 1 } AS landed
   RETURN wo.id AS id, wo.title AS title, wo.status AS status, wo.assigned_to AS assignedTo, wo.source_path AS sourcePath,
-         wo.created_at AS createdAt, wo.claimed_at AS claimedAt, landed[0] AS landedCommitSha,
+         wo.created_at AS createdAt, wo.claimed_at AS claimedAt, landed[0] AS landedCommitSha, wo.deliverable_kind AS deliverableKind,
          COLLECT { MATCH (wo)-[:IMPLEMENTS]->(b:Blueprint {project_id: $projectId}) RETURN b.id ORDER BY b.id } AS blueprints
   ORDER BY wo.id`;
 
@@ -145,6 +145,7 @@ export const QUERY_WORK_ORDERS = `
     WITH wo, collect(bp.id) AS blueprints
     ORDER BY wo.id
     RETURN collect({id: wo.id, title: wo.title, status: wo.status, assignedTo: wo.assigned_to, sourcePath: wo.source_path,
+                    deliverableKind: wo.deliverable_kind,
                     blueprints: [x IN blueprints WHERE x IS NOT NULL]}) AS items
   }
   CALL () {

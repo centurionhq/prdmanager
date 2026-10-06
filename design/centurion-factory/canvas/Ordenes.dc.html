@@ -64,6 +64,11 @@
             <button type="button" onClick="{{ chip.pick }}" style="{{ chip.style }}">{{ chip.label }} <span class="num" style="{{ chip.countStyle }}">{{ chip.count }}</span></button>
           </sc-for>
         </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+          <sc-for list="{{ tipoChips }}" as="chip" hint-placeholder-count="3">
+            <button type="button" onClick="{{ chip.pick }}" style="{{ chip.style }}">{{ chip.label }} <span class="num" style="{{ chip.countStyle }}">{{ chip.count }}</span></button>
+          </sc-for>
+        </div>
         <div style="display: flex; gap: 12px;">
           <div style="width: 200px; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">
             Blueprint: todos
@@ -76,9 +81,15 @@
         </div>
       </section>
 
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; font-size: 13px; color: #565D63;">
+        <span style="display: inline-flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M3 12h6"></path><path d="M15 12h6"></path></svg><span style="color: #17191C; font-weight: 600;">Código</span>: se cierra con un commit <span class="id">Refs: WO-xxx</span></span>
+        <span aria-hidden="true">·</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="m9 14 2 2 4-4"></path></svg><span style="color: #17191C; font-weight: 600;">Gate</span>: se cierra con evidencia (<span class="id">archive_work_order</span> + motivo)</span>
+      </div>
+
       <section style="display: flex; flex-direction: column;">
-        <div style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 60px 120px 104px 80px; column-gap: 12px; padding: 8px; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD;">
-          <div>Orden</div><div>Título</div><div>Blueprint</div><div>Estado</div><div>Asignada a</div><div style="text-align: right;">Actualizada</div>
+        <div style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 60px 120px 104px 104px 80px; column-gap: 12px; padding: 8px; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD;">
+          <div>Orden</div><div>Título</div><div>Blueprint</div><div>Estado</div><div>Entregable</div><div>Asignada a</div><div style="text-align: right;">Actualizada</div>
         </div>
         <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ true }}">
           <sc-for list="{{ rows }}" as="row" hint-placeholder-count="10">
@@ -87,6 +98,7 @@
               <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ row.title }}</div>
               <div class="id" style="color: #1F4FA0;">{{ row.blueprint }}</div>
               <div><span style="{{ row.badgeStyle }}"><span style="{{ row.markStyle }}"></span>{{ row.statusLabel }}</span></div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px;"><sc-if value="{{ row.isGate }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="m9 14 2 2 4-4"></path></svg></sc-if><sc-if value="{{ row.isCode }}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M3 12h6"></path><path d="M15 12h6"></path></svg></sc-if>{{ row.kindLabel }}</span></div>
               <div style="{{ row.assigneeStyle }}">{{ row.assignee }}</div>
               <div class="num" style="text-align: right; color: #565D63; white-space: nowrap;">{{ row.updated }}</div>
             </div>
@@ -114,8 +126,10 @@
         <h2 style="margin: 0; font-size: 28px; line-height: 1.12; font-weight: 800; font-stretch: 112%; letter-spacing: -0.01em;">Resumen del importador en la CLI</h2>
         <div style="display: flex; align-items: center; gap: 12px;">
           <span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #B8322A;"><span style="width: 8px; height: 8px; background: #B8322A;"></span>Fuera de sincronía</span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="m9 14 2 2 4-4"></path></svg>Gate</span>
           <span style="font-size: 14px; color: #565D63;">Asignada a <span class="id" style="color: #17191C;">agent:claude</span></span>
         </div>
+        <div style="font-size: 12px; color: #565D63;">se cierra con evidencia (<span class="id">archive_work_order</span> + motivo)</div>
         <div style="display: flex; gap: 10px; align-items: baseline; padding: 12px; background: #F1F3F2; border-radius: 2px; font-size: 14px; line-height: 20px; color: #33383D;">
           <span style="flex: none; width: 8px; height: 8px; background: #B8322A;"></span>
           <span><span class="id">SDD-012</span> cambió el 15/09 a las 10:02. Revisá los criterios antes de retomar.</span>
@@ -182,7 +196,7 @@
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { filter: 'all' };
+    this.state = { filter: 'all', kind: 'todas' };
   }
 
   renderVals() {
@@ -197,17 +211,17 @@ class Component extends DCLogic {
     ];
 
     const orders = [
-      { id: 'WO-304', title: 'Escaneo incremental por hash de archivo', blueprint: 'SDD-012', status: 'in_progress', assignee: 'agent:claude', updated: 'hace 4 min' },
-      { id: 'WO-310', title: 'Resumen del importador en la CLI', blueprint: 'SDD-012', status: 'out_of_sync', assignee: 'agent:claude', updated: 'hace 12 min' },
-      { id: 'WO-307', title: 'Reintento de subida con idempotencia', blueprint: 'SDD-012', status: 'in_progress', assignee: 'dev:martin', updated: 'hace 38 min' },
-      { id: 'WO-311', title: 'Test de importación de 2.000 documentos', blueprint: 'SDD-012', status: 'pending', assignee: '', updated: 'hace 2 h' },
-      { id: 'WO-276', title: 'Componentes StatusBadge, IdTag, Skeleton, EmptyState y ErrorState, con tests', blueprint: 'SDD-011', status: 'pending', assignee: '', updated: 'hace 3 h' },
-      { id: 'WO-277', title: 'DataTable con encabezados ordenables y aria-sort…', blueprint: 'SDD-011', status: 'pending', assignee: '', updated: 'hace 3 h' },
-      { id: 'WO-275', title: 'Router con createBrowserRouter y AppShell con sidebar desktop, barra inferior mobile, skip link y título por ruta, con tests', blueprint: 'SDD-011', status: 'pending', assignee: '', updated: 'hace 3 h' },
-      { id: 'WO-267', title: 'tokens.css con color, tipografía, espaciado, radios y motion…', blueprint: 'SDD-011', status: 'pending', assignee: '', updated: 'hace 3 h' },
-      { id: 'WO-301', title: 'Tabla de hashes por archivo en Postgres', blueprint: 'SDD-012', status: 'done', assignee: 'agent:claude', updated: '12/09/2026' },
-      { id: 'WO-302', title: 'Detección de archivos borrados', blueprint: 'SDD-012', status: 'done', assignee: 'agent:deepseek', updated: '11/09/2026' },
-      { id: 'WO-215', title: 'Consolidación de permisos de proyecto en un único módulo', blueprint: 'SDD-006', status: 'archived', assignee: 'dev:martin', updated: '14/09/2026' }
+      { id: 'WO-304', title: 'Escaneo incremental por hash de archivo', blueprint: 'SDD-012', status: 'in_progress', assignee: 'agent:claude', kind: 'code', updated: 'hace 4 min' },
+      { id: 'WO-310', title: 'Resumen del importador en la CLI', blueprint: 'SDD-012', status: 'out_of_sync', assignee: 'agent:claude', kind: 'gate', updated: 'hace 12 min' },
+      { id: 'WO-307', title: 'Reintento de subida con idempotencia', blueprint: 'SDD-012', status: 'in_progress', assignee: 'dev:martin', kind: 'code', updated: 'hace 38 min' },
+      { id: 'WO-311', title: 'Test de importación de 2.000 documentos', blueprint: 'SDD-012', status: 'pending', assignee: '', kind: 'code', updated: 'hace 2 h' },
+      { id: 'WO-276', title: 'Componentes StatusBadge, IdTag, Skeleton, EmptyState y ErrorState, con tests', blueprint: 'SDD-011', status: 'pending', assignee: '', kind: 'code', updated: 'hace 3 h' },
+      { id: 'WO-277', title: 'DataTable con encabezados ordenables y aria-sort…', blueprint: 'SDD-011', status: 'pending', assignee: '', kind: 'code', updated: 'hace 3 h' },
+      { id: 'WO-275', title: 'Router con createBrowserRouter y AppShell con sidebar desktop, barra inferior mobile, skip link y título por ruta, con tests', blueprint: 'SDD-011', status: 'pending', assignee: '', kind: 'code', updated: 'hace 3 h' },
+      { id: 'WO-267', title: 'tokens.css con color, tipografía, espaciado, radios y motion…', blueprint: 'SDD-011', status: 'pending', assignee: '', kind: 'code', updated: 'hace 3 h' },
+      { id: 'WO-301', title: 'Tabla de hashes por archivo en Postgres', blueprint: 'SDD-012', status: 'done', assignee: 'agent:claude', kind: 'code', updated: '12/09/2026' },
+      { id: 'WO-302', title: 'Detección de archivos borrados', blueprint: 'SDD-012', status: 'done', assignee: 'agent:deepseek', kind: 'code', updated: '11/09/2026' },
+      { id: 'WO-215', title: 'Consolidación de permisos de proyecto en un único módulo', blueprint: 'SDD-006', status: 'archived', assignee: 'dev:martin', kind: 'code', updated: '14/09/2026' }
     ];
 
     const badgeBase = 'height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap;';
@@ -221,10 +235,18 @@ class Component extends DCLogic {
 
     const current = filters.find((f) => f.key === this.state.filter) || filters[0];
     const matches = (order) => {
+      if (this.state.kind !== 'todas' && order.kind !== this.state.kind) return false;
       if (current.key === 'all') return order.status !== 'archived';
       if (current.key === 'mine') return false;
       return order.status === current.key;
     };
+
+    const kinds = [
+      { key: 'todas', label: 'Todas', count: 11 },
+      { key: 'code', label: 'Código', count: 10 },
+      { key: 'gate', label: 'Gate', count: 1 }
+    ];
+    const kindLabels = { code: 'Código', gate: 'Gate' };
 
     const chipBase = 'height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 2px; font-family: inherit; font-size: 14px; cursor: pointer; white-space: nowrap;';
     const chips = filters.map((f) => {
@@ -240,7 +262,20 @@ class Component extends DCLogic {
       };
     });
 
-    const rowBase = 'display: grid; grid-template-columns: 56px minmax(0, 1fr) 60px 120px 104px 80px; column-gap: 12px; align-items: center; padding: 10px 8px; border-bottom: 1px solid #DDE1DF; font-size: 14px;';
+    const tipoChips = kinds.map((k) => {
+      const isSelected = k.key === this.state.kind;
+      return {
+        label: k.label,
+        count: k.count,
+        style: isSelected
+          ? chipBase + ' background: #17191C; color: #E9ECEB; border: 1px solid #17191C; font-weight: 600;'
+          : chipBase + ' background: #FBFCFB; color: #17191C; border: 1px solid #C9CFCD; font-weight: 400;',
+        countStyle: isSelected ? 'font-size: 13px; color: #C9CFCD;' : 'font-size: 13px; color: #565D63;',
+        pick: () => this.setState({ kind: k.key })
+      };
+    });
+
+    const rowBase = 'display: grid; grid-template-columns: 56px minmax(0, 1fr) 60px 120px 104px 104px 80px; column-gap: 12px; align-items: center; padding: 10px 8px; border-bottom: 1px solid #DDE1DF; font-size: 14px;';
     const rows = orders.filter(matches).map((o) => ({
       id: o.id,
       title: o.title,
@@ -248,6 +283,9 @@ class Component extends DCLogic {
       statusLabel: badges[o.status].label,
       badgeStyle: badges[o.status].style,
       markStyle: badges[o.status].mark,
+      kindLabel: kindLabels[o.kind],
+      isGate: o.kind === 'gate',
+      isCode: o.kind === 'code',
       assignee: o.assignee || 'Sin asignar',
       assigneeStyle: o.assignee
         ? "font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
@@ -258,11 +296,12 @@ class Component extends DCLogic {
 
     return {
       chips,
+      tipoChips,
       rows,
       hasRows: rows.length > 0,
       isEmpty: rows.length === 0,
       footer: 'Mostrando ' + rows.length + ' de ' + current.total + ' órdenes',
-      resetFilters: () => this.setState({ filter: 'all' })
+      resetFilters: () => this.setState({ filter: 'all', kind: 'todas' })
     };
   }
 }

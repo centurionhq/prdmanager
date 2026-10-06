@@ -40,6 +40,7 @@ export const workOrderContextDtoSchema = z.object({
     assignedTo: z.string().nullable(),
     sourcePath: z.string(),
     mirrorPath: z.string(),
+    deliverableKind: z.enum(['code', 'gate']).optional(),
     body: z.string(),
     acceptanceCriteria: z.array(z.string()),
   }),

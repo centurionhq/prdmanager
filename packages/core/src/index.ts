@@ -39,6 +39,7 @@ export * from './util/lock.js';
 export * from './util/paths.js';
 export * from './util/safe-fs.js';
 export * from './workorders/context.js';
+export * from './workorders/deliverable.js';
 export * from './workorders/generator.js';
 export * from './workorders/lifecycle.js';
 export * from './feedback/ingest.js';

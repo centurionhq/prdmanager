@@ -13,6 +13,8 @@ const REASON_MAX_LENGTH = 2000;
 export interface ArchiveOrderModalProps {
   readonly open: boolean;
   readonly workOrderId: string;
+  /** A gate closes with evidence (SDD-093 D8): the motive is mandatory and must name it. */
+  readonly reasonRequired?: boolean;
   readonly submitting: boolean;
   /** Set once a submit attempt fails; cleared by the caller when the modal is reopened/closed. */
   readonly error: string | null;
@@ -20,9 +22,10 @@ export interface ArchiveOrderModalProps {
   readonly onConfirm: (reason?: string) => void;
 }
 
-export function ArchiveOrderModal({ open, workOrderId, submitting, error, onClose, onConfirm }: ArchiveOrderModalProps): ReactElement {
+export function ArchiveOrderModal({ open, workOrderId, reasonRequired = false, submitting, error, onClose, onConfirm }: ArchiveOrderModalProps): ReactElement {
   const [reason, setReason] = useState('');
   const inputId = useId();
+  const hintId = useId();
 
   function reset(): void {
     setReason('');
@@ -50,7 +53,7 @@ export function ArchiveOrderModal({ open, workOrderId, submitting, error, onClos
           <Button type="button" variant="secondary" onClick={handleClose}>
             Cancelar
           </Button>
-          <Button type="button" variant="primary" disabled={submitting} onClick={handleConfirm}>
+          <Button type="button" variant="primary" disabled={submitting || (reasonRequired && reason.trim() === '')} onClick={handleConfirm}>
             Archivar
           </Button>
         </>
@@ -58,15 +61,22 @@ export function ArchiveOrderModal({ open, workOrderId, submitting, error, onClos
     >
       <div className={styles.field}>
         <label htmlFor={inputId} className={styles.label}>
-          Motivo (opcional)
+          {reasonRequired ? 'Motivo (obligatorio)' : 'Motivo (opcional)'}
         </label>
         <textarea
           id={inputId}
           className={styles.textarea}
           value={reason}
           maxLength={REASON_MAX_LENGTH}
+          required={reasonRequired}
+          aria-describedby={reasonRequired ? hintId : undefined}
           onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setReason(event.target.value)}
         />
+        {reasonRequired ? (
+          <p id={hintId} className={styles.hint}>
+            El motivo tiene que nombrar la evidencia: el comando y su salida, o el ART del gate.
+          </p>
+        ) : null}
       </div>
       {error ? (
         <p className={styles.error} role="alert">

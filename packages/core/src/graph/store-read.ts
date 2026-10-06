@@ -2,6 +2,7 @@ import neo4j, { type Driver } from 'neo4j-driver';
 import type { NodeLabel } from '../domain/schema.js';
 import { buildScopedLuceneQuery } from './lucene.js';
 import { mirrorPathFor } from './paths.js';
+import { classifyDeliverable, type DeliverableKind } from '../workorders/deliverable.js';
 import { ageDaysFrom } from './work-order-age.js';
 import { BRANCH, FULL_GRAPH, GET_NODE, LIST_WORK_ORDERS, METRICS_RAW, QUERY_WORK_ORDERS, MAX_DEPTH, SEARCH, UNTRACED_COMMITS, UP_FILTER, DOWN_FILTER, WORK_ORDER_CONTEXT } from './queries.js';
 import type { MetricsRaw, NodeDetail, SearchHit, Subgraph, UntracedCommits, WorkOrderContextRaw, WorkOrderPage, WorkOrderQueryFilter, WorkOrderSummary } from './types.js';
@@ -57,9 +58,15 @@ export async function listWorkOrders(
   return rows.map(withDates);
 }
 
-type WorkOrderRow = Omit<WorkOrderSummary, 'mirrorPath' | 'ageDays'>;
+// La fila cruda de Cypher puede no traer el campo (WO sin `deliverable_kind` persistido).
+type WorkOrderRow = Omit<WorkOrderSummary, 'mirrorPath' | 'ageDays' | 'deliverableKind'> & { deliverableKind?: string | null };
 
-const withMirrorPath = (row: WorkOrderRow): WorkOrderSummary => ({ ...row, mirrorPath: mirrorPathFor(row.id) });
+/** SDD-093 D5: el campo persistido gana; sin él la clase se deriva del título al leer (sin backfill). */
+function deliverableKindOf(row: WorkOrderRow): DeliverableKind {
+  return row.deliverableKind === 'code' || row.deliverableKind === 'gate' ? row.deliverableKind : classifyDeliverable(row.title);
+}
+
+const withMirrorPath = (row: WorkOrderRow): WorkOrderSummary => ({ ...row, mirrorPath: mirrorPathFor(row.id), deliverableKind: deliverableKindOf(row) });
 
 /** Sólo `listWorkOrders` trae fechas; `queryWorkOrders` no debe inventar `ageDays` (SDD-075 D1). */
 const withDates = (row: WorkOrderRow): WorkOrderSummary => ({ ...withMirrorPath(row), ageDays: ageDaysFrom(row.createdAt ?? null) });

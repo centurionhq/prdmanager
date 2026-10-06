@@ -3,6 +3,7 @@
  * context (`getWorkOrderContext`) in a `Drawer`, plus "Tomar orden" (`claimWorkOrder`) and "Completar"
  * (`completeWorkOrder`) — matching `Ordenes.dc.html`'s "Resumen del importador" aside.
  */
+import { ClipboardCheck, GitCommitHorizontal } from 'lucide-react';
 import { useEffect, useState, type ReactElement } from 'react';
 import type { WorkOrderContextDto } from '@prdm/contracts';
 import type { WorkOrderSummary } from '@prdm/core';
@@ -13,6 +14,7 @@ import { Button, Drawer, ErrorState, IdTag, Severity, Skeleton, StatusBadge, use
 import { ArchiveOrderModal } from './ArchiveOrderModal.js';
 import { ClaimOrderModal } from './ClaimOrderModal.js';
 import { CompleteOrderModal } from './CompleteOrderModal.js';
+import { asDeliverableKind, deliverableCopy } from './deliverable-label.js';
 import { asWorkOrderStatus } from './ordenes-filters.js';
 import styles from './OrderDrawer.module.css';
 
@@ -113,9 +115,15 @@ export function OrderDrawer({ orgSlug, projectSlug, workOrderId, onClose, onChan
 
   const status = context ? asWorkOrderStatus(context.workOrder.status) : undefined;
   const canClaim = context?.workOrder.status === 'pending';
-  const canComplete = context?.workOrder.status === 'in_progress' || context?.workOrder.status === 'out_of_sync';
+  const statusAllowsComplete = context?.workOrder.status === 'in_progress' || context?.workOrder.status === 'out_of_sync';
   // The only statuses `@prdm/core`'s `archiveWorkOrder` accepts (lifecycle.ts): never `done`/`archived`.
-  const canArchive = canClaim || canComplete;
+  const statusAllowsArchive = canClaim || statusAllowsComplete;
+  const copy = deliverableCopy(context?.workOrder.deliverableKind);
+  const isGate = asDeliverableKind(context?.workOrder.deliverableKind) === 'gate';
+  const DeliverableIcon = isGate ? ClipboardCheck : GitCommitHorizontal;
+  // A gate is not completed with a commit (FB-157): its closure is archive + motive (SDD-093 D8).
+  const canComplete = Boolean(context) && statusAllowsComplete && !isGate;
+  const canArchive = Boolean(context) && statusAllowsArchive;
 
   return (
     <>
@@ -167,7 +175,12 @@ export function OrderDrawer({ orgSlug, projectSlug, workOrderId, onClose, onChan
                   'Sin asignar'
                 )}
               </span>
+              <span className={styles.deliverable}>
+                <DeliverableIcon aria-hidden="true" size={14} className={styles.deliverableIcon} />
+                {copy.label}
+              </span>
             </div>
+            <p className={styles.closureRoute}>{copy.legend}</p>
 
             {context.drift.length > 0 ? (
               <div className={styles.driftBox}>
@@ -262,6 +275,7 @@ export function OrderDrawer({ orgSlug, projectSlug, workOrderId, onClose, onChan
       <ArchiveOrderModal
         open={archiveOpen}
         workOrderId={workOrderId}
+        reasonRequired={isGate}
         submitting={archiving}
         error={archiveError}
         onClose={() => {

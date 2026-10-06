@@ -153,6 +153,8 @@ export const workOrderSchema = base.extend({
   resolved_by: z.array(z.string().regex(SHA_PATTERN)).default([]),
   impacts_paths: z.array(z.string().min(1).max(300)).default([]),
   source_task: z.string().max(64).optional(),
+  /** SDD-093 D4: clase de entregable declarada/detectada. Opcional y SIN default (un default cambiaría el content_hash de todos los WO existentes). */
+  deliverable_kind: z.enum(['code', 'gate']).optional(),
   blueprint_hashes: z.record(docId, z.string().regex(/^[0-9a-f]{64}$/)).default({}),
   /**
    * SDD-018 "Archivado de Work Orders": same hash-neutral pattern as `featureSchema`'s `closed_at`/

@@ -114,3 +114,25 @@
     min-height: var(--hit-target);
   }
 }
+
+.deliverable {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.deliverableIcon {
+  flex-shrink: 0;
+}
+
+.deliverableLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}

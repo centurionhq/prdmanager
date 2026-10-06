@@ -4,6 +4,7 @@ import { checkLifecycle } from '../lifecycle/check.js';
 import type { FieldValue } from '../parser/frontmatter-edit.js';
 import { normalizeText, sha256 } from '../util/hash.js';
 import { nextId, renderDocument, slugify, todayIso } from '../util/ids.js';
+import { classifyDeliverable, parseDeliverableDeclaration, type DeliverableKind } from './deliverable.js';
 
 type WorkOrderDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'WO' }> };
 type BlueprintDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'SDD' | 'ADR' }> };
@@ -30,13 +31,17 @@ export function extractChecklistItems(body: string): ChecklistItem[] {
 }
 
 const PATHS_OVERRIDE_LINE = /^paths:\s*(.+)$/i;
+/** Any `deliverable:` line, valid or not: invalid values are ignored but still belong to the override block. */
+const DELIVERABLE_LINE_SHAPE = /^deliverable:/i;
 
 interface TaskItem extends ChecklistItem {
   /** Explicit `paths: a.ts, b.ts` line right under the item (SDD-068 D3); wins over the textual match. */
   paths?: string[];
+  /** Explicit `deliverable: gate|code` line under the item (SDD-093 D3); wins over the text heuristic. */
+  deliverable?: DeliverableKind;
 }
 
-/** Like `extractTasks`, but also reads the `paths:` override line directly below an item (not counted as an item). */
+/** Like `extractTasks`, but also reads the consecutive `paths:`/`deliverable:` override lines directly below an item (not counted as items). */
 function extractTasksWithPaths(body: string): TaskItem[] {
   const heading = TASKS_HEADING.exec(body);
   if (!heading) return [];
@@ -48,9 +53,26 @@ function extractTasksWithPaths(body: string): TaskItem[] {
   lines.forEach((line, i) => {
     const m = CHECKLIST_LINE.exec(line);
     if (!m) return;
-    const override = PATHS_OVERRIDE_LINE.exec(lines[i + 1] ?? '');
-    const paths = override ? (override[1] ?? '').split(',').map((p) => p.trim()).filter((p) => p.length > 0) : [];
-    items.push({ done: (m[1] ?? '').toLowerCase() === 'x', text: (m[2] ?? '').trim(), ...(paths.length > 0 ? { paths } : {}) });
+    let paths: string[] = [];
+    let deliverable: DeliverableKind | undefined;
+    for (let j = i + 1; j < lines.length; j++) {
+      const next = lines[j] ?? '';
+      const pathsMatch = PATHS_OVERRIDE_LINE.exec(next);
+      const declared = parseDeliverableDeclaration(next);
+      if (pathsMatch) {
+        if (paths.length === 0) paths = (pathsMatch[1] ?? '').split(',').map((p) => p.trim()).filter((p) => p.length > 0);
+      } else if (declared) {
+        deliverable ??= declared;
+      } else if (!DELIVERABLE_LINE_SHAPE.test(next)) {
+        break;
+      }
+    }
+    items.push({
+      done: (m[1] ?? '').toLowerCase() === 'x',
+      text: (m[2] ?? '').trim(),
+      ...(paths.length > 0 ? { paths } : {}),
+      ...(deliverable ? { deliverable } : {}),
+    });
   });
   return items;
 }
@@ -120,7 +142,18 @@ function sourceTaskOf(blueprintId: string, text: string): string {
 
 const INHERITED_PATHS_DECLARATION = 'heredados del blueprint (el ítem no nombra archivos)';
 
-function buildBody(blueprint: BlueprintDoc, taskText: string, id: string, derived: { paths: string[]; source: ImpactPathsSource }): string {
+const GATE_CRITERIA = [
+  '- [ ] Evidencia registrada (comando + salida + ART o tarjeta del gate)',
+  '- [ ] Cerrada con `archive_work_order` + motivo que nombra la evidencia',
+];
+
+const codeCriteria = (blueprintId: string, id: string): string[] => [
+  `- [ ] Implementación realizada dentro del código gobernado por ${blueprintId}`,
+  '- [ ] Tests que cubren el cambio',
+  `- [ ] Commit realizado con el trailer \`Refs: ${id}\``,
+];
+
+function buildBody(blueprint: BlueprintDoc, taskText: string, id: string, derived: { paths: string[]; source: ImpactPathsSource }, kind: DeliverableKind | undefined): string {
   const pathsDeclaration = derived.source === 'inherited' ? INHERITED_PATHS_DECLARATION : derived.paths.join(', ');
   const features = blueprint.frontmatter.architects.join(', ');
   return [
@@ -133,14 +166,12 @@ function buildBody(blueprint: BlueprintDoc, taskText: string, id: string, derive
     `paths: ${pathsDeclaration}`,
     '',
     '## Criterios de aceptación',
-    `- [ ] Implementación realizada dentro del código gobernado por ${blueprint.node.id}`,
-    '- [ ] Tests que cubren el cambio',
-    `- [ ] Commit realizado con el trailer \`Refs: ${id}\``,
+    ...(kind === 'gate' ? GATE_CRITERIA : codeCriteria(blueprint.node.id, id)),
   ].join('\n');
 }
 
 /** Every generated work order is born `pending` (ADR-002 D9/PRD-002 lifecycle): checking off a task never fabricates history. */
-function buildFields(blueprint: BlueprintDoc, id: string, title: string, sourceTask: string, now: Date, impactsPaths: string[]): Record<string, FieldValue> {
+function buildFields(blueprint: BlueprintDoc, id: string, title: string, sourceTask: string, now: Date, impactsPaths: string[], kind: DeliverableKind | undefined): Record<string, FieldValue> {
   return {
     id,
     type: 'WO',
@@ -150,6 +181,7 @@ function buildFields(blueprint: BlueprintDoc, id: string, title: string, sourceT
     implements: [blueprint.node.id],
     impacts_paths: impactsPaths,
     source_task: sourceTask,
+    ...(kind ? { deliverable_kind: kind } : {}),
     tags: blueprint.node.tags,
   };
 }
@@ -176,8 +208,10 @@ export function planWorkOrders(blueprint: ParsedDoc, existing: ParsedDoc[], opti
     const folder = options.folder ?? `${options.docsDir}/work-orders`;
     const path = `${folder}/${id}-${slugify(task.text)}.md`;
     const derived = deriveImpactPaths(task.text, task.paths, blueprint.impactsPaths);
-    const fields = buildFields(blueprint, id, title, sourceTask, options.now, derived.paths);
-    const content = renderDocument(fields, buildBody(blueprint, task.text, id, derived));
+    // SDD-093 D3: declared wins; else the heuristic only ever persists `gate` (absent already means `code`).
+    const kind = task.deliverable ?? (classifyDeliverable(task.text) === 'gate' ? 'gate' : undefined);
+    const fields = buildFields(blueprint, id, title, sourceTask, options.now, derived.paths, kind);
+    const content = renderDocument(fields, buildBody(blueprint, task.text, id, derived, kind));
 
     planned.push({ id, path, title, status: 'pending', content });
   }

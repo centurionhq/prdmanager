@@ -2,6 +2,7 @@ import type { NodeLabel, ParsedDoc } from '../domain/schema.js';
 import type { CommitInfo } from '../sync/git.js';
 import type { GovernedState } from '../sync/monitor.js';
 import type { ProjectRef } from '../project/types.js';
+import type { DeliverableKind } from '../workorders/deliverable.js';
 
 export interface GraphSnapshot {
   docs: ParsedDoc[];
@@ -88,6 +89,8 @@ export interface WorkOrderSummary {
    * La proyección paginada de `queryWorkOrders` (PRD-042 R2 / SDD-064) queda congelada y por eso lo
    * deja sin definir; la marca NO cierra ni cambia el estado de la WO (SDD-076 D3). */
   landedCommitSha?: string | null;
+  /** Clase de entregable (SDD-093 D5): el `deliverable_kind` persistido si está; si no, `classifyDeliverable(title)`. */
+  deliverableKind?: DeliverableKind;
 }
 
 export type WorkOrderActorKind = 'agent' | 'dev' | 'unassigned';
