@@ -5,7 +5,7 @@ import type { EngineOps, ProjectEngine, ProjectSettings, RecoverResult, RefreshR
 import type { FieldValue } from '../../src/parser/frontmatter-edit.js';
 import type { ScanResult } from '../../src/parser/scan.js';
 import type { GraphStore } from '../../src/graph/types.js';
-import { triageFeedback } from '../../src/feedback/link.js';
+import { dismissFeedback, markDuplicate, triageFeedback, triageFeedbackBatch } from '../../src/feedback/link.js';
 
 const prd = (): ParsedDoc => doc('id: PRD-001\ntype: PRD\ntitle: Product');
 const fb = (status = 'new'): ParsedDoc => doc(`id: FB-001\ntype: FB\ntitle: Feedback\nstatus: ${status}`);
@@ -128,5 +128,76 @@ describe('triageFeedback', () => {
     engine.docs = engine.docs.map((d) => (d.node.id === 'FB-001' ? applyFields(d, { informs: ['PRD-002'] }) : d));
     const result = await triageFeedback(engine, 'FB-001', { informs: ['PRD-001'] });
     expect(result.linkedTo.sort()).toEqual(['PRD-001', 'PRD-002']);
+  });
+});
+
+const fb2 = (): ParsedDoc => doc('id: FB-002\ntype: FB\ntitle: Other\nstatus: new', 'body', 'docs/FB-002.md');
+const statusOf = (engine: FakeEngine, id: string): Record<string, unknown> => engine.docs.find((d) => d.node.id === id)!.frontmatter as Record<string, unknown>;
+
+describe('dismissFeedback', () => {
+  test('dismisses a new feedback and records the reason', async () => {
+    const engine = new FakeEngine([fb()]);
+    const result = await dismissFeedback(engine, 'FB-001', { reason: 'ruido' });
+    expect(result).toEqual({ id: 'FB-001', status: 'dismissed', reason: 'ruido', applied: 'immediate' });
+    expect(statusOf(engine, 'FB-001')).toMatchObject({ status: 'dismissed', dismiss_reason: 'ruido' });
+  });
+
+  test('reports applied: deferred for a collab-origin document', async () => {
+    const engine = new FakeEngine([fb()], new Set(['FB-001']));
+    const result = await dismissFeedback(engine, 'FB-001', { reason: 'ruido' });
+    expect(result.applied).toBe('deferred');
+  });
+
+  test('rejects an already-triaged, missing or non-feedback target', async () => {
+    await expect(dismissFeedback(new FakeEngine([fb('triaged')]), 'FB-001')).rejects.toThrow(/only new feedback can be dismissed/);
+    await expect(dismissFeedback(new FakeEngine([prd()]), 'FB-404')).rejects.toThrow(/not found/);
+    await expect(dismissFeedback(new FakeEngine([prd()]), 'PRD-001')).rejects.toThrow(/is not Feedback/);
+  });
+
+  test('without a reason it returns reason: null and writes no dismiss_reason', async () => {
+    const engine = new FakeEngine([fb()]);
+    const result = await dismissFeedback(engine, 'FB-001');
+    expect(result.reason).toBeNull();
+    expect(statusOf(engine, 'FB-001')).not.toHaveProperty('dismiss_reason');
+  });
+});
+
+describe('markDuplicate', () => {
+  test('marks a new feedback as a duplicate of another feedback', async () => {
+    const engine = new FakeEngine([fb(), fb2()]);
+    const result = await markDuplicate(engine, 'FB-001', { duplicateOf: 'FB-002' });
+    expect(result).toEqual({ id: 'FB-001', status: 'duplicate', duplicateOf: 'FB-002', applied: 'immediate' });
+    expect(statusOf(engine, 'FB-001').duplicate_of).toBe('FB-002');
+  });
+
+  test('rejects bad targets, self-duplicates and already-triaged feedback', async () => {
+    await expect(markDuplicate(new FakeEngine([fb()]), 'FB-001', { duplicateOf: 'FB-404' })).rejects.toThrow(/not found/);
+    await expect(markDuplicate(new FakeEngine([fb(), prd()]), 'FB-001', { duplicateOf: 'PRD-001' })).rejects.toThrow(/is not Feedback/);
+    await expect(markDuplicate(new FakeEngine([fb()]), 'FB-001', { duplicateOf: 'FB-001' })).rejects.toThrow(/duplicate of itself/);
+    await expect(markDuplicate(new FakeEngine([fb('triaged'), fb2()]), 'FB-001', { duplicateOf: 'FB-002' })).rejects.toThrow(/only new feedback can be marked as duplicate/);
+  });
+});
+
+describe('triageFeedbackBatch', () => {
+  test('dedupes ids, keeps input order and reports per-item failures without aborting', async () => {
+    const engine = new FakeEngine([fb()]);
+    const result = await triageFeedbackBatch(engine, { action: 'dismiss', ids: ['FB-001', 'FB-001', 'FB-404'] });
+    expect(result.results).toHaveLength(2);
+    expect(result.results.map((r) => r.id)).toEqual(['FB-001', 'FB-404']);
+    expect(result.results[0]).toEqual({ id: 'FB-001', ok: true });
+    expect(result.results[1]).toMatchObject({ id: 'FB-404', ok: false });
+    expect(result.results[1]!.error).toMatch(/not found/);
+    expect(result).toMatchObject({ ok: 1, failed: 1 });
+  });
+
+  test('duplicate without duplicateOf is rejected', async () => {
+    await expect(triageFeedbackBatch(new FakeEngine([fb()]), { action: 'duplicate', ids: ['FB-001'] })).rejects.toThrow(/requires "duplicateOf"/);
+  });
+
+  test('duplicate with duplicateOf links every item', async () => {
+    const engine = new FakeEngine([fb(), fb2()]);
+    const result = await triageFeedbackBatch(engine, { action: 'duplicate', ids: ['FB-001'], duplicateOf: 'FB-002' });
+    expect(result.ok).toBe(1);
+    expect(statusOf(engine, 'FB-001').duplicate_of).toBe('FB-002');
   });
 });

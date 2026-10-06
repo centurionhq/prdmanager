@@ -3,8 +3,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { attachArtifact, ingestArtifactFile, MAX_ARTIFACT_BYTES } from '../../src/artifacts/ingest.js';
 import type { PrdmConfig } from '../../src/config.js';
 import { Engine } from '../../src/engine.js';
-import { createFeatureRequest, submitFeedback } from '../../src/feedback/ingest.js';
-import { triageFeedback } from '../../src/feedback/link.js';
+import { createFeatureRequest, deriveFeedbackTitle, submitFeedback } from '../../src/feedback/ingest.js';
+import { dismissFeedback, markDuplicate, triageFeedback, triageFeedbackBatch } from '../../src/feedback/link.js';
 import type { Neo4jGraphDatabase } from '../../src/graph/database.js';
 import type { GraphStore } from '../../src/graph/types.js';
 import { createFixtureRepo, openTestDb, removeDir, testConfig, writeFiles } from '@prdm/testkit';
@@ -212,5 +212,49 @@ describe('triageFeedback (SDD-012, WO-330)', () => {
   test('rejects an informs target that does not exist', async () => {
     const submitted = await submitFeedback(engine, { text: 'contenido sin relación aún, otra vez', source: 'chat' });
     await expect(triageFeedback(engine, submitted.id, { informs: ['PRD-404'] })).rejects.toThrow(/not found/);
+  });
+});
+
+describe('feedback title, dismiss, duplicate and batch (SDD-065)', () => {
+  const fresh = async (text: string) => (await submitFeedback(engine, { text, source: 'support' })).id;
+  const frontmatterOf = async (id: string) => (await engine.scan()).docs.find((d) => d.node.id === id)!.frontmatter as Record<string, unknown>;
+
+  test('deriveFeedbackTitle strips markdown marks, truncates and skips mark-only lines', () => {
+    expect(deriveFeedbackTitle('## Feedback\n\nEl botón es azul')).toBe('El botón es azul');
+    expect(deriveFeedbackTitle('> **Nota**')).toBe('Nota');
+    expect(deriveFeedbackTitle('a'.repeat(200))).toHaveLength(120);
+    expect(deriveFeedbackTitle('###\n\n####')).toBe('');
+  });
+
+  test('submitFeedback never titles a document with the literal "## Feedback" heading', async () => {
+    const id = await fresh('## Feedback\n\nCustomers keep asking for dark mode.');
+    const doc = (await engine.scan()).docs.find((d) => d.node.id === id)!;
+    expect(doc.node.title).toBe('Customers keep asking for dark mode.');
+    expect(doc.node.body).toContain('## Feedback');
+  });
+
+  test('dismissFeedback persists status and reason, and cannot run twice', async () => {
+    const id = await fresh('ruido repetido de prueba número uno');
+    await dismissFeedback(engine, id, { reason: 'ruido repetido' });
+    expect(await frontmatterOf(id)).toMatchObject({ status: 'dismissed', dismiss_reason: 'ruido repetido' });
+    expect((await store.getNode(id))?.node).toMatchObject({ status: 'dismissed' });
+    await expect(dismissFeedback(engine, id)).rejects.toThrow(/only new feedback can be dismissed/);
+  });
+
+  test('markDuplicate persists duplicate_of and rejects an unknown target', async () => {
+    const a = await fresh('primer reporte de prueba sobre duplicados');
+    const b = await fresh('segundo reporte de prueba sobre duplicados');
+    await markDuplicate(engine, b, { duplicateOf: a });
+    expect(await frontmatterOf(b)).toMatchObject({ status: 'duplicate', duplicate_of: a });
+    const c = await fresh('tercer reporte de prueba sobre duplicados');
+    await expect(markDuplicate(engine, c, { duplicateOf: 'FB-404' })).rejects.toThrow(/not found/);
+  });
+
+  test('triageFeedbackBatch reports per item when one feedback is already triaged', async () => {
+    const [a, b, c] = [await fresh('lote de prueba alfa'), await fresh('lote de prueba beta'), await fresh('lote de prueba gamma')] as [string, string, string];
+    await triageFeedback(engine, b, { root: true });
+    const result = await triageFeedbackBatch(engine, { action: 'dismiss', ids: [a, b, c], reason: 'lote' });
+    expect(result).toMatchObject({ action: 'dismiss', ok: 2, failed: 1 });
+    expect(result.results.map((r) => [r.id, r.ok])).toEqual([[a, true], [b, false], [c, true]]);
   });
 });

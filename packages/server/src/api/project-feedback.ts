@@ -10,11 +10,23 @@
  * (`scan()`/drift/graph/MCP) until that document is next republished — a triager acting on this endpoint
  * needs the link to take effect now, so this is rejected outright rather than silently deferred.
  */
-import { submitFeedback, triageFeedback, triageText } from '@prdm/core';
-import { can, submitFeedbackInputSchema, type CandidateDto, type InboxItemDto } from '@prdm/contracts';
+import { dismissFeedback, markDuplicate, submitFeedback, triageFeedback, triageFeedbackBatch, triageText } from '@prdm/core';
+import {
+  can,
+  DEFAULT_INBOX_LIMIT,
+  dismissFeedbackInputSchema,
+  inboxQuerySchema,
+  markDuplicateInputSchema,
+  submitFeedbackInputSchema,
+  triageBatchInputSchema,
+  type CandidateDto,
+  type InboxItemDto,
+  type InboxResponseDto,
+  type TriageBatchItemResultDto,
+} from '@prdm/contracts';
 import type { Neo4jGraphDatabase } from '@prdm/core';
 import { createTenantDb } from '@prdm/db';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { Pool } from 'pg';
 import { z } from 'zod';
 import type { Auth } from '../auth/build-auth.js';
@@ -41,11 +53,6 @@ interface ProjectRouteParams {
 interface FeedbackDocRouteParams extends ProjectRouteParams {
   docId: string;
 }
-
-const inboxQuerySchema = z.object({
-  status: z.string().max(40).optional(),
-  kind: z.enum(['FB', 'ART']).optional(),
-});
 
 const triageInputSchema = z.object({
   informs: z.array(z.string()).optional(),
@@ -91,7 +98,7 @@ export function registerProjectFeedbackRoutes(app: FastifyInstance, opts: Regist
   app.get<{ Params: ProjectRouteParams; Querystring: Record<string, unknown> }>(
     '/api/app/organizations/:orgSlug/projects/:projectSlug/inbox',
     { config: { access: { kind: 'session' } } },
-    async (req): Promise<{ items: InboxItemDto[] }> => {
+    async (req): Promise<InboxResponseDto> => {
       const session = await requireAppSession(auth, req, env.publicUrl);
       const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
       const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
@@ -99,15 +106,19 @@ export function registerProjectFeedbackRoutes(app: FastifyInstance, opts: Regist
 
       const parsedQuery = inboxQuerySchema.safeParse(req.query);
       if (!parsedQuery.success) throw new ValidationError('invalid query');
+      const { kind, status, source, q, limit = DEFAULT_INBOX_LIMIT, offset = 0 } = parsedQuery.data;
+      const needle = q?.toLowerCase();
 
       const neo4j = requireNeo4j(opts.neo4j);
       const engine = resolvePgProjectEngine(pool, neo4j, org.id, project);
       const scan = await engine.scan();
 
-      const items: InboxItemDto[] = scan.docs
+      const filtered: InboxItemDto[] = scan.docs
         .filter((d) => d.node.label === 'Feedback' || d.node.label === 'Artifact')
-        .filter((d) => !parsedQuery.data.kind || d.frontmatter.type === parsedQuery.data.kind)
-        .filter((d) => !parsedQuery.data.status || d.node.status === parsedQuery.data.status)
+        .filter((d) => !kind || d.frontmatter.type === kind)
+        .filter((d) => !status || d.node.status === status)
+        .filter((d) => !source || ((d.frontmatter.type === 'FB' || d.frontmatter.type === 'ART') && d.frontmatter.source === source))
+        .filter((d) => !needle || [d.node.id, d.node.title, d.node.body].some((text) => text.toLowerCase().includes(needle)))
         .map((d) => ({
           id: d.node.id,
           kind: d.frontmatter.type as 'FB' | 'ART',
@@ -117,9 +128,12 @@ export function registerProjectFeedbackRoutes(app: FastifyInstance, opts: Regist
           source: d.frontmatter.type === 'FB' || d.frontmatter.type === 'ART' ? d.frontmatter.source : 'other',
           links: d.frontmatter.type === 'FB' ? d.frontmatter.informs : d.frontmatter.type === 'ART' ? d.frontmatter.provides_context_for : [],
           receivedAt: d.node.createdAt ?? new Date(0).toISOString(),
-        }));
+          duplicateOf: d.frontmatter.type === 'FB' ? (d.frontmatter.duplicate_of ?? null) : null,
+        }))
+        // Deterministic order so offset pages never overlap: newest first, id as the tiebreaker.
+        .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt) || b.id.localeCompare(a.id));
 
-      return { items };
+      return { items: filtered.slice(offset, offset + limit), total: filtered.length };
     },
   );
 
@@ -193,6 +207,141 @@ export function registerProjectFeedbackRoutes(app: FastifyInstance, opts: Regist
         });
 
       return { result };
+    },
+  );
+
+  /** Same collab guard as `/triage`: a `collab` write would only queue in `pending_editable_patch`. `false` once 409 is sent. */
+  async function isTriageable(orgId: string, projectId: string, docId: string, reply: FastifyReply): Promise<boolean> {
+    const existing = await createTenantDb(pool).forOrg(orgId).forProject(projectId).documents.findByDocId(docId);
+    if (!existing) throw new NotFoundError();
+    if (existing.document.origin !== 'collab') return true;
+    void reply.code(409).send({ error: 'pending_republish', message: `${docId} has a live working copy; the change will apply once it is republished` });
+    return false;
+  }
+
+  app.post<{ Params: FeedbackDocRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback/:docId/dismiss',
+    { config: { access: { kind: 'session' } } },
+    async (req, reply) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+      const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+      if (!can(subject, 'edit_document')) throw new ForbiddenError();
+
+      const parsed = dismissFeedbackInputSchema.safeParse(req.body ?? {});
+      if (!parsed.success) throw new ValidationError('invalid body');
+      if (!(await isTriageable(org.id, project.id, req.params.docId, reply))) return;
+
+      const engine = resolvePgProjectEngine(pool, requireNeo4j(opts.neo4j), org.id, project);
+      let result;
+      try {
+        result = await dismissFeedback(engine, req.params.docId, parsed.data);
+      } catch (err) {
+        throw new ConflictError(err instanceof Error ? err.message : String(err));
+      }
+
+      await createTenantDb(pool)
+        .forOrg(org.id)
+        .auditLog.record({
+          projectId: project.id,
+          actorType: 'user',
+          actorId: session.user.id,
+          action: 'feedback.dismissed',
+          target: req.params.docId,
+          metadata: { reason: parsed.data.reason ?? null },
+          ip: req.ip,
+          userAgent: userAgentOf(req),
+        });
+
+      return { result };
+    },
+  );
+
+  app.post<{ Params: FeedbackDocRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback/:docId/duplicate',
+    { config: { access: { kind: 'session' } } },
+    async (req, reply) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+      const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+      if (!can(subject, 'edit_document')) throw new ForbiddenError();
+
+      const parsed = markDuplicateInputSchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError('invalid body');
+      if (!(await isTriageable(org.id, project.id, req.params.docId, reply))) return;
+
+      const engine = resolvePgProjectEngine(pool, requireNeo4j(opts.neo4j), org.id, project);
+      let result;
+      try {
+        result = await markDuplicate(engine, req.params.docId, parsed.data);
+      } catch (err) {
+        throw new ConflictError(err instanceof Error ? err.message : String(err));
+      }
+
+      await createTenantDb(pool)
+        .forOrg(org.id)
+        .auditLog.record({
+          projectId: project.id,
+          actorType: 'user',
+          actorId: session.user.id,
+          action: 'feedback.marked_duplicate',
+          target: req.params.docId,
+          metadata: { duplicateOf: parsed.data.duplicateOf },
+          ip: req.ip,
+          userAgent: userAgentOf(req),
+        });
+
+      return { result };
+    },
+  );
+
+  app.post<{ Params: ProjectRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback/triage-batch',
+    { config: { access: { kind: 'session' } } },
+    async (req) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+      const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+      if (!can(subject, 'edit_document')) throw new ForbiddenError();
+
+      const parsed = triageBatchInputSchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError('invalid body');
+      const { action, ids } = parsed.data;
+
+      // One listing for the whole batch instead of a lookup per id; `collab` ids never reach core.
+      const documents = await createTenantDb(pool).forOrg(org.id).forProject(project.id).documents.list();
+      const collabIds = new Set(documents.filter((d) => d.origin === 'collab').map((d) => d.docId));
+      const runnableIds = ids.filter((id) => !collabIds.has(id));
+
+      let coreResults: TriageBatchItemResultDto[] = [];
+      if (runnableIds.length > 0) {
+        const engine = resolvePgProjectEngine(pool, requireNeo4j(opts.neo4j), org.id, project);
+        try {
+          coreResults = (await triageFeedbackBatch(engine, { ...parsed.data, ids: runnableIds })).results;
+        } catch (err) {
+          throw new ConflictError(err instanceof Error ? err.message : String(err));
+        }
+      }
+
+      const byId = new Map(coreResults.map((r) => [r.id, r]));
+      const results: TriageBatchItemResultDto[] = [...new Set(ids)].map((id) => byId.get(id) ?? { id, ok: false, error: 'pending_republish' });
+      const ok = results.filter((r) => r.ok).length;
+      const failed = results.length - ok;
+
+      await createTenantDb(pool)
+        .forOrg(org.id)
+        .auditLog.record({
+          projectId: project.id,
+          actorType: 'user',
+          actorId: session.user.id,
+          action: 'feedback.triage_batched',
+          target: ids.join(','),
+          metadata: { action, ok, failed, ids },
+          ip: req.ip,
+          userAgent: userAgentOf(req),
+        });
+
+      return { result: { action, results, ok, failed } };
     },
   );
 }

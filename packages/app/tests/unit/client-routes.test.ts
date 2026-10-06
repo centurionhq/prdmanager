@@ -11,6 +11,7 @@ import {
   claimWorkOrder,
   completeWorkOrder,
   createDocument,
+  dismissFeedback,
   getDriftIssues,
   getDriftReportDetail,
   getFeatureBranch,
@@ -25,10 +26,12 @@ import {
   listCodeRefs,
   listCommits,
   listInbox,
+  markDuplicate,
   resendInvitation,
   searchGraph,
   setWorkProfile,
   submitFeedback,
+  triageBatch,
   triageFeedback,
 } from '../../src/api/client.js';
 
@@ -166,19 +169,29 @@ describe('submitFeedback', () => {
 });
 
 describe('listInbox', () => {
-  it('GETs the inbox with no filters and unwraps { items }', async () => {
-    const items = [{ id: 'FB-001', kind: 'FB' }];
-    const spy = spyOnRequest().mockResolvedValue({ items });
+  it('GETs the inbox with no filters and returns the { items, total } envelope', async () => {
+    const envelope = { items: [{ id: 'FB-001', kind: 'FB' }], total: 1 };
+    const spy = spyOnRequest().mockResolvedValue(envelope);
 
-    await expect(listInbox('acme', 'factory')).resolves.toEqual(items);
+    await expect(listInbox('acme', 'factory')).resolves.toEqual(envelope);
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/inbox');
   });
 
   it('GETs the inbox with a status filter as a query param', async () => {
-    const spy = spyOnRequest().mockResolvedValue({ items: [] });
+    const spy = spyOnRequest().mockResolvedValue({ items: [], total: 0 });
 
     await listInbox('acme', 'factory', { status: 'new' });
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/inbox?status=new');
+  });
+
+  it('sends the SDD-065 filtros, búsqueda and paginado params (kind, source, q, limit, offset)', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ items: [], total: 0 });
+
+    await listInbox('acme', 'factory', { status: 'new', kind: 'FB', source: 'slack', q: 'importador lento', limit: 200, offset: 25 });
+
+    expect(spy).toHaveBeenCalledWith(
+      '/api/app/organizations/acme/projects/factory/inbox?status=new&kind=FB&source=slack&q=importador+lento&limit=200&offset=25',
+    );
   });
 });
 
@@ -201,6 +214,45 @@ describe('triageFeedback', () => {
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/feedback/FB-001/triage', {
       method: 'POST',
       body: { informs: ['FR-001'] },
+    });
+  });
+});
+
+describe('dismissFeedback', () => {
+  it('POSTs the reason and unwraps { result }', async () => {
+    const result = { id: 'FB-001', status: 'dismissed', reason: 'x', applied: 'immediate' };
+    const spy = spyOnRequest().mockResolvedValue({ result });
+
+    await expect(dismissFeedback('acme', 'factory', 'FB-001', { reason: 'x' })).resolves.toEqual(result);
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/feedback/FB-001/dismiss', {
+      method: 'POST',
+      body: { reason: 'x' },
+    });
+  });
+});
+
+describe('markDuplicate', () => {
+  it('POSTs duplicateOf and unwraps { result }', async () => {
+    const result = { id: 'FB-001', status: 'duplicate', duplicateOf: 'FB-002', applied: 'immediate' };
+    const spy = spyOnRequest().mockResolvedValue({ result });
+
+    await expect(markDuplicate('acme', 'factory', 'FB-001', { duplicateOf: 'FB-002' })).resolves.toEqual(result);
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/feedback/FB-001/duplicate', {
+      method: 'POST',
+      body: { duplicateOf: 'FB-002' },
+    });
+  });
+});
+
+describe('triageBatch', () => {
+  it('POSTs the batch and unwraps { result }', async () => {
+    const result = { action: 'dismiss', results: [{ id: 'FB-001', ok: true }], ok: 1, failed: 0 };
+    const spy = spyOnRequest().mockResolvedValue({ result });
+
+    await expect(triageBatch('acme', 'factory', { action: 'dismiss', ids: ['FB-001', 'FB-002'] })).resolves.toEqual(result);
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/feedback/triage-batch', {
+      method: 'POST',
+      body: { action: 'dismiss', ids: ['FB-001', 'FB-002'] },
     });
   });
 });

@@ -179,6 +179,10 @@ export const feedbackSchema = base.extend({
   informs: idList,
   /** Same root exemption as Artifact; Feature documents (MRD/PRD/FR) deliberately have no such exemption. */
   root: z.boolean().optional(),
+  /** SDD-065 D5: FB id this feedback duplicates. Optional, no default (hash-neutral for existing docs). */
+  duplicate_of: docId.optional(),
+  /** SDD-065 D5: free-form reason recorded when a feedback is dismissed. Optional, no default. */
+  dismiss_reason: z.string().max(2000).optional(),
 });
 
 export const frontmatterSchema = z.preprocess(

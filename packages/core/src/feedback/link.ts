@@ -73,3 +73,143 @@ export async function triageFeedback(engine: ProjectEngine, id: string, input: T
     { atomic: true },
   );
 }
+
+export const TRIAGE_BATCH_MAX_IDS = 200;
+const REASON_MAX = 2000;
+
+const dismissFeedbackSchema = z.object({ reason: z.string().max(REASON_MAX).optional() }).default({});
+const markDuplicateSchema = z.object({ duplicateOf: docId });
+const triageBatchSchema = z.object({
+  action: z.enum(['dismiss', 'duplicate']),
+  ids: z.array(docId).min(1).max(TRIAGE_BATCH_MAX_IDS),
+  reason: z.string().max(REASON_MAX).optional(),
+  duplicateOf: docId.optional(),
+});
+
+export type DismissFeedbackInput = z.input<typeof dismissFeedbackSchema>;
+export type MarkDuplicateInput = z.input<typeof markDuplicateSchema>;
+export type TriageBatchInput = z.input<typeof triageBatchSchema>;
+
+export interface DismissFeedbackResult {
+  id: string;
+  status: 'dismissed';
+  reason: string | null;
+  /** Same meaning as `TriageFeedbackResult.applied`. */
+  applied: 'immediate' | 'deferred';
+}
+
+export interface MarkDuplicateResult {
+  id: string;
+  status: 'duplicate';
+  duplicateOf: string;
+  applied: 'immediate' | 'deferred';
+}
+
+export interface TriageBatchItemResult {
+  id: string;
+  ok: boolean;
+  error?: string;
+}
+
+export interface TriageBatchResult {
+  action: 'dismiss' | 'duplicate';
+  /** In the order of the (deduplicated) input ids. */
+  results: TriageBatchItemResult[];
+  ok: number;
+  failed: number;
+}
+
+type Scan = Awaited<ReturnType<EngineOps['scan']>>;
+
+/** Shared by the single and batch paths: the target must exist, be a Feedback and still be `new`. */
+function requireNewFeedback(scan: Scan, id: string, verb: string): void {
+  const feedback = scan.docs.find((d) => d.node.id === id);
+  if (!feedback) throw new Error(`feedback ${id} not found`);
+  if (feedback.node.label !== 'Feedback' || feedback.frontmatter.type !== 'FB') throw new Error(`${id} is not Feedback`);
+  if (feedback.frontmatter.status !== 'new') throw new Error(`${id} is "${feedback.frontmatter.status}"; only new feedback can be ${verb}`);
+}
+
+function requireDuplicateTarget(scan: Scan, duplicateOf: string): void {
+  const target = scan.docs.find((d) => d.node.id === duplicateOf);
+  if (!target) throw new Error(`duplicate target ${duplicateOf} not found`);
+  if (target.node.label !== 'Feedback') throw new Error(`duplicate target ${duplicateOf} is not Feedback`);
+}
+
+async function writeStatus(ops: EngineOps, id: string, status: 'dismissed' | 'duplicate', fields: Record<string, FieldValue>): Promise<'immediate' | 'deferred'> {
+  const updated = await ops.updateDocument(id, { status, ...fields });
+  return updated.frontmatter.type === 'FB' && updated.frontmatter.status === status ? 'immediate' : 'deferred';
+}
+
+async function applyDismiss(ops: EngineOps, scan: Scan, id: string, reason: string | undefined): Promise<DismissFeedbackResult> {
+  requireNewFeedback(scan, id, 'dismissed');
+  const applied = await writeStatus(ops, id, 'dismissed', reason !== undefined ? { dismiss_reason: reason } : {});
+  return { id, status: 'dismissed', reason: reason ?? null, applied };
+}
+
+async function applyDuplicate(ops: EngineOps, scan: Scan, id: string, duplicateOf: string): Promise<MarkDuplicateResult> {
+  requireNewFeedback(scan, id, 'marked as duplicate');
+  if (duplicateOf === id) throw new Error(`feedback ${id} cannot be a duplicate of itself`);
+  requireDuplicateTarget(scan, duplicateOf);
+  const applied = await writeStatus(ops, id, 'duplicate', { duplicate_of: duplicateOf });
+  return { id, status: 'duplicate', duplicateOf, applied };
+}
+
+/** SDD-065 D5: discards a `new` Feedback (nothing is deleted — it keeps `status: 'dismissed'` in the graph). */
+export async function dismissFeedback(engine: ProjectEngine, id: string, input?: DismissFeedbackInput): Promise<DismissFeedbackResult> {
+  const { reason } = dismissFeedbackSchema.parse(input);
+  return engine.transaction(
+    async (ops) => {
+      const result = await applyDismiss(ops, await ops.scan(), id, reason);
+      await ops.refresh();
+      return result;
+    },
+    { atomic: true },
+  );
+}
+
+/** SDD-065 D5: marks a `new` Feedback as a duplicate of another Feedback (`duplicate_of`). */
+export async function markDuplicate(engine: ProjectEngine, id: string, input: MarkDuplicateInput): Promise<MarkDuplicateResult> {
+  const { duplicateOf } = markDuplicateSchema.parse(input);
+  return engine.transaction(
+    async (ops) => {
+      const result = await applyDuplicate(ops, await ops.scan(), id, duplicateOf);
+      await ops.refresh();
+      return result;
+    },
+    { atomic: true },
+  );
+}
+
+/**
+ * SDD-065 D5: applies one action to many Feedback ids in a single transaction (one scan, one refresh).
+ * A bad item is reported in its own result and never aborts the rest — the caller shows per-item outcomes.
+ */
+export async function triageFeedbackBatch(engine: ProjectEngine, input: TriageBatchInput): Promise<TriageBatchResult> {
+  const parsed = triageBatchSchema.parse(input);
+  const { action, reason, duplicateOf } = parsed;
+  if (action === 'duplicate' && duplicateOf === undefined) throw new Error('triage_batch action "duplicate" requires "duplicateOf"');
+  const ids = [...new Set(parsed.ids)];
+
+  return engine.transaction(
+    async (ops) => {
+      const scan = await ops.scan();
+      if (action === 'duplicate' && duplicateOf !== undefined) requireDuplicateTarget(scan, duplicateOf);
+
+      const results: TriageBatchItemResult[] = [];
+      for (const id of ids) {
+        try {
+          if (action === 'dismiss') await applyDismiss(ops, scan, id, reason);
+          else await applyDuplicate(ops, scan, id, duplicateOf as string);
+          results.push({ id, ok: true });
+        } catch (err) {
+          results.push({ id, ok: false, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
+
+      const ok = results.filter((r) => r.ok).length;
+      if (ok > 0) await ops.refresh();
+      return { action, results, ok, failed: results.length - ok };
+    },
+    { atomic: true },
+  );
+}

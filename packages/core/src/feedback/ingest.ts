@@ -3,7 +3,7 @@ import { docId } from '../domain/schema.js';
 import type { ProjectEngine } from '../engine.js';
 import type { SearchHit } from '../graph/types.js';
 import { nextId, renderDocument, slugify, todayIso } from '../util/ids.js';
-import { proposalTitle, triageText, type TriageProposal, type TriageReason } from './triage.js';
+import { triageText, type TriageProposal, type TriageReason } from './triage.js';
 
 const submitFeedbackSchema = z.object({
   text: z.string().min(1).max(20_000),
@@ -24,6 +24,24 @@ export interface SubmitFeedbackResult {
   proposal: TriageProposal | null;
 }
 
+const FEEDBACK_TITLE_MAX = 120;
+
+/**
+ * SDD-065 D9: first non-empty line of the text, stripped of edge markdown marks, so a body that opens
+ * with `## Feedback` never becomes the title. A line made only of marks (or that bare heading) is skipped; `''` when none is useful.
+ */
+export function deriveFeedbackTitle(text: string): string {
+  for (const line of text.split(/\r?\n/)) {
+    const cleaned = line
+      .trim()
+      .replace(/^[#>\-*+`_~\s]+/, '')
+      .replace(/[`*_~\s]+$/, '');
+    // A bare "Feedback" heading is the wrapper the body template itself adds, never a useful title.
+    if (cleaned && cleaned.toLowerCase() !== 'feedback') return cleaned.slice(0, FEEDBACK_TITLE_MAX);
+  }
+  return '';
+}
+
 export async function submitFeedback(engine: ProjectEngine, input: SubmitFeedbackInput): Promise<SubmitFeedbackResult> {
   const parsed = submitFeedbackSchema.parse(input);
 
@@ -32,7 +50,7 @@ export async function submitFeedback(engine: ProjectEngine, input: SubmitFeedbac
     const triage = await triageText(ops.store, ops.config, parsed.text);
 
     const id = nextId('FB', scan.ids);
-    const title = parsed.title ?? (proposalTitle(parsed.text) || id);
+    const title = parsed.title ?? (deriveFeedbackTitle(parsed.text) || id);
     const slug = slugify(title);
     const fields = {
       id,
