@@ -15,9 +15,33 @@
     .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
     * { box-sizing: border-box; }
     .num { font-variant-numeric: tabular-nums; }
+    /* Foco visible = --focus-ring. `.foco` lo dibuja fijo en la maqueta (un elemento por artboard). */
+    .foco, a:focus-visible, button:focus-visible { outline: none; box-shadow: 0 0 0 2px #FBFCFB, 0 0 0 4px #1F4FA0; }
+    /* Plano de texto: 2 líneas y el resto va al title. */
+    .dos-lineas { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+    /* Código en línea dentro de un título: pieza mono, no markdown crudo (decisión g). */
+    .cod { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; padding: 0 4px; background: #F1F3F2; border-radius: 2px; color: #33383D; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font: 600 14px 'Archivo', sans-serif; color: #17191C; white-space: nowrap; cursor: pointer; }
+    .btn-ghost { display: inline-flex; align-items: center; height: 40px; padding: 0 8px; font: 600 14px 'Archivo', sans-serif; color: #1F4FA0; background: none; border: 0; border-radius: 2px; cursor: pointer; }
+    .chip-on { background: #17191C; border-color: #17191C; color: #FFFFFF; }
+    .skel { height: 12px; background: #DDE1DF; border-radius: 2px; }
+    .th { padding: 8px 0; color: #565D63; font-size: 14px; border-bottom: 1px solid #C9CFCD; }
+    .td { padding: 12px 0; border-bottom: 1px solid #DDE1DF; min-width: 0; display: flex; align-items: flex-start; font-size: 14px; line-height: 20px; }
+    .badge { height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .fila { display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0; }
+    .fila-sel { background: #FBFCFB; border-color: #C9CFCD; box-shadow: inset 3px 0 0 #1F4FA0; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    /* 375: la fila del tree y del panel pasan a ≥44 px (control-height = hit-target). */
+    .m .fila { min-height: 44px; }
+    .m .btn, .m .btn-ghost { height: 44px; }
+    .m, .m * { min-width: 0; }
+    .m { overflow-wrap: anywhere; }
   </style>
 </helmet>
-<div style="position: relative; overflow: hidden; width: 1440px; height: 960px; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+
+<!-- ============================ ESCRITORIO 1440 ============================ -->
+<sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+<div style="position: relative; overflow: hidden; width: 1440px; min-height: 960px; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
 
   <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
     <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
@@ -45,180 +69,112 @@
   </nav>
 
   <main style="display: flex; flex-direction: column; gap: 24px; padding: 24px 32px; min-width: 0; min-height: 0;">
-    <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;">
-      <div style="display: flex; flex-direction: column; gap: 4px;">
-        <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Árbol de features</h1>
-        <div style="font-size: 14px; color: #565D63;">De la visión de mercado a cada feature request de prdmanager</div>
-      </div>
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <div style="width: 320px; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; color: #565D63; font-size: 14px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
-          Buscar por id o título
-        </div>
-        <span style="height: 40px; display: inline-flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px; font-weight: 600; white-space: nowrap;">Sin código (2)</span>
-      </div>
+    <header style="display: flex; flex-direction: column; gap: 4px;">
+      <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Árbol de features</h1>
+      <div style="font-size: 14px; color: #565D63;">De la visión de mercado a cada feature request de prdmanager</div>
     </header>
 
-    <section style="flex: 1; min-height: 0; display: grid; grid-template-columns: 420px minmax(0, 1fr); border-top: 1px solid #C9CFCD;">
+    <section style="flex: 1; min-height: 0; display: grid; grid-template-columns: 380px minmax(0, 1fr); border-top: 1px solid #C9CFCD;">
 
+      <!-- ===== Columna del árbol ===== -->
       <div style="display: flex; flex-direction: column; gap: 12px; padding: 16px 24px 0 0; border-right: 1px solid #C9CFCD; min-width: 0;">
-        <div style="display: flex; align-items: baseline; justify-content: space-between; font-size: 14px;">
-          <!-- SDD-083 D1/D2: con `?q=` activo la línea pasa a «N resultados de M features». -->
-          <sc-if value="{{ noBuscando }}" hint-placeholder-val="{{ true }}">
-            <span style="color: #565D63;"><span class="num">12</span> features, <span class="num">4</span> cerradas</span>
-          </sc-if>
-          <sc-if value="{{ isBuscando }}" hint-placeholder-val="{{ false }}">
-            <span style="color: #565D63;" aria-live="polite"><span class="num">2</span> resultados de <span class="num">12</span> features</span>
-          </sc-if>
-          <a style="font-size: 14px;">Contraer todo</a>
+        <div style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; color: #565D63; font-size: 14px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          Buscar por id o título
         </div>
 
-        <!-- SDD-083 D3: con búsqueda activa y 0 resultados la columna del árbol muestra el EmptyState propio
-             (misma plaqueta que EmptyState.tsx) con la acción de limpiar la búsqueda. -->
+        <!-- Decisiones d/e: el chip es un toggle (aria-pressed) y lleva el conteo en su etiqueta; al lado, solo «Quitar filtro». -->
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="btn {{ chipClase }}" role="button" aria-pressed="{{ isFiltro }}" style="{{ chipFoco }}">
+            <sc-if value="{{ isFiltro }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></sc-if>
+            Sin código (6)
+          </span>
+          <sc-if value="{{ isFiltro }}" hint-placeholder-val="{{ false }}"><a class="btn-ghost">Quitar filtro</a></sc-if>
+        </div>
+
+        <!-- Decisión d: ÚNICO lugar del conteo. Con filtro o búsqueda: «N resultados de M features». -->
+        <sc-if value="{{ isCargando }}" hint-placeholder-val="{{ false }}">
+          <div role="status" style="display: flex; flex-direction: column; gap: 16px; padding-top: 4px;">
+            <span style="font-size: 14px; color: #565D63;">Cargando el árbol de features…</span>
+            <div aria-hidden="true" style="display: flex; flex-direction: column; gap: 20px;">
+              <div class="skel" style="width: 88%;"></div><div class="skel" style="width: 74%; margin-left: 12px;"></div><div class="skel" style="width: 82%; margin-left: 24px;"></div>
+              <div class="skel" style="width: 62%; margin-left: 36px;"></div><div class="skel" style="width: 70%; margin-left: 48px;"></div><div class="skel" style="width: 56%; margin-left: 48px;"></div>
+              <div class="skel" style="width: 78%; margin-left: 24px;"></div><div class="skel" style="width: 66%; margin-left: 12px;"></div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ noCargando }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; align-items: center; justify-content: space-between; min-height: 40px; font-size: 14px;">
+          <span role="status" style="color: #565D63;">{{ conteoPrefijo }}<span class="num">{{ conteoA }}</span> {{ conteoMedio }}<span class="num">{{ conteoB }}</span> {{ conteoCola }}</span>
+          <a class="btn-ghost" style="{{ contraerDisplay }}">Contraer todo</a>
+        </div>
+
         <sc-if value="{{ isSinResultados }}" hint-placeholder-val="{{ false }}">
           <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 16px; padding: 24px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h6"></path></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h6"></path></svg>
             <span style="font-size: 16px; font-weight: 600;">Sin resultados para «árbol»</span>
             <p style="margin: 0; font-size: 14px; line-height: 20px; color: #33383D;">Probá con otra palabra: la búsqueda mira el id y el título de cada feature.</p>
-            <span style="height: 32px; display: inline-flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px; font-weight: 600; color: #17191C;">Limpiar búsqueda</span>
+            <span class="btn">Limpiar búsqueda</span>
           </div>
         </sc-if>
+
         <sc-if value="{{ noSinResultados }}" hint-placeholder-val="{{ true }}">
-        <div role="tree" style="display: flex; flex-direction: column;">
-          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
-            <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
-            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">MRD-001</span>
-            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mercado: contexto de producto para asistentes de código</span>
-          </div>
-
-          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
-            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">PRD-001</span>
-            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Product &amp; Context Graph Engine para Asistentes de Código</span>
-          </div>
-
-          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
-            <span class="id" style="flex: none; margin-left: 6px; color: #565D63;">PRD-002</span>
-            <span style="margin-left: 10px; font-size: 14px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Multi-Project Governance &amp; Conversational Authoring</span>
-          </div>
-
-          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; height: 20px;"></span>
-            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">FR-001</span>
-            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Persistencia stateful de borradores</span>
-            <span style="flex: none; margin-left: auto; height: 24px; display: inline-flex; align-items: center; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #33383D;">Sin código</span>
-          </div>
-
-          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; height: 20px;"></span>
-            <span class="id" style="flex: none; margin-left: 6px; color: #565D63;">PRD-003</span>
-            <span style="margin-left: 10px; font-size: 14px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Parser de símbolos con Tree-sitter</span>
-            <span style="flex: none; margin-left: auto; height: 24px; display: inline-flex; align-items: center; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #33383D;">Sin código</span>
-          </div>
-
-          <div aria-selected="{{ isConDatos }}" style="{{ prd004Style }}">
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; height: 20px;"></span>
-            <span class="id" style="flex: none; margin-left: 6px; color: #565D63;">PRD-004</span>
-            <span style="margin-left: 10px; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Explorador web del Feature Tree y del drift</span>
-          </div>
-
-          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
-            <span class="id" style="flex: none; margin-left: 6px; color: #565D63;">PRD-005</span>
-            <span style="margin-left: 10px; font-size: 14px; color: #565D63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Plataforma SaaS colaborativa de PRDs</span>
-          </div>
-
-          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; height: 20px;"></span>
-            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">PRD-006</span>
-            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Rediseño del frontend de Centurion Factory con datos mock</span>
-          </div>
-
-          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; height: 20px;"></span>
-            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">FR-002</span>
-            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Importador incremental de repositorios</span>
-            <span title="Drift activo" style="flex: none; margin-left: auto; padding-left: 12px; display: flex; align-items: center;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #F5C400;"></span></span>
-          </div>
-
-          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; height: 20px;"></span>
-            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">FR-003</span>
-            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Avisos de drift por rama</span>
-          </div>
-
-          <!-- WO-456/SDD-028: un BC con su PRD anidado -- misma regla de anidado que la Planta (WO-443/450):
-               un PRD/FR cuyo justified_by resuelve a un BC presente se muestra debajo de ese BC, nunca como raíz. -->
-          <div style="display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;">
-            <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
-            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">BC-002</span>
-            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Reducir el churn de cuentas</span>
-          </div>
-
-          <div aria-selected="{{ isSinDatos }}" style="{{ nuevoRowStyle }}">
-            <span style="flex: none; width: 20px; align-self: stretch; display: flex; justify-content: center;"><span style="width: 1px; background: #C9CFCD;"></span></span>
-            <span style="flex: none; width: 20px; height: 20px;"></span>
-            <span class="id" style="flex: none; margin-left: 6px; color: #33383D;">PRD-014</span>
-            <span style="margin-left: 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Panel de salud de cuenta</span>
-          </div>
+        <div role="tree" aria-label="Árbol de features" style="display: flex; flex-direction: column;">
+          <sc-for list="{{ filas }}" as="r" hint-placeholder-count="8">
+            <div role="treeitem" aria-selected="{{ r.sel }}" aria-level="{{ r.nivel }}" title="{{ r.titulo }}" class="fila {{ r.cls }}" style="padding-left: {{ r.pad }}px; color: {{ r.color }};">
+              <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; {{ r.chevDisplay }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span>
+              <span class="dos-lineas" style="flex: 1; min-width: 0; font-size: 14px; line-height: 20px; font-weight: {{ r.peso }};"><span class="id" style="color: #565D63; margin-right: 6px;">{{ r.id }}</span>{{ r.titulo }}</span>
+              <span style="flex: none; {{ r.huerfanaDisplay }}" class="badge"><span style="color: #33383D;">Sin código</span></span>
+              <span style="flex: none; {{ r.driftDisplay }} align-items: center; gap: 6px; font-size: 12px; color: #7A5A00;"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 4px; background: #F5C400;"></span><span class="sr-only">Drift abierto</span></span>
+            </div>
+          </sc-for>
         </div>
         </sc-if>
 
-        <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid #DDE1DF; font-size: 12px; color: #565D63;">
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px 0; border-top: 1px solid #DDE1DF; font-size: 12px; color: #565D63;">
           <span>Las features cerradas se muestran atenuadas.</span>
-          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #F5C400;"></span>Tiene drift abierto</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 4px; background: #F5C400;"></span>Tiene drift abierto</span>
         </div>
+        </sc-if>
       </div>
 
-      <div style="display: flex; flex-direction: column; gap: 32px; padding: 16px 0 0 32px; min-width: 0;">
+      <!-- ===== Panel de la feature ===== -->
+      <div style="display: flex; flex-direction: column; gap: 32px; padding: 16px 0 24px 24px; min-width: 0;">
 
-      <!-- WO-456/SDD-028: segundo estado del panel -- un documento sin trazabilidad todavía (PRD-014,
-           recién colgado de BC-002). Ver Componentes.dc.html "Estado vacío": ícono outline + título +
-           cuerpo, misma plaqueta que EmptyState.tsx. -->
       <sc-if value="{{ isSinDatos }}" hint-placeholder-val="{{ false }}">
-        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;">
-          <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <span class="id" style="color: #565D63;">PRD-014</span>
-              <span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #565D63;"><span style="width: 8px; height: 8px; border: 1.5px solid #565D63;"></span>Borrador</span>
-            </div>
-            <h2 style="margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; font-stretch: 112%; letter-spacing: -0.01em;">Panel de salud de cuenta</h2>
-            <div style="font-size: 14px; color: #565D63;">Hija de <span class="id">BC-002</span></div>
+        <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span class="id" style="color: #565D63;">PRD-014</span>
+            <span class="badge" style="color: #565D63;"><span style="width: 8px; height: 8px; border: 1.5px solid #565D63;"></span>Borrador</span>
           </div>
+          <h2 style="margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; font-stretch: 112%; letter-spacing: -0.01em;">Panel de salud de cuenta</h2>
+          <div style="font-size: 14px; color: #565D63;">Hija de <span class="id">BC-002</span></div>
         </div>
-
         <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 16px; padding: 24px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; max-width: 460px;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h6"></path></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h6"></path></svg>
           <span style="font-size: 16px; font-weight: 600;">Todavía no hay trazabilidad</span>
-          <p style="margin: 0; font-size: 14px; line-height: 20px; color: #33383D;">Este documento no tiene blueprints, órdenes ni commits vinculados todavía. A medida que el trabajo avance -- un SDD que lo architecte, una orden que se genere -- va a aparecer acá.</p>
+          <p style="margin: 0; font-size: 14px; line-height: 20px; color: #33383D;">Este documento no tiene blueprints, órdenes ni commits vinculados todavía. A medida que el trabajo avance, un SDD que lo diseñe o una orden que se genere, va a aparecer acá.</p>
+        </div>
+      </sc-if>
+
+      <!-- Decisión f: el panel cargando dice QUÉ carga. -->
+      <sc-if value="{{ isCargando }}" hint-placeholder-val="{{ false }}">
+        <div role="status" style="display: flex; flex-direction: column; gap: 24px;">
+          <span style="font-size: 14px; color: #565D63;">Cargando las órdenes y la trazabilidad de <span class="id">FR-009</span>…</span>
+          <div aria-hidden="true" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="skel" style="width: 120px;"></div>
+            <div class="skel" style="width: 90%; height: 24px;"></div><div class="skel" style="width: 58%; height: 24px;"></div>
+          </div>
+          <div aria-hidden="true" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
+            <div class="skel" style="height: 40px;"></div><div class="skel" style="height: 40px;"></div><div class="skel" style="height: 40px;"></div>
+            <div class="skel" style="height: 40px;"></div><div class="skel" style="height: 40px;"></div><div class="skel" style="height: 40px;"></div>
+          </div>
+          <div aria-hidden="true" style="display: flex; flex-direction: column; gap: 0;">
+            <div class="skel" style="height: 56px; background: #F1F3F2;"></div><div style="height: 8px;"></div>
+            <div class="skel" style="height: 56px; background: #F1F3F2;"></div><div style="height: 8px;"></div>
+            <div class="skel" style="height: 56px; background: #F1F3F2;"></div>
+          </div>
         </div>
       </sc-if>
 
@@ -226,72 +182,60 @@
         <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;">
           <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
             <div style="display: flex; align-items: center; gap: 10px;">
-              <span class="id" style="color: #565D63;">PRD-004</span>
-              <span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #565D63;"><span style="width: 8px; height: 8px; background: #565D63;"></span>Cerrada</span>
+              <span class="id" style="color: #565D63;">FR-009</span>
+              <span class="badge" style="color: #1F4FA0;"><span style="width: 8px; height: 8px; background: #1F4FA0;"></span>Aprobada</span>
             </div>
-            <h2 style="margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; font-stretch: 112%; letter-spacing: -0.01em;">Explorador web del Feature Tree y del drift</h2>
-            <div style="font-size: 14px; color: #565D63;">Hija de <span class="id">PRD-002</span>. Cerrada el 28/08/2026 por Ana Ríos</div>
+            <h2 title="Trazabilidad inversa: la lista de features sin código, accionable desde la Planta y el Árbol" class="dos-lineas" style="margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; font-stretch: 112%; letter-spacing: -0.01em;">Trazabilidad inversa: la lista de features sin código, accionable desde la Planta y el Árbol</h2>
+            <div style="font-size: 14px; color: #565D63;">Hija de <span class="id">BC-026</span></div>
           </div>
-          <div style="flex: none; height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Ver cierre de feature</div>
+          <span class="btn" style="flex: none;">Cerrar feature</span>
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 16px;">
+        <!-- Trazabilidad: 3×2, sin riel; en 6 columnas los orígenes se partían a 110 px. -->
+        <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Trazabilidad</h3>
-          <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));">
-            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-right: 12px;">
-              <div style="display: flex; align-items: center; height: 8px; margin-right: -12px;"><span style="flex: none; width: 8px; height: 8px; background: #17191C;"></span><span style="flex: 1; height: 1px; background: #C9CFCD; margin-left: 8px;"></span></div>
-              <span style="font-size: 14px; color: #565D63;">Origen</span>
-              <span class="id" style="font-size: 14px;">FB-004</span>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-right: 12px;">
-              <div style="display: flex; align-items: center; height: 8px; margin-right: -12px;"><span style="flex: none; width: 8px; height: 8px; background: #17191C;"></span><span style="flex: 1; height: 1px; background: #C9CFCD; margin-left: 8px;"></span></div>
-              <span style="font-size: 14px; color: #565D63;">Feature</span>
-              <span class="id" style="font-size: 14px;">PRD-004</span>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-right: 12px;">
-              <div style="display: flex; align-items: center; height: 8px; margin-right: -12px;"><span style="flex: none; width: 8px; height: 8px; background: #17191C;"></span><span style="flex: 1; height: 1px; background: #C9CFCD; margin-left: 8px;"></span></div>
-              <span style="font-size: 14px; color: #565D63;">Blueprints</span>
-              <span style="display: flex; flex-direction: column; gap: 2px;"><a class="id" style="font-size: 14px;">ADR-004</a><a class="id" style="font-size: 14px;">SDD-005</a></span>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-right: 12px;">
-              <div style="display: flex; align-items: center; height: 8px; margin-right: -12px;"><span style="flex: none; width: 8px; height: 8px; background: #17191C;"></span><span style="flex: 1; height: 1px; background: #C9CFCD; margin-left: 8px;"></span></div>
-              <span style="font-size: 14px; color: #565D63;">Órdenes</span>
-              <span class="num" style="font-size: 16px; font-weight: 600;">37 hechas</span>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-right: 12px;">
-              <div style="display: flex; align-items: center; height: 8px; margin-right: -12px;"><span style="flex: none; width: 8px; height: 8px; background: #17191C;"></span><span style="flex: 1; height: 1px; background: #C9CFCD; margin-left: 8px;"></span></div>
-              <span style="font-size: 14px; color: #565D63;">Commits</span>
-              <span class="num" style="font-size: 16px; font-weight: 600;">41 con Refs</span>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
-              <div style="display: flex; align-items: center; height: 8px;"><span style="flex: none; width: 8px; height: 8px; background: #1E7F4F;"></span></div>
-              <span style="font-size: 14px; color: #565D63;">Código</span>
-              <span class="num" style="font-size: 16px; font-weight: 600; color: #1E7F4F;">212 referencias sincronizadas</span>
-            </div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid #C9CFCD;">
+            <div style="padding: 12px 16px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Origen</span><span style="display: flex; gap: 8px; flex-wrap: wrap;"><a class="id" style="font-size: 14px;">FB-179</a><a class="id" style="font-size: 14px;">FB-151</a><a class="id" style="font-size: 14px;">BC-022</a></span></div>
+            <div style="padding: 12px 16px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Blueprints</span><span style="display: flex; gap: 8px;"><a class="id" style="font-size: 14px;">SDD-005</a><a class="id" style="font-size: 14px;">ADR-004</a><a class="id" style="font-size: 14px;">SDD-006</a></span></div>
+            <div style="padding: 12px 0 12px 16px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Órdenes</span><span class="num" style="font-size: 16px; font-weight: 600;">3 de 8 hechas</span></div>
+            <div style="padding: 12px 16px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Commits</span><span class="num" style="font-size: 16px; font-weight: 600;">3 aterrizados en main</span></div>
+            <div style="padding: 12px 16px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Código</span><span class="num" style="font-size: 16px; font-weight: 600; color: #19703F;">29 referencias</span></div>
+            <div style="padding: 12px 0 12px 16px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Drift</span><span style="display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; color: #7A5A00;"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 4px; background: #F5C400;"></span>1 aviso abierto</span></div>
           </div>
         </div>
 
+        <!-- Decisiones a/b/c/g: tope de 25, sin columna Fecha, Commit = marca + sha + «aterrizado en main», títulos planos a 2 líneas. -->
         <div style="display: flex; flex-direction: column; gap: 8px;">
-          <div style="display: flex; align-items: baseline; justify-content: space-between;"><h3 style="margin: 0; font-size: 16px; font-weight: 700;">Órdenes recientes de <span class="id" style="font-size: 16px; font-weight: 500; color: #1F4FA0;">SDD-005</span></h3><a style="font-size: 14px;">Ver las 37 órdenes</a></div>
-          <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr) 96px 80px 96px; font-size: 14px;">
-            <div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Orden</div><div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Título</div><div style="padding: 8px 0 8px 16px; color: #565D63; border-bottom: 1px solid #C9CFCD;">Estado</div><div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD;">Commit</div><div style="padding: 8px 0; color: #565D63; border-bottom: 1px solid #C9CFCD; text-align: right;">Hecha</div>
-
-            <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">WO-069</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">DriftBanner y resaltado de nodos con drift en el canvas usando apply-drift</div><div style="padding: 8px 0 8px 16px; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Hecha</span></div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">3e1a9c4</div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">27/08/2026</div>
-
-            <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">WO-066</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Panel de detalle de nodo con cadena de trazabilidad y enlaces a órdenes</div><div style="padding: 8px 0 8px 16px; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Hecha</span></div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">b72f0d1</div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">25/08/2026</div>
-
-            <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">WO-064</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">GraphCanvas con layout, encuadre y botón Actualizar preservando pan y zoom</div><div style="padding: 8px 0 8px 16px; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Hecha</span></div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">91c4e5a</div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">22/08/2026</div>
-
-            <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">WO-061</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Endpoint del Subgraph filtrado por estado y profundidad, y sus tests</div><div style="padding: 8px 0 8px 16px; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Hecha</span></div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">5d08b3f</div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">20/08/2026</div>
-
-            <div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">WO-058</div><div style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Función pura to-elements de Subgraph a elementos de Cytoscape, y sus tests</div><div style="padding: 8px 0 8px 16px; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;"><span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; color: #1E7F4F;"><span style="width: 8px; height: 8px; background: #1E7F4F;"></span>Hecha</span></div><div class="id" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; display: flex; align-items: center;">e4a61c9</div><div class="num" style="padding: 10px 0; border-bottom: 1px solid #DDE1DF; text-align: right; color: #565D63;">18/08/2026</div>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Órdenes recientes</h3>
+          <div role="table" aria-label="Órdenes recientes de FR-009" style="display: grid; grid-template-columns: 72px minmax(0, 1fr) 80px 104px 144px; column-gap: 12px;">
+            <div class="th">Orden</div><div class="th">Título</div><div class="th">SDD</div><div class="th">Estado</div><div class="th">Commit</div>
+            <sc-for list="{{ ordenes }}" as="o" hint-placeholder-count="6">
+              <div class="td"><span class="id" style="line-height: 20px;">{{ o.id }}</span></div>
+              <div class="td"><span class="dos-lineas" title="{{ o.titulo }}"><sc-for list="{{ o.partes }}" as="p"><span class="{{ p.cls }}">{{ p.t }}</span></sc-for></span></div>
+              <div class="td"><a class="id" style="line-height: 20px;">{{ o.sdd }}</a></div>
+              <div class="td" style="padding: 10px 0;"><span class="badge" style="color: {{ o.estadoColor }};"><span style="width: 8px; height: 8px; background: {{ o.estadoRelleno }}; border: 1.5px solid {{ o.estadoColor }};"></span>{{ o.estado }}</span></div>
+              <div class="td" style="flex-direction: column; gap: 2px;">
+                <span style="display: flex; align-items: center; gap: 6px; color: {{ o.commitColor }};">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; {{ o.marcaDisplay }}"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l3 3 5-6"></path></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none; {{ o.sinMarcaDisplay }}"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"></circle></svg>
+                  <span class="id" style="{{ o.shaDisplay }}">{{ o.sha }}</span>
+                  <span style="{{ o.sinCommitDisplay }} font-size: 14px;">Sin commit</span>
+                </span>
+                <span style="{{ o.shaDisplay }} font-size: 12px; line-height: 16px; color: #33383D; padding-left: 22px;">aterrizado en main</span>
+              </div>
+            </sc-for>
+          </div>
+          <!-- Decisión a: línea de total + enlace a la cola (la cola conserva la fecha y la lista completa). -->
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 4px; font-size: 14px; color: #565D63;">
+            <span>Mostrando las <span class="num">25</span> órdenes más recientes de <span class="num">37</span></span>
+            <a class="btn-ghost" style="padding: 0;">Ver las 37 órdenes en la cola</a>
           </div>
         </div>
       </sc-if>
       </div>
     </section>
   </main>
-
+  <sc-if value="{{ cierreAbierto }}" hint-placeholder-val="{{ false }}">
   <div style="position: absolute; inset: 0; z-index: 10; background: rgba(23,25,28,0.45); display: flex; align-items: center; justify-content: center;">
     <div role="dialog" aria-modal="true" aria-labelledby="cerrar-feature-titulo" style="width: 520px; display: flex; flex-direction: column; background: #FBFCFB; border-radius: 2px; box-shadow: 0 12px 32px rgba(23,25,28,0.18);">
       <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px 24px 16px;">
@@ -345,34 +289,233 @@
       </div>
     </div>
   </div>
+  </sc-if>
 </div>
+</sc-if>
+
+<!-- ============================ MÓVIL 375 ============================
+     Decisión h: no se rediseña la navegación en dos pantallas. Árbol y panel quedan apilados como hoy,
+     pero en columna única (hoy el panel se estrecha a la derecha y la página llega a 631 px de ancho). -->
+<sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+<div class="m" style="position: relative; width: 375px; min-height: 812px; display: flex; flex-direction: column; background: #E9ECEB; overflow-x: hidden; padding-bottom: 64px;">
+  <main style="display: flex; flex-direction: column; gap: 16px; padding: 16px;">
+    <header style="display: flex; flex-direction: column; gap: 4px;">
+      <h1 style="margin: 0; font-size: 28px; line-height: 1.1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Árbol de features</h1>
+      <div style="font-size: 14px; color: #565D63;">De la visión de mercado a cada feature request</div>
+    </header>
+
+    <div style="height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; color: #565D63; font-size: 16px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+      Buscar por id o título
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span class="btn {{ chipClase }}" role="button" aria-pressed="{{ isFiltro }}" style="{{ chipFoco }}">
+        <sc-if value="{{ isFiltro }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></sc-if>
+        Sin código (6)
+      </span>
+      <sc-if value="{{ isFiltro }}" hint-placeholder-val="{{ false }}"><a class="btn-ghost">Quitar filtro</a></sc-if>
+    </div>
+
+    <sc-if value="{{ isCargando }}" hint-placeholder-val="{{ false }}">
+      <div role="status" style="display: flex; flex-direction: column; gap: 16px;">
+        <span style="font-size: 14px; color: #565D63;">Cargando el árbol de features…</span>
+        <div aria-hidden="true" style="display: flex; flex-direction: column; gap: 20px;">
+          <div class="skel" style="width: 88%;"></div><div class="skel" style="width: 74%; margin-left: 12px;"></div><div class="skel" style="width: 82%; margin-left: 24px;"></div><div class="skel" style="width: 62%; margin-left: 36px;"></div><div class="skel" style="width: 70%; margin-left: 24px;"></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ noCargando }}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; align-items: center; justify-content: space-between; min-height: 44px; font-size: 14px;">
+        <span role="status" style="color: #565D63;">{{ conteoPrefijo }}<span class="num">{{ conteoA }}</span> {{ conteoMedio }}<span class="num">{{ conteoB }}</span> {{ conteoCola }}</span>
+        <a class="btn-ghost" style="{{ contraerDisplay }}">Contraer todo</a>
+      </div>
+      <div role="tree" aria-label="Árbol de features" style="display: flex; flex-direction: column;">
+        <sc-for list="{{ filasMovil }}" as="r" hint-placeholder-count="6">
+          <div role="treeitem" aria-selected="{{ r.sel }}" aria-level="{{ r.nivel }}" title="{{ r.titulo }}" class="fila {{ r.cls }}" style="padding-left: {{ r.padM }}px; color: {{ r.color }};">
+            <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; {{ r.chevDisplay }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span>
+            <span class="dos-lineas" style="flex: 1; min-width: 0; font-size: 14px; line-height: 20px; font-weight: {{ r.peso }};"><span class="id" style="color: #565D63; margin-right: 6px;">{{ r.id }}</span>{{ r.titulo }}</span>
+            <span class="badge" style="flex: none; {{ r.huerfanaDisplay }}"><span style="color: #33383D;">Sin código</span></span>
+            <span style="flex: none; {{ r.driftDisplay }} align-items: center;"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 4px; background: #F5C400;"></span><span class="sr-only">Drift abierto</span></span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding: 8px 12px; border: 1px dashed #C9CFCD; border-radius: 2px; font-size: 12px; color: #565D63;">Anotación del comp, no es UI: el árbol sigue su largo natural (68 filas), como hoy. Acá se muestran las primeras.</div>
+    </sc-if>
+
+    <!-- Panel apilado debajo del árbol -->
+    <div style="display: flex; flex-direction: column; gap: 24px; padding-top: 16px; border-top: 1px solid #C9CFCD;">
+      <sc-if value="{{ isCargando }}" hint-placeholder-val="{{ false }}">
+        <div role="status" style="display: flex; flex-direction: column; gap: 16px;">
+          <span style="font-size: 14px; color: #565D63;">Cargando las órdenes y la trazabilidad de <span class="id">FR-009</span>…</span>
+          <div aria-hidden="true" style="display: flex; flex-direction: column; gap: 12px;"><div class="skel" style="width: 90%; height: 24px;"></div><div class="skel" style="width: 60%; height: 24px;"></div><div class="skel" style="height: 56px; background: #F1F3F2;"></div><div class="skel" style="height: 56px; background: #F1F3F2;"></div></div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isSinDatos }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px;"><span class="id" style="color: #565D63;">PRD-014</span><span class="badge" style="color: #565D63;"><span style="width: 8px; height: 8px; border: 1.5px solid #565D63;"></span>Borrador</span></div>
+          <h2 style="margin: 0; font-size: 20px; line-height: 1.2; font-weight: 700; font-stretch: 112%;">Panel de salud de cuenta</h2>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 16px; padding: 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+          <span style="font-size: 16px; font-weight: 600;">Todavía no hay trazabilidad</span>
+          <p style="margin: 0; font-size: 14px; line-height: 20px; color: #33383D;">Este documento no tiene blueprints, órdenes ni commits vinculados todavía.</p>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isConDatos }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px;"><span class="id" style="color: #565D63;">FR-009</span><span class="badge" style="color: #1F4FA0;"><span style="width: 8px; height: 8px; background: #1F4FA0;"></span>Aprobada</span></div>
+          <h2 class="dos-lineas" style="margin: 0; font-size: 20px; line-height: 1.2; font-weight: 700; font-stretch: 112%;">Trazabilidad inversa: la lista de features sin código, accionable desde la Planta y el Árbol</h2>
+          <span class="btn" style="align-self: stretch;">Cerrar feature</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Trazabilidad</h3>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid #C9CFCD;">
+            <div style="padding: 12px 8px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Origen</span><span class="id" style="font-size: 14px;">FB-179, FB-151, BC-022</span></div>
+            <div style="padding: 12px 0 12px 8px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Blueprints</span><span class="id" style="font-size: 14px;">SDD-005, ADR-004, SDD-006</span></div>
+            <div style="padding: 12px 8px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Órdenes</span><span class="num" style="font-size: 16px; font-weight: 600;">3 de 8 hechas</span></div>
+            <div style="padding: 12px 0 12px 8px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Commits</span><span class="num" style="font-size: 16px; font-weight: 600;">3 en main</span></div>
+            <div style="padding: 12px 8px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Código</span><span class="num" style="font-size: 16px; font-weight: 600; color: #19703F;">29 referencias</span></div>
+            <div style="padding: 12px 0 12px 8px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Drift</span><span style="font-size: 16px; font-weight: 600; color: #7A5A00;">1 aviso abierto</span></div>
+          </div>
+        </div>
+
+        <!-- Por debajo de 640 px la tabla se apila: una orden por bloque, sin scroll horizontal. -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Órdenes recientes</h3>
+          <div style="display: flex; flex-direction: column; border-top: 1px solid #C9CFCD;">
+            <sc-for list="{{ ordenes }}" as="o" hint-placeholder-count="4">
+              <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid #DDE1DF;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <span class="id">{{ o.id }}</span>
+                  <span class="badge" style="color: {{ o.estadoColor }};"><span style="width: 8px; height: 8px; background: {{ o.estadoRelleno }}; border: 1.5px solid {{ o.estadoColor }};"></span>{{ o.estado }}</span>
+                </div>
+                <span class="dos-lineas" title="{{ o.titulo }}" style="font-size: 14px; line-height: 20px;"><sc-for list="{{ o.partes }}" as="p"><span class="{{ p.cls }}">{{ p.t }}</span></sc-for></span>
+                <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; font-size: 14px;">
+                  <a class="id" style="font-size: 12px; min-height: 44px; display: inline-flex; align-items: center;">{{ o.sdd }}</a>
+                  <span style="display: flex; align-items: center; gap: 6px; color: {{ o.commitColor }};">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; {{ o.marcaDisplay }}"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l3 3 5-6"></path></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none; {{ o.sinMarcaDisplay }}"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"></circle></svg>
+                    <span class="id" style="{{ o.shaDisplay }}">{{ o.sha }}</span>
+                    <span style="{{ o.shaDisplay }} color: #33383D;">aterrizado en main</span>
+                    <span style="{{ o.sinCommitDisplay }}">Sin commit</span>
+                  </span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #565D63;">
+            <span>Mostrando las <span class="num">25</span> órdenes más recientes de <span class="num">37</span></span>
+            <a class="btn-ghost" style="padding: 0; align-self: flex-start;">Ver las 37 órdenes en la cola</a>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </main>
+
+  <!-- Barra inferior de 64 px, sin cambios respecto de hoy -->
+  <nav aria-label="Principal" style="position: absolute; left: 0; right: 0; bottom: 0; height: 64px; display: grid; grid-template-columns: repeat(5, 1fr); background: #FBFCFB; border-top: 1px solid #C9CFCD;">
+    <span style="display: flex; align-items: center; justify-content: center; font-size: 12px; color: #33383D;">Planta</span>
+    <span style="display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; box-shadow: inset 0 3px 0 #17191C;">Árbol</span>
+    <span style="display: flex; align-items: center; justify-content: center; font-size: 12px; color: #33383D;">Documentos</span>
+    <span style="display: flex; align-items: center; justify-content: center; font-size: 12px; color: #33383D;">Órdenes</span>
+    <span style="display: flex; align-items: center; justify-content: center; font-size: 12px; color: #33383D;">Más</span>
+  </nav>
+</div>
+</sc-if>
 </x-dc>
-<script data-dc-script data-props='{"estado":{"editor":"enum","default":"con_datos","options":["con_datos","sin_datos"],"section":"Panel de detalle"},"busqueda":{"editor":"enum","default":"todas","options":["todas","resultados","sin_resultados"],"section":"Buscador"}}'>
+<script data-dc-script data-props='{"vista":{"editor":"enum","default":"escritorio","options":["escritorio","movil"],"section":"Artboard"},"estado":{"editor":"enum","default":"con_datos","options":["con_datos","cargando","sin_datos"],"section":"Panel de detalle"},"filtro":{"editor":"enum","default":"no","options":["no","si"],"section":"Filtro «Sin código»"},"busqueda":{"editor":"enum","default":"todas","options":["todas","resultados","sin_resultados"],"section":"Buscador"},"cierre":{"editor":"enum","default":"no","options":["no","si"],"section":"Modal de cierre (WO previa)"}}'>
 class Component extends DCLogic {
   renderVals() {
+    const vista = this.props.vista ?? 'escritorio';
     const estado = this.props.estado ?? 'con_datos';
-    const isConDatos = estado === 'con_datos';
-    const isSinDatos = estado === 'sin_datos';
     const busqueda = this.props.busqueda ?? 'todas';
+    const isFiltro = (this.props.filtro ?? 'no') === 'si';
+    const isCargando = estado === 'cargando';
+    const isSinDatos = estado === 'sin_datos';
+    const isConDatos = estado === 'con_datos';
     const isBuscando = busqueda !== 'todas';
-    const noBuscando = !isBuscando;
     const isSinResultados = busqueda === 'sin_resultados';
-    const noSinResultados = !isSinResultados;
-    const selectedStyle = 'position: relative; z-index: 1; display: flex; align-items: center; height: 36px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; outline: 2px solid #1F4FA0; outline-offset: 2px; min-width: 0;';
-    const unselectedStyle = 'display: flex; align-items: center; height: 36px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; min-width: 0;';
+    const hide = 'display: none;';
+    const show = 'display: flex;';
+
+    // Decisión d: un solo lugar para el conteo. Con filtro o búsqueda -> «N resultados de M features».
+    let conteo = { prefijo: '', a: 68, medio: 'features,', b: 8, cola: 'cerradas' };
+    if (isFiltro) conteo = { prefijo: '', a: 6, medio: 'resultados de', b: 68, cola: 'features' };
+    else if (busqueda === 'resultados') conteo = { prefijo: '', a: 2, medio: 'resultados de', b: 68, cola: 'features' };
+    else if (isSinResultados) conteo = { prefijo: '', a: 0, medio: 'resultados de', b: 68, cola: 'features' };
+
+    // Árbol completo (hoy) -> sangría de 12 px por nivel con tope de 4 niveles (48 px); el nivel real queda en aria-level.
+    const T = (id, titulo, nivel, o = {}) => ({
+      id, titulo, nivel,
+      pad: 8 + Math.min(nivel - 1, 4) * 12,
+      padM: 4 + Math.min(nivel - 1, 3) * 8,
+      sel: !!o.sel, cls: o.sel ? 'fila-sel' : '',
+      color: o.cerrada ? '#565D63' : '#17191C',
+      peso: o.sel ? 600 : 400,
+      chevDisplay: o.hoja ? 'visibility: hidden;' : '',
+      huerfanaDisplay: o.huerfana ? show : hide,
+      driftDisplay: o.drift ? show : hide
+    });
+    const arbol = [
+      T('BC-002', 'Onboarding guiado para el primer proyecto SaaS importado', 1, { huerfana: true }),
+      T('PRD-012', 'Estado vacío de «esperando el primer reporte de CI» en Árbol y Planta', 2, { huerfana: true }),
+      T('BC-007', 'Los documentos que no son de collab se muestran como markdown crudo', 3),
+      T('PRD-015', 'Vista previa renderizada para todo documento, venga de donde venga', 4, { cerrada: true }),
+      T('BC-022', 'Trazabilidad inversa: la métrica de features trazadas deja de mentir y nombra las que faltan', 5),
+      T('FR-009', 'Trazabilidad inversa: la lista de features sin código, accionable desde la Planta y el Árbol', 6, { sel: true, drift: true }),
+      T('BC-026', 'El buscador del Árbol no se puede compartir ni dice su resultado', 7),
+      T('FR-014', 'El Árbol: la búsqueda viaja en la URL, dice cuántos resultados hay y tolera tildes', 8, { hoja: true })
+    ];
+    // Con filtro: solo las 6 que coinciden, planas (qué pasa con los ancestros queda como pregunta para producto).
+    const filtradas = [
+      T('BC-002', 'Onboarding guiado para el primer proyecto SaaS importado', 1, { huerfana: true, hoja: true }),
+      T('PRD-012', 'Estado vacío de «esperando el primer reporte de CI» en Árbol y Planta', 1, { huerfana: true, hoja: true }),
+      T('FR-017', 'Exportar el árbol a PDF para comités', 1, { huerfana: true, hoja: true }),
+      T('FR-021', 'Notas privadas por feature', 1, { huerfana: true, hoja: true }),
+      T('PRD-018', 'Panel de salud de cuenta', 1, { huerfana: true, hoja: true, cerrada: true }),
+      T('FR-023', 'Importador incremental de repositorios', 1, { huerfana: true, hoja: true })
+    ];
+    const filas = isFiltro ? filtradas : arbol;
+    const filasMovil = filas.slice(0, isFiltro ? 6 : 6);
+
+    // Órdenes: título en texto plano; el código en línea es una pieza mono (decisión g). `titulo` = texto completo del title.
+    const P = (t, code) => ({ t, cls: code ? 'cod' : '' });
+    const E = {
+      hecha: { estado: 'Hecha', estadoColor: '#19703F', estadoRelleno: '#1E7F4F' },
+      curso: { estado: 'En curso', estadoColor: '#1F4FA0', estadoRelleno: '#1F4FA0' },
+      pendiente: { estado: 'Pendiente', estadoColor: '#565D63', estadoRelleno: 'transparent' }
+    };
+    const O = (id, partes, sdd, est, sha) => ({
+      id, partes, sdd, ...E[est],
+      titulo: partes.map(p => p.t).join(''),
+      sha: sha ?? '',
+      commitColor: sha ? '#17191C' : '#565D63',
+      marcaDisplay: sha ? 'display: block;' : hide,
+      sinMarcaDisplay: sha ? hide : 'display: block;',
+      shaDisplay: sha ? '' : hide,
+      sinCommitDisplay: sha ? hide : ''
+    });
+    const ordenes = [
+      O('WO-742', [P('WO-B (app: Planta y canvas, depende de WO-A). D5 en '), P('packages/app/src/routes/Planta.tsx:263-300', true), P(' (etiqueta y línea secundaria del BC, lectura defensiva).')], 'SDD-005', 'curso'),
+      O('WO-741', [P('WO-A (core, contratos, MCP y CLI). '), P('METRICS_RAW', true), P(' devuelve las features con su estado de trazado en vez de los totales.')], 'SDD-005', 'hecha', '3e1a9c4'),
+      O('WO-740', [P('Lista de features sin código accionable desde el Árbol, con el chip «Sin código»')], 'SDD-006', 'hecha', 'b72f0d1'),
+      O('WO-739', [P('Enlace desde la Planta a la lista filtrada, conservando el filtro en la URL')], 'SDD-006', 'hecha', '91c4e5a'),
+      O('WO-738', [P('Verificación contra el servidor real: '), P('GET /api/features?traced=false', true), P(' y el conteo del encabezado')], 'SDD-005', 'pendiente'),
+      O('WO-737', [P('Documentar el criterio de «aterrizado en main» en la guía del Árbol')], 'SDD-006', 'pendiente')
+    ];
+
     return {
-      isConDatos,
-      isSinDatos,
-      isBuscando,
-      noBuscando,
-      isSinResultados,
-      noSinResultados,
-      // WO-456/SDD-028: el panel de detalle tiene dos estados -- PRD-004 (cerrada, con trazabilidad
-      // completa) es el default; PRD-014 (recién colgada de BC-002, sin blueprints/órdenes/commits
-      // todavía) muestra el estado vacío que packages/app/src/components/EmptyState/EmptyState.tsx ya
-      // define. El árbol resalta la fila que corresponde a cada estado.
-      prd004Style: isConDatos ? selectedStyle : unselectedStyle,
-      nuevoRowStyle: isSinDatos ? selectedStyle : unselectedStyle
+      isDesktop: vista === 'escritorio', isMobile: vista === 'movil',
+      isCargando, noCargando: !isCargando, isSinDatos, isConDatos, isFiltro,
+      isSinResultados, noSinResultados: !isSinResultados,
+      conteoPrefijo: conteo.prefijo, conteoA: conteo.a, conteoMedio: conteo.medio, conteoB: conteo.b, conteoCola: conteo.cola,
+      contraerDisplay: isFiltro || isBuscando ? hide : show,
+      chipClase: isFiltro ? 'chip-on foco' : '',
+      chipFoco: '',
+      filas, filasMovil, ordenes,
+      cierreAbierto: (this.props.cierre ?? 'no') === 'si'
     };
   }
 }
