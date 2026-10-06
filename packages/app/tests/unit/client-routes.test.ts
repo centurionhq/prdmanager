@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as requestModule from '../../src/api/request.js';
 import {
+  archiveWorkOrder,
   claimWorkOrder,
   completeWorkOrder,
   createDocument,
@@ -122,6 +123,30 @@ describe('completeWorkOrder', () => {
     expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/work-orders/WO-001/complete', {
       method: 'POST',
       body: { commitSha: 'abc1234' },
+    });
+  });
+});
+
+describe('archiveWorkOrder', () => {
+  it('POSTs an empty body when there is no reason and unwraps { result }', async () => {
+    const result = { id: 'WO-001', status: 'archived', archivedAt: '2026-01-01T00:00:00.000Z', archivedBy: 'dev:ana' };
+    const spy = spyOnRequest().mockResolvedValue({ result });
+
+    await expect(archiveWorkOrder('acme', 'factory', 'WO-001')).resolves.toEqual(result);
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/work-orders/WO-001/archive', {
+      method: 'POST',
+      body: {},
+    });
+  });
+
+  it('POSTs the optional reason when given', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ result: { id: 'WO-001', status: 'archived' } });
+
+    await archiveWorkOrder('acme', 'factory', 'WO-001', 'ya no aplica');
+
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/work-orders/WO-001/archive', {
+      method: 'POST',
+      body: { reason: 'ya no aplica' },
     });
   });
 });

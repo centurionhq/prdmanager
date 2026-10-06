@@ -8,7 +8,7 @@ import type { WorkOrderSummary } from '@prdm/core';
 import type { StatusBadgeWorkOrderStatus } from '../../components/index.js';
 import { searchItems, sortItems, type SortState } from '../../lib/filter-sort.js';
 
-const KNOWN_WORK_ORDER_STATUSES: readonly StatusBadgeWorkOrderStatus[] = ['pending', 'in_progress', 'out_of_sync', 'done'];
+const KNOWN_WORK_ORDER_STATUSES: readonly StatusBadgeWorkOrderStatus[] = ['pending', 'in_progress', 'out_of_sync', 'done', 'archived'];
 
 /** `WorkOrderSummary.status` is a bare `string` server-side; narrows it to `StatusBadge`'s own literal
  * union, falling back to `'pending'` for a status this UI doesn't know about yet rather than crashing. */
@@ -16,7 +16,7 @@ export function asWorkOrderStatus(status: string): StatusBadgeWorkOrderStatus {
   return (KNOWN_WORK_ORDER_STATUSES as readonly string[]).includes(status) ? (status as StatusBadgeWorkOrderStatus) : 'pending';
 }
 
-export type OrdenesStatusFilter = 'todas' | 'pending' | 'in_progress' | 'out_of_sync' | 'done';
+export type OrdenesStatusFilter = 'todas' | 'pending' | 'in_progress' | 'out_of_sync' | 'done' | 'archived';
 export type OrdenesActorFilter = 'todos' | 'agentes' | 'developers' | 'sin-asignar';
 
 export interface OrdenesStatusOption {
@@ -30,6 +30,7 @@ export const ORDENES_STATUS_OPTIONS: readonly OrdenesStatusOption[] = [
   { value: 'in_progress', label: 'En curso' },
   { value: 'out_of_sync', label: 'Fuera de sincronía' },
   { value: 'done', label: 'Hechas' },
+  { value: 'archived', label: 'Archivadas' },
 ];
 
 export interface OrdenesActorOption {
@@ -54,7 +55,9 @@ export interface OrdenesFilterState {
 }
 
 function matchesStatus(order: WorkOrderSummary, status: OrdenesStatusFilter): boolean {
-  return status === 'todas' || order.status === status;
+  // "Todas" is the active queue: archived orders only show under their own chip (SDD-064 D3, FB-069).
+  if (status === 'todas') return order.status !== 'archived';
+  return order.status === status;
 }
 
 function matchesActor(order: WorkOrderSummary, actor: OrdenesActorFilter): boolean {

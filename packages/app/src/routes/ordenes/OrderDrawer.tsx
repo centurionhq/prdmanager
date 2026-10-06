@@ -6,9 +6,10 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import type { WorkOrderContextDto } from '@prdm/contracts';
 import type { WorkOrderSummary } from '@prdm/core';
-import { ApiClientError, claimWorkOrder, completeWorkOrder, getWorkOrderContext } from '../../api/client.js';
+import { ApiClientError, archiveWorkOrder, claimWorkOrder, completeWorkOrder, getWorkOrderContext } from '../../api/client.js';
 import { errorMessage } from '../../api/error-message.js';
 import { Button, Drawer, ErrorState, IdTag, Severity, Skeleton, StatusBadge, useToast } from '../../components/index.js';
+import { ArchiveOrderModal } from './ArchiveOrderModal.js';
 import { CompleteOrderModal } from './CompleteOrderModal.js';
 import { asWorkOrderStatus } from './ordenes-filters.js';
 import styles from './OrderDrawer.module.css';
@@ -18,7 +19,9 @@ export interface OrderDrawerProps {
   readonly projectSlug: string;
   readonly workOrderId: string;
   readonly onClose: () => void;
-  readonly onChanged: (next: WorkOrderSummary) => void;
+  /** Refreshes the list behind the drawer. The updated summary isn't always available (archiving
+   * answers with archive metadata, not a summary), so callers that only need to refetch can ignore it. */
+  readonly onChanged: (next?: WorkOrderSummary) => void;
 }
 
 const COMMIT_NOT_VERIFIED_MESSAGE =
@@ -32,6 +35,9 @@ export function OrderDrawer({ orgSlug, projectSlug, workOrderId, onClose, onChan
   const [completeOpen, setCompleteOpen] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState(false);
 
   function load(): void {
     setContext(null);
@@ -80,9 +86,29 @@ export function OrderDrawer({ orgSlug, projectSlug, workOrderId, onClose, onChan
     }
   }
 
+  async function handleArchive(reason?: string): Promise<void> {
+    setArchiving(true);
+    setArchiveError(null);
+    try {
+      await archiveWorkOrder(orgSlug, projectSlug, workOrderId, reason);
+      setArchiveOpen(false);
+      onChanged();
+      show('Orden archivada', { tone: 'success' });
+      load();
+    } catch (err) {
+      // No silent hiding: whatever the server answered (missing `archive_work_order`, a lifecycle
+      // refusal, ...) is what the user reads.
+      setArchiveError(errorMessage(err));
+    } finally {
+      setArchiving(false);
+    }
+  }
+
   const status = context ? asWorkOrderStatus(context.workOrder.status) : undefined;
   const canClaim = context?.workOrder.status === 'pending';
   const canComplete = context?.workOrder.status === 'in_progress' || context?.workOrder.status === 'out_of_sync';
+  // The only statuses `@prdm/core`'s `archiveWorkOrder` accepts (lifecycle.ts): never `done`/`archived`.
+  const canArchive = canClaim || canComplete;
 
   return (
     <>
@@ -101,6 +127,11 @@ export function OrderDrawer({ orgSlug, projectSlug, workOrderId, onClose, onChan
               {canComplete ? (
                 <Button type="button" variant="primary" onClick={() => setCompleteOpen(true)}>
                   Completar
+                </Button>
+              ) : null}
+              {canArchive ? (
+                <Button type="button" variant="secondary" onClick={() => setArchiveOpen(true)}>
+                  Archivar
                 </Button>
               ) : null}
             </div>
@@ -206,6 +237,18 @@ export function OrderDrawer({ orgSlug, projectSlug, workOrderId, onClose, onChan
           setCompleteError(null);
         }}
         onConfirm={(sha) => void handleComplete(sha)}
+      />
+
+      <ArchiveOrderModal
+        open={archiveOpen}
+        workOrderId={workOrderId}
+        submitting={archiving}
+        error={archiveError}
+        onClose={() => {
+          setArchiveOpen(false);
+          setArchiveError(null);
+        }}
+        onConfirm={(reason) => void handleArchive(reason)}
       />
     </>
   );
