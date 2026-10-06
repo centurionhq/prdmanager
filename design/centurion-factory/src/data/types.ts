@@ -211,7 +211,23 @@ export interface Metrics {
     readonly commitsWithRefs: number;
     readonly commitsTraced: number;
     readonly commitPercent: number;
+    readonly untracedCommits: {
+      readonly total: number;
+      readonly danglingRefs: number;
+      readonly truncated: boolean;
+      readonly items: readonly UntracedCommit[];
+    };
   };
+}
+
+/** A commit the traceability chain does not reach (contracts `untracedCommitSchema`, SDD-080 D4). */
+export interface UntracedCommit {
+  readonly sha: string;
+  readonly subject: string;
+  readonly author: string;
+  readonly date: string;
+  readonly files: readonly string[];
+  readonly gap: 'no_refs' | 'dangling_refs';
 }
 
 // ── Closure readiness (core lifecycle/close.ts) ───────────────────────────────────────────────────────

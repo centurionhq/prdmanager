@@ -3,6 +3,8 @@ export const SCREENSHOT_ROUTES = [
   { name: 'login', path: '/login' },
   { name: 'proyectos', path: '/proyectos' },
   { name: 'planta', path: '/' },
+  // WO-669: same screen with the «Commits trazados» drawer open; `click` is the accessible name of the control.
+  { name: 'planta-commits', path: '/', click: 'Commits trazados: 166/250' },
   { name: 'arbol', path: '/arbol/PRD-004' },
   { name: 'documentos', path: '/documentos' },
   { name: 'documento', path: '/documentos/SDD-011' },

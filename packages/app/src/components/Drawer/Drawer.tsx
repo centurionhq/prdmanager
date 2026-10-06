@@ -25,6 +25,8 @@ export function Drawer({ open, title, onClose, children, footer, width = 440 }: 
       ref={dialogRef}
       tabIndex={-1}
       className={styles.dialog}
+      role="dialog"
+      aria-modal="true"
       aria-labelledby={titleId}
       onMouseDown={scrim.onMouseDown}
       onClick={scrim.onClick}
@@ -38,7 +40,10 @@ export function Drawer({ open, title, onClose, children, footer, width = 440 }: 
             <X aria-hidden="true" size={20} />
           </button>
         </div>
-        <div className={styles.body}>{children}</div>
+        {/* WO-669, scrollable-region-focusable (WCAG 2.1.1): el cuerpo puede desbordar y tiene que poder scrollearse con el teclado. */}
+        <div className={styles.body} tabIndex={0}>
+          {children}
+        </div>
         {footer ? <div className={styles.footer}>{footer}</div> : null}
       </div>
     </dialog>

@@ -14,7 +14,7 @@ describe('screenshot routes', () => {
   it('covers every screen and each path resolves to a real route', () => {
     const names = (SCREENSHOT_ROUTES as ScreenshotRoute[]).map((route) => route.name);
     expect(new Set(names).size).toBe(names.length);
-    expect(names.length).toBe(12);
+    expect(names.length).toBe(13);
     for (const route of SCREENSHOT_ROUTES as ScreenshotRoute[]) {
       const router = createMemoryRouter(routes, { initialEntries: [route.path] });
       expect(router.state.location.pathname, route.path).toBe(route.path);

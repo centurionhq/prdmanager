@@ -22,7 +22,7 @@
     @media (prefers-reduced-motion: reduce) { .cf-station { animation: none; } }
   </style>
 </helmet>
-<div style="width: 1440px; height: 960px; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+<div style="position: relative; overflow: hidden; width: 1440px; height: 960px; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
 
   <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
     <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
@@ -168,14 +168,30 @@
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px; border-left: 1px solid #C9CFCD;">
         <span style="font-size: 14px; color: #565D63;">Commits trazados</span>
-        <span class="num" style="font-size: 36px; font-weight: 700; font-stretch: 112%;">66,4 %</span>
+        <button type="button" class="num" aria-expanded="false" aria-label="Commits trazados: 166/250" style="align-self: flex-start; padding: 0; border: 0; background: none; color: #17191C; text-align: left; font-family: inherit; font-size: 36px; font-weight: 700; font-stretch: 112%; cursor: pointer;">166/250</button>
+        <span style="font-size: 14px; color: #565D63;">66,4 %</span>
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 0 16px 24px; border-left: 1px solid #C9CFCD;">
         <span style="font-size: 14px; color: #565D63;">Commits con Refs</span>
-        <span class="num" style="font-size: 36px; font-weight: 700; font-stretch: 112%;">66,4 %</span>
+        <button type="button" class="num" aria-expanded="false" aria-label="Commits con Refs: 172/250" style="align-self: flex-start; padding: 0; border: 0; background: none; color: #17191C; text-align: left; font-family: inherit; font-size: 36px; font-weight: 700; font-stretch: 112%; cursor: pointer;">172/250</button>
+        <span style="font-size: 14px; color: #565D63;">68,8 %</span>
       </div>
     </section>
   </main>
+  <!-- WO-669 (SDD-080 D6/D7): drawer de «Commits trazados» abierto desde el KPI. -->
+  <div style="position: absolute; inset: 0; background: rgba(23, 25, 28, 0.45);"></div>
+  <aside aria-label="Commits trazados" style="position: absolute; top: 0; right: 0; bottom: 0; width: 640px; display: flex; flex-direction: column; gap: 16px; padding: 24px; background: #FBFCFB; border-left: 1px solid #C9CFCD; overflow: hidden;">
+    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;"><h2 style="margin: 0; font-size: 20px; font-weight: 700;">Commits trazados</h2><span aria-label="Cerrar" style="font-size: 20px; line-height: 1;">×</span></div>
+    <p style="margin: 0; font-size: 14px;">Commits cuya ref resuelve la cadena hasta una feature (WO → Blueprint → Feature); la lista son los que no la resuelven.</p>
+    <div style="display: flex; flex-direction: column; gap: 4px; font-size: 14px;"><p class="num" style="margin: 0;">84 de 250 commits sin trazar</p><p class="num" style="margin: 0;">6 refs colgantes</p></div>
+    <div style="min-width: 0; overflow-x: auto;" tabindex="0"><table style="width: 100%; min-width: 520px; border-collapse: collapse; text-align: left; font-size: 14px;">
+        <thead><tr><th scope="col" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #C9CFCD; font-weight: 600; color: #565D63;">Commit</th><th scope="col" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #C9CFCD; font-weight: 600; color: #565D63;">Asunto</th><th scope="col" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #C9CFCD; font-weight: 600; color: #565D63;">Autor</th><th scope="col" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #C9CFCD; font-weight: 600; color: #565D63;">Fecha</th><th scope="col" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #C9CFCD; font-weight: 600; color: #565D63;">Archivos</th></tr></thead>
+        <tbody>
+          <tr><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;"><span class="id">3f9a1c2</span></td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">fix: el filtro de órdenes ignora el estado archivado</td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">Tano</td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">05/10/2026, 11:12</td><td class="num" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">1 archivo</td></tr>
+          <tr><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;"><span class="id">e4a6937</span> <span style="color: #7A5A00;">ref colgante</span></td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">feat: lista de commits de la planta</td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">Lucía</td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">04/10/2026, 08:30</td><td class="num" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">1 archivo</td></tr>
+        </tbody></table></div>
+    <p style="margin: 0; font-size: 14px;">Se muestran los primeros 4 de 84.</p>
+  </aside>
 </div>
 </x-dc>
 <script data-dc-script data-props='{"estado":{"editor":"enum","default":"sin_perfil","options":["sin_perfil","negocio","producto","developer"],"section":"Estado de la banda"}}'>
