@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { AccessRequest } from '@prdm/contracts';
 import * as client from '../../src/api/client.js';
 import { OrgMembersSettings } from '../../src/routes/OrgMembersSettings.js';
 import { OrgShell } from '../../src/routes/OrgShell.js';
@@ -13,16 +14,29 @@ const MEMBERS = [
 
 const INVITATIONS = [{ id: 'inv1', email: 'pending@example.test', role: 'member' as const, status: 'pending', expiresAt: '2026-12-31T00:00:00.000Z' }];
 
+const ACCESS_REQUEST: AccessRequest = {
+  id: 'ar1',
+  email: 'nueva@example.test',
+  name: 'Nueva Persona',
+  message: 'Necesito entrar',
+  status: 'pending',
+  createdAt: '2026-10-06T11:20:00.000Z',
+  resolvedAt: null,
+  resolvedBy: null,
+};
+
 function renderPage(
   role: 'owner' | 'admin' | 'member',
   options: {
     projects?: import('@prdm/contracts').ProjectSummary[];
     projectMembersBySlug?: Record<string, import('@prdm/contracts').ProjectMemberDto[]>;
+    accessRequests?: AccessRequest[];
   } = {},
 ) {
   const { projects = [], projectMembersBySlug = {} } = options;
   vi.spyOn(client, 'listOrganizations').mockResolvedValue([{ id: 'org1', slug: 'acme', name: 'Acme', role }]);
   vi.spyOn(client, 'listProjects').mockResolvedValue(projects);
+  vi.spyOn(client, 'listAccessRequests').mockResolvedValue(options.accessRequests ?? []);
   vi.spyOn(client, 'listProjectMembers').mockImplementation((_orgSlug, projectSlug) =>
     Promise.resolve(projectMembersBySlug[projectSlug] ?? []),
   );
@@ -46,6 +60,8 @@ describe('OrgMembersSettings', () => {
     expect(await screen.findByText('owner@example.test')).toBeTruthy();
     expect(screen.queryByRole('combobox', { name: /Rol de/ })).toBeNull();
     expect(screen.queryByText('Invitaciones pendientes')).toBeNull();
+    expect(screen.queryByText('Solicitudes de acceso')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Aprobar la solicitud/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Invitar' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Invitar persona' })).toBeNull();
   });
@@ -142,5 +158,62 @@ describe('OrgMembersSettings', () => {
 
     await waitFor(() => expect(resend).toHaveBeenCalledWith('acme', 'inv1'));
     expect(await screen.findByText('Invitación reenviada')).toBeTruthy();
+  });
+
+  describe('solicitudes de acceso', () => {
+    function setup(accessRequests: AccessRequest[] = [ACCESS_REQUEST]) {
+      vi.spyOn(client, 'listOrganizationMembers').mockResolvedValue(MEMBERS);
+      vi.spyOn(client, 'listOrganizationInvitations').mockResolvedValue([]);
+      renderPage('admin', { accessRequests });
+    }
+
+    it('lists the pending requests', async () => {
+      setup();
+
+      expect(await screen.findByText(/nueva@example.test/)).toBeTruthy();
+      expect(screen.getByText('Necesito entrar')).toBeTruthy();
+      expect(screen.getByText('06/10/2026, 11:20')).toBeTruthy();
+    });
+
+    it('shows its own empty state', async () => {
+      setup([]);
+
+      expect(await screen.findByText('No hay solicitudes de acceso pendientes.')).toBeTruthy();
+    });
+
+    it('approves through the endpoint and reloads', async () => {
+      setup();
+      const approve = vi.spyOn(client, 'approveAccessRequest').mockResolvedValue({ requestId: 'ar1', status: 'approved', invitationId: 'inv9', alreadyMember: false });
+      const approveButton = await screen.findByRole('button', { name: 'Aprobar la solicitud de nueva@example.test' });
+      vi.spyOn(client, 'listAccessRequests').mockResolvedValue([]);
+      await userEvent.click(approveButton);
+
+      await waitFor(() => expect(approve).toHaveBeenCalledWith('acme', 'ar1'));
+      expect(await screen.findByText('Invitación enviada a nueva@example.test')).toBeTruthy();
+      await waitFor(() => expect(screen.queryByRole('button', { name: /Aprobar la solicitud/ })).toBeNull());
+    });
+
+    it('rejects with a reason', async () => {
+      setup();
+      const reject = vi.spyOn(client, 'rejectAccessRequest').mockResolvedValue({ requestId: 'ar1', status: 'rejected' });
+      await userEvent.click(await screen.findByRole('button', { name: 'Rechazar la solicitud de nueva@example.test' }));
+      const dialog = await screen.findByRole('dialog');
+
+      await userEvent.type(within(dialog).getByLabelText('Motivo (opcional)'), 'no corresponde');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Rechazar' }));
+
+      await waitFor(() => expect(reject).toHaveBeenCalledWith('acme', 'ar1', 'no corresponde'));
+    });
+
+    it('rejects without a reason', async () => {
+      setup();
+      const reject = vi.spyOn(client, 'rejectAccessRequest').mockResolvedValue({ requestId: 'ar1', status: 'rejected' });
+      await userEvent.click(await screen.findByRole('button', { name: 'Rechazar la solicitud de nueva@example.test' }));
+      const dialog = await screen.findByRole('dialog');
+
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Rechazar' }));
+
+      await waitFor(() => expect(reject).toHaveBeenCalledWith('acme', 'ar1', undefined));
+    });
   });
 });
