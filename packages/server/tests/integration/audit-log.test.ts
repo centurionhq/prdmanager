@@ -5,6 +5,7 @@
  * of `@prdm/db`'s own write-time `assertNoSecretsInAuditMetadata` guard.
  */
 import { Neo4jGraphDatabase } from '@prdm/core';
+import { createTenantDb } from '@prdm/db';
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { buildServer } from '../../src/build-server.js';
@@ -132,6 +133,70 @@ describe('GET .../audit-log (project and organization) (WO-342)', () => {
     expect(res.body).not.toContain(secret);
     const body = res.json() as { entries: { action: string; metadata: Record<string, unknown> }[] };
     expect(body.entries.some((e) => e.action === 'token.ci.created')).toBe(true);
+
+    await app.close();
+  });
+
+  type ActorEntry = { action: string; actor: { type: string; id: string; name?: string | null } };
+
+  async function seedOrgWithProject() {
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    const org = await createOrganizationFixture(pg);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: `saas://project/${project.id}` });
+    await store.clear();
+    return { owner, org, project };
+  }
+
+  async function getEntries(app: ReturnType<typeof buildServer>, url: string, cookie: string): Promise<ActorEntry[]> {
+    const res = await app.inject({ method: 'GET', url, headers: { ...AUTH_HOST(), cookie } });
+    expect(res.statusCode).toBe(200);
+    return (res.json() as { entries: ActorEntry[] }).entries;
+  }
+
+  test('resolves actor.name: real user name, token name, and null for an actor with no row (project and org endpoints)', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await seedOrgWithProject();
+    const ownerCookie = await signIn(app, owner.email);
+    const projectUrl = `/api/app/organizations/${org.slug}/projects/${project.slug}/audit-log`;
+    const orgUrl = `/api/app/organizations/${org.slug}/audit-log`;
+
+    await app.inject({
+      method: 'PATCH',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/settings`,
+      headers: await mutationHeaders(app, AUTH_HOST(), env.publicUrl, ownerCookie),
+      payload: { settings: {} },
+    });
+    const created = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/ci-tokens`,
+      headers: await mutationHeaders(app, AUTH_HOST(), env.publicUrl, ownerCookie),
+      payload: { name: 'ci token', scopes: ['reports:write'], expiresAt: new Date(Date.now() + DAY_MS).toISOString() },
+    });
+    expect(created.statusCode).toBe(200);
+    const tokenId = created.json().token.id as string;
+    const audit = createTenantDb(pg.appPool).forOrg(org.id).auditLog;
+    await audit.record({ projectId: project.id, actorType: 'token', actorId: tokenId, action: 'mcp.tool_call', target: 'search_nodes', metadata: { tool: 'search_nodes' } });
+    await audit.record({ projectId: project.id, actorType: 'user', actorId: 'no-such-user-id', action: 'ghost.action', target: 'x', metadata: {} });
+    const { rows } = await pg.ownerPool.query<{ name: string }>(`SELECT name FROM "user" WHERE id = $1`, [owner.id]);
+    const ownerName = rows[0]!.name;
+
+    for (const url of [projectUrl, orgUrl]) {
+      const entries = await getEntries(app, url, ownerCookie);
+      const byUser = entries.find((e) => e.action === 'project.settings.updated')!;
+      expect(byUser.actor.id).toBe(owner.id);
+      expect(byUser.actor.name).toBe(ownerName);
+
+      const byToken = entries.find((e) => e.action === 'mcp.tool_call')!;
+      expect(byToken.actor.id).toBe(tokenId);
+      expect(byToken.actor.name).toBe('ci token');
+      expect(byToken.actor.name).not.toBe(tokenId);
+
+      const ghost = entries.find((e) => e.action === 'ghost.action')!;
+      expect(ghost.actor.id).toBe('no-such-user-id');
+      expect(ghost.actor.name).toBeNull();
+    }
 
     await app.close();
   });

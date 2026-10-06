@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 export const auditLogEntrySchema = z.object({
   id: z.string(),
-  actor: z.object({ type: z.string(), id: z.string() }),
+  actor: z.object({ type: z.string(), id: z.string(), name: z.string().nullable().optional() }),
   action: z.string(),
   target: z.string(),
   metadata: z.record(z.string(), z.unknown()),
