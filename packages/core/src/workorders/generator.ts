@@ -1,4 +1,4 @@
-import type { ProjectEngine, RefreshReport } from '../engine.js';
+import type { ProjectEngine, RefreshReport, TransactionOptions } from '../engine.js';
 import type { ParsedDoc, WorkOrderStatus } from '../domain/schema.js';
 import { checkLifecycle } from '../lifecycle/check.js';
 import type { FieldValue } from '../parser/frontmatter-edit.js';
@@ -191,7 +191,7 @@ export interface GenerateResult {
 }
 
 /** Generates work orders from a blueprint's task checklist; idempotent across runs. */
-export async function generateWorkOrders(engine: ProjectEngine, blueprintId: string): Promise<GenerateResult> {
+export async function generateWorkOrders(engine: ProjectEngine, blueprintId: string, options: Pick<TransactionOptions, 'deferProjection'> = {}): Promise<GenerateResult> {
   return engine.transaction(
     async (ops) => {
       const scan = await ops.scan();
@@ -223,7 +223,7 @@ export async function generateWorkOrders(engine: ProjectEngine, blueprintId: str
         report,
       };
     },
-    { atomic: true },
+    { atomic: true, ...options },
   );
 }
 

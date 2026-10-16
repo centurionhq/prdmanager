@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { classifyDbTimeout } from '@prdm/core';
 import { errorEnvelope, type ErrorCode } from '@prdm/contracts';
 import type {} from '@fastify/static'; // module augmentation: adds `reply.sendFile` to FastifyReply's type.
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -14,7 +15,11 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
   rate_limited: 429,
   payload_too_large: 413,
   internal_error: 500,
+  service_unavailable: 503,
 };
+
+/** Same value as the default `connectionTimeoutMillis` of `@prdm/db`'s `createPool` (5 s). */
+const DB_BUSY_RETRY_AFTER_SECONDS = 5;
 
 /**
  * Base of every error a route handler throws on purpose (SDD-006 §Arquitectura). `internal_error` is
@@ -67,6 +72,15 @@ export class RateLimitedError extends HttpError {
   }
 }
 
+export class ServiceUnavailableError extends HttpError {
+  constructor(
+    message: string,
+    public readonly retryAfterSeconds?: number,
+  ) {
+    super('service_unavailable', message);
+  }
+}
+
 function sendError(reply: FastifyReply, code: ErrorCode, message: string): void {
   void reply.code(STATUS_BY_CODE[code]).send(errorEnvelope(code, message));
 }
@@ -95,7 +109,17 @@ function isBodyTooLargeError(err: unknown): boolean {
  */
 export function setErrorHandler(app: FastifyInstance): void {
   app.setErrorHandler((err: FastifyError | Error, request: FastifyRequest, reply: FastifyReply) => {
+    // WO-647: el timeout puede llegar tipado (engine) o crudo del driver (p. ej. la auth bearer del preHandler
+    // es el primer consumidor del pool); el borde es este handler global, no cada consumidor.
+    const dbTimeout = classifyDbTimeout(err);
+    if (dbTimeout) {
+      request.log.error({ err }, 'database timeout');
+      if (dbTimeout === 'busy') void reply.header('retry-after', String(DB_BUSY_RETRY_AFTER_SECONDS));
+      sendError(reply, 'service_unavailable', dbTimeout === 'busy' ? 'database busy, retry shortly' : 'statement timed out');
+      return;
+    }
     if (err instanceof HttpError) {
+      if (err instanceof ServiceUnavailableError && err.retryAfterSeconds !== undefined) void reply.header('retry-after', String(err.retryAfterSeconds));
       sendError(reply, err.code, err.message);
       return;
     }

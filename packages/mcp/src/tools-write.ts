@@ -32,7 +32,7 @@ export function registerAuthoringWriteTools(server: McpServer, deps: PrdmDeps): 
       inputSchema: { blueprint_id: docId },
       annotations: { title: 'Generate work orders', ...WRITE_IDEMPOTENT },
     },
-    safeTool(async ({ blueprint_id }: { blueprint_id: string }) => jsonResult({ ...(await generateWorkOrders(deps.engine, blueprint_id)) })),
+    safeTool(async ({ blueprint_id }: { blueprint_id: string }) => jsonResult({ ...(await generateWorkOrders(deps.engine, blueprint_id, { deferProjection: true })) })),
   );
 
   server.registerTool(

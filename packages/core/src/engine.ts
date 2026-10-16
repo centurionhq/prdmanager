@@ -117,6 +117,45 @@ export interface RecoverResult {
 export interface TransactionOptions {
   /** Routes this transaction's file writes through a journal so any failure (incl. the final graph snapshot) rolls every write back. */
   atomic?: boolean;
+  /** PgProjectEngine no proyecta al grafo al commitear; la proyección queda para el próximo read path (que ya la cubre con `projectIfDirty()`, no-op cuando el proyecto no está dirty — SDD-007). El `Engine` local lo ignora. */
+  deferProjection?: boolean;
+}
+
+/** The pool had no free connection within its `connectionTimeoutMillis`; thrown with `{ cause: driverError }`. */
+export class DatabaseBusyError extends Error {
+  constructor(message = 'database busy', options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'DatabaseBusyError';
+  }
+}
+
+/** Postgres cancelled a statement at `statement_timeout`; thrown with `{ cause: driverError }`. */
+export class StatementTimedOutError extends Error {
+  constructor(message = 'statement timed out', options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'StatementTimedOutError';
+  }
+}
+
+const DB_ERROR_CAUSE_DEPTH = 3;
+
+/**
+ * Única verdad sobre "este error es un timeout de la base" (WO-647, gate de SDD-073 D2): la usan el engine
+ * Pg (que lo envuelve en el error tipado), el handler global de Fastify y `errorResult` del MCP. Reconoce los
+ * dos errores tipados y, recorriendo `cause` (hasta 3 niveles), el error crudo del driver: el connect timeout
+ * de pg-pool o el cancel de Postgres por `statement_timeout` (SQLSTATE 57014). Cualquier otro error es
+ * `undefined` y quien llama lo propaga sin tocar.
+ */
+export function classifyDbTimeout(err: unknown): 'busy' | 'statement' | undefined {
+  if (err instanceof DatabaseBusyError) return 'busy';
+  if (err instanceof StatementTimedOutError) return 'statement';
+  let current: unknown = err;
+  for (let depth = 0; depth < DB_ERROR_CAUSE_DEPTH && current instanceof Error; depth++) {
+    if (/timeout exceeded when trying to connect/.test(current.message)) return 'busy';
+    if ((current as { code?: unknown }).code === '57014' && /statement timeout/i.test(current.message)) return 'statement';
+    current = current.cause;
+  }
+  return undefined;
 }
 
 export class Engine implements ProjectEngine {
