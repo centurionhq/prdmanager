@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { errorEnvelope, type ErrorCode } from '@prdm/contracts';
+import { errorEnvelope, matchesAppRoute, type ErrorCode } from '@prdm/contracts';
 import type {} from '@fastify/static'; // module augmentation: adds `reply.sendFile` to FastifyReply's type.
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { injectCspNonce } from './spa-html.js';
@@ -116,23 +116,28 @@ export interface NotFoundHandlerOptions {
   /** `@fastify/static`'s registered root (SDD-006 "Local y despliegue": packages/app's built bundle) —
    * `undefined` when no static bundle was ever configured. Kept as the real path (not just a boolean)
    * so this handler can read `index.html` itself and inject the per-request CSP nonce (SDD-008 §"Editor")
-   * rather than streaming the file byte-for-byte unchanged via `reply.sendFile`. */
+   * rather than streaming the file byte-for-byte unchanged via `reply.sendFile`. Without it, every
+   * unmatched path degrades to the JSON 404. */
   staticDir?: string;
 }
 
 /**
  * Every unmatched `/api/*` (and, defensively, `/collab`/`/mcp` — SDD-008/SDD-010 haven't wired their own routes
  * yet, but a request that reaches this handler for either prefix must still get the shared JSON envelope, never
- * the SPA shell) is a JSON 404. Everything else falls back to `packages/app`'s `index.html` once `staticDir` was
- * given to `buildServer` (client-side routing, mirrors `packages/web/src/errors.ts`'s own `setNotFoundHandler`);
- * with no `staticDir` this degrades to the same JSON 404 instead of crashing.
+ * the SPA shell) is a JSON 404. Everything else is served `packages/app`'s `index.html` once `staticDir` was
+ * given to `buildServer`, so the client router can draw the screen (or its own 404 with chrome). The HTTP status
+ * is decided by the route map shared with the SPA (`matchesAppRoute` from `@prdm/contracts`, SDD-071): 200 for a
+ * real app route, 404 for anything else — the shell body is identical in both cases. With no `staticDir` this
+ * degrades to the same JSON 404 instead of crashing.
  */
 export function setNotFoundHandler(app: FastifyInstance, options: NotFoundHandlerOptions = {}): void {
   app.setNotFoundHandler((request: FastifyRequest, reply: FastifyReply) => {
     const isPlatformRoute = request.url.startsWith('/api/') || request.url.startsWith('/collab') || request.url.startsWith('/mcp');
     if (!isPlatformRoute && options.staticDir) {
+      const pathname = request.url.split('?')[0]!;
+      const status = matchesAppRoute(pathname) ? 200 : 404;
       const html = readFileSync(join(options.staticDir, 'index.html'), 'utf8');
-      void reply.type('text/html').send(injectCspNonce(html, request.cspNonce));
+      void reply.code(status).type('text/html').send(injectCspNonce(html, request.cspNonce));
       return;
     }
     sendError(reply, 'not_found', 'route not found');
