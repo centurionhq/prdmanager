@@ -1,10 +1,12 @@
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { ParsedDoc } from '../../src/domain/schema.js';
 import { emptyBaseline, type Baseline } from '../../src/sync/baseline.js';
-import type { CodeRefState } from '../../src/sync/code-refs.js';
+import { resolveGoverned, type CodeRefState } from '../../src/sync/code-refs.js';
 import type { CommitInfo } from '../../src/sync/git.js';
 import { acknowledge, detectDrift, type DriftInput } from '../../src/sync/monitor.js';
-import { doc, mrd, prd, sdd, wo } from '@prdm/testkit';
+import { doc, makeTmpDir, mrd, prd, removeDir, sdd, wo } from '@prdm/testkit';
 
 const ref = (key: string, hash: string | null): CodeRefState => ({ key, path: key, symbol: null, hash });
 
@@ -133,6 +135,29 @@ describe('detectDrift', () => {
     expect(result.issues[0]).toMatchObject({ nodeId: 'SDD-001', target: 'src/sync/gone.ts' });
     expect(result.issues[0]?.message).toContain('src/sync/gone.ts');
     expect(result.issues.some((i) => i.kind === 'code_out_of_sync')).toBe(false);
+  });
+
+  test('un directorio vacío declarado con baseline null (post-ack) es impacts_warning, nunca code_out_of_sync', async () => {
+    const root = makeTmpDir();
+    try {
+      await mkdir(join(root, 'paquete/tests/empty'), { recursive: true });
+      const { refs, warnings } = await resolveGoverned(root, ['paquete/tests/empty'], []);
+      const docs = [mrd(), prd(), sdd()];
+      const result = detectDrift(
+        input({
+          docs,
+          governed: new Map([['SDD-001', refs]]),
+          governWarnings: warnings.map((message) => ({ blueprintId: 'SDD-001', message })),
+          baseline: baselineOf(docs, { 'SDD-001': { 'paquete/tests/empty': null } }),
+        }),
+      );
+      expect(result.governed[0]).toMatchObject({ status: 'out_of_sync', reason: 'missing' });
+      expect(result.issues.map((i) => [i.kind, i.severity])).toEqual([['impacts_warning', 'warning']]);
+      expect(result.issues[0]?.target).toBe('paquete/tests/empty');
+      expect(result.issues.some((i) => i.kind === 'code_out_of_sync')).toBe(false);
+    } finally {
+      removeDir(root);
+    }
   });
 
   test('surfaces a deprecated_field warning for docs still using the legacy governs/todo aliases', () => {
