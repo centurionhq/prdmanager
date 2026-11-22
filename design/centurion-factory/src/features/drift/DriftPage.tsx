@@ -73,7 +73,7 @@ export function DriftPage(): ReactElement {
 
       {state === 'error' ? (
         <ErrorState
-          title="No pudimos leer el reporte de CI de feat/fr-002-importer."
+          title="No pudimos leer el reporte de CI de fix/scan-timeout."
           body="Reintentá o revisá que el token prdm_ci_… siga vigente."
           onRetry={retry}
         />

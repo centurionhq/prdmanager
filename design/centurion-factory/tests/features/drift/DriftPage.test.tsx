@@ -38,22 +38,43 @@ describe('DriftPage', () => {
     expect(summary.textContent).toContain('99,6 % del código sincronizado');
   });
 
-  it('lists branch previews with their badge, relative time and issue count', async () => {
+  it('lists branch previews worst-first, with the readable label, the count and the delta against main', async () => {
     renderAt('/drift');
     const previewsTitle = await screen.findByText('Previews por rama');
     const previews = within(previewsTitle.closest('div') as HTMLElement);
+
+    // SDD-070 D3: a `pull_request` ref reads as its PR number, and the raw value stays in the title.
+    const pullRequest = previews.getByText('PR #32');
+    expect(pullRequest.getAttribute('title')).toBe('Rama del reporte: 32/merge');
     expect(previews.getByText('feat/fr-002-importer')).toBeTruthy();
-    expect(previews.getAllByText('vista previa').length).toBeGreaterThan(0);
-    expect(previews.getByText('hace 26 min')).toBeTruthy();
+    expect(previews.getByText('feat/fr-003-avisos')).toBeTruthy();
+
+    // SDD-070 D5: the badge is text, not a control.
+    expect(previews.getAllByText('vista previa')).toHaveLength(3);
+
+    // SDD-070 D2: count plus a second line with the delta against the official report (6 issues).
+    expect(previews.getByText('8')).toBeTruthy();
+    expect(previews.getByText('+2 vs main')).toBeTruthy();
+    expect(previews.getByText('0 vs main')).toBeTruthy();
+    expect(previews.getByText('-4 vs main')).toBeTruthy();
+
+    // SDD-070 D6: worst first — +2, then 0, then -4.
+    const labels = Array.from(previewsTitle.closest('div')!.querySelectorAll('li')).map(
+      (row) => row.querySelector('[title^="Rama del reporte"]')?.textContent ?? '',
+    );
+    expect(labels).toEqual(['PR #32', 'feat/fr-002-importer', 'feat/fr-003-avisos']);
   });
 
-  it('shows "Esperando reporte de CI" for a branch awaiting its first report', async () => {
+  it('does not draw a "Sin datos · Esperando reporte de CI" row in the previews panel', async () => {
     renderAt('/drift');
     const previewsTitle = await screen.findByText('Previews por rama');
     const previews = within(previewsTitle.closest('div') as HTMLElement);
-    expect(previews.getByText('fix/scan-timeout')).toBeTruthy();
-    expect(previews.getByText('Esperando reporte de CI')).toBeTruthy();
-    expect(previews.getByText('Sin datos')).toBeTruthy();
+    expect(previews.queryByText('Sin datos')).toBeNull();
+    expect(previews.queryByText('Esperando reporte de CI')).toBeNull();
+    // A preview report always carries a count; the wait is an issue of the list, not a row here.
+    expect(previews.queryByText('fix/scan-timeout')).toBeNull();
+    expect(screen.getByText('Esperando reporte de CI')).toBeTruthy();
+    expect(screen.getAllByText('fix/scan-timeout').length).toBeGreaterThan(0);
   });
 
   it('lists the report history with date, commit, token and issue count', async () => {

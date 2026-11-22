@@ -58,10 +58,10 @@ export const DRIFT_ISSUES: readonly DriftIssue[] = [
     id: 'drift-006',
     kind: 'awaiting_ci_report',
     severity: 'warning',
-    nodeId: 'feat/fr-002-importer',
+    nodeId: 'fix/scan-timeout',
     blueprintId: 'SDD-012',
     featureId: 'FR-002',
-    message: 'La rama feat/fr-002-importer todavía no recibió un reporte de CI.',
+    message: 'La rama fix/scan-timeout todavía no recibió un reporte de CI.',
     detectedAt: '2026-09-15T09:56:00.000Z',
   },
   {
@@ -141,6 +141,13 @@ export const DRIFT_ISSUES: readonly DriftIssue[] = [
   },
 ];
 
+/**
+ * The branch the drift screen calls official: its newest baseline report is the reference the preview
+ * panel ranks every branch against (SDD-070 D2/D6). In the real app this comes from the project
+ * settings; the mock has a single linked project, so it is a constant.
+ */
+export const DRIFT_DEFAULT_BRANCH = 'main';
+
 export const DRIFT_REPORTS: readonly DriftReport[] = [
   {
     id: 'report-001',
@@ -200,36 +207,35 @@ export const DRIFT_REPORTS: readonly DriftReport[] = [
   {
     id: 'report-006',
     mode: 'preview',
-    branch: 'feat/fr-002-importer',
+    branch: '32/merge',
     headSha: '6a9d2c1',
     tokenName: 'github-actions-previews',
     tokenPrefix: 'prdm_ci_c21e',
-    issueCount: 2,
+    issueCount: 8,
     hasBlockingIssues: true,
-    createdAt: '2026-09-15T09:34:00.000Z',
+    createdAt: '2026-09-15T09:52:00.000Z',
   },
   {
     id: 'report-007',
     mode: 'preview',
-    branch: 'feat/fr-003-avisos',
+    branch: 'feat/fr-002-importer',
     headSha: '1b3f7e2',
     tokenName: 'github-actions-previews',
     tokenPrefix: 'prdm_ci_c21e',
-    issueCount: 0,
-    hasBlockingIssues: false,
-    createdAt: '2026-09-15T08:56:00.000Z',
+    issueCount: 6,
+    hasBlockingIssues: true,
+    createdAt: '2026-09-15T09:34:00.000Z',
   },
   {
     id: 'report-008',
     mode: 'preview',
-    branch: 'fix/scan-timeout',
+    branch: 'feat/fr-003-avisos',
     headSha: 'e4a12c9',
     tokenName: 'github-actions-previews',
     tokenPrefix: 'prdm_ci_c21e',
-    issueCount: 0,
-    hasBlockingIssues: false,
-    createdAt: '2026-09-15T08:00:00.000Z',
-    awaitingCi: true,
+    issueCount: 2,
+    hasBlockingIssues: true,
+    createdAt: '2026-09-15T08:56:00.000Z',
   },
 ];
 
