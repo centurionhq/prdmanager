@@ -2,9 +2,20 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
 import type { DriftIssueDto } from '@prdm/contracts';
 import { Button, IdTag, Severity, Tooltip } from '../../components/index.js';
-import { groupIssues, PAGE_SIZE, paginateIssues, splitMessage } from './drift-groups.js';
+import { acknowledgeTargetFor, groupIssues, PAGE_SIZE, paginateIssues, splitMessage, type AcknowledgeTarget } from './drift-groups.js';
 import { issueCopy, REASON_LABELS, type GlossaryTerm, type IssueCopy } from './drift-issue-copy.js';
 import styles from './Drift.module.css';
+
+/**
+ * Rows whose document cannot be acknowledged from the row itself (SDD-111 D4). Acknowledge is per document, and
+ * a work order row does not carry the document the server needs — its blueprint's subgroup does.
+ */
+const NO_ROW_TARGET_TIP =
+  'Esta fila no se reconoce sola. «Reconocer» avanza la línea base de un documento entero: usá el subgrupo de su blueprint o «Todo el proyecto».';
+
+function issueNoun(count: number): string {
+  return count === 1 ? 'issue' : 'issues';
+}
 
 function blueprintTipFor(issue: DriftIssueDto, copy: IssueCopy): string | undefined {
   if (!issue.blueprintId) return undefined;
@@ -69,11 +80,33 @@ function BlueprintCell({ issue, tip }: { readonly issue: DriftIssueDto; readonly
 
 export interface DriftIssuesListProps {
   readonly issues: readonly DriftIssueDto[];
+  /** Every acknowledgeable document plus "Todo el proyecto" — the same list the modal's select shows. */
+  readonly ackTargets: readonly AcknowledgeTarget[];
+  /** `can(subject, 'acknowledge_drift')`: without it no action is rendered at all (SDD-111 D7). */
+  readonly canAcknowledge: boolean;
+  /** Target whose acknowledge is in flight; its buttons say «Reconociendo…» and cannot be sent twice. */
+  readonly acknowledging?: string | null;
+  /** The list never calls the API itself: it asks the screen to open the modal on this target. */
+  readonly onAcknowledgeRequest: (target: string) => void;
 }
 
-export function DriftIssuesList({ issues }: DriftIssuesListProps): ReactElement {
+export function DriftIssuesList({
+  issues,
+  ackTargets,
+  canAcknowledge,
+  acknowledging = null,
+  onAcknowledgeRequest,
+}: DriftIssuesListProps): ReactElement {
   const groups = groupIssues(issues);
   const [visibleBySubgroup, setVisibleBySubgroup] = useState<Record<string, number>>({});
+  const options = new Map(ackTargets.map((target) => [target.value, target]));
+
+  /** The action lives in a native `<summary>`: without both calls the click would also toggle the `<details>`. */
+  function requestAcknowledge(event: { preventDefault: () => void; stopPropagation: () => void }, target: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    onAcknowledgeRequest(target);
+  }
 
   if (groups.length === 0) {
     return <p>No hay drift pendiente de revisar.</p>;
@@ -93,6 +126,10 @@ export function DriftIssuesList({ issues }: DriftIssuesListProps): ReactElement 
               const key = `${group.kind}/${subgroup.blueprintId ?? 'none'}`;
               const requested = visibleBySubgroup[key] ?? PAGE_SIZE;
               const paginated = paginateIssues(subgroup.issues, Math.min(requested, subgroup.issues.length));
+              // One subgroup is one document, so its action covers the document's whole debt — all kinds of
+              // issues, not only the ones of this group (SDD-111 D5).
+              const subgroupTarget = subgroup.blueprintId ? options.get(subgroup.blueprintId) : undefined;
+              const action = canAcknowledge ? subgroupTarget : undefined;
               return (
                 <details key={key} open className={styles.subgroup}>
                   <summary className={styles.subgroupHeader}>
@@ -102,12 +139,35 @@ export function DriftIssuesList({ issues }: DriftIssuesListProps): ReactElement 
                       <span className={styles.subgroupLabel}>{subgroup.label}</span>
                     )}
                     <span className={styles.groupCount}>{subgroup.issues.length}</span>
+                    {action ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className={styles.subgroupAction}
+                        disabled={acknowledging === action.value}
+                        aria-label={`Reconocer ${action.count === 1 ? 'el issue' : `los ${action.count} issues`} de ${action.value}`}
+                        onClick={(event) => requestAcknowledge(event, action.value)}
+                      >
+                        {acknowledging === action.value
+                          ? 'Reconociendo…'
+                          : action.count === 1
+                            ? 'Reconocer'
+                            : `Reconocer los ${action.count} issues`}
+                      </Button>
+                    ) : null}
                   </summary>
                   <ul className={styles.issueList}>
                     {paginated.visible.map((issue) => {
                       const copy = issueCopy(issue);
+                      const rowTarget = acknowledgeTargetFor(issue);
+                      const rowAction = canAcknowledge && rowTarget ? options.get(rowTarget) : undefined;
                       return (
-                        <li key={issue.id} className={styles.issueRow}>
+                        // The tip explains, without inventing an action, why this row offers none (SDD-111 D4).
+                        <li
+                          key={issue.id}
+                          className={styles.issueRow}
+                          title={canAcknowledge && !rowAction ? NO_ROW_TARGET_TIP : undefined}
+                        >
                           <Severity severity={issue.severity} />
                           <div className={styles.issueBody}>
                             <span className={styles.issueHeadline}>
@@ -118,6 +178,26 @@ export function DriftIssuesList({ issues }: DriftIssuesListProps): ReactElement 
                             </span>
                             {copy.action !== null ? <div className={styles.issueAction}>Qué hacer: {copy.action}</div> : null}
                           </div>
+                          {rowAction ? (
+                            <span className={styles.issueAck}>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                disabled={acknowledging === rowAction.value}
+                                // A row never suggests it acknowledges one issue: it carries the document's count.
+                                aria-label={`Reconocer ${rowAction.value}: cubre ${rowAction.count} ${issueNoun(rowAction.count)}`}
+                                onClick={() => onAcknowledgeRequest(rowAction.value)}
+                              >
+                                {acknowledging === rowAction.value ? (
+                                  'Reconociendo…'
+                                ) : (
+                                  <>
+                                    Reconocer <span className={styles.issueAckCount}>{rowAction.count}</span>
+                                  </>
+                                )}
+                              </Button>
+                            </span>
+                          ) : null}
                         </li>
                       );
                     })}

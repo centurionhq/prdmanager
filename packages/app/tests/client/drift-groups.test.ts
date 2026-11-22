@@ -4,6 +4,8 @@ import {
   EMPTY_FILTERS,
   PAGE_SIZE,
   SUBGROUP_NO_BLUEPRINT_LABEL,
+  acknowledgeTargetFor,
+  acknowledgeableTargets,
   filterIssues,
   groupIssues,
   paginateIssues,
@@ -224,5 +226,90 @@ describe('paginateIssues', () => {
 
   test('an empty list paginates to nothing', () => {
     expect(paginateIssues([], PAGE_SIZE)).toEqual({ visible: [], remaining: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------
+// SDD-111 / WO-764 — acknowledging moves the whole DOCUMENT (`core/src/sync/monitor.ts:345-356`), so every
+// target carries its own debt: the total count, how much of it the baseline move actually resolves, and how
+// many documents an `all` ack advances. Counting the filtered view would under-report an irreversible action.
+// ---------------------------------------------------------------------------------------------------
+
+describe('acknowledgeTargetFor', () => {
+  test('the blueprint of the issue is its document', () => {
+    expect(acknowledgeTargetFor(issue({ blueprintId: 'SDD-013', nodeId: 'SDD-013' }))).toBe('SDD-013');
+  });
+
+  test('an unattributed issue falls back to its own document nodeId', () => {
+    expect(acknowledgeTargetFor(issue({ blueprintId: null, nodeId: 'FR-009', kind: 'lifecycle_violation' }))).toBe('FR-009');
+  });
+
+  test('a work order row has no per-row target: the DTO does not carry its status and the server rejects non-final ones', () => {
+    expect(acknowledgeTargetFor(issue({ blueprintId: null, nodeId: 'WO-625', kind: 'landed_but_open' }))).toBeNull();
+    // Even attributed, the row itself is never the action: its blueprint's subgroup covers it.
+    expect(acknowledgeTargetFor(issue({ blueprintId: 'SDD-012', nodeId: 'WO-625', kind: 'work_order_out_of_sync' }))).toBeNull();
+  });
+
+  test('a nodeId that is not a document id has no target either', () => {
+    expect(acknowledgeTargetFor(issue({ blueprintId: null, nodeId: 'packages/app/src/a.ts' }))).toBeNull();
+    expect(acknowledgeTargetFor(issue({ blueprintId: null, nodeId: 'sdd-013' }))).toBeNull();
+  });
+});
+
+describe('acknowledgeableTargets', () => {
+  test('counts the whole document, not the rows of one kind, and keeps "Todo el proyecto" last', () => {
+    const targets = acknowledgeableTargets([
+      issue({ blueprintId: 'SDD-013', kind: 'code_out_of_sync' }),
+      issue({ blueprintId: 'SDD-013', kind: 'impacts_warning', severity: 'warning' }),
+      issue({ blueprintId: 'SDD-013', kind: 'lifecycle_violation' }),
+      issue({ blueprintId: 'SDD-002', kind: 'code_out_of_sync' }),
+    ]);
+
+    expect(targets.map((target) => [target.value, target.count, target.documents])).toEqual([
+      ['SDD-013', 3, 1],
+      ['SDD-002', 1, 1],
+      ['all', 4, 2],
+    ]);
+    expect(at(targets, 0).label).toBe('SDD-013 · 3 issues');
+    expect(at(targets, 2).label).toBe('Todo el proyecto · 4 issues');
+  });
+
+  test('splits the debt: only code and work orders are resolved by moving the baseline', () => {
+    const targets = acknowledgeableTargets([
+      issue({ blueprintId: 'SDD-013', kind: 'code_out_of_sync' }),
+      issue({ blueprintId: 'SDD-013', kind: 'work_order_out_of_sync' }),
+      issue({ blueprintId: 'SDD-013', kind: 'lifecycle_violation' }),
+      issue({ blueprintId: 'SDD-013', kind: 'impacts_warning', severity: 'warning' }),
+      issue({ blueprintId: 'SDD-013', kind: 'landed_but_open', severity: 'warning' }),
+    ]);
+
+    expect(at(targets, 0)).toMatchObject({ value: 'SDD-013', count: 5, resolvable: 2 });
+    expect(at(targets, 1)).toMatchObject({ value: 'all', count: 5, resolvable: 2 });
+  });
+
+  test('singular in the label for a single issue', () => {
+    const targets = acknowledgeableTargets([issue({ blueprintId: 'ADR-008' })]);
+    expect(at(targets, 0).label).toBe('ADR-008 · 1 issue');
+    expect(at(targets, 1).label).toBe('Todo el proyecto · 1 issue');
+  });
+
+  test('a document reachable only through its nodeId is a target too', () => {
+    const targets = acknowledgeableTargets([issue({ blueprintId: null, nodeId: 'FR-009', kind: 'lifecycle_violation' })]);
+    expect(targets.map((target) => [target.value, target.count])).toEqual([
+      ['FR-009', 1],
+      ['all', 1],
+    ]);
+  });
+
+  test('rows with no target contribute only to "Todo el proyecto"', () => {
+    const targets = acknowledgeableTargets([issue({ blueprintId: null, nodeId: 'WO-625', kind: 'landed_but_open' })]);
+    expect(targets.map((target) => target.value)).toEqual(['all']);
+    expect(at(targets, 0).documents).toBe(0);
+  });
+
+  test('an empty report still offers "Todo el proyecto" at zero', () => {
+    expect(acknowledgeableTargets([])).toEqual([
+      { value: 'all', label: 'Todo el proyecto · 0 issues', count: 0, resolvable: 0, documents: 0 },
+    ]);
   });
 });
