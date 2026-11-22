@@ -159,6 +159,7 @@
 
     <!-- WO-669 (SDD-080 D6/D9): «Commits trazados» y «Commits con Refs» son control (n/total + porcentaje secundario) y abren el drawer de commits; su estado abierto está en PlantaBanda.dc.html y PlantaMobile.dc.html (este artboard ya muestra el drawer de órdenes de WO-681). -->
     <!-- WO-683 (SDD-085 D2/D3): el strip tiene sus propios estados, elegibles con el control «Estado de los indicadores» de este artboard. La nota de órdenes sin medición de WO-672 va con el desplegable cerrado, como lo renderiza la app: abierto mide unos 250 px y el marco fijo de 960 px recortaría «Drift reciente». -->
+    <!-- WO-742 (SDD-102 D5): el denominador de «Features trazadas» es el Feature Tree (49/50, aria-label «49 de 50 features del Árbol trazadas; falta 1») y una línea secundaria dice qué queda afuera: el Business Case (27/29). -->
     <sc-if value="{{ indListo }}" hint-placeholder-val="{{ true }}">
     <section aria-label="Indicadores de la planta" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid #C9CFCD; border-bottom: 1px solid #C9CFCD;">
       <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px 16px 0;">
@@ -172,8 +173,9 @@
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px; border-left: 1px solid #C9CFCD;">
         <span style="font-size: 14px; color: #565D63;">Features trazadas</span>
-        <a class="num" href="#" style="font-size: 36px; font-weight: 700; font-stretch: 112%; color: #1F4FA0; text-decoration: none;">21/46</a>
-        <span style="font-size: 14px; color: #565D63;">faltan 25</span>
+        <a class="num" href="#" style="font-size: 36px; font-weight: 700; font-stretch: 112%; color: #1F4FA0; text-decoration: none;">49/50</a>
+        <span style="font-size: 14px; color: #565D63;">faltan 1</span>
+        <span style="font-size: 14px; color: #565D63;">Business case: 27/29, fuera del denominador</span>
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px; border-left: 1px solid #C9CFCD;">
         <span style="font-size: 14px; color: #565D63;">Commits trazados</span>

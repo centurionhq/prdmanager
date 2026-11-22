@@ -87,7 +87,7 @@
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="btn {{ chipClase }}" role="button" aria-pressed="{{ isFiltro }}" style="{{ chipFoco }}">
             <sc-if value="{{ isFiltro }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></sc-if>
-            Sin código (6)
+            Sin código (1)
           </span>
           <sc-if value="{{ isFiltro }}" hint-placeholder-val="{{ false }}"><a class="btn-ghost">Quitar filtro</a></sc-if>
         </div>
@@ -352,7 +352,7 @@
     <div style="display: flex; align-items: center; gap: 8px;">
       <span class="btn {{ chipClase }}" role="button" aria-pressed="{{ isFiltro }}" style="{{ chipFoco }}">
         <sc-if value="{{ isFiltro }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></sc-if>
-        Sin código (6)
+        Sin código (1)
       </span>
       <sc-if value="{{ isFiltro }}" hint-placeholder-val="{{ false }}"><a class="btn-ghost">Quitar filtro</a></sc-if>
     </div>
@@ -521,8 +521,10 @@ class Component extends DCLogic {
     const show = 'display: flex;';
 
     // Decisión d: un solo lugar para el conteo. Con filtro o búsqueda -> «N resultados de M features».
+    // WO-742 (SDD-102 D1/D5): el chip cuenta SÓLO las huérfanas del Feature Tree (MRD/PRD/FR); los BC
+    // huérfanos salen del denominador y por eso el filtro deja una sola fila, PRD-012.
     let conteo = { prefijo: '', a: 68, medio: 'features,', b: 8, cola: 'cerradas' };
-    if (isFiltro) conteo = { prefijo: '', a: 6, medio: 'resultados de', b: 68, cola: 'features' };
+    if (isFiltro) conteo = { prefijo: '', a: 1, medio: 'resultado de', b: 68, cola: 'features' };
     else if (busqueda === 'resultados') conteo = { prefijo: '', a: 2, medio: 'resultados de', b: 68, cola: 'features' };
     else if (isSinResultados) conteo = { prefijo: '', a: 0, medio: 'resultados de', b: 68, cola: 'features' };
 
@@ -546,7 +548,7 @@ class Component extends DCLogic {
       };
     };
     const arbol = [
-      T('BC-002', 'Onboarding guiado para el primer proyecto SaaS importado', 1, { huerfana: true }),
+      T('BC-002', 'Onboarding guiado para el primer proyecto SaaS importado', 1),
       T('PRD-012', 'Estado vacío de «esperando el primer reporte de CI» en Árbol y Planta', 2, { huerfana: true }),
       T('BC-007', 'Los documentos que no son de collab se muestran como markdown crudo', 3),
       T('PRD-015', 'Vista previa renderizada para todo documento, venga de donde venga', 4, { cerrada: true }),
@@ -556,14 +558,9 @@ class Component extends DCLogic {
       T('BC-026', 'El buscador del Árbol no se puede compartir ni dice su resultado', 7),
       T('FR-014', 'El Árbol: la búsqueda viaja en la URL, dice cuántos resultados hay y tolera tildes', 8, { hoja: true })
     ];
-    // Con filtro: solo las 6 que coinciden, planas (qué pasa con los ancestros queda como pregunta para producto).
+    // Con filtro: la única huérfana del Árbol (las BC huérfanas ya no cuentan, WO-742); plano.
     const filtradas = [
-      T('BC-002', 'Onboarding guiado para el primer proyecto SaaS importado', 1, { huerfana: true, hoja: true }),
-      T('PRD-012', 'Estado vacío de «esperando el primer reporte de CI» en Árbol y Planta', 1, { huerfana: true, hoja: true }),
-      T('FR-017', 'Exportar el árbol a PDF para comités', 1, { huerfana: true, hoja: true }),
-      T('FR-021', 'Notas privadas por feature', 1, { huerfana: true, hoja: true }),
-      T('PRD-018', 'Panel de salud de cuenta', 1, { huerfana: true, hoja: true, cerrada: true }),
-      T('FR-023', 'Importador incremental de repositorios', 1, { huerfana: true, hoja: true })
+      T('PRD-012', 'Estado vacío de «esperando el primer reporte de CI» en Árbol y Planta', 1, { huerfana: true, hoja: true })
     ];
     const filas = isFiltro ? filtradas : arbol;
     // Móvil: seis filas, siempre con la del tramo de código (FR-024) y la seleccionada (FR-009).

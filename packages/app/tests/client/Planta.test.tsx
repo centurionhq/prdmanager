@@ -12,12 +12,13 @@ import { makeProjectShellContext, makeProjectOverview } from './fixtures.js';
 const METRICS: SuccessMetricsDto = {
   agentHumanEfficiency: { completedWorkOrders: 10, measuredWorkOrders: 10, avgResolutionHours: 0.1, medianResolutionHours: 0.083, p90ResolutionHours: 1, maxResolutionHours: 1, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 100, governedSynced: 99, syncedPercent: 99.6 },
-  traceability: { featuresTotal: 4, featuresTraced: 4, orphanFeatures: [], featurePercent: 100, commitsTotal: 10, commitsWithRefs: 7, commitsTraced: 6, commitPercent: 66.4, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
+  traceability: { featuresByKind: [{ kind: 'FR', total: 4, traced: 4 }], featuresTotal: 4, featuresTraced: 4, orphanFeatures: [], featurePercent: 100, commitsTotal: 10, commitsWithRefs: 7, commitsTraced: 6, commitPercent: 66.4, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
 };
 
 const METRICS_WITH_ORPHANS: SuccessMetricsDto = {
   ...METRICS,
   traceability: {
+    featuresByKind: [{ kind: 'FR', total: 5, traced: 3 }],
     featuresTotal: 5,
     featuresTraced: 3,
     orphanFeatures: [
@@ -30,6 +31,33 @@ const METRICS_WITH_ORPHANS: SuccessMetricsDto = {
     commitsTraced: 6,
     commitPercent: 66.4,
     commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] },
+  },
+};
+
+/**
+ * WO-742 (SDD-102 D5): the honest denominator. `featuresTotal` counts only the Feature Tree (MRD/PRD/FR);
+ * `featuresByKind` carries every kind present in the graph, so the Business Case can be named next to the
+ * ratio instead of being silently mixed into it.
+ */
+const METRICS_WITH_FEATURE_KINDS: SuccessMetricsDto = {
+  ...METRICS,
+  traceability: {
+    featuresByKind: [
+      { kind: 'MRD', total: 1, traced: 1 },
+      { kind: 'PRD', total: 22, traced: 21 },
+      { kind: 'FR', total: 27, traced: 27 },
+      { kind: 'BC', total: 29, traced: 27 },
+    ],
+    featuresTotal: 50,
+    featuresTraced: 49,
+    orphanFeatures: [{ id: 'PRD-012', kind: 'PRD', title: 'Importador incremental de repos', status: 'draft' }],
+    featurePercent: 98,
+    commitsTotal: 10,
+    commitsWithRefs: 7,
+    commitsTraced: 6,
+    commitPercent: 66.4,
+    commitsWindow: { branch: null, sha: null, reportedAt: null },
+    untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] },
   },
 };
 
@@ -59,7 +87,7 @@ const METRICS_WITH_UNMEASURED: SuccessMetricsDto = {
 const EMPTY_METRICS: SuccessMetricsDto = {
   agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, p90ResolutionHours: null, maxResolutionHours: null, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
-  traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
+  traceability: { featuresByKind: [], featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
 };
 
 /**
@@ -372,15 +400,93 @@ describe('Planta', () => {
     expect(screen.queryByText(/Ver las/)).toBeNull();
   });
 
-  it('makes "Features trazadas" a link to the filtered tree, with the missing count, when features lack code (SDD-079)', async () => {
+  it('makes "Features trazadas" a link to the filtered tree, with the missing count, when features lack code (SDD-079, WO-742)', async () => {
     vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
     vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS_WITH_ORPHANS);
     renderPlanta();
 
-    const link = await screen.findByRole('link', { name: /3 de 5 features trazadas; faltan 2/ });
+    const link = await screen.findByRole('link', { name: /3 de 5 features del Árbol trazadas; faltan 2/ });
     expect(link.textContent).toBe('3/5');
     expect(link.getAttribute('href')).toBe('/o/acme/p/web/arbol?sinCodigo=1');
     expect(screen.getByText('faltan 2')).toBeTruthy();
+  });
+
+  it('names the Tree in the accessible label and says "falta 1" in the singular (WO-742)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS_WITH_FEATURE_KINDS);
+    renderPlanta();
+
+    const link = await screen.findByRole('link', { name: '49 de 50 features del Árbol trazadas; falta 1' });
+    expect(link.textContent).toBe('49/50');
+    expect(link.getAttribute('href')).toBe('/o/acme/p/web/arbol?sinCodigo=1');
+    // The visible note keeps its mechanic ("faltan N"), only the accessible name gets the singular.
+    expect(screen.getByText('faltan 1')).toBeTruthy();
+  });
+
+  it('says what the Business Case is and that it is outside the denominator (WO-742)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS_WITH_FEATURE_KINDS);
+    renderPlanta();
+
+    const cell = (await screen.findByText('Features trazadas')).closest('div');
+    // Both numbers come from the breakdown, never hardcoded: 27 traced of 29 BC total.
+    expect(cell?.textContent).toContain('Business case: 27/29, fuera del denominador');
+  });
+
+  it('renders no Business Case line when the breakdown has no BC entry with features (WO-742)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue({
+      ...METRICS_WITH_FEATURE_KINDS,
+      traceability: {
+        ...METRICS_WITH_FEATURE_KINDS.traceability,
+        featuresByKind: [
+          { kind: 'MRD', total: 1, traced: 1 },
+          { kind: 'BC', total: 0, traced: 0 },
+        ],
+      },
+    });
+    renderPlanta();
+
+    await screen.findByText('Features trazadas');
+    expect(screen.queryByText(/Business case:/)).toBeNull();
+  });
+
+  it('keeps the KPI as it was, with no Business Case line, when the server predates the breakdown (WO-742)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    // A server older than WO-741 answers without `featuresByKind`.
+    const stale = {
+      ...METRICS_WITH_ORPHANS,
+      traceability: {
+        featuresTotal: 5,
+        featuresTraced: 3,
+        orphanFeatures: METRICS_WITH_ORPHANS.traceability.orphanFeatures,
+        featurePercent: 60,
+        commitsTotal: 10,
+        commitsWithRefs: 7,
+        commitsTraced: 6,
+        commitPercent: 66.4,
+      },
+    } as unknown as SuccessMetricsDto;
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(stale);
+    renderPlanta();
+
+    const strip = await screen.findByRole('region', { name: 'Indicadores de la planta' });
+    expect(within(strip).getByText('3/5')).toBeTruthy();
+    expect(within(strip).getByText('faltan 2')).toBeTruthy();
+    expect(within(strip).queryByText(/Business case:/)).toBeNull();
+  });
+
+  it('does not crash when featuresByKind arrives as something other than a list (WO-742)', async () => {
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+    vi.spyOn(client, 'getMetrics').mockResolvedValue({
+      ...METRICS_WITH_ORPHANS,
+      traceability: { ...METRICS_WITH_ORPHANS.traceability, featuresByKind: 'BC' },
+    } as unknown as SuccessMetricsDto);
+    renderPlanta();
+
+    const strip = await screen.findByRole('region', { name: 'Indicadores de la planta' });
+    expect(within(strip).getByText('3/5')).toBeTruthy();
+    expect(within(strip).queryByText(/Business case:/)).toBeNull();
   });
 
   it('shows "Todas trazadas" and no link when every feature is traced (SDD-079)', async () => {
@@ -428,7 +534,7 @@ describe('Planta', () => {
     vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
     vi.spyOn(client, 'getMetrics').mockResolvedValue({
       ...METRICS,
-      traceability: { featuresTotal: 4, featuresTraced: 4, orphanFeatures: [], featurePercent: 100, commitsTotal: 20, commitsWithRefs: 10, commitsTraced: 6, commitPercent: 30, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
+      traceability: { featuresByKind: [{ kind: 'FR', total: 4, traced: 4 }], featuresTotal: 4, featuresTraced: 4, orphanFeatures: [], featurePercent: 100, commitsTotal: 20, commitsWithRefs: 10, commitsTraced: 6, commitPercent: 30, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
     });
     renderPlanta();
 
