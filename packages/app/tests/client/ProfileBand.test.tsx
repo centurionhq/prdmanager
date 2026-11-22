@@ -16,7 +16,7 @@ import { ProjectShell } from '../../src/routes/ProjectShell.js';
 import { makeOrgSummary, makeProjectOverview } from './fixtures.js';
 
 const METRICS: SuccessMetricsDto = {
-  agentHumanEfficiency: { completedWorkOrders: 1, measuredWorkOrders: 1, avgResolutionHours: 0.1, medianResolutionHours: 0.083, unmeasured: { total: 0, workOrders: [] } },
+  agentHumanEfficiency: { completedWorkOrders: 1, measuredWorkOrders: 1, avgResolutionHours: 0.1, medianResolutionHours: 0.083, p90ResolutionHours: 1, maxResolutionHours: 1, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 10, governedSynced: 10, syncedPercent: 100 },
   traceability: { featuresTotal: 1, featuresTraced: 1, orphanFeatures: [], featurePercent: 100, commitsTotal: 1, commitsWithRefs: 1, commitsTraced: 1, commitPercent: 100, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
 };

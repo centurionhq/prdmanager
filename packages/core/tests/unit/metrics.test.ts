@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { computeMetrics, getMetrics } from '../../src/metrics/metrics.js';
+import { computeMetrics, getMetrics, SLOW_RESOLUTION_HOURS, SLOW_RESOLUTION_ITEMS } from '../../src/metrics/metrics.js';
 import type { MetricsRaw, UntracedCommit, UntracedCommits } from '../../src/graph/types.js';
 
 function raw(overrides: Partial<MetricsRaw> = {}): MetricsRaw {
@@ -30,7 +30,7 @@ describe('computeMetrics', () => {
     const metrics = computeMetrics(raw(), untraced());
 
     expect(metrics).toEqual({
-      agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, unmeasured: { total: 0, workOrders: [] } },
+      agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, p90ResolutionHours: null, maxResolutionHours: null, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
       systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
       traceability: {
         featuresTotal: 0,
@@ -284,5 +284,78 @@ describe('getMetrics', () => {
     expect(metrics.systemIntegrity.syncedPercent).toBe(100);
     expect(metrics.traceability.untracedCommits).toBe(list);
     expect(calls.sort()).toEqual(['metricsRaw', 'untracedCommits']);
+  });
+});
+
+describe('computeMetrics · cola lenta (p90/max/slowest)', () => {
+  const T0 = Date.parse('2026-01-01T00:00:00.000Z');
+  function wo(id: string, hours: number): MetricsRaw['workOrders'][number] {
+    return {
+      id,
+      status: 'done',
+      assignedTo: null,
+      createdAt: null,
+      claimedAt: new Date(T0).toISOString(),
+      completedAt: new Date(T0 + hours * 3_600_000).toISOString(),
+    };
+  }
+  const eff = (hours: number[]) =>
+    computeMetrics(raw({ workOrders: hours.map((h, i) => wo(`WO-${String(i + 1).padStart(3, '0')}`, h)) }), untraced()).agentHumanEfficiency;
+
+  test('exports the thresholds', () => {
+    expect(SLOW_RESOLUTION_HOURS).toBe(24);
+    expect(SLOW_RESOLUTION_ITEMS).toBe(10);
+  });
+
+  test('p90 interpolates linearly (R-7) and max is the largest', () => {
+    const e = eff([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(e.p90ResolutionHours).toBe(9.1);
+    expect(e.maxResolutionHours).toBe(10);
+  });
+
+  test('threshold is strict: 24h is not slow', () => {
+    const e = eff([24, 24.5, 100]);
+    expect(e.slowest.total).toBe(2);
+    expect(e.slowest.items.map((i) => i.id)).toEqual(['WO-003', 'WO-002']);
+    expect(e.slowest.items.map((i) => i.resolutionHours)).toEqual([100, 24.5]);
+  });
+
+  test('caps items at 10, slowest first', () => {
+    const e = eff(Array.from({ length: 12 }, (_, i) => 30 + i));
+    expect(e.slowest.total).toBe(12);
+    expect(e.slowest.items).toHaveLength(10);
+    expect(e.slowest.items[0]?.resolutionHours).toBe(41);
+    expect(e.slowest.items[9]?.resolutionHours).toBe(32);
+    expect(e.slowest.items.some((i) => i.resolutionHours === 31)).toBe(false);
+  });
+
+  test('invariants hold on a mixed fixture of 15 orders', () => {
+    const hours = [1, 5, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 2, 24];
+    const e = eff(hours);
+    expect(e.slowest.total).toBe(hours.filter((h) => h > 24).length);
+    expect(e.slowest.total).toBe(11);
+    expect(e.slowest.items.length).toBe(Math.min(e.slowest.total, 10));
+  });
+
+  test('breaks ties by id ascending', () => {
+    const e = computeMetrics(raw({ workOrders: [wo('WO-002', 30), wo('WO-001', 30)] }), untraced()).agentHumanEfficiency;
+    expect(e.slowest.items.map((i) => i.id)).toEqual(['WO-001', 'WO-002']);
+  });
+
+  test('rounds resolutionHours to 2 decimals and carries timestamps', () => {
+    const e = eff([25.005]);
+    expect(e.slowest.items[0]).toEqual({
+      id: 'WO-001',
+      claimedAt: new Date(T0).toISOString(),
+      completedAt: new Date(T0 + 25.005 * 3_600_000).toISOString(),
+      resolutionHours: 25.01,
+    });
+  });
+
+  test('with no measured orders p90/max are null and slowest is empty', () => {
+    const e = eff([]);
+    expect(e.p90ResolutionHours).toBeNull();
+    expect(e.maxResolutionHours).toBeNull();
+    expect(e.slowest).toEqual({ thresholdHours: 24, total: 0, items: [] });
   });
 });

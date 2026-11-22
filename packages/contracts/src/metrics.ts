@@ -19,11 +19,27 @@ export const unmeasuredSchema = z.object({
   workOrders: z.array(unmeasuredWorkOrderSchema),
 });
 
+export const slowOrderSchema = z.object({
+  id: z.string().min(1),
+  claimedAt: z.string(),
+  completedAt: z.string(),
+  resolutionHours: z.number(),
+});
+
+export const slowestSchema = z.object({
+  thresholdHours: z.number(),
+  total: z.number().int().min(0),
+  items: z.array(slowOrderSchema),
+});
+
 export const agentHumanEfficiencySchema = z.object({
   completedWorkOrders: z.number().int().min(0),
   measuredWorkOrders: z.number().int().min(0),
   avgResolutionHours: z.number().nullable(),
   medianResolutionHours: z.number().nullable(),
+  p90ResolutionHours: z.number().nullable(),
+  maxResolutionHours: z.number().nullable(),
+  slowest: slowestSchema,
   unmeasured: unmeasuredSchema,
 });
 
