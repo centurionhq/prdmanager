@@ -2,7 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { afterEach, describe, expect, test } from 'vitest';
-import { mirrorPathFor, type Engine, type GraphStore } from '@prdm/core';
+import { mirrorPathFor, type Engine, type GraphStore, type PrdmConfig } from '@prdm/core';
 import { registerReadTools } from '../../src/tools-read.js';
 import type { PrdmDeps } from '../../src/deps.js';
 
@@ -18,8 +18,13 @@ function deps(): PrdmDeps {
       { id: 'WO-001', title: 't', status: 'pending', assignedTo: null, blueprints: [], sourcePath: SOURCE_PATH, mirrorPath: mirrorPathFor('WO-001') },
     ],
   } as unknown as GraphStore;
-  const engine = { recover: async () => undefined } as unknown as Engine;
-  return { store, engine } as unknown as PrdmDeps;
+  const engine = {
+    recover: async () => undefined,
+    // SDD-125 D5: `get_node` scans to derive `promotion`; an empty project has nothing to derive.
+    scan: async () => ({ docs: [], errors: [], ids: [] }),
+  } as unknown as Engine;
+  const config = { lifecycle: { grandfathered: [] } } as unknown as PrdmConfig;
+  return { store, engine, config } as unknown as PrdmDeps;
 }
 
 function textOf(result: Awaited<ReturnType<Client['callTool']>>): string {
