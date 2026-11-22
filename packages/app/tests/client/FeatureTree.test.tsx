@@ -79,6 +79,56 @@ describe('FeatureTree · sangría topeada (WO-751, T3)', () => {
   });
 });
 
+describe('FeatureTree · maestro sin marcas crudas (WO-770, SDD-112 T6)', () => {
+  /** Un título con las dos marcas que el gate WO-752 midió en FR-024/FR-053: acentos graves y asteriscos. */
+  const MARKED_TITLE = 'La feature cerró en estado `closed` y **no** muestra marcas';
+  const MARKED_PLAIN = 'La feature cerró en estado closed y no muestra marcas';
+
+  it('pinta el título con su tramo de código en mono, sin backticks ni asteriscos', () => {
+    renderTree([feature('FR-024', MARKED_TITLE)]);
+
+    const row = screen.getByRole('treeitem', { name: /FR-024/ });
+    expect(row.querySelector('code')?.textContent).toBe('closed');
+    expect(row.textContent).not.toContain('`');
+    expect(row.textContent).not.toContain('**');
+    expect(row.textContent).toContain(MARKED_PLAIN);
+  });
+
+  it('describe la fila con el texto plano completo, igual al `title` (T2)', () => {
+    renderTree([feature('FR-024', MARKED_TITLE)]);
+
+    const row = screen.getByRole('treeitem', { name: /FR-024/ });
+    const describedBy = row.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    const description = document.getElementById(describedBy ?? '');
+    expect(description).not.toBeNull();
+    expect(description?.textContent).toBe(MARKED_PLAIN);
+    expect(row.getAttribute('title')).toBe(description?.textContent);
+  });
+
+  it('no duplica el título en el nombre accesible al sumar el texto descrito (D6)', () => {
+    renderTree([feature('FR-024', LONG_MARKDOWN_TITLE)]);
+
+    expect(screen.queryByRole('treeitem', { name: /dice lo que muestra[\s\S]*dice lo que muestra/ })).toBeNull();
+  });
+
+  it('deja un solo elemento enfocable por fila, y es la propia fila (sin Tooltip)', () => {
+    renderTree([feature('MRD-001', 'Raíz', [feature('FR-024', MARKED_TITLE)])]);
+
+    const selectedRow = screen.getByRole('treeitem', { name: /MRD-001/ });
+    expect(selectedRow.getAttribute('tabindex')).toBe('0');
+
+    for (const row of screen.getAllByRole('treeitem')) {
+      const focusables = Array.from(row.querySelectorAll<HTMLElement>('*')).filter((element) => element.tabIndex >= 0);
+      // Ningún descendiente suma un stop de tab: el único enfocable de cada fila es la fila misma
+      // (`tabIndex` 0 si está enfocada, -1 si no), así que ArrowUp/ArrowDown siguen mandando.
+      expect(focusables).toEqual([]);
+      expect(row.querySelectorAll('[tabindex], a, button, input, [contenteditable]')).toHaveLength(0);
+      expect(['0', '-1']).toContain(row.getAttribute('tabindex'));
+    }
+  });
+});
+
 describe('FeatureTree · drift (WO-751, T4)', () => {
   const forest = [feature('MRD-001', 'Sin drift', [feature('FR-009', 'Con drift')])];
 

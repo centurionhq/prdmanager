@@ -5,9 +5,10 @@
  * set in SDD-024. Keyboard navigation (arrows, Home/End, expand/collapse) is unchanged from the original
  * inline implementation; only the markup moved, from inline styles to this module's CSS classes.
  */
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactElement } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactElement } from 'react';
 import type { TreeNode } from '@prdm/core';
 import { toPlainTitle } from '../../lib/wo-title.js';
+import { MarkdownInline } from '../MarkdownInline.js';
 import styles from './FeatureTree.module.css';
 
 const MOVE_KEYS = new Set(['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End']);
@@ -100,6 +101,8 @@ export function FeatureTree({ forest, selectedRef, driftRefs, orphanRefs, collap
   const [focusedRef, setFocusedRef] = useState(selectedRef);
   const treeRef = useRef<HTMLDivElement>(null);
   const isFirstCollapseSignal = useRef(true);
+  /** WO-770 (T6): el id del texto plano oculto que describe cada fila tiene que ser único en el documento. */
+  const titleIdBase = useId();
 
   useEffect(() => setFocusedRef(selectedRef), [selectedRef]);
 
@@ -154,6 +157,14 @@ export function FeatureTree({ forest, selectedRef, driftRefs, orphanRefs, collap
         // WO-751 (SDD-105 D5/T2/T3): el `title` lleva la primera línea en texto plano -- el corte a dos
         // líneas es CSS y el nombre accesible del treeitem sigue entero (D6) -- y la sangría se topea a
         // cuatro niveles sin tocar `aria-level`, que conserva el nivel real.
+        // WO-770 (SDD-112 T6): las dos líneas visibles pintan `MarkdownInline`, como el panel, así que el
+        // maestro deja de mostrar backticks y asteriscos (FR-024, FR-053). El texto plano completo viaja
+        // en el `title` (hover) y además en un texto oculto referenciado por `aria-describedby`: al enfocar
+        // la fila con teclado el título completo se anuncia. El texto visible queda fuera del árbol de
+        // accesibilidad para no duplicar el nombre. No se usa `Tooltip`: su trigger suma un segundo
+        // `tabIndex` por fila y rompería ArrowUp/ArrowDown.
+        const plainTitle = toPlainTitle(row.node.title);
+        const titleId = `${titleIdBase}-${row.node.ref}`;
         return (
           <div
             key={row.node.ref}
@@ -165,14 +176,20 @@ export function FeatureTree({ forest, selectedRef, driftRefs, orphanRefs, collap
             aria-level={row.depth + 1}
             aria-setsize={row.setSize}
             aria-posinset={row.posInSet}
+            aria-describedby={titleId}
             onClick={() => onSelect(row.node.ref)}
             onFocus={() => setFocusedRef(row.node.ref)}
             className={rowClassName}
-            title={toPlainTitle(row.node.title)}
+            title={plainTitle}
             style={{ '--depth': Math.min(row.depth, MAX_INDENT_LEVELS) } as CSSProperties}
           >
             <span className={`id ${styles.rowId}`}>{row.node.ref}</span>
-            <span className={styles.rowTitle}>{row.node.title}</span>
+            <span className={styles.rowTitle} aria-hidden="true">
+              <MarkdownInline text={row.node.title} />
+            </span>
+            <span id={titleId} className="visually-hidden">
+              {plainTitle}
+            </span>
             {orphanRefs.has(row.node.ref) ? <span className={styles.orphanBadge}>Sin código</span> : null}
             {driftRefs.has(row.node.ref) ? (
               <span className={styles.drift}>

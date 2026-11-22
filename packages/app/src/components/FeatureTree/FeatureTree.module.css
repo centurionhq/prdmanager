@@ -38,7 +38,9 @@
 }
 
 /* WO-751 (T2): dos líneas como máximo, con el texto completo en el `title` de la fila; la fila no cambia
-   de alto por un título largo (el corte es de este plano, no del markup — D6). */
+   de alto por un título largo (el corte es de este plano, no del markup — D6).
+   WO-770 (T6): el título lo pinta `MarkdownInline` (tramos de código en mono), así que el texto visible
+   queda `aria-hidden` y el nombre accesible lo aporta el texto plano oculto de la misma fila. */
 .rowTitle {
   flex: 1;
   min-width: 0;
