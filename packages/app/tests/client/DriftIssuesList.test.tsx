@@ -19,9 +19,21 @@ function fakeIssue(overrides: Partial<DriftIssueDto> = {}): DriftIssueDto {
   };
 }
 
+/** The list is presentational: the screen owns the targets, the permission and the modal. */
+function renderList(issues: readonly DriftIssueDto[]): void {
+  render(
+    <DriftIssuesList
+      issues={issues}
+      ackTargets={[]}
+      canAcknowledge={false}
+      onAcknowledgeRequest={() => undefined}
+    />,
+  );
+}
+
 describe('DriftIssuesList', () => {
   it('shows the humanized headline instead of the raw engine message', () => {
-    render(<DriftIssuesList issues={[fakeIssue()]} />);
+    renderList([fakeIssue()]);
 
     expect(screen.getByText(/no coincide con/)).toBeTruthy();
     expect(document.body.textContent).not.toContain('is out of sync with');
@@ -29,35 +41,31 @@ describe('DriftIssuesList', () => {
   });
 
   it('shows the suggested action without hover', () => {
-    render(<DriftIssuesList issues={[fakeIssue()]} />);
+    renderList([fakeIssue()]);
 
     expect(screen.getByText(/Qué hacer:/)).toBeTruthy();
     expect(screen.getByText(/Actualizá el código/)).toBeTruthy();
   });
 
   it('keeps the path and the blueprint id rendered as monospace ids', () => {
-    render(<DriftIssuesList issues={[fakeIssue()]} />);
+    renderList([fakeIssue()]);
 
     expect(screen.getByText('pkg/a.ts').className).toBe('id');
     expect(screen.getAllByText('SDD-008').some((el) => el.className === 'id')).toBe(true);
   });
 
   it('shows the Spanish copy of a landed_but_open issue and not the raw engine sentence', () => {
-    render(
-      <DriftIssuesList
-        issues={[
-          fakeIssue({
-            kind: 'landed_but_open',
-            severity: 'warning',
-            nodeId: 'WO-625',
-            target: '9def4e20893f6116ae195acbdf4d07380bc3018c',
-            blueprintId: null,
-            message:
-              'WO-625 is in_progress but commit 9def4e20893f6116ae195acbdf4d07380bc3018c already references it (Refs: WO-625)',
-          }),
-        ]}
-      />,
-    );
+    renderList([
+      fakeIssue({
+        kind: 'landed_but_open',
+        severity: 'warning',
+        nodeId: 'WO-625',
+        target: '9def4e20893f6116ae195acbdf4d07380bc3018c',
+        blueprintId: null,
+        message:
+          'WO-625 is in_progress but commit 9def4e20893f6116ae195acbdf4d07380bc3018c already references it (Refs: WO-625)',
+      }),
+    ]);
 
     expect(screen.getByText(/Ya aterrizada/)).toBeTruthy();
     expect(screen.getByText(/Completala con ese sha/)).toBeTruthy();
@@ -66,14 +74,14 @@ describe('DriftIssuesList', () => {
 
   it('falls back to the raw message with no action for an unknown kind', () => {
     const raw = 'brand new engine kind happened';
-    render(<DriftIssuesList issues={[fakeIssue({ kind: 'engine_v2_novel', message: raw, blueprintId: null, target: undefined })]} />);
+    renderList([fakeIssue({ kind: 'engine_v2_novel', message: raw, blueprintId: null, target: undefined })]);
 
     expect(screen.getByText(raw)).toBeTruthy();
     expect(screen.queryByText(/Qué hacer:/)).toBeNull();
   });
 
   it('attaches tooltips for the reason and the blueprint, readable without hover', () => {
-    render(<DriftIssuesList issues={[fakeIssue()]} />);
+    renderList([fakeIssue()]);
 
     const tips = screen.getAllByRole('tooltip').map((el) => el.textContent ?? '');
     expect(tips.some((t) => t.includes('Razón detectada'))).toBe(true);
