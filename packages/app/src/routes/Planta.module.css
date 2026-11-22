@@ -50,7 +50,7 @@
   box-shadow: var(--focus-ring);
 }
 
-/* WO-669: the drawer's content. */
+/* WO-669: the drawer's content. WO-720 reuses these body/table primitives for the slow-orders drawer. */
 .commitsBody {
   display: flex;
   flex-direction: column;
@@ -155,6 +155,43 @@
 /* WO-672 (SDD-081 D7) */
 .unmeasuredDates {
   font-size: var(--text-xs);
+}
+
+/* WO-720 (SDD-094 D4/D5): the long tail of the median lives under its value, in secondary type. */
+.queueNote {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.queueLine {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The control reads as a link but is a button: it opens the drawer, it navigates nowhere. 44 px on touch. */
+.queueControl {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hit-target);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.queueControl:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 /* SDD-085: a full-width plate for the strip's own loading, error and first-report states. */

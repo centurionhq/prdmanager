@@ -159,7 +159,7 @@
     <!-- WO-669 (SDD-080 D6/D9): banda de 5 KPIs en 2 columnas (2+2+1); las dos de commits son control. -->
     <sc-if value="{{ muestraLinea }}" hint-placeholder-val="{{ true }}">
       <section aria-label="Indicadores de la planta" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 16px; border-bottom: 1px solid #C9CFCD;">
-        <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 12px 12px 0; border-bottom: 1px solid #C9CFCD;"><span style="font-size: 13px; color: #565D63;">Resolución mediana</span><span class="num" style="font-size: 26px; font-weight: 700; font-stretch: 112%;">5 min</span></div>
+        <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 12px 12px 0; border-bottom: 1px solid #C9CFCD;"><span style="font-size: 13px; color: #565D63;">Resolución mediana</span><span class="num" style="font-size: 26px; font-weight: 700; font-stretch: 112%;">5 min</span><span style="font-size: 13px; color: #565D63; line-height: 1.35;">115 órdenes tardaron más de un día; la peor, <span class="id" style="color: #565D63;">WO-486</span> · 17,4 d</span><button type="button" aria-expanded="false" aria-label="Ver las 115 órdenes" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; padding: 0; border: 0; background: none; color: #565D63; font-family: inherit; font-size: 13px; text-decoration: underline; cursor: pointer;">Ver las 115 órdenes</button></div>
         <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 0 12px 12px; border-left: 1px solid #C9CFCD; border-bottom: 1px solid #C9CFCD;"><span style="font-size: 13px; color: #565D63;">Código sincronizado</span><span class="num" style="font-size: 26px; font-weight: 700; font-stretch: 112%;">99,6 %</span></div>
         <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 12px 12px 0; border-bottom: 1px solid #C9CFCD;"><span style="font-size: 13px; color: #565D63;">Features trazadas</span><a class="num" href="#" style="font-size: 26px; font-weight: 700; font-stretch: 112%; color: #1F4FA0; text-decoration: none;">21/46</a><span style="font-size: 13px; color: #565D63;">faltan 25</span></div>
         <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 0 12px 12px; border-left: 1px solid #C9CFCD; border-bottom: 1px solid #C9CFCD;"><span style="font-size: 13px; color: #565D63;">Commits trazados</span><button type="button" class="num" aria-expanded="false" aria-label="Commits trazados: 166/250" style="align-self: flex-start; padding: 0; border: 0; background: none; color: #17191C; text-align: left; font-family: inherit; font-size: 26px; font-weight: 700; font-stretch: 112%;">166/250</button><span style="font-size: 13px; color: #565D63;">66,4 %</span></div>
@@ -216,7 +216,8 @@
     </div>
   </nav>
   <!-- WO-669 (SDD-080 D6/D7/D9): KPI de commits como control y su drawer abierto a 375 px. -->
-  <div style="position: absolute; inset: 0; background: rgba(23, 25, 28, 0.45);"></div>
+  <sc-if value="{{ drawerCommits }}" hint-placeholder-val="{{ false }}">
+  <div style="position: absolute; inset: 0; background: rgba(23, 25, 28, 0.45);">
   <aside aria-label="Commits trazados" style="position: absolute; inset: 0; display: flex; flex-direction: column; gap: 16px; padding: 24px; background: #FBFCFB; border-left: 1px solid #C9CFCD; overflow: hidden;">
     <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;"><h2 style="margin: 0; font-size: 20px; font-weight: 700;">Commits trazados</h2><span aria-label="Cerrar" style="font-size: 20px; line-height: 1;">×</span></div>
     <p style="margin: 0; font-size: 14px;">Commits cuya ref resuelve la cadena hasta una feature (WO → Blueprint → Feature); la lista son los que no la resuelven.</p>
@@ -229,12 +230,35 @@
         </tbody></table></div>
     <p style="margin: 0; font-size: 14px;">Se muestran los primeros 2 de 84.</p>
   </aside>
+  </div>
+  </sc-if>
+  <!-- SDD-094 (WO-720): el drawer de la cola de órdenes lentas a 390 px, abierto desde el KPI de la mediana. -->
+  <sc-if value="{{ drawerCola }}" hint-placeholder-val="{{ true }}">
+  <div style="position: absolute; inset: 0; background: rgba(23, 25, 28, 0.45);">
+  <aside aria-label="Órdenes lentas" style="position: absolute; inset: 0; display: flex; flex-direction: column; gap: 16px; padding: 24px; background: #FBFCFB; border-left: 1px solid #C9CFCD; overflow: hidden;">
+    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;"><h2 style="margin: 0; font-size: 20px; font-weight: 700;">Órdenes lentas</h2><span aria-label="Cerrar" style="font-size: 20px; line-height: 1;">×</span></div>
+    <p style="margin: 0; font-size: 14px;">Órdenes completadas que tardaron más de un día entre el reclamo y el cierre, de la más lenta a la más rápida.</p>
+    <div style="display: flex; flex-direction: column; gap: 4px; font-size: 14px;"><p class="num" style="margin: 0;">115 de 486 órdenes completadas</p><p class="num" style="margin: 0;">p90 373,09 h · la peor, 416,91 h</p></div>
+    <div style="min-width: 0; overflow-x: auto;" tabindex="0"><table style="width: 100%; min-width: 520px; border-collapse: collapse; text-align: left; font-size: 14px;">
+        <thead><tr><th scope="col" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #C9CFCD; font-weight: 600; color: #565D63;">Orden</th><th scope="col" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #C9CFCD; font-weight: 600; color: #565D63;">Reclamo</th><th scope="col" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #C9CFCD; font-weight: 600; color: #565D63;">Cierre</th><th scope="col" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #C9CFCD; font-weight: 600; color: #565D63;">Horas</th></tr></thead>
+        <tbody>
+          <tr><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;"><a class="id" href="#">WO-486</a></td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">01/08/2026, 10:00</td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">18/08/2026, 18:54</td><td class="num" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">17,4 d</td></tr>
+          <tr><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;"><a class="id" href="#">WO-487</a></td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">02/08/2026, 09:00</td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">16/08/2026, 09:00</td><td class="num" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">14,0 d</td></tr>
+          <tr><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;"><a class="id" href="#">WO-488</a></td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">03/08/2026, 12:00</td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">16/08/2026, 22:00</td><td class="num" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">13,4 d</td></tr>
+          <tr><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;"><a class="id" href="#">WO-489</a></td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">04/08/2026, 08:00</td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">17/08/2026, 10:00</td><td class="num" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">13,1 d</td></tr>
+          <tr><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;"><a class="id" href="#">WO-490</a></td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">05/08/2026, 10:00</td><td style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">18/08/2026, 10:00</td><td class="num" style="padding: 8px 12px 8px 0; border-bottom: 1px solid #DDE1DF; vertical-align: top;">13,0 d</td></tr>
+        </tbody></table></div>
+    <p style="margin: 0; font-size: 14px;">Se muestran las 5 más lentas de 115.</p>
+  </aside>
+  </div>
+  </sc-if>
 </div>
 </x-dc>
-<script data-dc-script data-props='{"estado":{"editor":"enum","default":"banda_sin_perfil","options":["banda_sin_perfil","banda_con_perfil","destino_negocio","destino_producto","destino_developer"],"section":"Estado"}}'>
+<script data-dc-script data-props='{"estado":{"editor":"enum","default":"banda_sin_perfil","options":["banda_sin_perfil","banda_con_perfil","destino_negocio","destino_producto","destino_developer"],"section":"Estado"},"drawer":{"editor":"enum","default":"cola","options":["cola","commits"],"section":"Drawer abierto"}}'>
 class Component extends DCLogic {
   renderVals() {
     const estado = this.props.estado ?? 'banda_sin_perfil';
+    const drawer = this.props.drawer ?? 'cola';
     const enPlanta = estado === 'banda_sin_perfil' || estado === 'banda_con_perfil';
     const titulos = {
       banda_sin_perfil: 'Planta',
@@ -253,7 +277,9 @@ class Component extends DCLogic {
       muestraLinea: enPlanta,
       perfilEtiqueta: 'Definís qué se construye',
       proximoPaso: 'Convertir una iniciativa aprobada en requisitos',
-      botonTexto: 'Escribir los requisitos'
+      botonTexto: 'Escribir los requisitos',
+      drawerCola: drawer === 'cola',
+      drawerCommits: drawer === 'commits'
     };
   }
 }
