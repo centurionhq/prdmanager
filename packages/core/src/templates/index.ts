@@ -32,11 +32,15 @@ justified_by: []
 tags: []
 ---
 
-## Resumen
+## Problema
 
-## Requisitos
+## Alcance
 
-## Fuera de alcance
+## Personas y trabajos
+
+## Métrica de éxito
+
+## Features derivadas
 `;
 
 const FR_TEMPLATE = `---
@@ -49,9 +53,11 @@ justified_by: []
 tags: []
 ---
 
-## Solicitud
+## Alcance
 
-## Contexto
+## Criterio de aceptación
+
+- [ ]
 `;
 
 const BC_TEMPLATE = `---
