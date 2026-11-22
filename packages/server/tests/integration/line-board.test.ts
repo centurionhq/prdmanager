@@ -110,6 +110,77 @@ describe('GET .../line-board (WO-335)', () => {
     await app.close();
   });
 
+  test('an approved FR with no design stops the line at diseno_tecnico (WO-810, SDD-125 D4)', async () => {
+    const app = buildApp();
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    const org = await createOrganizationFixture(pg);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    const project = await createProjectFixture(pg, { orgId: org.id });
+    const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: `saas://project/${project.id}` });
+    await store.clear();
+
+    const insert = async (docId: string, kind: string, title: string, sourcePath: string, content: string): Promise<void> => {
+      await pg.ownerPool.query(
+        `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+         VALUES ($1, $2, $3, $4, $5, $6, 'generated', 'published', $7)`,
+        [org.id, project.id, docId, kind, title, sourcePath, content],
+      );
+    };
+    await insert('FB-001', 'FB', 'Feedback', 'docs/feedback/FB-001.md', '---\nid: FB-001\ntype: FB\ntitle: "Feedback"\nstatus: triaged\ninforms: ["BC-001"]\n---\n\nFeedback body.\n');
+    await insert(
+      'BC-001',
+      'BC',
+      'Negocio',
+      'docs/business-case/BC-001.md',
+      '---\nid: BC-001\ntype: BC\ntitle: "Negocio"\nstatus: approved\njustified_by: []\n---\n\n## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n',
+    );
+    await insert(
+      'PRD-001',
+      'PRD',
+      'Producto',
+      'docs/prd/PRD-001.md',
+      '---\nid: PRD-001\ntype: PRD\ntitle: "Producto"\nstatus: approved\njustified_by: ["BC-001"]\n---\n\n## Problema\n\n## Alcance\n\n## Personas y trabajos\n\n## Métrica de éxito\n\n## Features derivadas\n',
+    );
+    // An approved FR whose design does not exist: PRD-044 §Despliegue makes that a warning (never a publish
+    // blocker), and SDD-125 D4 is explicit that it still stops the line at `diseno_tecnico`.
+    await insert(
+      'FR-001',
+      'FR',
+      'Pedido',
+      'docs/fr/FR-001.md',
+      '---\nid: FR-001\ntype: FR\ntitle: "Pedido"\nstatus: approved\njustified_by: ["BC-001", "PRD-001"]\n---\n\n## Alcance\n\n## Criterio de aceptación\n\n- [ ] hecho\n',
+    );
+
+    const ownerCookie = await signIn(app, owner.email);
+    const ack = await app.inject({
+      method: 'POST',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/drift/acknowledge`,
+      headers: await mutationHeaders(app, AUTH_HOST(), env.publicUrl, ownerCookie),
+      payload: { target: 'all' },
+    });
+    expect(ack.statusCode).toBe(200);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/app/organizations/${org.slug}/projects/${project.slug}/line-board`,
+      headers: { ...AUTH_HOST(), cookie: ownerCookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.features).toHaveLength(1);
+    expect(body.features[0]).toMatchObject({ id: 'BC-001' });
+    // Both approved documents are design holes until a blueprint architects them: the FR stops moving.
+    expect(body.features[0].children).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'FR-001', andonStation: 'diseno_tecnico' }),
+        expect.objectContaining({ id: 'PRD-001', andonStation: 'diseno_tecnico' }),
+      ]),
+    );
+    expect(body.andon).toEqual(expect.objectContaining({ station: 'diseno_tecnico' }));
+
+    await app.close();
+  });
+
   test('viewer without a project_members row gets 404, never 403', async () => {
     const app = buildApp();
     const owner = await seedUser(env, pg.appPool, PASSWORD);
