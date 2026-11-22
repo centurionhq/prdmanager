@@ -5,11 +5,25 @@
 import { describe, expect, test } from 'vitest';
 import { successMetricsSchema } from '../../src/metrics.js';
 
+const kinds = ['PRD', 'FR', 'SDD', 'ADR', 'WO', 'BC', 'FB'] as const;
+const zeroWindow = (days: 7 | 30) => ({
+  days,
+  createdByKind: kinds.map((kind) => ({ kind, total: 0 })),
+  features: [
+    { kind: 'PRD', created: 0, withDesign: 0, withWorkOrders: 0, delivered: 0 },
+    { kind: 'FR', created: 0, withDesign: 0, withWorkOrders: 0, delivered: 0 },
+  ],
+  feedback: { created: 0, new: 0, triaged: 0, closed: 0, pendingClose: 0 },
+  passageExceptions: 0,
+});
+const zeroCapacities = { windows: [zeroWindow(7), zeroWindow(30)] };
+
 describe('successMetricsSchema', () => {
   const valid = {
     agentHumanEfficiency: { completedWorkOrders: 4, measuredWorkOrders: 3, avgResolutionHours: 2.5, medianResolutionHours: 2, p90ResolutionHours: 373.09, maxResolutionHours: 416.91, slowest: { thresholdHours: 24, total: 115, items: [{ id: 'WO-486', claimedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-18T08:54:36.000Z', resolutionHours: 416.91 }] }, unmeasured: { total: 1, workOrders: [{ id: 'WO-009', status: 'done', reason: 'missing_claim', claimedAt: null, completedAt: '2026-01-01T00:00:00.000Z' }] } },
     systemIntegrity: { governedTotal: 10, governedSynced: 8, syncedPercent: 80 },
     traceability: { featuresByKind: [{ kind: 'MRD', total: 1, traced: 1 }, { kind: 'PRD', total: 2, traced: 1 }, { kind: 'BC', total: 1, traced: 1 }], featuresTotal: 3, featuresTraced: 2, orphanFeatures: [{ id: 'PRD-012', kind: 'PRD', title: 'Árbol', status: 'approved' }], featurePercent: 66.7, commitsTotal: 6, commitsWithRefs: 5, commitsTraced: 5, commitPercent: 83.3, commitsWindow: { branch: 'main', sha: 'abc1234', reportedAt: '2026-10-05T12:00:00.000Z' }, untracedCommits: { total: 1, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 1 }, truncated: false, items: [{ sha: 'abc123', subject: 'fix: x', author: 'dev', date: '2026-01-01T00:00:00Z', files: ['a.ts'], gap: 'no_refs', class: 'code' }] } },
+    capacities: zeroCapacities,
   };
 
   test('accepts a full metrics payload', () => {
@@ -21,6 +35,7 @@ describe('successMetricsSchema', () => {
       agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, p90ResolutionHours: null, maxResolutionHours: null, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
       systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
       traceability: { featuresByKind: [], featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
+      capacities: zeroCapacities,
     };
     expect(successMetricsSchema.parse(empty)).toEqual(empty);
   });
@@ -106,5 +121,22 @@ describe('successMetricsSchema', () => {
     test.each([-1, 1.5])('rejects byClass.merge = %s', (merge) => {
       expect(() => successMetricsSchema.parse(untracedWith({ byClass: { merge, bookkeeping: 0, code: 1 } }))).toThrow();
     });
+  });
+});
+
+describe('successMetricsSchema capacities', () => {
+  const base = { agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, p90ResolutionHours: null, maxResolutionHours: null, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } }, systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null }, traceability: { featuresByKind: [], featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } } };
+
+  test('requires capacities', () => {
+    expect(() => successMetricsSchema.parse(base)).toThrow();
+  });
+
+  test('rejects a single window, days 14, a negative total and an SDD feature line', () => {
+    expect(() => successMetricsSchema.parse({ ...base, capacities: { windows: [zeroWindow(7)] } })).toThrow();
+    expect(() => successMetricsSchema.parse({ ...base, capacities: { windows: [zeroWindow(7), { ...zeroWindow(30), days: 14 }] } })).toThrow();
+    const negative = { ...zeroWindow(7), createdByKind: [{ kind: 'PRD', total: -1 }] };
+    expect(() => successMetricsSchema.parse({ ...base, capacities: { windows: [negative, zeroWindow(30)] } })).toThrow();
+    const sdd = { ...zeroWindow(7), features: [{ kind: 'SDD', created: 0, withDesign: 0, withWorkOrders: 0, delivered: 0 }] };
+    expect(() => successMetricsSchema.parse({ ...base, capacities: { windows: [sdd, zeroWindow(30)] } })).toThrow();
   });
 });

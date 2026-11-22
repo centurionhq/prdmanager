@@ -157,6 +157,110 @@ export function feedbackResolvedPendingClose(doc: FeedbackDoc, docs: readonly Pa
   return violation(fbId, 'warning', `${fbId} is linked to delivered work (${delivered.node.id}) but is still "${fm.status}": close it with a reason`);
 }
 
+/** Todas las WOs (cualquier estado) de una feature: Feature <- Blueprint (ARCHITECTS) <- WO (`implements`), por id. */
+function workOrdersOf(featureId: string, docs: readonly ParsedDoc[]): ParsedDoc[] {
+  const blueprints = new Set(
+    docs.filter((d) => d.node.label === 'Blueprint' && d.edges.some((e) => e.type === 'ARCHITECTS' && e.to === featureId)).map((d) => d.node.id),
+  );
+  if (blueprints.size === 0) return [];
+  return docs
+    .filter((d) => d.frontmatter.type === 'WO' && d.frontmatter.implements.some((id) => blueprints.has(id)))
+    .sort((a, b) => (a.node.id < b.node.id ? -1 : a.node.id > b.node.id ? 1 : 0));
+}
+
+export const CAPACITY_DAYS = [7, 30] as const;
+export type CapacityDays = (typeof CAPACITY_DAYS)[number];
+
+const CAPACITY_KINDS = ['PRD', 'FR', 'SDD', 'ADR', 'WO', 'BC', 'FB'] as const;
+type CapacityKind = (typeof CAPACITY_KINDS)[number];
+const CAPACITY_FEATURE_KINDS = ['PRD', 'FR'] as const;
+type CapacityFeatureKind = (typeof CAPACITY_FEATURE_KINDS)[number];
+
+export interface CapacityKindCount {
+  kind: CapacityKind;
+  total: number;
+}
+export interface CapacityFeatureLine {
+  kind: CapacityFeatureKind;
+  created: number;
+  withDesign: number;
+  withWorkOrders: number;
+  delivered: number;
+}
+export interface CapacityFeedback {
+  created: number;
+  new: number;
+  triaged: number;
+  closed: number;
+  pendingClose: number;
+}
+export interface CapacityWindow {
+  days: CapacityDays;
+  /** Un entry por cada uno de los 7 kinds, SIEMPRE los 7 (con 0), en el orden PRD, FR, SDD, ADR, WO, BC, FB. */
+  createdByKind: CapacityKindCount[];
+  /** Sólo PRD y FR, siempre los dos entries. */
+  features: CapacityFeatureLine[];
+  feedback: CapacityFeedback;
+  passageExceptions: number;
+}
+export interface Capacities {
+  windows: CapacityWindow[];
+}
+
+const MS_PER_DAY = 86_400_000;
+
+function isFeedbackDoc(doc: ParsedDoc): doc is FeedbackDoc {
+  return doc.frontmatter.type === 'FB';
+}
+
+function featureLine(kind: CapacityFeatureKind, created: readonly ParsedDoc[], docs: readonly ParsedDoc[]): CapacityFeatureLine {
+  const ofKind = created.filter((d) => d.frontmatter.type === kind);
+  const withDesign = ofKind.filter((f) => docs.some((d) => d.node.label === 'Blueprint' && d.edges.some((e) => e.type === 'ARCHITECTS' && e.to === f.node.id)));
+  const withWorkOrders = withDesign.filter((f) => workOrdersOf(f.node.id, docs).length > 0);
+  const delivered = withWorkOrders.filter((f) => deliveredWorkOrdersOf([f.node.id], docs).length === workOrdersOf(f.node.id, docs).length);
+  return { kind, created: ofKind.length, withDesign: withDesign.length, withWorkOrders: withWorkOrders.length, delivered: delivered.length };
+}
+
+function capacityWindow(days: CapacityDays, docs: readonly ParsedDoc[], now: Date): CapacityWindow {
+  const today = now.toISOString().slice(0, 10);
+  const since = new Date(Date.parse(`${today}T00:00:00Z`) - (days - 1) * MS_PER_DAY).toISOString().slice(0, 10);
+  const created = docs.filter((d) => {
+    const day = d.node.createdAt?.slice(0, 10);
+    return day !== undefined && day >= since && day <= today;
+  });
+  const feedback = created.filter(isFeedbackDoc);
+  const byStatus = (statuses: readonly string[]): number => feedback.filter((d) => statuses.includes(d.frontmatter.status ?? 'new')).length;
+  return {
+    days,
+    createdByKind: CAPACITY_KINDS.map((kind) => ({ kind, total: created.filter((d) => d.frontmatter.type === kind).length })),
+    features: CAPACITY_FEATURE_KINDS.map((kind) => featureLine(kind, created, docs)),
+    feedback: {
+      created: feedback.length,
+      new: byStatus(['new']),
+      triaged: byStatus(['triaged']),
+      closed: byStatus(['closed', 'dismissed', 'duplicate']),
+      pendingClose: docs.filter(isFeedbackDoc).filter((d) => feedbackResolvedPendingClose(d, docs) !== null).length,
+    },
+    passageExceptions: created.filter((d) => passageException(d) !== null).length,
+  };
+}
+
+/**
+ * SDD-126 D3 (FR-073): capacidades del proyecto en ventanas de 7 y 30 días. Todo sale de los mismos documentos y
+ * reglas que `checkLifecycle` (nunca una segunda copia de reglas).
+ * - Ventana: últimos `days` días calendario UTC incluyendo hoy; compara `createdAt.slice(0, 10)` (sin fecha = fuera).
+ * - `createdByKind`: siempre los 7 kinds; la suma de `total` = documentos de esos kinds creados en la ventana.
+ * - `features` (PRD/FR creados en la ventana): `withDesign` = hay un blueprint que la arquitecta; `withWorkOrders` =
+ *   alguna WO implementa esos blueprints; `delivered` = tiene WOs y TODAS están `done` con `resolved_by`.
+ *   Cierra `delivered <= withWorkOrders <= withDesign <= created`.
+ * - `feedback`: `new + triaged + closed === created` (`closed` agrupa closed/dismissed/duplicate);
+ *   `pendingClose` cuenta TODOS los FB (deuda viva, sin ventana).
+ * - `passageExceptions`: FRs creados en la ventana que declaran la excepción R3 con motivo.
+ */
+export function computeCapacities(docs: readonly ParsedDoc[], now: Date = new Date()): Capacities {
+  return { windows: CAPACITY_DAYS.map((days) => capacityWindow(days, docs, now)) };
+}
+
 function checkFeedback(doc: FeedbackDoc, docs: readonly ParsedDoc[]): DriftIssue[] {
   const resolved = feedbackResolvedPendingClose(doc, docs);
   return [...checkFeedbackLinks(doc, docs), ...(resolved ? [resolved] : [])];

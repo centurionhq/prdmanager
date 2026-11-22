@@ -1,5 +1,7 @@
 import { ageDaysFrom } from '../graph/work-order-age.js';
 import { FEATURE_KIND_ORDER, FEATURE_TREE_KINDS, type FeatureKind } from '../domain/schema.js';
+import { computeCapacities, type Capacities } from '../lifecycle/check.js';
+import type { ParsedDoc } from '../domain/schema.js';
 import type { CommitsWindow, GraphStore, MetricsRaw, OrphanFeature, UntracedCommits } from '../graph/types.js';
 
 const COMPLETED_STATUSES = new Set(['done', 'out_of_sync']);
@@ -82,6 +84,7 @@ export interface SuccessMetrics {
   systemIntegrity: SystemIntegrity;
   traceability: Traceability;
   pendingQueue: PendingQueue;
+  capacities: Capacities;
 }
 
 function round(value: number, decimals: number): number {
@@ -186,7 +189,7 @@ function computeTraceability(raw: MetricsRaw): FeatureTraceability {
 }
 
 /** `untraced` es obligatorio a propósito: un default vacío taparía el bug que esta lista viene a mostrar. */
-export function computeMetrics(raw: MetricsRaw, untraced: UntracedCommits): SuccessMetrics {
+export function computeMetrics(raw: MetricsRaw, untraced: UntracedCommits, docs: readonly ParsedDoc[] = []): SuccessMetrics {
   return {
     agentHumanEfficiency: computeEfficiency(raw.workOrders),
     systemIntegrity: {
@@ -204,10 +207,15 @@ export function computeMetrics(raw: MetricsRaw, untraced: UntracedCommits): Succ
       untracedCommits: untraced,
     },
     pendingQueue: computePendingQueue(raw.workOrders),
+    capacities: computeCapacities(docs),
   };
 }
 
-export async function getMetrics(store: Pick<GraphStore, 'metricsRaw' | 'untracedCommits'>): Promise<SuccessMetrics> {
+/**
+ * Las superficies de producto (MCP, HTTP del server, CLI) SIEMPRE pasan los documentos del scan para `capacities`;
+ * sólo la ruta legacy `/api/metrics` de `packages/web` queda con `[]` (ventanas en cero).
+ */
+export async function getMetrics(store: Pick<GraphStore, 'metricsRaw' | 'untracedCommits'>, docs: readonly ParsedDoc[] = []): Promise<SuccessMetrics> {
   const [raw, untraced] = await Promise.all([store.metricsRaw(), store.untracedCommits()]);
-  return computeMetrics(raw, untraced);
+  return computeMetrics(raw, untraced, docs);
 }

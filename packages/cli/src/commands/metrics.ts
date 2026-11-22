@@ -5,7 +5,7 @@ import { withContext, type CliDeps } from '../program.js';
 
 async function runMetrics(deps: CliDeps, options: { json?: boolean }): Promise<void> {
   await withContext(deps, async (ctx) => {
-    const metrics = await getMetrics(ctx.store);
+    const metrics = await getMetrics(ctx.store, (await ctx.engine.scan()).docs);
     deps.stdout(options.json ? JSON.stringify(metrics, null, 2) : formatMetrics(metrics));
   });
 }

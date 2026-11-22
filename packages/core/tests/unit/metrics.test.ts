@@ -52,6 +52,7 @@ describe('computeMetrics', () => {
         untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] },
       },
       pendingQueue: { total: 0, unassigned: 0, oldestDays: null, over7Days: 0 },
+      capacities: { windows: [expect.objectContaining({ days: 7 }), expect.objectContaining({ days: 30 })] },
     });
   });
 
@@ -450,5 +451,20 @@ describe('classifyCommit', () => {
     [{ parentCount: 1, files: ['src/a.ts'], subject: 'chore: x' }, 'code'],
   ] as const)('%j → %s', (commit, expected) => {
     expect(classifyCommit(commit)).toBe(expected);
+  });
+});
+
+describe('computeMetrics capacities', () => {
+  test('keeps traceability identical and ships zeroed windows when no docs are passed', () => {
+    const base = computeMetrics(raw({ features: [feature('PRD-001', 'PRD', true)] }), untraced());
+    const withDocs = computeMetrics(raw({ features: [feature('PRD-001', 'PRD', true)] }), untraced(), []);
+    expect(withDocs.traceability).toEqual(base.traceability);
+    expect(base.capacities.windows.map((w) => w.days)).toEqual([7, 30]);
+    for (const w of base.capacities.windows) {
+      expect(w.createdByKind).toHaveLength(7);
+      expect(w.createdByKind.every((k) => k.total === 0)).toBe(true);
+      expect(w.feedback).toEqual({ created: 0, new: 0, triaged: 0, closed: 0, pendingClose: 0 });
+      expect(w.passageExceptions).toBe(0);
+    }
   });
 });

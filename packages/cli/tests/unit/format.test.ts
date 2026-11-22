@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { DriftIssue, RefreshReport, SuccessMetrics } from '@prdm/core';
+import { computeCapacities, type DriftIssue, type RefreshReport, type SuccessMetrics } from '@prdm/core';
 import { formatIssues, formatMetrics, formatRefreshReport, formatScanErrors, formatSearchHits, summarizeRefresh } from '../../src/format.js';
 
 function report(overrides: Partial<RefreshReport> = {}): RefreshReport {
@@ -69,6 +69,7 @@ function metrics(overrides: Partial<SuccessMetrics> = {}): SuccessMetrics {
     systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
     traceability: { featuresByKind: [], featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
     pendingQueue: { total: 0, unassigned: 0, oldestDays: null, over7Days: 0 },
+    capacities: computeCapacities([]),
     ...overrides,
   };
 }

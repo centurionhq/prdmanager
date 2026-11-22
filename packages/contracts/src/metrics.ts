@@ -106,9 +106,69 @@ export const traceabilitySchema = z.object({
   untracedCommits: untracedCommitsSchema,
 });
 
+/**
+ * SDD-126 D3 (FR-073): capacidades en ventanas de 7 y 30 días. Sumas que cierran: `sum(createdByKind.total)` =
+ * documentos creados en la ventana; `feedback.new + triaged + closed = feedback.created`; y por feature
+ * `delivered <= withWorkOrders <= withDesign <= created`.
+ */
+export const capacityKindSchema = z.enum(['PRD', 'FR', 'SDD', 'ADR', 'WO', 'BC', 'FB']);
+
+export const capacityKindCountSchema = z.object({
+  kind: capacityKindSchema,
+  total: z.number().int().min(0),
+});
+
+export const capacityFeatureLineSchema = z.object({
+  kind: z.enum(['PRD', 'FR']),
+  created: z.number().int().min(0),
+  withDesign: z.number().int().min(0),
+  withWorkOrders: z.number().int().min(0),
+  delivered: z.number().int().min(0),
+});
+
+export const capacityFeedbackSchema = z.object({
+  created: z.number().int().min(0),
+  new: z.number().int().min(0),
+  triaged: z.number().int().min(0),
+  closed: z.number().int().min(0),
+  pendingClose: z.number().int().min(0),
+});
+
+export const capacityWindowSchema = z.object({
+  days: z.union([z.literal(7), z.literal(30)]),
+  createdByKind: z.array(capacityKindCountSchema),
+  features: z.array(capacityFeatureLineSchema),
+  feedback: capacityFeedbackSchema,
+  passageExceptions: z.number().int().min(0),
+});
+
+export const capacitiesSchema = z.object({
+  windows: z.array(capacityWindowSchema).length(2),
+});
+export type CapacitiesDto = z.infer<typeof capacitiesSchema>;
+
+const EMPTY_CAPACITY_WINDOW_BASE = {
+  createdByKind: capacityKindSchema.options.map((kind) => ({ kind, total: 0 })),
+  features: [
+    { kind: 'PRD' as const, created: 0, withDesign: 0, withWorkOrders: 0, delivered: 0 },
+    { kind: 'FR' as const, created: 0, withDesign: 0, withWorkOrders: 0, delivered: 0 },
+  ],
+  feedback: { created: 0, new: 0, triaged: 0, closed: 0, pendingClose: 0 },
+  passageExceptions: 0,
+};
+
+/** Capacidades en cero (ventanas de 7 y 30 días): fixtures de test y estado vacío. */
+export const EMPTY_CAPACITIES: CapacitiesDto = {
+  windows: [
+    { days: 7, ...EMPTY_CAPACITY_WINDOW_BASE },
+    { days: 30, ...EMPTY_CAPACITY_WINDOW_BASE },
+  ],
+};
+
 export const successMetricsSchema = z.object({
   agentHumanEfficiency: agentHumanEfficiencySchema,
   systemIntegrity: systemIntegritySchema,
   traceability: traceabilitySchema,
+  capacities: capacitiesSchema,
 });
 export type SuccessMetricsDto = z.infer<typeof successMetricsSchema>;

@@ -241,6 +241,6 @@ export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
       inputSchema: {},
       annotations: { title: 'Get metrics', ...READ_ONLY },
     },
-    safeReadTool(deps, async () => jsonResult({ ...(await getMetrics(deps.store)) })),
+    safeReadTool(deps, async () => jsonResult({ ...(await getMetrics(deps.store, (await deps.engine.scan()).docs)) })),
   );
 }
