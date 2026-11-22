@@ -1,5 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkOrderContextDto, WorkProfile } from '@prdm/contracts';
@@ -72,6 +74,18 @@ async function selectOrders(ids: readonly string[]): Promise<void> {
   for (const id of ids) await userEvent.click(screen.getByRole('checkbox', { name: `Seleccionar ${id}` }));
 }
 
+/** Simulates `window.matchMedia` matching the app's 640px breakpoint, where `DataTable` draws its own selection bar. */
+function mockMobileMediaQuery(matches: boolean): void {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
+
 async function openBatch(action: 'Archivar' | 'Tomar'): Promise<HTMLElement> {
   const bar = await screen.findByRole('group', { name: 'Acciones en lote' });
   await userEvent.click(within(bar).getByRole('button', { name: `${action} seleccionadas` }));
@@ -83,7 +97,10 @@ describe('Ordenes', () => {
     clearQueryCache();
     vi.spyOn(client, 'getProfile').mockResolvedValue({ handle: null, workProfile: null });
   });
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(window, 'matchMedia');
+  });
 
   it('lists every work order for the project', async () => {
     vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
@@ -423,6 +440,35 @@ describe('Ordenes', () => {
     expect(within(bar).getByText('2 órdenes seleccionadas')).toBeTruthy();
     expect(within(bar).getByRole('button', { name: 'Archivar seleccionadas' })).toBeTruthy();
     expect(within(bar).getByRole('button', { name: 'Tomar seleccionadas' })).toBeTruthy();
+  });
+
+  it('says the selection count once on mobile: the selection bar owns it and the batch bar keeps only the actions', async () => {
+    mockMobileMediaQuery(true);
+    vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    renderPage();
+    await screen.findByText('WO-304');
+    await selectOrders(['WO-310', 'WO-301']);
+
+    // The table's own selection bar — the one carrying the select-all — is where the count is said.
+    const selectAll = screen.getByRole('checkbox', { name: 'Seleccionar todas las filas' });
+    const selectionBar = selectAll.closest('div');
+    expect(selectionBar).not.toBeNull();
+    expect(within(selectionBar as HTMLElement).getByText('2 órdenes seleccionadas')).toBeTruthy();
+
+    // The batch bar carries the three actions and no second copy of the same count.
+    const bar = await screen.findByRole('group', { name: 'Acciones en lote' });
+    expect(within(bar).queryByText(/órdenes seleccionadas/)).toBeNull();
+    expect(within(bar).getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Archivar seleccionadas',
+      'Tomar seleccionadas',
+      'Limpiar selección',
+    ]);
+
+    // The stylesheet hides the counter at this width as well, so the visible outcome never depends on the
+    // JS branch alone. jsdom applies no media queries, so the rule itself is what gets asserted here (same
+    // approach as Drawer.test.tsx's 44px check).
+    const css = readFileSync(resolve(import.meta.dirname, '../../src/routes/ordenes/Ordenes.module.css'), 'utf8');
+    expect(css).toMatch(/@media\s*\(max-width:\s*640px\)\s*\{[\s\S]*?\.batchCount\s*\{[^}]*display:\s*none/s);
   });
 
   it('archives the whole selection in one batch, with an optional motive, and refreshes the list', async () => {

@@ -113,4 +113,10 @@
   .batchBar > button {
     min-height: var(--hit-target);
   }
+
+  /* Canvas P8: below 640px the table's own selection bar carries the select-all and the count, so the
+     batch bar keeps only the actions — saying the same datum twice on a 375px screen is noise. */
+  .batchCount {
+    display: none;
+  }
 }

@@ -33,6 +33,7 @@ import {
 import { projectBasePath } from '../components/shell/project-nav.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import type { SortState } from '../lib/filter-sort.js';
+import { useMediaQuery } from '../lib/use-media-query.js';
 import { WORK_PROFILE_COPY } from './inicio/work-profiles.js';
 import { BatchOrderModal, type BatchOrderAction, type BatchOrderInput } from './ordenes/BatchOrderModal.js';
 import { OrderDrawer } from './ordenes/OrderDrawer.js';
@@ -55,6 +56,9 @@ import {
 } from './ordenes/ordenes-filters.js';
 import styles from './ordenes/Ordenes.module.css';
 import { useProjectShellContext } from './ProjectShell.js';
+
+/** Same breakpoint that makes `DataTable` stack and draw its own selection bar (`DataTable.tsx`). */
+const TABLE_STACKS_QUERY = '(max-width: 640px)';
 
 function PlateSelect<T extends string>({
   label,
@@ -145,6 +149,7 @@ function OrdenesContent(): ReactElement {
 
   const navigate = useNavigate();
   const { show } = useToast();
+  const tableStacks = useMediaQuery(TABLE_STACKS_QUERY);
   const [searchParams, setSearchParams] = useSearchParams();
   const [sort, setSort] = useState<SortState<OrdenesSortKey>>(ORDENES_DEFAULT_SORT);
   const [openId, setOpenId] = useState<string | undefined>(undefined);
@@ -331,7 +336,9 @@ function OrdenesContent(): ReactElement {
 
           {selected.size >= 2 ? (
             <div className={styles.batchBar} role="group" aria-label="Acciones en lote">
-              <span className={styles.batchCount}>{selected.size} órdenes seleccionadas</span>
+              {/* Canvas P8: once the table stacks, its own selection bar carries the count next to the
+                  select-all, so the batch bar keeps only the actions here. */}
+              {tableStacks ? null : <span className={styles.batchCount}>{selected.size} órdenes seleccionadas</span>}
               <Button type="button" variant="secondary" size="sm" onClick={() => setBatchAction('archive')}>
                 Archivar seleccionadas
               </Button>
