@@ -198,7 +198,7 @@
             <div style="padding: 12px 16px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Origen</span><span style="display: flex; gap: 8px; flex-wrap: wrap;"><a class="id" style="font-size: 14px;">FB-179</a><a class="id" style="font-size: 14px;">FB-151</a><a class="id" style="font-size: 14px;">BC-022</a></span></div>
             <div style="padding: 12px 16px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Blueprints</span><span style="display: flex; gap: 8px;"><a class="id" style="font-size: 14px;">SDD-005</a><a class="id" style="font-size: 14px;">ADR-004</a><a class="id" style="font-size: 14px;">SDD-006</a></span></div>
             <div style="padding: 12px 0 12px 16px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Órdenes</span><span class="num" style="font-size: 16px; font-weight: 600;">3 de 8 hechas</span></div>
-            <div style="padding: 12px 16px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Commits</span><span class="num" style="font-size: 16px; font-weight: 600;">3 aterrizados en main</span></div>
+            <div style="padding: 12px 16px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Commits</span><span class="num" style="font-size: 16px; font-weight: 600;">0 con Refs: a este documento</span></div>
             <div style="padding: 12px 16px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Código</span><span class="num" style="font-size: 16px; font-weight: 600; color: #19703F;">29 referencias</span></div>
           </div>
         </div>
@@ -216,13 +216,15 @@
               <div class="td"><a class="id" style="line-height: 20px;">{{ o.sdd }}</a></div>
               <div class="td" style="padding: 10px 0;"><span class="badge" style="color: {{ o.estadoColor }};"><span style="width: 8px; height: 8px; background: {{ o.estadoRelleno }}; border: 1.5px solid {{ o.estadoColor }};"></span>{{ o.estado }}</span></div>
               <div class="td" style="flex-direction: column; gap: 2px;">
-                <span style="display: flex; align-items: center; gap: 6px; color: {{ o.commitColor }};">
+                <span style="display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: {{ o.commitColor }};">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; {{ o.marcaDisplay }}"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l3 3 5-6"></path></svg>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none; {{ o.sinMarcaDisplay }}"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"></circle></svg>
-                  <span class="id" style="{{ o.shaDisplay }}">{{ o.sha }}</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; {{ o.sinMarcaDisplay }}"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"></circle></svg>
+                  <span class="id" style="{{ o.shaDisplay }}" title="{{ o.shaTitulo }}">{{ o.sha }}</span>
+                  <span style="{{ o.commitsDisplay }} font-size: 12px; line-height: 16px; color: #33383D;">{{ o.commitsTexto }}</span>
                   <span style="{{ o.sinCommitDisplay }} font-size: 14px;">Sin commit</span>
                 </span>
                 <span style="{{ o.shaDisplay }} font-size: 12px; line-height: 16px; color: #33383D; padding-left: 22px;">aterrizado en main</span>
+                <span style="{{ o.fechaDisplay }} font-size: 12px; line-height: 16px; color: #565D63; padding-left: 22px;">{{ o.fecha }}</span>
               </div>
             </sc-for>
           </div>
@@ -241,7 +243,7 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"></circle></svg>
               sin commit
             </span>
-            <span style="color: #33383D;">La marca no cierra ni cambia el estado de la orden.</span>
+            <span style="color: #33383D;">Las órdenes sin commit todavía no tienen un commit con el trailer <span class="id">Refs: WO-xxx</span>. La marca no cierra ni cambia el estado de la orden.</span>
           </div>
         </div>
 
@@ -414,7 +416,7 @@
             <div style="padding: 12px 8px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Origen</span><span class="id" style="font-size: 14px;">FB-179, FB-151, BC-022</span></div>
             <div style="padding: 12px 0 12px 8px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Blueprints</span><span class="id" style="font-size: 14px;">SDD-005, ADR-004, SDD-006</span></div>
             <div style="padding: 12px 8px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Órdenes</span><span class="num" style="font-size: 16px; font-weight: 600;">3 de 8 hechas</span></div>
-            <div style="padding: 12px 0 12px 8px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Commits</span><span class="num" style="font-size: 16px; font-weight: 600;">3 aterrizados en main</span></div>
+            <div style="padding: 12px 0 12px 8px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Commits</span><span class="num" style="font-size: 16px; font-weight: 600;">0 con Refs: a este documento</span></div>
             <div style="padding: 12px 8px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Código</span><span class="num" style="font-size: 16px; font-weight: 600; color: #19703F;">29 referencias</span></div>
           </div>
         </div>
@@ -437,8 +439,10 @@
                   <span style="display: flex; align-items: center; gap: 6px; color: {{ o.commitColor }};">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; {{ o.marcaDisplay }}"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l3 3 5-6"></path></svg>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none; {{ o.sinMarcaDisplay }}"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"></circle></svg>
-                    <span class="id" style="{{ o.shaDisplay }}">{{ o.sha }}</span>
+                    <span class="id" style="{{ o.shaDisplay }}" title="{{ o.shaTitulo }}">{{ o.sha }}</span>
+                    <span style="{{ o.commitsDisplay }}">{{ o.commitsTexto }}</span>
                     <span style="{{ o.shaDisplay }} color: #33383D;">aterrizado en main</span>
+                    <span style="{{ o.fechaDisplay }} color: #565D63;">{{ o.fecha }}</span>
                     <span style="{{ o.sinCommitDisplay }}">Sin commit</span>
                   </span>
                 </div>
@@ -459,7 +463,7 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"></circle></svg>
               sin commit
             </span>
-            <span style="color: #33383D;">La marca no cierra ni cambia el estado de la orden.</span>
+            <span style="color: #33383D;">Las órdenes sin commit todavía no tienen un commit con el trailer <span class="id">Refs: WO-xxx</span>. La marca no cierra ni cambia el estado de la orden.</span>
           </div>
         </div>
 
@@ -574,21 +578,32 @@ class Component extends DCLogic {
       curso: { estado: 'En curso', estadoColor: '#1F4FA0', estadoRelleno: '#1F4FA0' },
       pendiente: { estado: 'Pendiente', estadoColor: '#565D63', estadoRelleno: 'transparent' }
     };
-    const O = (id, partes, sdd, est, sha) => ({
-      id, partes, sdd, ...E[est],
-      titulo: partes.map(p => p.t).join(''),
-      sha: sha ?? '',
-      commitColor: sha ? '#17191C' : '#565D63',
-      marcaDisplay: sha ? 'display: block;' : hide,
-      sinMarcaDisplay: sha ? hide : 'display: block;',
-      shaDisplay: sha ? '' : hide,
-      sinCommitDisplay: sha ? hide : ''
-    });
+    const O = (id, partes, sdd, est, sha, commits, fecha) => {
+      // WO-789 (SDD-120 D4/D5): con varios commits se dice cuántos son y cuál se muestra; la fecha del
+      // canónico va debajo. El sha de la fila es el corto (7) del commit más reciente (`date DESC, sha
+      // DESC`), el mismo que publica `landedCommitSha`; la copia del producto lleva los 40 hex.
+      const varios = Boolean(sha) && (commits ?? 1) > 1;
+      return {
+        id, partes, sdd, ...E[est],
+        titulo: partes.map(p => p.t).join(''),
+        sha: sha ?? '',
+        shaTitulo: sha ? (varios ? `${sha} · el más reciente de ${commits} commits que resuelven esta orden` : sha) : '',
+        commitsTexto: varios ? `· ${commits} commits` : '',
+        commitsDisplay: varios ? '' : hide,
+        fecha: sha && fecha ? fecha : '',
+        fechaDisplay: sha && fecha ? '' : hide,
+        commitColor: sha ? '#17191C' : '#565D63',
+        marcaDisplay: sha ? 'display: block;' : hide,
+        sinMarcaDisplay: sha ? hide : 'display: block;',
+        shaDisplay: sha ? '' : hide,
+        sinCommitDisplay: sha ? hide : ''
+      };
+    };
     const ordenes = [
       O('WO-742', [P('WO-B (app: Planta y canvas, depende de WO-A). D5 en '), P('packages/app/src/routes/Planta.tsx:263-300', true), P(' (etiqueta y línea secundaria del BC, lectura defensiva).')], 'SDD-005', 'curso'),
-      O('WO-741', [P('WO-A (core, contratos, MCP y CLI). '), P('METRICS_RAW', true), P(' devuelve las features con su estado de trazado en vez de los totales.')], 'SDD-005', 'hecha', '3e1a9c4'),
-      O('WO-740', [P('Lista de features sin código accionable desde el Árbol, con el chip «Sin código»')], 'SDD-006', 'hecha', 'b72f0d1'),
-      O('WO-739', [P('Enlace desde la Planta a la lista filtrada, conservando el filtro en la URL')], 'SDD-006', 'hecha', '91c4e5a'),
+      O('WO-741', [P('WO-A (core, contratos, MCP y CLI). '), P('METRICS_RAW', true), P(' devuelve las features con su estado de trazado en vez de los totales.')], 'SDD-005', 'hecha', '8dd1c5c', 2, '21/11/2026, 14:11'),
+      O('WO-740', [P('Lista de features sin código accionable desde el Árbol, con el chip «Sin código»')], 'SDD-006', 'hecha', 'b72f0d1', 1, '20/11/2026, 18:04'),
+      O('WO-739', [P('Enlace desde la Planta a la lista filtrada, conservando el filtro en la URL')], 'SDD-006', 'hecha', '91c4e5a', 1, '19/11/2026, 09:37'),
       O('WO-738', [P('Verificación contra el servidor real: '), P('GET /api/features?traced=false', true), P(' y el conteo del encabezado')], 'SDD-005', 'pendiente'),
       O('WO-737', [P('Documentar el criterio de «aterrizado en main» en la guía del Árbol')], 'SDD-006', 'pendiente')
     ];

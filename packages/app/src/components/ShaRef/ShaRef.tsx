@@ -4,6 +4,9 @@
  * never guessed: with no repository the sha degrades to copy-only, instead of pointing somewhere that does
  * not exist. The copy itself is the shared `useCopyToClipboard` (same behaviour, same failure copy as
  * `CopyBlock`), and the button is the design system's `Button`, so it keeps the standard hit target.
+ *
+ * WO-789 (SDD-120 D4): two optional knobs for the Árbol panel — `shortLength` (7 there, 12 elsewhere) and
+ * `note`, the sentence that says *which* commit is being shown when a work order has several.
  */
 import type { ReactElement } from 'react';
 import { COPY_FAILED_MESSAGE, copyButtonLabel, useCopyToClipboard } from '../CopyBlock/use-copy-to-clipboard.js';
@@ -15,24 +18,34 @@ export interface ShaRefProps {
   readonly sha: string;
   /** `owner/repo`, as `project.settings.github_repository` holds it. `null` or blank means no link. */
   readonly repository?: string | null;
+  /** How many characters of the sha the label shows. Defaults to 12; the Árbol panel asks for 7 (WO-789). */
+  readonly shortLength?: number;
+  /**
+   * What this sha is, when the screen picked one of several (WO-789: «el más reciente de 2 commits que
+   * resuelven esta orden»). It rides on the label's `title` and on the copy button's accessible name — the
+   * button sits in a table row where the sha alone does not tell a screen-reader user which commit it copies.
+   */
+  readonly note?: string;
 }
 
 /** Same truncation the drift screens used before this component existed: 12 characters. */
 const SHORT_SHA_LENGTH = 12;
 
-export function ShaRef({ sha, repository }: ShaRefProps): ReactElement {
+export function ShaRef({ sha, repository, shortLength = SHORT_SHA_LENGTH, note }: ShaRefProps): ReactElement {
   const { state, copy } = useCopyToClipboard(sha);
   const repo = repository?.trim();
+  const context = note?.trim();
   // The visible label is short, so the button is named after the action *and* the sha: that is what tells a
   // screen reader which commit is about to land in the clipboard. Once copied, the name carries the
   // confirmation too — an `aria-label` overrides the visible text, so keeping the action name would hide the
   // outcome from assistive tech.
-  const name = state === 'copied' ? `Sha ${sha} copiado` : `Copiar el sha ${sha}`;
+  const action = state === 'copied' ? `Sha ${sha} copiado` : `Copiar el sha ${sha}`;
+  const name = context ? `${action} (${context})` : action;
 
   return (
     <span className={styles.ref}>
-      <span className="id" title={sha}>
-        {sha.slice(0, SHORT_SHA_LENGTH)}
+      <span className="id" title={context ? `${sha} · ${context}` : sha}>
+        {sha.slice(0, shortLength)}
       </span>
       <Button variant="secondary" size="sm" aria-label={name} onClick={() => void copy()}>
         {copyButtonLabel(state)}

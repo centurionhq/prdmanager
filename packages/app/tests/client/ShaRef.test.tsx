@@ -104,4 +104,22 @@ describe('ShaRef (WO-635, SDD-069)', () => {
 
     expect(screen.getByRole('button', { name: `Copiar el sha ${other}` })).toBeTruthy();
   });
+
+  /**
+   * WO-789 (SDD-120 D4): la tabla del Árbol muestra 7 caracteres (no 12) y, cuando la orden tiene varios
+   * commits, dice cuál de ellos está mostrando -- en el `title` y en el nombre del botón, que es lo que
+   * escucha un lector de pantalla. El sha que se copia sigue siendo el completo.
+   */
+  it('accepts a shorter visible truncation and a note that names the commit being shown (SDD-120 D4)', async () => {
+    const writeText = stubClipboard(() => Promise.resolve());
+    const note = 'el más reciente de 2 commits que resuelven esta orden';
+    render(<ShaRef sha={SHA} shortLength={7} note={note} />);
+
+    const short = screen.getByText(SHA.slice(0, 7));
+    expect(short.textContent).toHaveLength(7);
+    expect(short.getAttribute('title')).toBe(`${SHA} · ${note}`);
+
+    await userEvent.click(screen.getByRole('button', { name: `Copiar el sha ${SHA} (${note})` }));
+    expect(writeText).toHaveBeenCalledWith(SHA);
+  });
 });

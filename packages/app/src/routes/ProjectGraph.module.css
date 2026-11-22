@@ -214,6 +214,19 @@
   line-height: 1.35;
   color: var(--texto-secundario);
 }
+/* WO-789 (SDD-120 D4/D5): cuántos commits resuelven la orden y cuándo aterrizó el canónico. */
+.commitCount {
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  color: var(--texto-secundario);
+  white-space: nowrap;
+}
+.commitWhen {
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  color: var(--apagado);
+  font-variant-numeric: tabular-nums;
+}
 
 /* Resumen «N de M órdenes pendientes ya tienen commit», arriba de la tabla (D5/C5). */
 .chainSummary {

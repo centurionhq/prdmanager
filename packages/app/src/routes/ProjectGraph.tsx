@@ -51,6 +51,7 @@ import {
   type StatusBadgeWorkflowStatus,
 } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
+import { formatDateTime } from '../lib/format-date.js';
 import { chainSummary, orderChainRows, type OrderChainRow } from './arbol/order-chain.js';
 import { countMatches, filterForestByQuery } from './arbol/tree-search.js';
 import styles from './ProjectGraph.module.css';
@@ -166,9 +167,9 @@ function renderStatus(view: NodeView): ReactElement {
 }
 
 interface PanelOrderRow extends OrderChainRow {
-  /** Sólo para ordenar (WO-749, SDD-105 D1): la fecha del commit tal como la publica `listCommits`. El
-   * subgrafo del branch no la trae, así que la celda no la muestra (decisión C1 de prdm-pm: sin columna
-   * Fecha); sirve para que «las 25 más recientes» siga significando lo mismo que antes. */
+  /** Sólo para ordenar (WO-749, SDD-105 D1): la fecha del commit tal como la publica `listCommits`, que es
+   * la que sostiene «las 25 más recientes» desde antes de SDD-120; la celda muestra la del commit canónico
+   * del subgrafo (`landedAt`, D5) y el orden de la lista no cambia en este WO. */
   readonly commitDate: string | null;
 }
 
@@ -176,6 +177,9 @@ interface PanelOrderRow extends OrderChainRow {
  * Órdenes. El tope vive acá, en el consumidor: el `DataTable` es compartido (Órdenes, Planta, Documentos)
  * y su paginación es otro trabajo, así que no se toca. */
 const ORDER_LIMIT = 25;
+
+/** WO-789 (SDD-120 D4): el sha corto que la tabla muestra, como el resto de la app lo lee en los ids. */
+const SHORT_COMMIT_LENGTH = 7;
 
 /** WO-749 (SDD-105 D1): la fecha del commit de una orden en milisegundos, o `null` cuando la orden
  * todavía no tiene commit (o su fecha no es parseable) -- esas filas van después de las fechadas. */
@@ -211,9 +215,14 @@ function renderSddCell(row: OrderChainRow, documentsBase: string): ReactElement 
   );
 }
 
-/** WO-747 (SDD-104 D3, decisión C2): la marca es no cromática (círculo con tilde / círculo punteado) y
- * convive con el sha corto; sin commit, «Sin commit» en `--apagado`, nunca un guion mudo. La marca no
- * cierra ni cambia el estado de la orden (D4). */
+/**
+ * WO-747 (SDD-104 D3, decisión C2) + WO-789 (SDD-120 D4/D5/D10): la marca es no cromática (círculo con
+ * tilde / círculo punteado) y convive con el sha corto (7) del commit **canónico** — el mismo que publica
+ * `landedCommitSha`, elegido con `date DESC, sha DESC` en `orderChainRows`. Con varios commits la celda
+ * declara `· N commits` y dice cuál se muestra, y el botón de copiar copia los 40 hex aunque se lean 7.
+ * Debajo va la fecha del commit y la nota; sin commit, «Sin commit» en `--apagado`, nunca un guion mudo.
+ * La marca no cierra ni cambia el estado de la orden (D4).
+ */
 function renderCommitCell(row: OrderChainRow): ReactElement {
   if (row.landedSha === null) {
     return (
@@ -225,13 +234,17 @@ function renderCommitCell(row: OrderChainRow): ReactElement {
       </span>
     );
   }
+  // Con un solo commit no hay nada que desambiguar: el sha habla por sí solo (D4).
+  const note = row.commitCount > 1 ? `el más reciente de ${row.commitCount} commits que resuelven esta orden` : undefined;
   return (
     <span className={styles.commitCell}>
       <span className={styles.commitLine}>
         <CircleCheck aria-hidden="true" size={14} className={styles.commitMarkOn} />
-        <ShaRef sha={row.landedSha} />
+        <ShaRef sha={row.landedSha} shortLength={SHORT_COMMIT_LENGTH} note={note} />
+        {row.commitCount > 1 ? <span className={styles.commitCount}>· {row.commitCount} commits</span> : null}
       </span>
       <span className={styles.commitNote}>aterrizado en main</span>
+      {row.landedAt !== null ? <span className={styles.commitWhen}>{formatDateTime(row.landedAt)}</span> : null}
     </span>
   );
 }
@@ -432,9 +445,12 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
             {commits ? (
               <div>
                 <dt className={styles.traceLabel}>Commits</dt>
-                {/* WO-747 (decisión C4): «N aterrizados en main», el mismo vocabulario que la tabla. */}
+                {/* WO-789 (SDD-120 D6): el contador ya no afirma aterrizaje. `relatedCommits` cuenta los
+                    commits cuyos `refs` nombran los blueprints de este documento, que casi siempre son 0
+                    porque los trailers son `Refs: WO-xxx`: decir «0 aterrizados en main» al lado de filas
+                    «aterrizado en main» era una contradicción de copy, no un dato. */}
                 <dd className={`num ${styles.traceValueNum}`}>
-                  {relatedCommits.length} {relatedCommits.length === 1 ? 'aterrizado' : 'aterrizados'} en main
+                  {relatedCommits.length} con Refs: a este documento
                 </dd>
               </div>
             ) : null}
@@ -469,8 +485,9 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
               </Link>
             </p>
           ) : null}
-          {/* WO-747 (C5): la leyenda de la marca, una sola línea bajo la tabla -- el círculo es decorativo,
-              el texto delata el caso y la nota evita leer la marca como un cierre (D4). */}
+          {/* WO-747 (C5) + WO-789 (SDD-120 D5): la leyenda de la marca, con sus DOS frases -- la que
+              explica el vacío (las órdenes sin commit no tienen todavía el trailer `Refs: WO-xxx`) y la que
+              evita leer la marca como un cierre (D4). El círculo es decorativo; el texto delata el caso. */}
           <p className={styles.chainLegend}>
             <span className={styles.chainLegendItem}>
               <CircleCheck aria-hidden="true" size={14} className={styles.commitMarkOn} />
@@ -479,6 +496,9 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
             <span className={styles.chainLegendItem}>
               <CircleDashed aria-hidden="true" size={14} className={styles.commitMarkOff} />
               sin commit
+            </span>
+            <span className={styles.chainLegendNote}>
+              Las órdenes sin commit todavía no tienen un commit con el trailer <span className="id">Refs: WO-xxx</span>.
             </span>
             <span className={styles.chainLegendNote}>La marca no cierra ni cambia el estado de la orden.</span>
           </p>
