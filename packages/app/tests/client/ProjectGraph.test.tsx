@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NodeDetail, Subgraph, TreeNode } from '@prdm/core';
-import type { CommitDto, DriftIssueDto, SuccessMetricsDto } from '@prdm/contracts';
+import type { CodeRefDto, CommitDto, DriftIssueDto, SuccessMetricsDto } from '@prdm/contracts';
 import * as client from '../../src/api/client.js';
 import { clearQueryCache } from '../../src/api/query-cache.js';
 import { ProjectGraph } from '../../src/routes/ProjectGraph.js';
@@ -906,6 +906,132 @@ describe('ProjectGraph (árbol de features)', () => {
       const status = await screen.findByRole('status');
       expect(status.textContent).toBe('Cargando el árbol de features…');
       expect(document.querySelector('[data-skeleton-bar]')).toBeTruthy();
+    });
+  });
+
+  describe('el código gobernado también se acota (WO-769, SDD-112 C6/C7)', () => {
+    /** `count` referencias del blueprint con `updatedAt` creciente por índice: la última del array es la
+     * más nueva, así el tope de 25 se ve en las filas que quedan y en las que no. */
+    function codeRefsFor(blueprintId: string, count: number, dir: 'routes' | 'ui' = 'routes'): CodeRefDto[] {
+      const base = Date.UTC(2026, 0, 1);
+      const offset = dir === 'routes' ? 0 : 10_000;
+      return Array.from({ length: count }, (_, index) => ({
+        projectId: 'p1',
+        orgId: 'o1',
+        blueprintId,
+        refKey: `${blueprintId}:${dir}:${index}`,
+        path: `packages/app/src/${dir}/file-${index}.tsx`,
+        symbol: `fn${index}`,
+        hash: null,
+        hashAlgoVersion: 1,
+        reportId: 'r1',
+        headSha: 'abc1234',
+        updatedAt: new Date(base + (offset + index) * 60_000).toISOString(),
+      }));
+    }
+
+    /** La línea de recorte es un `<span>` con dos `<span class="num">` adentro: se compara el texto
+     * completo del contenedor, no el de cada número por separado. */
+    function lineText(text: string) {
+      return (_: string, element: Element | null) => element?.tagName === 'SPAN' && element.textContent === text;
+    }
+
+    function mockPanel(codeRefs: readonly CodeRefDto[]) {
+      vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+      vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+      vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
+      vi.spyOn(client, 'listCommits').mockResolvedValue({ items: [], nextCursor: null });
+      vi.spyOn(client, 'listCodeRefs').mockResolvedValue([...codeRefs]);
+    }
+
+    it('monta 25 referencias como máximo, las más recientes por updatedAt, y dice el total (C6)', async () => {
+      mockPanel(codeRefsFor('SDD-005', 42));
+
+      renderPage('FR-001');
+
+      const table = await screen.findByRole('table', { name: /código gobernado por FR-001/i });
+      // 1 fila de encabezado + 25 referencias: las 42 nunca se montan.
+      expect(within(table).getAllByRole('row')).toHaveLength(26);
+      expect(within(table).getByText('packages/app/src/routes/file-41.tsx')).toBeTruthy();
+      expect(within(table).getByText('packages/app/src/routes/file-17.tsx')).toBeTruthy();
+      expect(within(table).queryByText('packages/app/src/routes/file-16.tsx')).toBeNull();
+      expect(screen.getByText(lineText('Mostrando las 25 referencias más recientes de 42'))).toBeTruthy();
+    });
+
+    it('ordena por updatedAt descendente y, a igualdad, por ruta ascendente (C6)', async () => {
+      const tie = '2026-05-01T00:00:00.000Z';
+      mockPanel([
+        { projectId: 'p1', orgId: 'o1', blueprintId: 'SDD-005', refKey: 'k-old', path: 'src/z.ts', symbol: null, hash: null, hashAlgoVersion: 1, reportId: 'r1', headSha: 'abc1234', updatedAt: '2026-01-01T00:00:00.000Z' },
+        { projectId: 'p1', orgId: 'o1', blueprintId: 'SDD-005', refKey: 'k-tie-b', path: 'src/b.ts', symbol: null, hash: null, hashAlgoVersion: 1, reportId: 'r1', headSha: 'abc1234', updatedAt: tie },
+        { projectId: 'p1', orgId: 'o1', blueprintId: 'SDD-005', refKey: 'k-tie-a', path: 'src/a.ts', symbol: null, hash: null, hashAlgoVersion: 1, reportId: 'r1', headSha: 'abc1234', updatedAt: tie },
+        { projectId: 'p1', orgId: 'o1', blueprintId: 'SDD-005', refKey: 'k-new', path: 'src/y.ts', symbol: null, hash: null, hashAlgoVersion: 1, reportId: 'r1', headSha: 'abc1234', updatedAt: '2026-06-01T00:00:00.000Z' },
+      ]);
+
+      renderPage('FR-001');
+
+      const table = await screen.findByRole('table', { name: /código gobernado por FR-001/i });
+      await waitFor(() =>
+        expect(within(table).getAllByRole('row').slice(1).map((row) => row.textContent?.replace(/^.*?(src\/[a-z]\.ts).*$/, '$1'))).toEqual([
+          'src/y.ts',
+          'src/a.ts',
+          'src/b.ts',
+          'src/z.ts',
+        ]),
+      );
+      // Con 4 referencias no hay recorte: la línea no aparece.
+      expect(screen.queryByText(/Mostrando/)).toBeNull();
+    });
+
+    it('filtra en memoria por ruta o símbolo, acota a 25 y lo dice con «Limpiar» (C7)', async () => {
+      mockPanel([...codeRefsFor('SDD-005', 30, 'routes'), ...codeRefsFor('SDD-005', 12, 'ui')]);
+
+      renderPage('FR-001');
+
+      const table = await screen.findByRole('table', { name: /código gobernado por FR-001/i });
+      expect(within(table).getAllByRole('row')).toHaveLength(26);
+      // Sin filtro: la línea del recorte por fecha, sin «Limpiar».
+      expect(screen.getByText(lineText('Mostrando las 25 referencias más recientes de 42'))).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Limpiar' })).toBeNull();
+
+      await userEvent.type(await screen.findByLabelText('Filtrar por ruta o símbolo'), 'packages/app/src/routes');
+
+      await waitFor(() => expect(screen.getByText(lineText('Mostrando 25 de 30 coincidencias de 42 referencias'))).toBeTruthy());
+      expect(within(table).getAllByRole('row')).toHaveLength(26);
+      expect(within(table).queryByText('packages/app/src/ui/file-0.tsx')).toBeNull();
+      expect(screen.queryByText(lineText('Mostrando las 25 referencias más recientes de 42'))).toBeNull();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Limpiar' }));
+
+      await waitFor(() => expect(screen.getByText(lineText('Mostrando las 25 referencias más recientes de 42'))).toBeTruthy());
+      expect(screen.queryByRole('button', { name: 'Limpiar' })).toBeNull();
+      expect((screen.getByLabelText('Filtrar por ruta o símbolo') as HTMLInputElement).value).toBe('');
+      expect(within(table).getAllByRole('row')).toHaveLength(26);
+    });
+
+    it('con N <= 25 no corta ni muestra la línea (C6)', async () => {
+      mockPanel(codeRefsFor('SDD-005', 11));
+
+      renderPage('FR-001');
+
+      const table = await screen.findByRole('table', { name: /código gobernado por FR-001/i });
+      expect(within(table).getAllByRole('row')).toHaveLength(12);
+      expect(screen.queryByText(/Mostrando/)).toBeNull();
+    });
+
+    it('acota igual el caso blueprint, con sus propias referencias (C6/C7)', async () => {
+      vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+      vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+      vi.spyOn(client, 'listCommits').mockResolvedValue({ items: [], nextCursor: null });
+      vi.spyOn(client, 'listCodeRefs').mockResolvedValue([...codeRefsFor('SDD-005', 40), ...codeRefsFor('SDD-999', 3)]);
+
+      renderPage('SDD-005');
+
+      const table = await screen.findByRole('table', { name: /código gobernado por SDD-005/i });
+      expect(within(table).getAllByRole('row')).toHaveLength(26);
+      expect(within(table).queryByText('packages/app/src/routes/file-0.tsx')).toBeNull();
+      expect(screen.getByText(lineText('Mostrando las 25 referencias más recientes de 40'))).toBeTruthy();
+      // El blueprint sólo ve lo suyo: las de SDD-999 no entran ni al total.
+      expect(screen.queryByText(lineText('Mostrando las 25 referencias más recientes de 43'))).toBeNull();
     });
   });
 

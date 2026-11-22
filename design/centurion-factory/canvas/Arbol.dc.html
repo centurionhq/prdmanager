@@ -230,6 +230,32 @@
             <a class="btn-ghost" style="padding: 0;">Ver las 37 órdenes en la cola</a>
           </div>
         </div>
+
+        <!-- WO-769 (SDD-112 C6/C7): «Código gobernado» es un resumen de 25 filas, no el inventario de las 11.389:
+             filtro local por ruta o símbolo, «Limpiar» con texto y la línea que dice cuántas coincidencias hay. -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Código gobernado</h3>
+          <div style="display: flex; align-items: flex-end; gap: 12px;">
+            <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+              <span style="font-size: 12px; color: #565D63;">Filtrar por ruta o símbolo</span>
+              <div style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+                <span class="id">packages/app/src/routes</span>
+              </div>
+            </div>
+            <span class="btn-ghost" style="padding: 0; min-height: 40px; display: inline-flex; align-items: center;">Limpiar</span>
+          </div>
+          <div role="table" aria-label="Código gobernado por FR-009" style="display: grid; grid-template-columns: minmax(0, 1fr) 200px; column-gap: 12px;">
+            <div class="th">Ruta</div><div class="th">Símbolo</div>
+            <div class="td"><span class="id" style="line-height: 20px;">packages/app/src/routes/ProjectGraph.tsx</span></div><div class="td">TraceabilityPanel</div>
+            <div class="td"><span class="id" style="line-height: 20px;">packages/app/src/routes/Ordenes.tsx</span></div><div class="td">Ordenes</div>
+            <div class="td"><span class="id" style="line-height: 20px;">packages/server/src/import/scan.ts</span></div><div class="td">scanProject</div>
+          </div>
+          <!-- Decisión C7: con filtro la línea habla de coincidencias; sin filtro, de las más recientes (C6). -->
+          <div style="padding-top: 4px; font-size: 14px; color: #565D63;">
+            <span>Mostrando <span class="num">25</span> de <span class="num">412</span> coincidencias de <span class="num">11.389</span> referencias</span>
+          </div>
+        </div>
       </sc-if>
       </div>
     </section>
@@ -406,6 +432,30 @@
           <div style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #565D63;">
             <span>Mostrando las <span class="num">25</span> órdenes más recientes de <span class="num">37</span></span>
             <a class="btn-ghost" style="padding: 0; align-self: flex-start;">Ver las 37 órdenes en la cola</a>
+          </div>
+        </div>
+
+        <!-- WO-769 (SDD-112 C6/C7): a 375 px el filtro va a lo ancho (44 px de alto) y la tabla se apila. -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Código gobernado</h3>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <span style="font-size: 12px; color: #565D63;">Filtrar por ruta o símbolo</span>
+            <div style="height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+              <span class="id" style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">packages/app/src/routes</span>
+            </div>
+            <span class="btn-ghost" style="padding: 0; min-height: 44px; display: inline-flex; align-items: center; align-self: flex-start;">Limpiar</span>
+          </div>
+          <div style="display: flex; flex-direction: column; border-top: 1px solid #C9CFCD;">
+            <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 0; border-bottom: 1px solid #DDE1DF;">
+              <span class="id" style="line-height: 20px;">packages/app/src/routes/ProjectGraph.tsx</span><span style="font-size: 14px; color: #33383D;">TraceabilityPanel</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 0; border-bottom: 1px solid #DDE1DF;">
+              <span class="id" style="line-height: 20px;">packages/app/src/routes/Ordenes.tsx</span><span style="font-size: 14px; color: #33383D;">Ordenes</span>
+            </div>
+          </div>
+          <div style="padding-top: 4px; font-size: 14px; color: #565D63;">
+            <span>Mostrando <span class="num">25</span> de <span class="num">412</span> coincidencias de <span class="num">11.389</span> referencias</span>
           </div>
         </div>
       </sc-if>

@@ -135,6 +135,20 @@
   color: var(--apagado);
 }
 
+/* WO-769 (C7): el filtro local del «Código gobernado» -- label visible y «Limpiar» al lado del campo. */
+.codeFilterRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+
+.codeFilterRow > :first-child {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
 .checkList {
   list-style: none;
   margin: 0;

@@ -214,6 +214,22 @@ interface CodeRefRow {
   readonly symbol: string | null;
 }
 
+/** WO-769 (SDD-112 C6): «Código gobernado» es un resumen, no un inventario -- igual que `ORDER_LIMIT`,
+ * el tope vive en el consumidor y el `DataTable` compartido sigue sin paginación propia. */
+const CODE_LIMIT = 25;
+
+/** WO-769 (C6): `updatedAt` descendente y, a igualdad, `path` ascendente -- determinista, sin depender
+ * del orden del fetch (`updatedAt` es ISO 8601, así que el orden lexicográfico es el cronológico). */
+function byMostRecentCodeRef(left: CodeRefDto, right: CodeRefDto): number {
+  if (left.updatedAt !== right.updatedAt) return left.updatedAt < right.updatedAt ? 1 : -1;
+  return left.path.localeCompare(right.path);
+}
+
+/** WO-769 (C7): el filtro local mira la ruta y el símbolo, sin distinguir mayúsculas. */
+function matchesCodeFilter(ref: CodeRefDto, needle: string): boolean {
+  return ref.path.toLowerCase().includes(needle) || (ref.symbol?.toLowerCase().includes(needle) ?? false);
+}
+
 const CODE_COLUMNS: readonly DataTableColumn<CodeRefRow>[] = [
   { key: 'path', header: 'Ruta', render: (row) => <span className="id">{row.path}</span> },
   { key: 'symbol', header: 'Símbolo', render: (row) => row.symbol ?? '—' },
@@ -247,6 +263,17 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
   const branchBlueprintIds = new Set(branchBlueprints.map((node) => node.ref));
   const relatedCodeRefs = codeRefs?.filter((ref) => (branch ? branchBlueprintIds.has(ref.blueprintId) : ref.blueprintId === view.id)) ?? [];
   const relatedCommits = commits?.items.filter((commit) => (branch ? commit.refs.some((ref) => branchBlueprintIds.has(ref)) : commit.refs.includes(view.id))) ?? [];
+
+  // WO-769 (SDD-112 C7): el filtro del código gobernado es una herramienta de lectura local -- no va a
+  // la URL, a diferencia de `?q=`/`?sinCodigo=1`, que sí se comparten. Se reinicia al cambiar de documento
+  // (`viewId`), así el texto no se arrastra a otro nodo con un conjunto semántico distinto.
+  const [codeFilterState, setCodeFilterState] = useState<{ readonly viewId: string; readonly text: string }>({ viewId: view.id, text: '' });
+  const codeFilter = codeFilterState.viewId === view.id ? codeFilterState.text : '';
+  const codeNeedle = codeFilter.trim().toLowerCase();
+  const orderedCodeRefs = [...relatedCodeRefs].sort(byMostRecentCodeRef);
+  const matchingCodeRefs = codeNeedle === '' ? orderedCodeRefs : orderedCodeRefs.filter((ref) => matchesCodeFilter(ref, codeNeedle));
+  // WO-769 (C6): la tabla es un resumen -- se corta ANTES de montar, nunca se renderizan las N completas.
+  const codeRows = matchingCodeRefs.slice(0, CODE_LIMIT).map((ref) => ({ refKey: ref.refKey, path: ref.path, symbol: ref.symbol }));
 
   // WO-459: each work order's own commit is whichever commit's `refs` names that order's id directly --
   // the trailer convention every commit in this repo already follows (`Refs: WO-xxx`).
@@ -373,15 +400,46 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
         </section>
       ) : null}
 
-      {branch && relatedCodeRefs.length > 0 ? (
+      {relatedCodeRefs.length > 0 ? (
         <section aria-label="Código gobernado">
           <h3 className={styles.sectionTitle}>Código gobernado</h3>
+          {/* WO-769 (C7): el filtro acota en memoria el conjunto completo y nunca deja montar más de 25
+              filas. Con el campo vacío la sección es la muestra por fecha de C6. */}
+          <div className={styles.codeFilterRow}>
+            <SearchField
+              label="Filtrar por ruta o símbolo"
+              value={codeFilter}
+              onChange={(value) => setCodeFilterState({ viewId: view.id, text: value })}
+              placeholder="Filtrar por ruta o símbolo"
+              hideLabel={false}
+            />
+            {codeNeedle !== '' ? (
+              <Button type="button" variant="ghost" onClick={() => setCodeFilterState({ viewId: view.id, text: '' })}>
+                Limpiar
+              </Button>
+            ) : null}
+          </div>
           <DataTable
             caption={`Código gobernado por ${view.id}`}
             columns={CODE_COLUMNS}
-            rows={relatedCodeRefs.map((ref) => ({ refKey: ref.refKey, path: ref.path, symbol: ref.symbol }))}
+            rows={codeRows}
             getRowId={(row) => row.refKey}
+            emptyState={codeNeedle !== '' ? <span>Ninguna referencia coincide con «{codeFilter.trim()}».</span> : null}
           />
+          {codeNeedle !== '' ? (
+            <p className={styles.ordersRecorte}>
+              <span>
+                Mostrando <span className="num">{codeRows.length}</span> de <span className="num">{matchingCodeRefs.length}</span> coincidencias de{' '}
+                <span className="num">{orderedCodeRefs.length}</span> referencias
+              </span>
+            </p>
+          ) : orderedCodeRefs.length > CODE_LIMIT ? (
+            <p className={styles.ordersRecorte}>
+              <span>
+                Mostrando las <span className="num">{CODE_LIMIT}</span> referencias más recientes de <span className="num">{orderedCodeRefs.length}</span>
+              </span>
+            </p>
+          ) : null}
         </section>
       ) : null}
     </div>
