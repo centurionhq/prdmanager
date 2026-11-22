@@ -51,6 +51,7 @@
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import type { FeatureLineDto, LineBoardDto } from '@prdm/contracts';
 import { PASSWORD, startJourney, stopJourney, type Journey } from './harness.js';
 import { mutationHeaders } from '../helpers/csrf.js';
 
@@ -194,6 +195,15 @@ async function installCspViolationListener(page: Page): Promise<void> {
 /** Reads what {@link installCspViolationListener} has collected on the *current* page so far. */
 async function cspViolations(page: Page): Promise<string[]> {
   return page.evaluate(() => (globalThis as unknown as { __cspViolations: string[] }).__cspViolations);
+}
+
+/**
+ * SDD-106 (WO-753): every initiative the Planta notice counts, nested rows included — `LineBoard.tsx`'s
+ * own `collectStopped` walks `children` too, so a count computed any other way would disagree with the
+ * `<summary>` this spec measures against.
+ */
+function countStopped(features: readonly FeatureLineDto[]): number {
+  return features.reduce((total, feature) => total + (feature.andonStation === undefined ? 0 : 1) + countStopped(feature.children), 0);
 }
 
 test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviolation listener (WO-368)', async ({ browser }) => {
@@ -686,6 +696,122 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
     // Same WO-443 collapse as the earlier station checks -- the row is keyed on the BC, not the PRD.
     await expect(page.getByRole('link', { name: new RegExp(`${bcDocId} .*estación Construcción`) })).toBeVisible();
+  });
+
+  await test.step('Planta: 35 detenidas no empujan la línea y el panel del aviso está acotado (SDD-106 D1..D4, WO-753)', async () => {
+    // SDD-106's own scale — 35 stopped initiatives, the number the owner measured — cannot be reached by
+    // publishing 35 real features one by one, so this follows `planta-kpi-375.spec.ts`'s convention
+    // (WO-648/WO-669): real session, real bundle, real CSS, with `GET .../line-board` fetched for real and
+    // only its `features` rewritten to carry the number of stops the notice has to survive. Every number
+    // asserted below is the app's own layout, never a mock's.
+    const EXTRA_STOPPED = 35;
+    let stoppedCount = 0;
+    await context.route('**/api/app/organizations/*/projects/*/line-board', async (route) => {
+      const response = await route.fetch();
+      const body = (await response.json()) as LineBoardDto;
+      const extra: FeatureLineDto[] = Array.from({ length: EXTRA_STOPPED }, (_, index) => ({
+        id: `FR-${900 + index}`,
+        kind: 'FR',
+        title: `Iniciativa detenida ${index + 1}`,
+        status: 'in_progress',
+        station: 'entregado',
+        andonStation: 'construccion',
+        progress: { done: 0, total: 1, stopped: 1 },
+        children: [],
+      }));
+      const features = [...body.features, ...extra];
+      stoppedCount = countStopped(features);
+      await route.fulfill({ response, json: { ...body, features } });
+    });
+
+    const band = page.locator('section[aria-label="La línea"]');
+    // The band's own header row — `class*=` because the app's CSS module hashes it (`_header_<hash>`). The
+    // case is exact: `_stationHeaderRow_`/`_iniciativaHeader_` carry a capital H and never match.
+    const bandHeader = band.locator('div[class*="_header_"]');
+    const details = band.locator('details');
+    const summary = band.locator('summary');
+    const panel = band.getByRole('list', { name: 'Iniciativas detenidas' });
+    const stationRow = band.locator('div[class*="_stationHeaderRow_"]');
+
+    const measure = async () => {
+      const bandBox = (await band.boundingBox())!;
+      const headerBox = (await bandHeader.boundingBox())!;
+      const panelBox = (await panel.isVisible()) ? await panel.boundingBox() : null;
+      const stationBox = await stationRow.boundingBox();
+      return {
+        bandHeight: bandBox.height,
+        headerHeight: headerBox.height,
+        panelHeight: panelBox?.height ?? 0,
+        // Where the station row starts, measured from the band's own top: the notice lives inside the
+        // band header, so "the notice pushed the line down" is exactly this offset growing.
+        stationTop: stationBox === null ? null : stationBox.y - bandBox.y,
+      };
+    };
+
+    /** The panel's own scroll, read from the live element: the cap only means something if the 35 rows
+     * really overflow it. Removing `max-height`/`overflow-y` from `LineBoard.module.css` turns this red. */
+    const panelScroll = async () =>
+      panel.evaluate((el) => ({ client: el.clientHeight, scroll: el.scrollHeight, overflowY: getComputedStyle(el).overflowY }));
+
+    /**
+     * The cap itself (D2): the open panel never exceeds `max-height: min(40vh, 320px)`, and the band grows
+     * by that panel plus at most the chrome that moving it costs. On desktop that chrome is the panel's own
+     * `margin-top` (`--space-2`, 8px) -- the SDD's own measurement saw the same delta (panel 137px, band
+     * +143px). At 375px the summary also steps off the title's line onto its own row (`LineBoard.module.css`'s
+     * `@media (max-width: 767px)`), which costs the title line plus the header's row gap: 53px measured.
+     */
+    const expectCapped = (open: Awaited<ReturnType<typeof measure>>, closed: Awaited<ReturnType<typeof measure>>, width: number): void => {
+      const allowance = width > 767 ? 8 : 60;
+      expect(open.panelHeight, `el panel abierto no supera 320px a ${width}px`).toBeLessThanOrEqual(320);
+      const growth = open.bandHeight - closed.bandHeight;
+      expect(growth, `abrir el aviso a ${width}px mueve la banda el panel + su reflujo`).toBeLessThanOrEqual(open.panelHeight + allowance);
+      expect(growth, `abrir el aviso a ${width}px nunca mueve la banda como una lista sin tope`).toBeLessThanOrEqual(320 + allowance);
+    };
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
+    await expect(band).toBeVisible();
+    await expect(details).toHaveJSProperty('open', false);
+    await expect(panel).toBeHidden();
+    expect(stoppedCount).toBeGreaterThanOrEqual(EXTRA_STOPPED);
+    await expect(summary).toHaveText(`${stoppedCount} ${stoppedCount === 1 ? 'iniciativa detenida' : 'iniciativas detenidas'}`);
+
+    const closed1440 = await measure();
+    expect(closed1440.headerHeight, 'el header de la banda, con el aviso cerrado, ocupa una sola línea').toBeLessThanOrEqual(40);
+    expect(closed1440.stationTop, 'la línea arranca por encima de y=320').not.toBeNull();
+    expect(closed1440.stationTop!, 'la línea arranca por encima de y=320').toBeLessThanOrEqual(320);
+
+    await summary.click();
+    await expect(panel).toBeVisible();
+    const open1440 = await measure();
+    expectCapped(open1440, closed1440, 1440);
+    const scroll1440 = await panelScroll();
+    expect(scroll1440.overflowY, 'el panel abierto tiene scroll propio').toBe('auto');
+    expect(scroll1440.scroll, 'las 35 filas no entran: el panel scrollea').toBeGreaterThan(scroll1440.client);
+
+    // 375 px: same notice, same cap. `stationHeaderRow` is `display: none` in the mobile layout
+    // (`LineBoard.module.css`'s `@media (max-width: 767px)`), so this width measures the panel instead of
+    // the rail, which is what actually pushes the rows down on a phone.
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}`);
+    await expect(band).toBeVisible();
+    await expect(details).toHaveJSProperty('open', false);
+    await expect(panel).toBeHidden();
+
+    const closed375 = await measure();
+    expect(closed375.headerHeight, 'el header de la banda, cerrado, ocupa una sola línea a 375px').toBeLessThanOrEqual(40);
+    expect(closed375.stationTop, 'a 375px la cabecera de estaciones no se dibuja').toBeNull();
+
+    await summary.click();
+    await expect(panel).toBeVisible();
+    const open375 = await measure();
+    expectCapped(open375, closed375, 375);
+    const scroll375 = await panelScroll();
+    expect(scroll375.overflowY, 'el panel abierto tiene scroll propio a 375px').toBe('auto');
+    expect(scroll375.scroll, 'las 35 filas no entran a 375px: el panel scrollea').toBeGreaterThan(scroll375.client);
+
+    mkdirSync(SHOTS_DIR, { recursive: true });
+    await page.screenshot({ path: `${SHOTS_DIR}planta-aviso-375-abierto.png`, fullPage: false });
   });
 
   await test.step('Órdenes a 1440 px: captura y cero violaciones de CSP (WO-614)', async () => {

@@ -29,9 +29,27 @@
   color: var(--acero);
 }
 
+/* SDD-106 D1/D2 (WO-753): the notice is a collapsed summary plus a capped panel, the exact shape
+ * `packages/app` ships -- so the mock can't drift back to the always-visible list the owner reported. */
+.andonDetails {
+  min-width: 0;
+  max-width: 100%;
+  font-size: var(--text-sm);
+}
+
+.andonSummary {
+  cursor: pointer;
+  text-align: right;
+}
+
+.andonSummary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 /* WO-680 (SDD-084 D1): the notice is a list, one row per stopped initiative, each a link to its drift. */
 .andon {
-  margin: 0;
+  margin: var(--space-2) 0 0;
   padding: 0;
   list-style: none;
   display: flex;
@@ -40,6 +58,11 @@
   gap: var(--space-2);
   font-size: var(--text-sm);
   color: var(--linea-texto);
+  /* SDD-106 D2: the expanded panel scrolls instead of pushing the line down; `min()` covers tall and
+   * short viewports alike. */
+  min-width: 0;
+  max-height: min(40vh, 320px);
+  overflow-y: auto;
 }
 
 .andonLink {
@@ -284,6 +307,14 @@
   .band {
     margin: 0 calc(-1 * var(--space-4));
     padding: var(--space-4);
+  }
+
+  .andonDetails {
+    width: 100%;
+  }
+
+  .andonSummary {
+    text-align: left;
   }
 
   .andon {

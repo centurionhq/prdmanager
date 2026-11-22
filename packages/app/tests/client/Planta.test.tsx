@@ -1013,6 +1013,42 @@ describe('Planta', () => {
 
     await screen.findByText('Commits con Refs');
     expect(screen.queryByText(/iniciativas? detenidas?$/)).toBeNull();
+    // SDD-106 D4 (WO-753): with nothing stopped there is no panel either -- no empty `<details>` left behind.
+    expect(screen.queryByRole('list', { name: 'Iniciativas detenidas' })).toBeNull();
+    expect(document.querySelector('details')).toBeNull();
+  });
+
+  it('with 35 stopped, the closed summary counts them all and the panel keeps its bounded class (SDD-106 D3, WO-753)', async () => {
+    // The defect's own scale (35 stopped initiatives, measured by the owner): jsdom cannot compute
+    // `max-height`, so this case defends what it *can* see -- the notice is born closed, counts every one in
+    // text, and the panel is still the single element whose class carries the cap
+    // (`LineBoard.module.css`'s `.andon`). The measured geometry is enforced over the real bundle in
+    // `packages/server/tests/e2e/planta-entrada-ordenes.spec.ts`.
+    const stopped = Array.from({ length: 35 }, (_, index) => ({
+      id: `FR-${String(900 + index)}`,
+      kind: 'FR' as const,
+      title: `Iniciativa detenida ${index + 1}`,
+      status: 'in_progress',
+      station: 'entregado' as const,
+      andonStation: 'construccion' as const,
+      progress: { done: 0, total: 1, stopped: 1 },
+      children: [],
+    }));
+    vi.spyOn(client, 'getLineBoard').mockResolvedValue({ features: stopped, andon: { featureId: 'FR-900', station: 'construccion' } });
+    vi.spyOn(client, 'getMetrics').mockResolvedValue(METRICS);
+    renderPlanta();
+
+    const summary = await screen.findByText('35 iniciativas detenidas');
+    const details = summary.closest('details');
+    expect(details).not.toBeNull();
+    expect(details?.open).toBe(false);
+    expect(details?.className).toContain('andonDetails');
+
+    // A closed `<details>` hides the panel in a real browser; jsdom keeps it in the DOM, which is exactly
+    // what lets this case assert the class that carries the cap is still the panel's own.
+    const panel = screen.getByRole('list', { name: 'Iniciativas detenidas' });
+    expect(panel.className).toContain('andon');
+    expect(within(panel).getAllByRole('link')).toHaveLength(35);
   });
 
   it('shows an empty state when there are no features on the line', async () => {
