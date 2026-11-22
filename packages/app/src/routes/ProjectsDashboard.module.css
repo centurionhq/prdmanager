@@ -117,6 +117,25 @@
   color: var(--apagado);
 }
 
+/* SDD-100 D3: an expired report. The marker is a dashed diamond — a shape, not just a colour — and the words
+   next to it say what the shape means. */
+.driftStale {
+  color: var(--andon-texto);
+}
+
+.driftBody {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.driftHint {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--apagado);
+}
+
 .driftOk {
   color: var(--senal-texto);
 }
@@ -134,6 +153,13 @@
 .markWarning {
   background: var(--andon);
   border-radius: 4px;
+}
+
+.markStale {
+  box-sizing: border-box;
+  background: none;
+  border: 1px dashed var(--andon-texto);
+  transform: rotate(45deg);
 }
 
 .markOk {

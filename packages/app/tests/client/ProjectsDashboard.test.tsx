@@ -6,7 +6,20 @@ import type { ProjectOverviewDto } from '@prdm/contracts';
 import * as client from '../../src/api/client.js';
 import { clearQueryCache } from '../../src/api/query-cache.js';
 import { OrgShell } from '../../src/routes/OrgShell.js';
-import { ProjectsDashboard, lineLabel, readLegendOpenPreference, writeLegendOpenPreference } from '../../src/routes/ProjectsDashboard.js';
+import {
+  ProjectsDashboard,
+  driftLabel,
+  driftTone,
+  lineLabel,
+  readLegendOpenPreference,
+  writeLegendOpenPreference,
+} from '../../src/routes/ProjectsDashboard.js';
+
+const DAY_MS = 86_400_000;
+
+function daysAgo(days: number): string {
+  return new Date(Date.now() - days * DAY_MS).toISOString();
+}
 
 function makeProject(overrides: Partial<ProjectOverviewDto> = {}): ProjectOverviewDto {
   return {
@@ -26,7 +39,9 @@ function makeProject(overrides: Partial<ProjectOverviewDto> = {}): ProjectOvervi
     workOrdersInProgress: 2,
     myRole: 'admin',
     lastActivityAt: new Date(Date.now() - 5 * 60_000).toISOString(),
-    lastReportAt: null,
+    // A project the server has reported on within the week: the usable case, so only the tests that care
+    // about freshness override it.
+    lastReportAt: daysAgo(2),
     ...overrides,
   };
 }
@@ -69,10 +84,101 @@ describe('ProjectsDashboard', () => {
   });
 
   it('shows "Esperando primer reporte de CI" instead of a fabricated drift number', async () => {
-    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject({ awaitingFirstReport: true })]);
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject({ awaitingFirstReport: true, lastReportAt: null })]);
     renderDashboard('member');
 
     expect(await screen.findByText('Esperando primer reporte de CI')).toBeTruthy();
+  });
+
+  describe('drift freshness (WO-736 / SDD-100 D3)', () => {
+    function bodyRowNames(): string[] {
+      return screen
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => row.querySelector('td')?.textContent ?? '');
+    }
+
+    it('never says "Sin drift" with an expired report: it says the age and admits the blind spot', async () => {
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject({ lastReportAt: daysAgo(9) })]);
+      renderDashboard('member');
+
+      await screen.findByText('Web');
+      const cell = screen.getByRole('link', { name: /Sin reporte hace 9 d/ });
+      expect(cell.textContent).not.toContain('Sin drift');
+      expect(cell.textContent).toContain('No sabemos si hay drift');
+      expect(cell.getAttribute('href')).toBe('/o/acme/p/web/drift');
+    });
+
+    it('keeps the error and warning count when the report is fresh', async () => {
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([
+        makeProject({ lastReportAt: daysAgo(2), driftErrors: 2, driftWarnings: 1 }),
+      ]);
+      renderDashboard('member');
+
+      const cell = await screen.findByRole('link', { name: /2 errores · 1 aviso/ });
+      expect(cell.textContent).not.toContain('Sin reporte');
+    });
+
+    it('says "Sin drift" only for a fresh report with no findings', async () => {
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject({ lastReportAt: daysAgo(1) })]);
+      renderDashboard('member');
+
+      const cell = await screen.findByRole('link', { name: /Sin drift/ });
+      expect(cell.textContent).not.toContain('Sin reporte hace');
+    });
+
+    it('treats exactly the threshold as expired, and one day less as fresh', () => {
+      const now = Date.parse('2026-11-22T12:00:00.000Z');
+      const at = (days: number): string => new Date(now - days * DAY_MS).toISOString();
+
+      expect(driftTone(makeProject({ lastReportAt: at(6) }), now)).toBe('ok');
+      expect(driftTone(makeProject({ lastReportAt: at(7) }), now)).toBe('stale');
+      expect(driftLabel(makeProject({ lastReportAt: at(7) }), now)).toBe('Sin reporte hace 7 d');
+      expect(driftTone(makeProject({ lastReportAt: null }), now)).toBe('awaiting');
+      expect(driftTone(makeProject({ lastReportAt: at(30), driftErrors: 1 }), now)).toBe('error');
+    });
+
+    it('keeps the finding count above staleness, so the cell never contradicts the "Con drift" chip', () => {
+      const now = Date.parse('2026-11-22T12:00:00.000Z');
+      const stale = makeProject({ lastReportAt: new Date(now - 30 * DAY_MS).toISOString(), driftWarnings: 2 });
+      expect(driftTone(stale, now)).toBe('warning');
+      expect(driftLabel(stale, now)).toBe('2 avisos');
+    });
+
+    it('"Sin reporte reciente" keeps exactly the rows whose report is missing or expired', async () => {
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([
+        makeProject({ id: 'p1', slug: 'fresco', name: 'Fresco', lastReportAt: daysAgo(2) }),
+        makeProject({ id: 'p2', slug: 'vencido', name: 'Vencido', lastReportAt: daysAgo(20) }),
+        makeProject({ id: 'p3', slug: 'nunca', name: 'Nunca', awaitingFirstReport: true, lastReportAt: null }),
+        makeProject({ id: 'p4', slug: 'driftoso', name: 'Driftoso', driftErrors: 1, lastReportAt: daysAgo(1) }),
+      ]);
+      renderDashboard('member');
+
+      await screen.findByText('Fresco');
+      const lineGroup = screen.getByRole('radiogroup', { name: 'Estado de la línea' });
+      const chip = within(lineGroup).getByRole('radio', { name: /Sin reporte reciente/ });
+      expect(within(chip).getByText('2')).toBeTruthy();
+      expect(within(lineGroup).queryByRole('radio', { name: /Esperando CI/ })).toBeNull();
+
+      await userEvent.click(chip);
+      expect(bodyRowNames()).toHaveLength(2);
+      expect(screen.getByText('Vencido')).toBeTruthy();
+      expect(screen.getByText('Nunca')).toBeTruthy();
+      expect(screen.queryByText('Fresco')).toBeNull();
+      expect(screen.queryByText('Driftoso')).toBeNull();
+    });
+
+    it('the legend explains never-arrived versus arrived-and-expired', async () => {
+      writeLegendOpenPreference(true);
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject()]);
+      renderDashboard('member');
+
+      await screen.findByText('Web');
+      const legend = screen.getByRole('region', { name: 'Cómo leer la tabla' });
+      expect(within(legend).getByText(/rombo punteado/)).toBeTruthy();
+      expect(within(legend).getByText(/nunca llegó/)).toBeTruthy();
+      expect(within(legend).getByText(/venció/)).toBeTruthy();
+    });
   });
 
   it('shows an empty-state message with no projects', async () => {
@@ -391,7 +497,7 @@ describe('ProjectsDashboard', () => {
       makeProject({ id: 'p1', slug: 'web', name: 'Web' }),
       makeProject({ id: 'p2', slug: 'ystream', name: 'Ystream', andonStation: 'construccion', furthestStation: 'entregado' }),
       makeProject({ id: 'p3', slug: 'driftoso', name: 'Driftoso', driftErrors: 1, furthestStation: 'producto' }),
-      makeProject({ id: 'p4', slug: 'esperando', name: 'Esperando', awaitingFirstReport: true }),
+      makeProject({ id: 'p4', slug: 'esperando', name: 'Esperando', awaitingFirstReport: true, lastReportAt: null }),
       makeProject({ id: 'p5', slug: 'viejo', name: 'Viejo', archivedAt: '2026-01-01T00:00:00.000Z', andonStation: 'producto' }),
     ];
 
@@ -426,12 +532,12 @@ describe('ProjectsDashboard', () => {
       for (const name of ['Web', 'Ystream', 'Esperando', 'Viejo']) expect(screen.queryByText(name)).toBeNull();
     });
 
-    it('"Esperando CI" keeps only rows awaiting the first report', async () => {
+    it('"Sin reporte reciente" keeps only rows with no report or an expired one', async () => {
       vi.spyOn(client, 'getProjectsOverview').mockResolvedValue(lineProjects());
       renderDashboard('member');
 
       await screen.findByText('Web');
-      await userEvent.click(screen.getByRole('radio', { name: /Esperando CI/ }));
+      await userEvent.click(screen.getByRole('radio', { name: /Sin reporte reciente/ }));
       expect(screen.getByText('Esperando', { selector: 'span' })).toBeTruthy();
       for (const name of ['Web', 'Ystream', 'Driftoso', 'Viejo']) expect(screen.queryByText(name)).toBeNull();
     });
@@ -475,7 +581,7 @@ describe('ProjectsDashboard', () => {
 
       await screen.findByText('Web');
       const lineGroup = (): HTMLElement => screen.getByRole('radiogroup', { name: 'Estado de la línea' });
-      for (const name of [/Detenidos/, /Con drift/, /Esperando CI/, /Todos/]) {
+      for (const name of [/Detenidos/, /Con drift/, /Sin reporte reciente/, /Todos/]) {
         const radio = within(lineGroup()).getByRole('radio', { name });
         const promised = Number(within(radio).getByText(/^\d+$/).textContent);
         await userEvent.click(radio);
