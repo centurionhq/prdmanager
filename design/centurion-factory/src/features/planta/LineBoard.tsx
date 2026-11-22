@@ -33,22 +33,27 @@ export function LineBoard(): ReactElement {
       <div className={styles.heading}>
         <h2 className={styles.boardTitle}>La línea</h2>
         {stopped.length > 0 ? (
-          <ul className={styles.andon} aria-label="Iniciativas detenidas">
-            {stopped.map((row) => (
-              <li key={row.feature.id}>
-                <Link
-                  to={`/drift?feature=${row.feature.id}`}
-                  className={styles.andonLink}
-                  aria-label={`${row.feature.id} ${row.feature.title}, línea detenida en ${STATION_LABELS[row.feature.station]}. Ver drift.`}
-                >
-                  <span className={styles.andonDot} aria-hidden="true" />
-                  <span className="id">{row.feature.id}</span>
-                  <span className={styles.andonTitle}>{row.feature.title}</span>
-                  <span className={styles.andonStation}>detenida en {STATION_LABELS[row.feature.station]}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <details className={styles.andonDetails}>
+            <summary className={styles.andonSummary}>
+              {stopped.length} {stopped.length === 1 ? 'iniciativa detenida' : 'iniciativas detenidas'}
+            </summary>
+            <ul className={styles.andon} aria-label="Iniciativas detenidas">
+              {stopped.map((row) => (
+                <li key={row.feature.id}>
+                  <Link
+                    to={`/drift?feature=${row.feature.id}`}
+                    className={styles.andonLink}
+                    aria-label={`${row.feature.id} ${row.feature.title}, línea detenida en ${STATION_LABELS[row.feature.station]}. Ver drift.`}
+                  >
+                    <span className={styles.andonDot} aria-hidden="true" />
+                    <span className="id">{row.feature.id}</span>
+                    <span className={styles.andonTitle}>{row.feature.title}</span>
+                    <span className={styles.andonStation}>detenida en {STATION_LABELS[row.feature.station]}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </details>
         ) : null}
       </div>
 
