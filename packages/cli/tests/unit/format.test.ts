@@ -65,7 +65,7 @@ describe('summarizeRefresh', () => {
 
 function metrics(overrides: Partial<SuccessMetrics> = {}): SuccessMetrics {
   return {
-    agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, unmeasured: { total: 0, workOrders: [] } },
+    agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, p90ResolutionHours: null, maxResolutionHours: null, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
     systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
     traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
     pendingQueue: { total: 0, unassigned: 0, oldestDays: null, over7Days: 0 },
@@ -76,7 +76,7 @@ function metrics(overrides: Partial<SuccessMetrics> = {}): SuccessMetrics {
 describe('formatMetrics', () => {
   const unmeasuredWo = (id: string, reason: 'missing_claim' | 'negative_duration') => ({ id, status: 'done', reason, claimedAt: null, completedAt: null });
   const efficiency = (unmeasured: { total: number; workOrders: ReturnType<typeof unmeasuredWo>[] }) => ({
-    completedWorkOrders: unmeasured.total, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, unmeasured,
+    completedWorkOrders: unmeasured.total, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, p90ResolutionHours: null, maxResolutionHours: null, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured,
   });
 
   test('lists unmeasured work orders with total, reason copy and ids', () => {
@@ -103,7 +103,7 @@ describe('formatMetrics', () => {
   test('renders concrete numbers when available', () => {
     const text = formatMetrics(
       metrics({
-        agentHumanEfficiency: { completedWorkOrders: 2, measuredWorkOrders: 2, avgResolutionHours: 4, medianResolutionHours: 4, unmeasured: { total: 0, workOrders: [] } },
+        agentHumanEfficiency: { completedWorkOrders: 2, measuredWorkOrders: 2, avgResolutionHours: 4, medianResolutionHours: 4, p90ResolutionHours: null, maxResolutionHours: null, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
         systemIntegrity: { governedTotal: 2, governedSynced: 1, syncedPercent: 50 },
       }),
     );
@@ -204,5 +204,34 @@ describe('formatMetrics untraced commits', () => {
     const text = withUntraced([], { total: 0, danglingRefs: 0 });
     expect(text).toContain('  commits untraced: 0 (with refs 5, traced 2, dangling 0)');
     expect(text).toContain('    untraced commits: 0 (ninguno sin trazar)');
+  });
+});
+
+describe('formatMetrics cola lenta', () => {
+  const slowOrder = (id: string, resolutionHours: number) => ({ id, claimedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-02-01T00:00:00.000Z', resolutionHours });
+  const withSlowest = (p90: number | null, items: ReturnType<typeof slowOrder>[], total = items.length) => {
+    const base = metrics().agentHumanEfficiency;
+    return metrics({ agentHumanEfficiency: { ...base, p90ResolutionHours: p90, slowest: { thresholdHours: 24, total, items } } });
+  };
+
+  test('prints the tail line and one row per slow order', () => {
+    const text = formatMetrics(withSlowest(30.5, [slowOrder('WO-486', 416.91), slowOrder('WO-490', 100)]));
+    expect(text).toContain('cola: 2 > 24 h · p90 30.5h · peor WO-486 416.91h');
+    expect(text).toContain('    WO-486  416.91h');
+    expect(text).toContain('    WO-490  100h');
+    expect(text.indexOf('cola:')).toBeLessThan(text.indexOf('Pending Queue:'));
+  });
+
+  test('empty queue prints n/a p90 and no peor', () => {
+    const text = formatMetrics(withSlowest(null, []));
+    expect(text).toContain('cola: 0 > 24 h · p90 n/a');
+    expect(text).not.toContain('peor');
+  });
+
+  test('prints at most 10 rows', () => {
+    const items = Array.from({ length: 12 }, (_, i) => slowOrder(`WO-${100 + i}`, 200 - i));
+    const text = formatMetrics(withSlowest(150, items));
+    expect(text).toContain('    WO-109  ');
+    expect(text).not.toContain('    WO-110  ');
   });
 });
