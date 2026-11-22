@@ -185,8 +185,6 @@ export interface DriftReport {
   readonly issueCount: number;
   readonly hasBlockingIssues: boolean;
   readonly createdAt: string;
-  /** A preview branch whose CI has not reported yet. */
-  readonly awaitingCi?: boolean;
 }
 
 // ── Metrics (core metrics.ts) ─────────────────────────────────────────────────────────────────────────

@@ -70,12 +70,21 @@ describe('drift reports', () => {
     expect(baseline?.issueCount).toBe(6);
 
     const previewBranches = DRIFT_REPORTS.filter((r) => r.mode === 'preview').map((r) => r.branch).sort();
-    expect(previewBranches).toEqual(['feat/fr-002-importer', 'feat/fr-003-avisos', 'fix/scan-timeout'].sort());
+    expect(previewBranches).toEqual(['32/merge', 'feat/fr-002-importer', 'feat/fr-003-avisos'].sort());
   });
 
-  it('marks fix/scan-timeout as awaiting CI', () => {
-    const report = DRIFT_REPORTS.find((r) => r.branch === 'fix/scan-timeout');
-    expect(report?.awaitingCi).toBe(true);
+  it('draws the preview counts the panel ranks against the official report (6 issues)', () => {
+    const counts = Object.fromEntries(
+      DRIFT_REPORTS.filter((r) => r.mode === 'preview').map((r) => [r.branch, r.issueCount]),
+    );
+    expect(counts).toEqual({ '32/merge': 8, 'feat/fr-002-importer': 6, 'feat/fr-003-avisos': 2 });
+  });
+
+  it('has no report for fix/scan-timeout: the branch is awaiting its first CI report', () => {
+    expect(DRIFT_REPORTS.find((r) => r.branch === 'fix/scan-timeout')).toBeUndefined();
+    const awaiting = DRIFT_ISSUES.find((issue) => issue.kind === 'awaiting_ci_report');
+    expect(awaiting?.nodeId).toBe('fix/scan-timeout');
+    expect(awaiting?.blueprintId).toBe('SDD-012');
   });
 
   it('has 5 baseline history entries for main', () => {

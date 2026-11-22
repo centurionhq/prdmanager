@@ -79,7 +79,7 @@ describe('DriftPage issues (WO-294)', () => {
 
   it('shows the CI error state', () => {
     renderAt('/drift?estado=error');
-    expect(screen.getByText('No pudimos leer el reporte de CI de feat/fr-002-importer.')).toBeTruthy();
+    expect(screen.getByText('No pudimos leer el reporte de CI de fix/scan-timeout.')).toBeTruthy();
     expect(screen.getByText('Reintentá o revisá que el token prdm_ci_… siga vigente.')).toBeTruthy();
   });
 });
