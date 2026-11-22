@@ -92,6 +92,17 @@ export interface RemoteImpactsPathsDrift {
   }[];
 }
 
+export type RemoteImpactsPathsSyncResult =
+  | { applied: true; impactsPaths: string[] }
+  | { applied: false; error: 'suggestion_changed' | 'nothing_to_apply' | 'not_found'; message: string };
+
+export interface RemoteImpactsPathsSyncInput {
+  expectedSuggestion: readonly string[];
+  expectedRemovals: readonly string[];
+  reason: string;
+  actorId: string;
+}
+
 export interface RemoteDocumentsPort {
   createAndSubmit(kind: DraftKind, title: string, createdBy: string): Promise<RemoteDocumentWithVersion>;
   /** Read side of SDD-067 D1/D5: the server is the source of truth for unpublished documents, so this lists
@@ -103,8 +114,10 @@ export interface RemoteDocumentsPort {
   findByDocId(docId: string): Promise<RemoteDocumentWithVersion | null>;
   saveDraftVersion(docId: string, input: RemoteSaveDraftVersionInput): Promise<RemoteDocumentWithVersion>;
   publish(docId: string, input: RemotePublishInput): Promise<RemotePublishResult>;
-  /** `null` when `blueprintId` doesn't exist or isn't a Blueprint (SDD-021, WO-431) -- read-only, exposed
-   * over MCP unlike `saveDraftVersion`/`publish`'s write counterpart (`sync_impacts_paths` stays
-   * REST/dashboard-only, per this project's own trust-tier precedent for governance-metadata writes). */
+  /** `null` when `blueprintId` doesn't exist or isn't a Blueprint (SDD-021, WO-431) -- read-only. Its write
+   * counterpart is the `sync_impacts_paths` tool (admin-only, echo + reason; SDD-119 D9), backed by
+   * `syncImpactsPaths` below -- the same implementation as the REST route. */
   getImpactsPathsDrift(blueprintId: string): Promise<RemoteImpactsPathsDrift | null>;
+  /** Applies exactly the echoed suggestion; business rejections come back as `applied: false`, never thrown. */
+  syncImpactsPaths(blueprintId: string, input: RemoteImpactsPathsSyncInput): Promise<RemoteImpactsPathsSyncResult>;
 }

@@ -183,6 +183,8 @@ describe('impacts-paths drift/sync (WO-430)', () => {
     const { rows: auditRows } = await pg.ownerPool.query(`SELECT action, metadata FROM audit_log WHERE org_id = $1 AND action = 'document.impacts_paths_synced'`, [org.id]);
     expect(auditRows).toHaveLength(1);
     expect(auditRows[0].metadata.reason).toBe('SDD-016-style incident, missing /** suffix');
+    expect(auditRows[0].metadata.added).toEqual(['packages/core/tests/unit/foo.test.ts']);
+    expect(auditRows[0].metadata.removed).toEqual([]);
 
     await app.close();
   });
@@ -191,6 +193,7 @@ describe('impacts-paths drift/sync (WO-430)', () => {
     const app = buildApp();
     const { owner, org, project } = await setup();
     const ownerCookie = await signIn(app, owner.email);
+    const before = await publishedRaw(project.id, BLUEPRINT_ID);
 
     const res = await app.inject({
       method: 'POST',
@@ -200,6 +203,8 @@ describe('impacts-paths drift/sync (WO-430)', () => {
     });
 
     expect(res.statusCode).toBe(409);
+    expect(res.json().error.message).toContain('changed since you last fetched');
+    expect(await publishedRaw(project.id, BLUEPRINT_ID)).toBe(before);
     await app.close();
   });
 
@@ -244,6 +249,7 @@ describe('impacts-paths drift/sync (WO-430)', () => {
     const { rows: auditRows } = await pg.ownerPool.query(`SELECT action, metadata FROM audit_log WHERE org_id = $1 AND action = 'document.impacts_paths_synced'`, [org.id]);
     expect(auditRows).toHaveLength(1);
     expect(auditRows[0].metadata.removed).toEqual(['packages/shared/**']);
+    expect(auditRows[0].metadata.added).toEqual([]);
     expect(auditRows[0].metadata.reason).toBe('patrón heredado sin WOs propias que lo toquen');
 
     await app.close();
@@ -283,6 +289,7 @@ describe('impacts-paths drift/sync (WO-430)', () => {
     });
 
     expect(res.statusCode).toBe(409);
+    expect(res.json().error.message).toContain('has no suggested impacts_paths additions to apply');
     expect(await publishedRaw(project.id, 'SDD-002')).toBe(before);
 
     await app.close();
