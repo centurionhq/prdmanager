@@ -204,6 +204,18 @@ describe('checkLifecycle — BusinessCase (BC)', () => {
     expect(issues[0]?.message).toContain('Costo estimado');
   });
 
+  test('el mensaje del BC no cambió al consumir la tabla única (WO-801)', () => {
+    const body = '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n';
+    const issues = checkLifecycle([bc('justified_by: [FB-999]', body)], noGrandfathering);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      kind: 'lifecycle_violation',
+      severity: 'error',
+      nodeId: 'BC-001',
+      message: 'BC-001 is missing required section(s): ## Costo estimado',
+    });
+  });
+
   test('missing several sections lists all of them', () => {
     const issues = checkLifecycle([bc('justified_by: [FB-999]', '## Problema\n')], noGrandfathering);
     expect(issues[0]?.message).toContain('Impacto esperado');

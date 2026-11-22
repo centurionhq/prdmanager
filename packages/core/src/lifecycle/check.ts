@@ -1,4 +1,4 @@
-import { BC_REQUIRED_SECTIONS } from '../domain/business-case.js';
+import { MISSING_SECTIONS_MESSAGE, missingSections } from '../domain/required-sections.js';
 import type { ParsedDoc } from '../domain/schema.js';
 import type { GrandfatheredDoc } from '../project/types.js';
 import type { DriftIssue } from '../sync/monitor.js';
@@ -128,14 +128,6 @@ function checkFeature(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<str
   ];
 }
 
-/** PRD-011 §4.1/SDD-022: the sections of `BC_REQUIRED_SECTIONS` (the same list the client's writing guide
- * walks) missing from `body` -- checked the same way `checkBlueprint` checks for a `## Tareas` heading:
- * presence of the heading line, not its content. */
-function missingBcSections(body: string): string[] {
-  const lines = new Set(body.split('\n').map((line) => line.trim()));
-  return BC_REQUIRED_SECTIONS.filter((heading) => !lines.has(heading));
-}
-
 /**
  * PRD-011 §4.2/SDD-023: a BC is justified exactly like MRD/PRD/FR (reuses `hasJustification`, not a
  * separate rule), plus its own body-content gate -- the four required sections. Unlike a blueprint, a
@@ -152,9 +144,9 @@ function checkBusinessCase(doc: BusinessCaseDoc, docs: readonly ParsedDoc[]): Dr
       ),
     );
   }
-  const missing = missingBcSections(doc.node.body);
+  const missing = missingSections('BC', doc.node.body);
   if (missing.length > 0) {
-    issues.push(violation(doc.node.id, 'error', `${doc.node.id} is missing required section(s): ${missing.join(', ')}`));
+    issues.push(violation(doc.node.id, 'error', MISSING_SECTIONS_MESSAGE(doc.node.id, missing)));
   }
   return issues;
 }
