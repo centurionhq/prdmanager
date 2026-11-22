@@ -174,47 +174,73 @@ describe('Engine + Neo4jGraphStore', () => {
     expect(metrics.governedSynced).toBe(1);
     // BC-001 no tiene blueprint propio, pero su PRD hijo PRD-001 (PRD-001 -[JUSTIFIED_BY]-> BC-001) lo arquitecta
     // SDD-001 con código gobernado: el linaje simétrico lo cuenta como trazado (predicción de FB-058).
-    expect(metrics.featuresTotal).toBe(3);
-    expect(metrics.featuresTraced).toBe(3);
-    expect(metrics.orphanFeatures).toEqual([]);
+    expect(metrics.features.map((f) => f.id)).toEqual(['BC-001', 'MRD-001', 'PRD-001']);
+    expect(metrics.features.every((f) => f.traced)).toBe(true);
+    const traceability = await treeTraceability(metrics);
+    expect(traceability.featuresTotal).toBe(2);
+    expect(traceability.featuresTraced).toBe(2);
+    expect(traceability.orphanFeatures).toEqual([]);
+    expect(traceability.featuresByKind).toEqual([
+      { kind: 'MRD', total: 1, traced: 1 },
+      { kind: 'PRD', total: 1, traced: 1 },
+      { kind: 'BC', total: 1, traced: 1 },
+    ]);
     expect(metrics.commitsTotal).toBe(2);
     expect(metrics.commitsTraced).toBe(2);
     expect(metrics.workOrders).toEqual([{ id: 'WO-001', status: 'done', assignedTo: 'agent:claude', createdAt: null, claimedAt: '2026-09-10T10:00:00.000Z', completedAt: '2026-09-10T14:00:00.000Z' }]);
   });
 });
 
+async function treeTraceability(raw: MetricsRaw) {
+  return computeMetrics(raw, { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] }).traceability;
+}
+
+/** Invariantes: Árbol = traced + huérfanas; el desglose por kind suma TODOS los Feature crudos (BC incluido). */
+function expectInvariants(raw: MetricsRaw, t: Awaited<ReturnType<typeof treeTraceability>>): void {
+  expect(t.featuresTraced + t.orphanFeatures.length).toBe(t.featuresTotal);
+  expect(t.featuresByKind.reduce((sum, k) => sum + k.total, 0)).toBe(raw.features.length);
+}
+
 describe('SDD-079 orphanFeatures', () => {
   test('empty project: 0 = 0 + 0 and a null percent', async () => {
     const raw = await withMetrics({ refresh: false });
-    expect(raw.featuresTotal).toBe(0);
-    expect(raw.featuresTraced).toBe(0);
-    expect(raw.orphanFeatures).toEqual([]);
-    expect(computeMetrics(raw, await store.untracedCommits()).traceability.featurePercent).toBeNull();
-    expect(raw.featuresTraced + raw.orphanFeatures.length).toBe(raw.featuresTotal);
+    const t = await treeTraceability(raw);
+    expect(raw.features).toEqual([]);
+    expect(t.featuresTotal).toBe(0);
+    expect(t.featuresTraced).toBe(0);
+    expect(t.orphanFeatures).toEqual([]);
+    expect(t.featuresByKind).toEqual([]);
+    expect(t.featurePercent).toBeNull();
+    expectInvariants(raw, t);
   });
 
-  test('every feature is an orphan when no blueprint exists', async () => {
+  test('every Tree feature is an orphan when no blueprint exists; the BC stays out of the denominator (D1)', async () => {
     const raw = await withMetrics({ prepare: (r) => rmSync(join(r, 'docs/blueprints/SDD-001.md')) });
-    expect(raw.featuresTotal).toBe(3);
-    expect(raw.featuresTraced).toBe(0);
-    expect(raw.orphanFeatures.map((f) => f.id)).toEqual(['BC-001', 'MRD-001', 'PRD-001']);
-    expect(computeMetrics(raw, await store.untracedCommits()).traceability.featurePercent).toBe(0);
-    expect(raw.featuresTraced + raw.orphanFeatures.length).toBe(raw.featuresTotal);
+    const t = await treeTraceability(raw);
+    expect(t.featuresTotal).toBe(2);
+    expect(t.featuresTraced).toBe(0);
+    // D1: BC-001 también queda sin trazar, pero no es del Árbol: no aparece entre las huérfanas.
+    expect(t.orphanFeatures.map((f) => f.id)).toEqual(['MRD-001', 'PRD-001']);
+    expect(t.featurePercent).toBe(0);
+    expect(t.featuresByKind.find((k) => k.kind === 'BC')).toEqual({ kind: 'BC', total: 1, traced: 0 });
+    expectInvariants(raw, t);
   });
 
-  test('mixed: a BC without lineage is the only orphan; BC-001 is traced through its child PRD (FB-058)', async () => {
+  test('mixed: an orphan BC does not touch the Tree numbers but is in the BC entry', async () => {
     const raw = await withMetrics({
       prepare: (r) =>
         writeFiles(r, {
           'docs/business-case/BC-003.md': '---\nid: BC-003\ntype: BC\ntitle: "Sin linaje"\nstatus: approved\njustified_by: ["ART-001"]\n---\nx\n',
         }),
     });
-    expect(raw.featuresTotal).toBe(4);
-    expect(raw.featuresTraced).toBe(3);
-    expect(raw.orphanFeatures.map((f) => f.id)).toEqual(['BC-003']);
-    expect(raw.orphanFeatures[0]).toEqual({ id: 'BC-003', kind: 'BC', title: 'Sin linaje', status: 'approved' });
-    expect(raw.orphanFeatures.map((f) => f.id)).not.toContain('BC-001');
-    expect(raw.featuresTraced + raw.orphanFeatures.length).toBe(raw.featuresTotal);
+    const t = await treeTraceability(raw);
+    expect(raw.features.map((f) => f.id)).toEqual(['BC-001', 'BC-003', 'MRD-001', 'PRD-001']);
+    expect(t.featuresTotal).toBe(2);
+    expect(t.featuresTraced).toBe(2);
+    expect(t.orphanFeatures).toEqual([]);
+    expect(t.featuresByKind.find((k) => k.kind === 'BC')).toEqual({ kind: 'BC', total: 2, traced: 1 });
+    expectInvariants(raw, t);
+    expect(raw.features).toHaveLength(4);
   });
 });
 

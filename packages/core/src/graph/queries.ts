@@ -197,9 +197,7 @@ export const METRICS_RAW = `
     MATCH (f:Feature {project_id: $projectId})
     WITH f ORDER BY f.id
     WITH f, EXISTS { (f)((:Feature)-[:EVOLVES_FROM|JUSTIFIED_BY]-(:Feature)){0,${MAX_DEPTH}}(:Feature)<-[:ARCHITECTS]-(:Blueprint {project_id: $projectId})<-[:GOVERNED_BY]-(:CodeRef {project_id: $projectId}) } AS traced
-    RETURN count(f) AS featuresTotal,
-           sum(CASE WHEN traced THEN 1 ELSE 0 END) AS featuresTraced,
-           collect(CASE WHEN traced THEN null ELSE {id: f.id, kind: f.kind, title: coalesce(f.title, f.id), status: coalesce(f.status, '')} END) AS orphanFeatures
+    RETURN collect({id: f.id, kind: f.kind, title: coalesce(f.title, f.id), status: coalesce(f.status, ''), traced: traced}) AS features
   }
   CALL () {
     MATCH (c:Commit {project_id: $projectId})
@@ -215,7 +213,7 @@ export const METRICS_RAW = `
     OPTIONAL MATCH (p:Project {id: $projectId})
     RETURN p.commits_branch AS commitsBranch, p.commits_sha AS commitsSha, p.commits_reported_at AS commitsReportedAt
   }
-  RETURN governedTotal, governedSynced, featuresTotal, featuresTraced, orphanFeatures, commitsTotal, commitsWithRefs, commitsTraced, workOrders, commitsBranch, commitsSha, commitsReportedAt`;
+  RETURN governedTotal, governedSynced, features, commitsTotal, commitsWithRefs, commitsTraced, workOrders, commitsBranch, commitsSha, commitsReportedAt`;
 
 /**
  * Commits sin trazar (SDD-080 WO-A): los que NO cierran `RESOLVES→WorkOrder→IMPLEMENTS→Blueprint→ARCHITECTS→Feature`.

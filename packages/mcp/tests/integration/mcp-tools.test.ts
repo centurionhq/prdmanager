@@ -281,6 +281,21 @@ describe('prdm-graph MCP tools', () => {
     expect(metrics).toHaveProperty('systemIntegrity');
     expect(metrics).toHaveProperty('traceability');
     expect(Array.isArray((metrics as { traceability: { orphanFeatures: unknown } }).traceability.orphanFeatures)).toBe(true);
+    const t = (metrics as { traceability: { featuresTotal: number; featuresTraced: number; orphanFeatures: { kind: string }[]; featuresByKind: { kind: string; total: number; traced: number }[] } }).traceability;
+    expect(Array.isArray(t.featuresByKind)).toBe(true);
+    for (const entry of t.featuresByKind) {
+      expect(['MRD', 'PRD', 'FR', 'BC']).toContain(entry.kind);
+      expect(typeof entry.total).toBe('number');
+      expect(typeof entry.traced).toBe('number');
+    }
+    const bcTotal = t.featuresByKind.find((k) => k.kind === 'BC')?.total ?? 0;
+    expect(t.featuresByKind.reduce((s, k) => s + k.total, 0)).toBe(t.featuresTotal + bcTotal);
+    expect(t.featuresTraced + t.orphanFeatures.length).toBe(t.featuresTotal);
+    expect(t.orphanFeatures.some((f) => f.kind === 'BC')).toBe(false);
+    const listed = await client.listTools();
+    const description = listed.tools.find((tool) => tool.name === 'get_metrics')?.description ?? '';
+    expect(description).toContain('featuresByKind');
+    expect(description).toContain('MRD/PRD/FR');
     const { untracedCommits } = (metrics as { traceability: { untracedCommits: { total: unknown; items: unknown } } }).traceability;
     expect(Array.isArray(untracedCommits.items)).toBe(true);
     expect(typeof untracedCommits.total).toBe('number');
