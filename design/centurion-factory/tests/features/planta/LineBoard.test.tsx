@@ -39,6 +39,23 @@ describe('LineBoard', () => {
     expect(within(notice).getByText(/detenida en Ejecución/)).toBeTruthy();
   });
 
+  it('mirrors the app: the notice is a counted summary, closed by default, over the capped panel (SDD-106 D1/D2, WO-753)', async () => {
+    renderBoard();
+    const summary = screen.getByText('1 iniciativa detenida');
+    const details = summary.closest('details');
+    expect(details).not.toBeNull();
+    expect(details?.open).toBe(false);
+    expect(details?.className).toContain('andonDetails');
+
+    // The cap itself lives in `LineBoard.module.css`'s `.andon` (`max-height: min(40vh, 320px)`); jsdom
+    // cannot compute it, so this asserts the panel still carries the class that owns it.
+    const panel = screen.getByRole('list', { name: 'Iniciativas detenidas' });
+    expect(panel.className).toContain('andon');
+
+    await userEvent.click(summary);
+    expect(details?.open).toBe(true);
+  });
+
   it('renders a row per selected feature with its id and title', () => {
     const { container } = renderBoard();
     const rows = container.querySelectorAll('.rows > li');
