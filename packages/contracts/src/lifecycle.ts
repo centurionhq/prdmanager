@@ -64,5 +64,6 @@ export const projectOverviewSchema = projectSummarySchema.extend({
   myRole: z.string(),
   memberCount: z.number().int().min(0).optional(),
   lastActivityAt: z.string().nullable(),
+  lastReportAt: z.string().nullable(),
 });
 export type ProjectOverviewDto = z.infer<typeof projectOverviewSchema>;

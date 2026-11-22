@@ -22,6 +22,7 @@ export interface ProjectOverviewComputed {
   awaitingFirstReport: boolean;
   workOrdersInProgress: number;
   lastActivityAt: string | null;
+  lastReportAt: string | null;
 }
 
 export interface ProjectOverviewCache {
@@ -57,6 +58,7 @@ async function computeProjectOverview(pool: Pool, neo4j: Neo4jGraphDatabase, org
     awaitingFirstReport: false,
     workOrdersInProgress,
     lastActivityAt: lastActivity.items[0]?.createdAt.toISOString() ?? null,
+    lastReportAt: null,
   };
 }
 
@@ -73,7 +75,8 @@ export function createProjectOverviewCache(): ProjectOverviewCache {
       if (cached) return cached;
 
       const computed = await computeProjectOverview(pool, neo4j, orgId, project);
-      const withReportState = { ...computed, awaitingFirstReport: reports.length === 0 };
+      const lastReportAt = reports[0]?.createdAt.toISOString() ?? null;
+      const withReportState = { ...computed, awaitingFirstReport: reports.length === 0, lastReportAt };
       cache.set(key, withReportState);
       return withReportState;
     },

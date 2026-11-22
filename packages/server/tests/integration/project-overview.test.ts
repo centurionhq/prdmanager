@@ -3,6 +3,7 @@
  * caller can see, memoized by `(projectId, graph_version, latestReportId)`.
  */
 import { Neo4jGraphDatabase } from '@prdm/core';
+import { createCiToken, recordCodeReport } from '@prdm/db';
 import { PgProjectEngine } from '../../src/engine/pg-project-engine.js';
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
@@ -170,6 +171,62 @@ describe('GET .../organizations/:orgSlug/projects/overview (WO-336)', () => {
     expect(statements.filter((sql) => /group by/i.test(sql) && /project_members/i.test(sql))).toHaveLength(1);
 
     connectSpy.mockRestore();
+    await app.close();
+  });
+
+  test('exposes lastReportAt as the newest code_reports.created_at, null when the project never reported (WO-735)', async () => {
+    const app = buildApp();
+    const owner = await seedUser(env, pg.appPool, PASSWORD);
+    const org = await createOrganizationFixture(pg);
+    await createMemberFixture(pg, { organizationId: org.id, userId: owner.id, role: 'owner' });
+    const without = await createProjectFixture(pg, { orgId: org.id });
+    const withReports = await createProjectFixture(pg, { orgId: org.id });
+    for (const project of [without, withReports]) {
+      const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: `saas://project/${project.id}` });
+      await store.clear();
+    }
+    const ciToken = await createCiToken(pg.appPool, {
+      orgId: org.id,
+      projectIds: [withReports.id],
+      name: 'ci token',
+      scopes: ['reports:write'],
+      expiresAt: new Date(Date.now() + 86_400_000),
+      createdBy: owner.id,
+    });
+    const headSha = 'a'.repeat(40);
+    const insertReport = async (key: string, createdAt: string): Promise<void> => {
+      const outcome = await recordCodeReport(pg.appPool, {
+        projectId: withReports.id,
+        orgId: org.id,
+        tokenId: ciToken.record.id,
+        idempotencyKey: key,
+        bodySha256: `sha-${key}`,
+        mode: 'baseline',
+        headSha,
+        branch: 'main',
+        result: { mode: 'baseline', reportId: 'placeholder', headSha, issues: [], hasBlockingIssues: false },
+      });
+      await pg.ownerPool.query(`UPDATE "code_reports" SET created_at = $1 WHERE id = $2`, [createdAt, outcome.record.id]);
+    };
+    await insertReport('old', '2026-01-01T00:00:00.000Z');
+    await insertReport('new', '2026-06-01T00:00:00.000Z');
+
+    const cookie = await signIn(app, owner.email);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/app/organizations/${org.slug}/projects/overview`,
+      headers: { ...AUTH_HOST(), cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { projects: { id: string; lastReportAt: string | null; awaitingFirstReport: boolean }[] };
+    const dtoOf = (id: string) => body.projects.find((p) => p.id === id)!;
+
+    expect(dtoOf(without.id).lastReportAt).toBeNull();
+    expect(dtoOf(without.id).awaitingFirstReport).toBe(true);
+    expect(dtoOf(withReports.id).lastReportAt).toBe('2026-06-01T00:00:00.000Z');
+    expect(dtoOf(withReports.id).lastReportAt).not.toBe('2026-01-01T00:00:00.000Z');
+    expect(dtoOf(withReports.id).awaitingFirstReport).toBe(false);
+
     await app.close();
   });
 });

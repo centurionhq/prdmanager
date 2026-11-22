@@ -99,6 +99,7 @@ describe('projectOverviewSchema', () => {
     workOrdersInProgress: 3,
     myRole: 'admin',
     lastActivityAt: '2026-09-01T00:00:00.000Z',
+    lastReportAt: '2026-09-01T00:00:00.000Z',
   };
 
   test('accepts a full project overview and fills in project-summary defaults', () => {
@@ -112,6 +113,19 @@ describe('projectOverviewSchema', () => {
     const parsed = projectOverviewSchema.parse({ ...valid, andonStation: null, lastActivityAt: null });
     expect(parsed.andonStation).toBeNull();
     expect(parsed.lastActivityAt).toBeNull();
+  });
+
+  test('accepts a null lastReportAt', () => {
+    expect(projectOverviewSchema.parse({ ...valid, lastReportAt: null }).lastReportAt).toBeNull();
+  });
+
+  test('keeps a valid ISO lastReportAt as-is', () => {
+    expect(projectOverviewSchema.parse({ ...valid, lastReportAt: '2026-06-01T12:34:56.000Z' }).lastReportAt).toBe('2026-06-01T12:34:56.000Z');
+  });
+
+  test('rejects a missing lastReportAt', () => {
+    const { lastReportAt: _lastReportAt, ...without } = valid;
+    expect(() => projectOverviewSchema.parse(without)).toThrow();
   });
 
   test('rejects an invalid furthestStation', () => {
