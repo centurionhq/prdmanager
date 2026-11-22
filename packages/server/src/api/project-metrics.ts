@@ -43,7 +43,8 @@ export function registerProjectMetricsRoutes(app: FastifyInstance, opts: Registe
 
       const neo4j = requireNeo4j(opts.neo4j);
       const engine = resolvePgProjectEngine(pool, neo4j, org.id, project);
-      return getMetrics(engine.store);
+      const scan = await engine.scan();
+      return getMetrics(engine.store, scan.docs);
     },
   );
 }

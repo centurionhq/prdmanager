@@ -311,24 +311,47 @@ describe('remote MCP profile: close_feedback / dismiss_feedback (WO-708) / link_
   test('close_feedback closes a triaged feedback, records the closer, and audits it; a second close is rejected', async () => {
     const id = await seedTriaged('Las alertas de drift llegan tarde');
 
-    const closed = await callOn(writer, 'close_feedback', { id, reason: 'entregado', resolved_by: ['WO-708'] });
+    const closed = await callOn(writer, 'close_feedback', { id, reason: 'resuelto', resolved_by: ['WO-708'] });
     expect(closed.isError).toBeFalsy();
-    expect(JSON.parse(closed.text)).toMatchObject({ id, status: 'closed', reason: 'entregado', resolvedBy: ['WO-708'] });
+    expect(JSON.parse(closed.text)).toMatchObject({ id, status: 'closed', reason: 'resuelto', resolvedBy: ['WO-708'] });
 
     const fm = await frontmatterOf(id);
-    expect(fm).toMatchObject({ status: 'closed', close_reason: 'entregado', closed_by: 'dev:tester', resolved_by: ['WO-708'] });
+    expect(fm).toMatchObject({ status: 'closed', close_reason: 'resuelto', closed_by: 'dev:tester', resolved_by: ['WO-708'] });
     expect(fm.closed_at).toBeTruthy();
     expect(auditCalls).toContainEqual(expect.objectContaining({ action: 'mcp.close_feedback', target: id }));
 
-    const again = await callOn(writer, 'close_feedback', { id, reason: 'otra vez' });
+    const again = await callOn(writer, 'close_feedback', { id, reason: 'parcial' });
     expect(again.isError).toBe(true);
     expect(again.text).toContain('only new or triaged feedback can be closed');
+  });
+
+  test('close_feedback rejects a missing or non-enum reason and leaves the feedback open (SDD-126 D2)', async () => {
+    const id = await seedTriaged('Cierre sin motivo valido');
+
+    const missing = await callOn(writer, 'close_feedback', { id });
+    expect(missing.isError).toBe(true);
+    const unknown = await callOn(writer, 'close_feedback', { id, reason: 'entregado' });
+    expect(unknown.isError).toBe(true);
+
+    expect((await frontmatterOf(id)).status).toBe('triaged');
+
+    const partial = await callOn(writer, 'close_feedback', { id, reason: 'parcial' });
+    expect(partial.isError).toBeFalsy();
+    expect(await frontmatterOf(id)).toMatchObject({ status: 'closed', close_reason: 'parcial' });
+  });
+
+  test('dismiss_feedback rejects a missing reason and leaves the feedback open (SDD-126 D2)', async () => {
+    const id = await seedTriaged('Descarte sin motivo');
+
+    const missing = await callOn(writer, 'dismiss_feedback', { id });
+    expect(missing.isError).toBe(true);
+    expect((await frontmatterOf(id)).status).toBe('triaged');
   });
 
   test('dismiss_feedback dismisses a triaged feedback and audits it', async () => {
     const id = await seedTriaged('Ruido sin accion posible');
 
-    const dismissed = await callOn(writer, 'dismiss_feedback', { id, reason: 'duplicado' });
+    const dismissed = await callOn(writer, 'dismiss_feedback', { id, reason: 'no_es_un_problema' });
     expect(dismissed.isError).toBeFalsy();
     expect(JSON.parse(dismissed.text)).toMatchObject({ id, status: 'dismissed' });
     expect((await frontmatterOf(id)).status).toBe('dismissed');
@@ -350,12 +373,12 @@ describe('remote MCP profile: close_feedback / dismiss_feedback (WO-708) / link_
 
   test('link_feedback links an already closed feedback and leaves it closed', async () => {
     const id = await seedTriaged('Cerrado pero sin vinculo');
-    await callOn(writer, 'close_feedback', { id, reason: 'entregado' });
+    await callOn(writer, 'close_feedback', { id, reason: 'resuelto' });
 
     const linked = await callOn(writer, 'link_feedback', { id, informs: ['PRD-001'] });
     expect(linked.isError).toBeFalsy();
     const fm = await frontmatterOf(id);
-    expect(fm).toMatchObject({ status: 'closed', close_reason: 'entregado' });
+    expect(fm).toMatchObject({ status: 'closed', close_reason: 'resuelto' });
     expect(fm.informs).toContain('PRD-001');
   });
 
@@ -371,7 +394,7 @@ describe('remote MCP profile: close_feedback / dismiss_feedback (WO-708) / link_
 
   test('without mcp:write the tools answer missing_scope', async () => {
     const reader = await connect({ projectRole: 'editor' }, ['mcp:read']);
-    for (const [name, args] of [['close_feedback', { id: 'FB-001', reason: 'x' }], ['dismiss_feedback', { id: 'FB-001' }], ['link_feedback', { id: 'FB-001', informs: ['PRD-001'] }]] as const) {
+    for (const [name, args] of [['close_feedback', { id: 'FB-001', reason: 'falso' }], ['dismiss_feedback', { id: 'FB-001', reason: 'falso' }], ['link_feedback', { id: 'FB-001', informs: ['PRD-001'] }]] as const) {
       const result = await callOn(reader, name, args);
       expect(JSON.parse(result.text)).toMatchObject({ error: 'missing_scope' });
     }
@@ -379,7 +402,7 @@ describe('remote MCP profile: close_feedback / dismiss_feedback (WO-708) / link_
 
   test('a developer role (no edit_document) answers insufficient_role', async () => {
     const dev = await connect({ projectRole: 'developer' }, ['mcp:write']);
-    for (const [name, args] of [['close_feedback', { id: 'FB-001', reason: 'x' }], ['dismiss_feedback', { id: 'FB-001' }], ['link_feedback', { id: 'FB-001', informs: ['PRD-001'] }]] as const) {
+    for (const [name, args] of [['close_feedback', { id: 'FB-001', reason: 'falso' }], ['dismiss_feedback', { id: 'FB-001', reason: 'falso' }], ['link_feedback', { id: 'FB-001', informs: ['PRD-001'] }]] as const) {
       const result = await callOn(dev, name, args);
       expect(JSON.parse(result.text)).toMatchObject({ error: 'insufficient_role' });
     }

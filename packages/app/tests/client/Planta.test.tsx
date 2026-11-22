@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Subgraph } from '@prdm/core';
+import { EMPTY_CAPACITIES } from '@prdm/contracts';
 import type { LineBoardDto, SuccessMetricsDto } from '@prdm/contracts';
 import * as client from '../../src/api/client.js';
 import { clearQueryCache } from '../../src/api/query-cache.js';
@@ -13,6 +14,7 @@ const METRICS: SuccessMetricsDto = {
   agentHumanEfficiency: { completedWorkOrders: 10, measuredWorkOrders: 10, avgResolutionHours: 0.1, medianResolutionHours: 0.083, p90ResolutionHours: 1, maxResolutionHours: 1, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 100, governedSynced: 99, syncedPercent: 99.6 },
   traceability: { featuresByKind: [{ kind: 'FR', total: 4, traced: 4 }], featuresTotal: 4, featuresTraced: 4, orphanFeatures: [], featurePercent: 100, commitsTotal: 10, commitsWithRefs: 7, commitsTraced: 6, commitPercent: 66.4, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
+  capacities: EMPTY_CAPACITIES,
 };
 
 const METRICS_WITH_ORPHANS: SuccessMetricsDto = {
@@ -88,6 +90,7 @@ const EMPTY_METRICS: SuccessMetricsDto = {
   agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, p90ResolutionHours: null, maxResolutionHours: null, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
   traceability: { featuresByKind: [], featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
+  capacities: EMPTY_CAPACITIES,
 };
 
 /**

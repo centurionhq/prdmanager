@@ -115,7 +115,158 @@ function hasTerminalOutcome(fm: FeedbackDoc['frontmatter']): boolean {
   }
 }
 
+/**
+ * SDD-126 D1 (FR-073): Work Orders `done` que entregaron trabajo para alguna de `featureIds`.
+ * Cadena: Feature <- Blueprint (edge ARCHITECTS) <- WO (`implements`). Una WO cuenta como entregada
+ * cuando `status === 'done'` y `resolved_by` no está vacío (la sha la escribe `complete_work_order`, que en
+ * remoto sólo acepta commits verificados por CI). Orden determinista por id.
+ */
+export function deliveredWorkOrdersOf(featureIds: readonly string[], docs: readonly ParsedDoc[]): ParsedDoc[] {
+  const features = new Set(featureIds);
+  const blueprints = new Set(
+    docs
+      .filter((d) => d.node.label === 'Blueprint' && d.edges.some((e) => e.type === 'ARCHITECTS' && features.has(e.to)))
+      .map((d) => d.node.id),
+  );
+  if (blueprints.size === 0) return [];
+  return docs
+    .filter((d) => {
+      const fm = d.frontmatter;
+      return fm.type === 'WO' && fm.status === 'done' && fm.resolved_by.length > 0 && fm.implements.some((id) => blueprints.has(id));
+    })
+    .sort((a, b) => (a.node.id < b.node.id ? -1 : a.node.id > b.node.id ? 1 : 0));
+}
+
+/**
+ * Regla `feedback_resolved_pending_close`: un Feedback en `new`/`triaged` cuyo linaje ya tiene una WO entregada.
+ * Features candidatas = `informs` del FB + toda Feature que lo cita en `justified_by`.
+ * Reporta la WO de id menor. Los estados terminales nunca la producen.
+ */
+export function feedbackResolvedPendingClose(doc: FeedbackDoc, docs: readonly ParsedDoc[]): DriftIssue | null {
+  const fm = doc.frontmatter;
+  if (fm.status !== 'new' && fm.status !== 'triaged') return null;
+  const fbId = doc.node.id;
+  const featureIds = new Set<string>(fm.informs);
+  for (const d of docs) {
+    const dfm = d.frontmatter;
+    if (dfm.type !== 'MRD' && dfm.type !== 'PRD' && dfm.type !== 'FR' && dfm.type !== 'BC') continue;
+    if (d.node.label === 'Feature' && (dfm.justified_by ?? []).includes(fbId)) featureIds.add(d.node.id);
+  }
+  const [delivered] = deliveredWorkOrdersOf([...featureIds], docs);
+  if (!delivered) return null;
+  return violation(fbId, 'warning', `${fbId} is linked to delivered work (${delivered.node.id}) but is still "${fm.status}": close it with a reason`);
+}
+
+/** Todas las WOs (cualquier estado) de una feature: Feature <- Blueprint (ARCHITECTS) <- WO (`implements`), por id. */
+function workOrdersOf(featureId: string, docs: readonly ParsedDoc[]): ParsedDoc[] {
+  const blueprints = new Set(
+    docs.filter((d) => d.node.label === 'Blueprint' && d.edges.some((e) => e.type === 'ARCHITECTS' && e.to === featureId)).map((d) => d.node.id),
+  );
+  if (blueprints.size === 0) return [];
+  return docs
+    .filter((d) => d.frontmatter.type === 'WO' && d.frontmatter.implements.some((id) => blueprints.has(id)))
+    .sort((a, b) => (a.node.id < b.node.id ? -1 : a.node.id > b.node.id ? 1 : 0));
+}
+
+export const CAPACITY_DAYS = [7, 30] as const;
+export type CapacityDays = (typeof CAPACITY_DAYS)[number];
+
+const CAPACITY_KINDS = ['PRD', 'FR', 'SDD', 'ADR', 'WO', 'BC', 'FB'] as const;
+type CapacityKind = (typeof CAPACITY_KINDS)[number];
+const CAPACITY_FEATURE_KINDS = ['PRD', 'FR'] as const;
+type CapacityFeatureKind = (typeof CAPACITY_FEATURE_KINDS)[number];
+
+export interface CapacityKindCount {
+  kind: CapacityKind;
+  total: number;
+}
+export interface CapacityFeatureLine {
+  kind: CapacityFeatureKind;
+  created: number;
+  withDesign: number;
+  withWorkOrders: number;
+  delivered: number;
+}
+export interface CapacityFeedback {
+  created: number;
+  new: number;
+  triaged: number;
+  closed: number;
+  pendingClose: number;
+}
+export interface CapacityWindow {
+  days: CapacityDays;
+  /** Un entry por cada uno de los 7 kinds, SIEMPRE los 7 (con 0), en el orden PRD, FR, SDD, ADR, WO, BC, FB. */
+  createdByKind: CapacityKindCount[];
+  /** Sólo PRD y FR, siempre los dos entries. */
+  features: CapacityFeatureLine[];
+  feedback: CapacityFeedback;
+  passageExceptions: number;
+}
+export interface Capacities {
+  windows: CapacityWindow[];
+}
+
+const MS_PER_DAY = 86_400_000;
+
+function isFeedbackDoc(doc: ParsedDoc): doc is FeedbackDoc {
+  return doc.frontmatter.type === 'FB';
+}
+
+function featureLine(kind: CapacityFeatureKind, created: readonly ParsedDoc[], docs: readonly ParsedDoc[]): CapacityFeatureLine {
+  const ofKind = created.filter((d) => d.frontmatter.type === kind);
+  const withDesign = ofKind.filter((f) => docs.some((d) => d.node.label === 'Blueprint' && d.edges.some((e) => e.type === 'ARCHITECTS' && e.to === f.node.id)));
+  const withWorkOrders = withDesign.filter((f) => workOrdersOf(f.node.id, docs).length > 0);
+  const delivered = withWorkOrders.filter((f) => deliveredWorkOrdersOf([f.node.id], docs).length === workOrdersOf(f.node.id, docs).length);
+  return { kind, created: ofKind.length, withDesign: withDesign.length, withWorkOrders: withWorkOrders.length, delivered: delivered.length };
+}
+
+function capacityWindow(days: CapacityDays, docs: readonly ParsedDoc[], now: Date): CapacityWindow {
+  const today = now.toISOString().slice(0, 10);
+  const since = new Date(Date.parse(`${today}T00:00:00Z`) - (days - 1) * MS_PER_DAY).toISOString().slice(0, 10);
+  const created = docs.filter((d) => {
+    const day = d.node.createdAt?.slice(0, 10);
+    return day !== undefined && day >= since && day <= today;
+  });
+  const feedback = created.filter(isFeedbackDoc);
+  const byStatus = (statuses: readonly string[]): number => feedback.filter((d) => statuses.includes(d.frontmatter.status ?? 'new')).length;
+  return {
+    days,
+    createdByKind: CAPACITY_KINDS.map((kind) => ({ kind, total: created.filter((d) => d.frontmatter.type === kind).length })),
+    features: CAPACITY_FEATURE_KINDS.map((kind) => featureLine(kind, created, docs)),
+    feedback: {
+      created: feedback.length,
+      new: byStatus(['new']),
+      triaged: byStatus(['triaged']),
+      closed: byStatus(['closed', 'dismissed', 'duplicate']),
+      pendingClose: docs.filter(isFeedbackDoc).filter((d) => feedbackResolvedPendingClose(d, docs) !== null).length,
+    },
+    passageExceptions: created.filter((d) => passageException(d) !== null).length,
+  };
+}
+
+/**
+ * SDD-126 D3 (FR-073): capacidades del proyecto en ventanas de 7 y 30 días. Todo sale de los mismos documentos y
+ * reglas que `checkLifecycle` (nunca una segunda copia de reglas).
+ * - Ventana: últimos `days` días calendario UTC incluyendo hoy; compara `createdAt.slice(0, 10)` (sin fecha = fuera).
+ * - `createdByKind`: siempre los 7 kinds; la suma de `total` = documentos de esos kinds creados en la ventana.
+ * - `features` (PRD/FR creados en la ventana): `withDesign` = hay un blueprint que la arquitecta; `withWorkOrders` =
+ *   alguna WO implementa esos blueprints; `delivered` = tiene WOs y TODAS están `done` con `resolved_by`.
+ *   Cierra `delivered <= withWorkOrders <= withDesign <= created`.
+ * - `feedback`: `new + triaged + closed === created` (`closed` agrupa closed/dismissed/duplicate);
+ *   `pendingClose` cuenta TODOS los FB (deuda viva, sin ventana).
+ * - `passageExceptions`: FRs creados en la ventana que declaran la excepción R3 con motivo.
+ */
+export function computeCapacities(docs: readonly ParsedDoc[], now: Date = new Date()): Capacities {
+  return { windows: CAPACITY_DAYS.map((days) => capacityWindow(days, docs, now)) };
+}
+
 function checkFeedback(doc: FeedbackDoc, docs: readonly ParsedDoc[]): DriftIssue[] {
+  const resolved = feedbackResolvedPendingClose(doc, docs);
+  return [...checkFeedbackLinks(doc, docs), ...(resolved ? [resolved] : [])];
+}
+
+function checkFeedbackLinks(doc: FeedbackDoc, docs: readonly ParsedDoc[]): DriftIssue[] {
   const fm = doc.frontmatter;
   if (fm.informs.length > 0 || fm.root) return [];
   if (isCitedByJustifiedBy(doc.node.id, docs) || hasTerminalOutcome(fm)) return [];

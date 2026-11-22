@@ -10,9 +10,10 @@
  * (`scan()`/drift/graph/MCP) until that document is next republished — a triager acting on this endpoint
  * needs the link to take effect now, so this is rejected outright rather than silently deferred.
  */
-import { dismissFeedback, markDuplicate, submitFeedback, triageFeedback, triageFeedbackBatch, triageText } from '@prdm/core';
+import { closeFeedback, dismissFeedback, markDuplicate, submitFeedback, triageFeedback, triageFeedbackBatch, triageText } from '@prdm/core';
 import {
   can,
+  closeFeedbackInputSchema,
   DEFAULT_INBOX_LIMIT,
   dismissFeedbackInputSchema,
   inboxQuerySchema,
@@ -249,6 +250,45 @@ export function registerProjectFeedbackRoutes(app: FastifyInstance, opts: Regist
           action: 'feedback.dismissed',
           target: req.params.docId,
           metadata: { reason: parsed.data.reason ?? null },
+          ip: req.ip,
+          userAgent: userAgentOf(req),
+        });
+
+      return { result };
+    },
+  );
+
+  // SDD-126 D2: cierre como resuelto con motivo enumerado obligatorio (la /dismiss de la app sigue con texto libre).
+  app.post<{ Params: FeedbackDocRouteParams }>(
+    '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback/:docId/close',
+    { config: { access: { kind: 'session' } } },
+    async (req, reply) => {
+      const session = await requireAppSession(auth, req, env.publicUrl);
+      const org = await requireMemberOrg(pool, req.params.orgSlug, session.user.id);
+      const { project, subject } = await resolveVisibleProject(pool, org, req.params.projectSlug, session.user.id);
+      if (!can(subject, 'edit_document')) throw new ForbiddenError();
+
+      const parsed = closeFeedbackInputSchema.safeParse(req.body ?? {});
+      if (!parsed.success) throw new ValidationError('invalid body');
+      if (!(await isTriageable(org.id, project.id, req.params.docId, reply))) return;
+
+      const engine = resolvePgProjectEngine(pool, requireNeo4j(opts.neo4j), org.id, project);
+      let result;
+      try {
+        result = await closeFeedback(engine, req.params.docId, `dev:${session.user.id}`, parsed.data);
+      } catch (err) {
+        throw new ConflictError(err instanceof Error ? err.message : String(err));
+      }
+
+      await createTenantDb(pool)
+        .forOrg(org.id)
+        .auditLog.record({
+          projectId: project.id,
+          actorType: 'user',
+          actorId: session.user.id,
+          action: 'feedback.closed',
+          target: req.params.docId,
+          metadata: { reason: parsed.data.reason, resolvedBy: parsed.data.resolvedBy ?? [] },
           ip: req.ip,
           userAgent: userAgentOf(req),
         });

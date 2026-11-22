@@ -3,7 +3,7 @@
  * submit-feedback payload (mirrors `@prdm/core`'s `submitFeedback` input) and a triage candidate.
  */
 import { describe, expect, test } from 'vitest';
-import { candidateSchema, inboxItemSchema, submitFeedbackInputSchema } from '../../src/feedback.js';
+import { candidateSchema, closeFeedbackInputSchema, dismissFeedbackInputSchema, FEEDBACK_CLOSE_REASONS, inboxItemSchema, submitFeedbackInputSchema } from '../../src/feedback.js';
 
 describe('inboxItemSchema', () => {
   const valid = {
@@ -53,5 +53,25 @@ describe('candidateSchema', () => {
 
   test('rejects an invalid reason', () => {
     expect(() => candidateSchema.parse({ featureId: 'PRD-001', score: 0.82, reason: 'bogus' })).toThrow();
+  });
+});
+
+describe('closeFeedbackInputSchema (SDD-126 D2)', () => {
+  test.each([{}, { reason: '' }, { reason: 'entregado' }])('rejects %j', (input) => {
+    expect(closeFeedbackInputSchema.safeParse(input).success).toBe(false);
+  });
+
+  test.each(FEEDBACK_CLOSE_REASONS)('accepts the reason %s', (reason) => {
+    expect(closeFeedbackInputSchema.safeParse({ reason }).success).toBe(true);
+  });
+
+  test('accepts resolvedBy next to the reason', () => {
+    expect(closeFeedbackInputSchema.parse({ reason: 'resuelto', resolvedBy: ['WO-811'] }).resolvedBy).toEqual(['WO-811']);
+  });
+});
+
+describe('dismissFeedbackInputSchema', () => {
+  test('still accepts an empty body: it is the app contract (free-text optional reason)', () => {
+    expect(dismissFeedbackInputSchema.safeParse({}).success).toBe(true);
   });
 });

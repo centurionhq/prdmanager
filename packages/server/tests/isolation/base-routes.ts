@@ -414,6 +414,12 @@ export function registerBaseIsolationRoutes(): void {
     sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' }, body: { reason: 'probe' } })),
   });
 
+  registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback/:docId/close', {
+    mutating: true,
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' }, body: { reason: 'resuelto' } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' }, body: { reason: 'resuelto' } })),
+  });
+
   registerIsolationProbe('POST', '/api/app/organizations/:orgSlug/projects/:projectSlug/feedback/:docId/duplicate', {
     mutating: true,
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug, docId: 'FB-001' }, body: { duplicateOf: 'FB-002' } })),

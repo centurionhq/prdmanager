@@ -247,6 +247,37 @@ describe('feedback submit/inbox/candidates/triage (WO-339)', () => {
     await app.close();
   });
 
+  test('POST close closes a FB with an enumerated reason and audits feedback.closed (SDD-126 D2)', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await setupProject();
+    await seedFb(org, project, { n: 1 });
+    const cookie = await signIn(app, owner.email);
+
+    const res = await postJson(app, cookie, `${base(org, project)}/feedback/FB-001/close`, { reason: 'resuelto', resolvedBy: ['WO-811'] });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().result).toMatchObject({ id: 'FB-001', status: 'closed', reason: 'resuelto' });
+
+    const audit = await pg.ownerPool.query(`SELECT metadata FROM "audit_log" WHERE action = 'feedback.closed' AND target = 'FB-001'`);
+    expect(audit.rowCount).toBe(1);
+    expect(audit.rows[0].metadata).toMatchObject({ reason: 'resuelto', resolvedBy: ['WO-811'] });
+    await app.close();
+  });
+
+  test('POST close answers 400 without a reason or with an unknown one, and the FB does not change', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await setupProject();
+    await seedFb(org, project, { n: 1 });
+    const cookie = await signIn(app, owner.email);
+
+    for (const body of [{}, { reason: 'entregado' }]) {
+      const res = await postJson(app, cookie, `${base(org, project)}/feedback/FB-001/close`, body);
+      expect(res.statusCode).toBe(400);
+    }
+    const closed = (await getInbox(app, cookie, org, project, '?status=closed')).json().items as { id: string }[];
+    expect(closed).toEqual([]);
+    await app.close();
+  });
+
   test('POST dismiss is forbidden for a project viewer', async () => {
     const app = buildApp();
     const owner = await seedUser(env, pg.appPool, PASSWORD);

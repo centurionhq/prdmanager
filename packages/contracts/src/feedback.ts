@@ -53,8 +53,14 @@ export type InboxQueryDto = z.infer<typeof inboxQuerySchema>;
 export const dismissFeedbackInputSchema = z.object({ reason: z.string().max(2000).optional() });
 export type DismissFeedbackInputDto = z.infer<typeof dismissFeedbackInputSchema>;
 
+/** SDD-126 D2: el motivo del cierre es un dato enumerado, no texto libre. `parcial` no se puede leer como
+ *  `resuelto` en el panel de capacidades, y sin motivo el cierre no es auditable. */
+export const FEEDBACK_CLOSE_REASONS = ['resuelto', 'parcial', 'falso', 'no_es_un_problema'] as const;
+export const feedbackCloseReasonSchema = z.enum(FEEDBACK_CLOSE_REASONS);
+export type FeedbackCloseReason = z.infer<typeof feedbackCloseReasonSchema>;
+
 export const closeFeedbackInputSchema = z.object({
-  reason: z.string().max(2000).optional(),
+  reason: feedbackCloseReasonSchema,
   resolvedBy: z.array(z.string().min(1).max(300)).max(MAX_CLOSE_RESOLVED_BY).optional(),
 });
 export type CloseFeedbackInputDto = z.infer<typeof closeFeedbackInputSchema>;
