@@ -25,6 +25,7 @@ function makeProject(overrides: Partial<ProjectOverviewDto> = {}): ProjectOvervi
     workOrdersInProgress: 2,
     myRole: 'admin',
     lastActivityAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+    lastReportAt: null,
     ...overrides,
   };
 }

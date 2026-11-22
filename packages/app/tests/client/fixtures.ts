@@ -25,6 +25,7 @@ export function makeProjectOverview(overrides: Partial<ProjectOverviewDto> = {})
     workOrdersInProgress: 0,
     myRole: 'viewer',
     lastActivityAt: null,
+    lastReportAt: null,
     ...overrides,
   };
 }
