@@ -6,4 +6,5 @@
  * barrel (see the guard test in `packages/core/tests/unit/no-core-value-import.test.ts`).
  */
 export * from './business-case.js';
+export * from './required-sections.js';
 export * from './schema.js';

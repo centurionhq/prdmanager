@@ -7,8 +7,10 @@ import { checkLifecycle, type LifecycleContext } from '../../src/lifecycle/check
 const noGrandfathering: LifecycleContext = { grandfathered: [] };
 
 const mrd = (extra = ''): ParsedDoc => doc(`id: MRD-001\ntype: MRD\ntitle: Market\n${extra}`);
-const prd = (extra = ''): ParsedDoc => doc(`id: PRD-001\ntype: PRD\ntitle: Product\nimplements: [MRD-001]\n${extra}`);
-const fr = (extra = ''): ParsedDoc => doc(`id: FR-001\ntype: FR\ntitle: Request\n${extra}`);
+const PRD_COMPLETE_BODY = '## Problema\n\n## Alcance\n\n## Personas y trabajos\n\n## Métrica de éxito\n\n## Features derivadas\n';
+const FR_COMPLETE_BODY = '## Alcance\n\n## Criterio de aceptación\n\n- [ ] hecho\n';
+const prd = (extra = ''): ParsedDoc => doc(`id: PRD-001\ntype: PRD\ntitle: Product\nimplements: [MRD-001]\n${extra}`, PRD_COMPLETE_BODY);
+const fr = (extra = ''): ParsedDoc => doc(`id: FR-001\ntype: FR\ntitle: Request\n${extra}`, FR_COMPLETE_BODY);
 const sdd = (extra = '', body = 'design'): ParsedDoc => doc(`id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\n${extra}`, body);
 const wo = (extra = ''): ParsedDoc => doc(`id: WO-001\ntype: WO\ntitle: Task\nimplements: [SDD-001]\n${extra}`);
 const fb = (extra = '', status = 'new'): ParsedDoc => doc(`id: FB-001\ntype: FB\ntitle: Feedback\nstatus: ${status}\n${extra}`);
@@ -204,6 +206,18 @@ describe('checkLifecycle — BusinessCase (BC)', () => {
     expect(issues[0]?.message).toContain('Costo estimado');
   });
 
+  test('el mensaje del BC no cambió al consumir la tabla única (WO-801)', () => {
+    const body = '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n';
+    const issues = checkLifecycle([bc('justified_by: [FB-999]', body)], noGrandfathering);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      kind: 'lifecycle_violation',
+      severity: 'error',
+      nodeId: 'BC-001',
+      message: 'BC-001 is missing required section(s): ## Costo estimado',
+    });
+  });
+
   test('missing several sections lists all of them', () => {
     const issues = checkLifecycle([bc('justified_by: [FB-999]', '## Problema\n')], noGrandfathering);
     expect(issues[0]?.message).toContain('Impacto esperado');
@@ -248,6 +262,61 @@ describe('checkLifecycle — Blueprint (SDD/ADR)', () => {
   test('"## Tasks" (English) with a checklist also satisfies the rule', () => {
     const issues = checkLifecycle([approvedPrd(), sdd('impacts_paths: ["src/**"]', '## Tasks\n- [ ] do it')], noGrandfathering);
     expect(blueprintIssuesOf(issues)).toEqual([]);
+  });
+
+  // The parser's schema already rejects `architects: []`, so the only way to reach the rule is a ParsedDoc
+  // built elsewhere (an engine). Override the frontmatter instead of re-parsing.
+  const noArchitects = (extra = 'impacts_paths: ["src/**"]', body = '## Tareas\n- [ ] a'): ParsedDoc => {
+    const base = sdd(extra, body);
+    return { ...base, frontmatter: { ...base.frontmatter, architects: [] } } as ParsedDoc;
+  };
+  const messagesOf = (docs: ParsedDoc[]): string[] =>
+    checkLifecycle([approvedPrd(), ...docs], noGrandfathering)
+      .filter((i) => i.nodeId === 'SDD-001')
+      .map((i) => i.message);
+
+  test('architects vacío tiene su propio mensaje, separado de impacts_paths y Tareas (WO-803)', () => {
+    const issues = checkLifecycle([approvedPrd(), noArchitects()], noGrandfathering).filter((i) => i.nodeId === 'SDD-001');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.severity).toBe('error');
+    expect(issues[0]?.message).toContain('non-empty "architects"');
+    expect(issues[0]?.message).not.toContain('impacts_paths');
+    expect(issues[0]?.message).not.toContain('Tareas');
+  });
+
+  test('impacts_paths vacío tiene su propio mensaje, separado de architects y Tareas (WO-803)', () => {
+    const issues = checkLifecycle([approvedPrd(), sdd('', '## Tareas\n- [ ] a')], noGrandfathering).filter((i) => i.nodeId === 'SDD-001');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.severity).toBe('error');
+    expect(issues[0]?.message).toContain('non-empty "impacts_paths"');
+    expect(issues[0]?.message).not.toContain('architects');
+    expect(issues[0]?.message).not.toContain('Tareas');
+  });
+
+  test('la falta de checklist ## Tareas tiene su propio mensaje (WO-803)', () => {
+    const issues = checkLifecycle([approvedPrd(), sdd('impacts_paths: ["src/**"]', 'no checklist')], noGrandfathering).filter((i) => i.nodeId === 'SDD-001');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.severity).toBe('error');
+    expect(issues[0]?.message).toContain('"## Tareas"');
+    expect(issues[0]?.message).not.toContain('impacts_paths');
+    expect(issues[0]?.message).not.toContain('architects');
+  });
+
+  test('sin architects, sin impacts_paths y sin checklist emite tres mensajes distintos (WO-803)', () => {
+    const issues = checkLifecycle([approvedPrd(), noArchitects('', 'nada')], noGrandfathering).filter((i) => i.nodeId === 'SDD-001');
+    expect(issues).toHaveLength(3);
+    expect(issues.every((i) => i.severity === 'error')).toBe(true);
+    const messages = issues.map((i) => i.message);
+    expect(new Set(messages).size).toBe(3);
+    expect(messages.some((m) => m.includes('non-empty "architects"'))).toBe(true);
+    expect(messages.some((m) => m.includes('non-empty "impacts_paths"'))).toBe(true);
+    expect(messages.some((m) => m.includes('"## Tareas"'))).toBe(true);
+  });
+
+  test('ya no existe el mensaje combinado "needs both" (WO-803)', () => {
+    const all = [...messagesOf([sdd('', 'nada')]), ...messagesOf([noArchitects('', 'nada')]), ...messagesOf([sdd('', '## Tareas\n- [ ] a')])];
+    expect(all.length).toBeGreaterThan(0);
+    for (const m of all) expect(m).not.toContain('needs both');
   });
 });
 
@@ -312,5 +381,47 @@ describe('checkLifecycle — grandfathering', () => {
     expect(issues[0]?.message).toMatch(/grandfathering lapsed/i);
     expect(issues[1]).toMatchObject({ kind: 'lifecycle_violation', severity: 'error', nodeId: 'FR-001' });
     expect(issues[1]?.message).toContain('BC');
+  });
+});
+
+describe('checkLifecycle: secciones obligatorias de PRD y FR (WO-802)', () => {
+  const PRD_ALL = '## Problema\n\n## Alcance\n\n## Personas y trabajos\n\n## Métrica de éxito\n\n## Features derivadas\n';
+  const FR_ALL = '## Alcance\n\nx\n\n## Criterio de aceptación\n\n- [ ] algo\n';
+  const prdWith = (body: string): ParsedDoc => doc('id: PRD-001\ntype: PRD\ntitle: Product\nimplements: [MRD-001]\njustified_by: [BC-001]\nstatus: approved', body);
+  const frWith = (body: string): ParsedDoc => doc('id: FR-001\ntype: FR\ntitle: Request\njustified_by: [BC-001]', body);
+  const only = (issues: ReturnType<typeof checkLifecycle>, id: string) => kinds(issues).filter(([, , nodeId]) => nodeId === id);
+
+  test('PRD con las cinco secciones y un BC aprobado no gana issues (WO-802)', () => {
+    expect(only(checkLifecycle([prdWith(PRD_ALL), bcApproved()], noGrandfathering), 'PRD-001')).toEqual([]);
+  });
+
+  test('PRD sin una sección: warning por defecto y error al publicar (WO-802)', () => {
+    const body = PRD_ALL.replace('## Alcance\n\n', '');
+    const edit = checkLifecycle([prdWith(body), bcApproved()], noGrandfathering).filter((i) => i.nodeId === 'PRD-001');
+    expect(edit).toEqual([{ kind: 'lifecycle_violation', severity: 'warning', nodeId: 'PRD-001', message: 'PRD-001 is missing required section(s): ## Alcance' }]);
+    const publish = checkLifecycle([prdWith(body), bcApproved()], { ...noGrandfathering, mode: 'publish' }).filter((i) => i.nodeId === 'PRD-001');
+    expect(publish).toEqual([{ ...edit[0], severity: 'error' }]);
+  });
+
+  test('FR sin Criterio de aceptación: warning por defecto y error al publicar (WO-802)', () => {
+    const body = '## Alcance\n\nx\n';
+    const message = 'FR-001 is missing required section(s): ## Criterio de aceptación';
+    expect(checkLifecycle([frWith(body), bcApproved()], noGrandfathering).filter((i) => i.nodeId === 'FR-001')).toEqual([
+      { kind: 'lifecycle_violation', severity: 'warning', nodeId: 'FR-001', message },
+    ]);
+    expect(checkLifecycle([frWith(body), bcApproved()], { ...noGrandfathering, mode: 'publish' }).filter((i) => i.nodeId === 'FR-001')).toEqual([
+      { kind: 'lifecycle_violation', severity: 'error', nodeId: 'FR-001', message },
+    ]);
+  });
+
+  test('FR con Criterio de aceptación sin ítems verificables es una advertencia que nombra la sección (WO-802)', () => {
+    const issues = checkLifecycle([frWith('## Alcance\n\nx\n\n## Criterio de aceptación\n\nsólo prosa\n'), bcApproved()], noGrandfathering).filter((i) => i.nodeId === 'FR-001');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ severity: 'warning', message: 'FR-001 needs at least one verifiable item (a "- [ ]" or "- [x]" line) under "## Criterio de aceptación"' });
+  });
+
+  test('FR con un ítem - [x] satisface el criterio de aceptación (WO-802)', () => {
+    const body = '## Alcance\n\nx\n\n## Criterio de aceptación\n\n- [x] hecho\n';
+    expect(only(checkLifecycle([frWith(body), bcApproved()], { ...noGrandfathering, mode: 'publish' }), 'FR-001')).toEqual([]);
   });
 });

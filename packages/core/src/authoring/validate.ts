@@ -143,9 +143,22 @@ function lifecycleIssueKey(issue: DriftIssue): string {
  * drops a Feedback's `informs` link can retroactively unjustify a Feature that relied on it. Exported (WO-128)
  * so `validateDocument` shares this exact diffing logic instead of duplicating it.
  */
-export function newLifecycleIssues(before: readonly ParsedDoc[], after: readonly ParsedDoc[], grandfathered: readonly GrandfatheredDoc[]): DriftIssue[] {
-  const beforeKeys = new Set(checkLifecycle(before, { grandfathered }).map(lifecycleIssueKey));
-  return checkLifecycle(after, { grandfathered }).filter((issue) => !beforeKeys.has(lifecycleIssueKey(issue)));
+export interface NewLifecycleIssuesOptions {
+  mode?: 'edit' | 'publish';
+  /** Issues on these nodes are reported even when they already existed in `before` (publishing an already-incomplete document must still block). */
+  includeIds?: readonly string[];
+}
+
+export function newLifecycleIssues(
+  before: readonly ParsedDoc[],
+  after: readonly ParsedDoc[],
+  grandfathered: readonly GrandfatheredDoc[],
+  options: NewLifecycleIssuesOptions = {},
+): DriftIssue[] {
+  const ctx = { grandfathered, mode: options.mode };
+  const beforeKeys = new Set(checkLifecycle(before, ctx).map(lifecycleIssueKey));
+  const includeIds = options.includeIds ?? [];
+  return checkLifecycle(after, ctx).filter((issue) => includeIds.includes(issue.nodeId) || !beforeKeys.has(lifecycleIssueKey(issue)));
 }
 
 /** Collapses forbidden_field issues raised by both the pre-render and post-render (injection) checks for the same field into one. Exported (WO-128) for `validateDocument`. */

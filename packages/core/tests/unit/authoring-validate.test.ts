@@ -38,7 +38,7 @@ describe('validateDraft: schema', () => {
   test('a well-formed draft has no issues', () => {
     // WO-448/SDD-025 widened the BC gate to FR, so this FR draft must resolve to an approved BC, not a
     // plain ART, for the "well-formed" expectation (zero issues) to hold.
-    const record = makeRecord({ kind: 'FR', title: 'New capability', body: 'body', fields: { evolves_from: ['PRD-001'], justified_by: ['BC-001'] } });
+    const record = makeRecord({ kind: 'FR', title: 'New capability', body: '## Alcance\n\nx\n\n## Criterio de aceptación\n\n- [ ] hecho\n', fields: { evolves_from: ['PRD-001'], justified_by: ['BC-001'] } });
     const outcome = validateDraft(record, { scan: { docs: [prd(), bcApproved()], errors: [], ids: ['PRD-001', 'BC-001'] }, grandfathered: [] });
     expect(outcome.issues).toEqual([]);
   });

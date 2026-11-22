@@ -1,0 +1,8 @@
+{
+  "measuredAt": "2026-11-22",
+  "mirror": ".prdm/remote/docs",
+  "documentsScanned": 1367,
+  "scanErrors": 0,
+  "errorDocIds": ["FR-001", "PRD-001", "PRD-002", "PRD-003", "PRD-004", "PRD-005", "PRD-006", "PRD-007", "PRD-008", "PRD-009", "PRD-011"],
+  "measuredWith": "scanDocuments(mirror) + checkLifecycle(docs, { grandfathered: [] }) con el código de WO-801/802/803"
+}
