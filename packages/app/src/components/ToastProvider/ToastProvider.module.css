@@ -18,7 +18,8 @@
 
 /* One plate, one line: a batch result names up to three failures and the rest of the server message is
    long enough to cover half a 375px screen and hide the drawer behind it. The clamp is visual only — the
-   full text stays in the DOM and in the persistent "Órdenes que no se pudieron actualizar" list. */
+   full text stays in the DOM, in the `title` of the message (native tooltip) and in a screen-level list
+   («Órdenes…» / «Ítems que no se pudieron actualizar»), so no screen loses the reason to the ellipsis. */
 .toast {
   height: 48px;
   max-width: 480px;

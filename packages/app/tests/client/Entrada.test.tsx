@@ -352,8 +352,76 @@ describe('Entrada', () => {
       await userEvent.click(within(dialog).getByRole('button', { name: 'Descartar' }));
 
       await waitFor(() => expect(batch).toHaveBeenCalledWith('acme', 'web', { action: 'dismiss', ids: ['ART-002', 'FB-007'].sort(), reason: undefined }));
-      expect(await screen.findByText(/ART-002 \(pending_republish\)/)).toBeTruthy();
+      // The failure stays on screen after the toast dismisses: Entrada has no persistent list behind it.
+      const failures = await screen.findByRole('list', { name: 'Ítems que no se pudieron actualizar' });
+      expect(within(failures).getByText(/ART-002/)).toBeTruthy();
+      expect(within(failures).getByText(/pending_republish/)).toBeTruthy();
       expect(screen.queryByText(/seleccionados$/)).toBeNull();
+    });
+
+    it('keeps both failure reasons on screen, outside the clamped toast', async () => {
+      // The gate's fixture: one item applied, two rejected — the partial response the contract documents.
+      const items: InboxItemDto[] = [
+        { ...ITEMS[0]!, id: 'FB-101' },
+        { ...ITEMS[0]!, id: 'FB-102', title: 'El filtro pierde el texto' },
+        { ...ITEMS[1]!, id: 'ART-103', status: 'new' },
+      ];
+      vi.spyOn(client, 'listInbox').mockResolvedValue({ items, total: items.length });
+      vi.spyOn(client, 'triageBatch').mockResolvedValue({
+        action: 'dismiss',
+        results: [
+          { id: 'FB-101', ok: true },
+          { id: 'FB-102', ok: false, error: 'cannot dismiss FB-102: status is triaged, expected new' },
+          { id: 'ART-103', ok: false, error: 'pending_republish' },
+        ],
+        ok: 1,
+        failed: 2,
+      });
+      renderPage();
+      await screen.findByText('FB-101');
+
+      for (const id of ['FB-101', 'FB-102', 'ART-103']) {
+        await userEvent.click(screen.getByRole('checkbox', { name: `Seleccionar ${id}` }));
+      }
+      await userEvent.click(screen.getByRole('button', { name: 'Descartar seleccionados' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Descartar ítem' });
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Descartar' }));
+
+      const failures = await screen.findByRole('list', { name: 'Ítems que no se pudieron actualizar' });
+      // Outside role="status": the toast is one clamped 480px line and auto-dismisses after 4s.
+      expect(failures.closest('[role="status"]')).toBeNull();
+      expect(within(failures).getByText(/cannot dismiss FB-102: status is triaged, expected new/)).toBeTruthy();
+      expect(within(failures).getByText(/pending_republish/)).toBeTruthy();
+    });
+
+    it('drops the previous batch failures when another batch starts', async () => {
+      vi.spyOn(client, 'listInbox').mockResolvedValue(inbox());
+      vi.spyOn(client, 'triageBatch')
+        .mockResolvedValueOnce({
+          action: 'dismiss',
+          results: [
+            { id: 'FB-007', ok: true },
+            { id: 'ART-002', ok: false, error: 'pending_republish' },
+          ],
+          ok: 1,
+          failed: 1,
+        })
+        .mockResolvedValueOnce({ action: 'dismiss', results: [{ id: 'FB-007', ok: true }], ok: 1, failed: 0 });
+      renderPage();
+      await screen.findByText('FB-007');
+
+      await userEvent.click(within(rowOf('FB-007')).getByRole('checkbox'));
+      await userEvent.click(within(rowOf('ART-002')).getByRole('checkbox'));
+      await userEvent.click(screen.getByRole('button', { name: 'Descartar seleccionados' }));
+      let dialog = await screen.findByRole('dialog', { name: 'Descartar ítem' });
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Descartar' }));
+      expect(await screen.findByRole('list', { name: 'Ítems que no se pudieron actualizar' })).toBeTruthy();
+
+      await userEvent.click(within(rowOf('FB-007')).getByRole('checkbox'));
+      await userEvent.click(screen.getByRole('button', { name: 'Descartar seleccionados' }));
+      dialog = await screen.findByRole('dialog', { name: 'Descartar ítem' });
+
+      expect(screen.queryByRole('list', { name: 'Ítems que no se pudieron actualizar' })).toBeNull();
     });
 
     it('filters to dismissed items with the «Descartados» chip', async () => {

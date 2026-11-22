@@ -85,6 +85,18 @@ describe('ToastProvider', () => {
     expect(css).toMatch(/\.message\s*\{[^}]*text-overflow:\s*ellipsis/);
   });
 
+  it('puts the whole message in a native tooltip so the clamp never hides it', async () => {
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <Harness />
+      </ToastProvider>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Mostrar lote con fallas' }));
+
+    expect(screen.getByText(LONG_MESSAGE).getAttribute('title')).toBe(LONG_MESSAGE);
+  });
+
   it('throws when useToast is used outside a ToastProvider', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => render(<Harness />)).toThrow();

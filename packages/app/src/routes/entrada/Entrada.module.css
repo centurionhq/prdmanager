@@ -153,6 +153,18 @@
   margin-right: auto;
 }
 
+/* Per-item failures of the last batch stay on screen: Entrada has no persistent list behind the toast,
+   and the toast plate clamps to a single 480px line (P11 de Órdenes). */
+.batchFailures {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--texto-secundario);
+}
+
 @media (max-width: 640px) {
   .checkbox {
     width: var(--hit-target);

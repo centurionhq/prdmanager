@@ -84,6 +84,12 @@ interface PendingAction {
 
 const PENDING_REPUBLISH_STATUS = 409;
 
+/** One rejected item of the last batch, kept on screen so the clamped toast can't be the only copy. */
+interface BatchFailure {
+  readonly id: string;
+  readonly error: string;
+}
+
 /** Header of the collapsible block D6 folds the `agent:*` items into. */
 function AutomaticGroup({
   count,
@@ -125,6 +131,7 @@ function EntradaContent(): ReactElement {
   const [action, setAction] = useState<PendingAction | null>(null);
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [batchFailures, setBatchFailures] = useState<readonly BatchFailure[]>([]);
 
   const listQuery = useApiQuery(
     `inbox:${orgSlug}:${projectSlug}`,
@@ -170,6 +177,8 @@ function EntradaContent(): ReactElement {
 
   function openAction(mode: PendingAction['mode'], ids: readonly string[], batch: boolean): void {
     setActionError(null);
+    // A new action invalidates the previous batch's failure list: keeping it would show stale reasons.
+    setBatchFailures([]);
     setAction({ mode, ids, batch });
   }
 
@@ -199,12 +208,14 @@ function EntradaContent(): ReactElement {
 
   async function runBatch(pending: PendingAction, input: TriageActionInput): Promise<void> {
     const result = await triageBatch(orgSlug, projectSlug, { action: pending.mode, ids: [...pending.ids], reason: input.reason, duplicateOf: input.duplicateOf });
+    const failures = result.results.filter((r) => !r.ok).map((r) => ({ id: r.id, error: r.error ?? 'error' }));
+    // The toast clamps to one 480px line, so the reasons also go to a list that outlives it.
+    setBatchFailures(failures);
     if (result.failed === 0) {
       finishAction(`${result.ok} ítems ${pending.mode === 'dismiss' ? 'descartados' : 'marcados como duplicados'}`, 'success');
       return;
     }
-    const failures = result.results.filter((r) => !r.ok).map((r) => `${r.id} (${r.error ?? 'error'})`);
-    finishAction(`${result.ok} actualizados; ${result.failed} no se pudieron actualizar: ${failures.join(', ')}`, 'neutral');
+    finishAction(`${result.ok} actualizados; ${result.failed} no se pudieron actualizar: ${failures.map((f) => `${f.id} (${f.error})`).join(', ')}`, 'neutral');
   }
 
   async function handleActionConfirm(input: TriageActionInput): Promise<void> {
@@ -420,6 +431,16 @@ function EntradaContent(): ReactElement {
                 Limpiar selección
               </Button>
             </div>
+          ) : null}
+
+          {batchFailures.length > 0 ? (
+            <ul aria-label="Ítems que no se pudieron actualizar" className={styles.batchFailures}>
+              {batchFailures.map((failure) => (
+                <li key={failure.id}>
+                  <IdTag id={failure.id} /> — {failure.error}
+                </li>
+              ))}
+            </ul>
           ) : null}
 
           <DataTable
