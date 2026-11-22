@@ -13,7 +13,7 @@
  */
 import type { ReactElement } from 'react';
 import { PageHeader } from '../components/index.js';
-import { getOrgAuditLog } from '../api/client.js';
+import { getOrgAuditFacets, getOrgAuditLog } from '../api/client.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { useOrgShellContext } from './OrgShell.js';
 import { AuditLogView } from './audit/AuditLogView.js';
@@ -26,7 +26,7 @@ export function OrgAjustesAuditoria(): ReactElement {
   return (
     <div className={styles.screen}>
       <PageHeader title={`Auditoría de ${currentOrg.name}`} subtitle="Lo que pasó en todos los proyectos y en la organización, quién lo hizo y cuándo." />
-      <AuditLogView scopeKey={orgSlug} load={(params) => getOrgAuditLog(orgSlug, params)} />
+      <AuditLogView scopeKey={orgSlug} load={(params) => getOrgAuditLog(orgSlug, params)} loadFacets={() => getOrgAuditFacets(orgSlug)} />
     </div>
   );
 }

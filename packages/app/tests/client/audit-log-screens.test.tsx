@@ -18,6 +18,7 @@ const ENTRY: AuditLogEntryDto = {
 };
 
 function renderProjectAuditoria() {
+  vi.spyOn(client, 'getProjectAuditFacets').mockResolvedValue({ actions: [], actors: [], total: 0 });
   const router = createMemoryRouter(
     [{ path: '/ctx', element: <Outlet context={makeProjectShellContext('owner')} />, children: [{ index: true, element: <AjustesAuditoria /> }] }],
     { initialEntries: ['/ctx'] },
@@ -26,6 +27,7 @@ function renderProjectAuditoria() {
 }
 
 function renderOrgAuditoria() {
+  vi.spyOn(client, 'getOrgAuditFacets').mockResolvedValue({ actions: [], actors: [], total: 0 });
   const router = createMemoryRouter(
     [
       {

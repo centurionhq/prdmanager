@@ -50,15 +50,17 @@ test('cada pantalla de Ajustes muestra contenido real, en escritorio y a 375 px,
   const violations: string[] = [];
 
   // Un token de CI existe (lo crea el harness), así que la auditoría del proyecto y de la organización tienen una fila real.
-  const screens: Array<{ name: string; url: () => string; heading: string | RegExp; level: 1 | 2; content: string | RegExp }> = [
+  // SDD-091/WO-705: en la auditoría el `token.ci.created` también aparece como opción del filtro de acción, así
+  // que ahí el contenido se busca dentro de la tabla — lo que esta spec verifica es que la pantalla muestre la fila.
+  const screens: Array<{ name: string; url: () => string; heading: string | RegExp; level: 1 | 2; content: string | RegExp; inTable?: boolean }> = [
     { name: 'General', url: () => `${project()}/general`, heading: 'General', level: 2, content: 'Rama por defecto' },
     { name: 'Miembros del proyecto', url: () => `${project()}/miembros`, heading: 'Miembros del proyecto', level: 2, content: 'Qué puede hacer cada rol' },
     { name: 'Tokens de CI', url: () => `${project()}/tokens`, heading: 'Tokens de CI', level: 2, content: 'e2e-ci' },
     { name: 'Tokens personales', url: () => `${project()}/tokens-personales`, heading: 'Tokens personales', level: 2, content: 'Organización' },
     { name: 'Perfil', url: () => `${project()}/perfil`, heading: 'Perfil', level: 2, content: 'Email' },
-    { name: 'Auditoría del proyecto', url: () => `${project()}/auditoria`, heading: 'Auditoría', level: 2, content: 'token.ci.created' },
+    { name: 'Auditoría del proyecto', url: () => `${project()}/auditoria`, heading: 'Auditoría', level: 2, content: 'token.ci.created', inTable: true },
     { name: 'Miembros de la organización', url: () => `${org()}/miembros`, heading: /^Miembros de /, level: 1, content: 'Invitaciones pendientes' },
-    { name: 'Auditoría de la organización', url: () => `${org()}/auditoria`, heading: /^Auditoría de /, level: 1, content: 'token.ci.created' },
+    { name: 'Auditoría de la organización', url: () => `${org()}/auditoria`, heading: /^Auditoría de /, level: 1, content: 'token.ci.created', inTable: true },
   ];
 
   for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) {
@@ -66,7 +68,8 @@ test('cada pantalla de Ajustes muestra contenido real, en escritorio y a 375 px,
     for (const screen of screens) {
       await page.goto(screen.url());
       await expect(page.getByRole('heading', { level: screen.level, name: screen.heading }).first(), `${screen.name} @${viewport.width}`).toBeVisible();
-      await expect(page.getByText(screen.content).first(), `${screen.name} @${viewport.width}: contenido`).toBeVisible();
+      const content = screen.inTable ? page.getByRole('table').getByText(screen.content).first() : page.getByText(screen.content).first();
+      await expect(content, `${screen.name} @${viewport.width}: contenido`).toBeVisible();
       await expectNotTheErrorPage(page);
       expect(await sidewaysOverflow(page), `${screen.name} @${viewport.width}: desborde horizontal`).toBeLessThanOrEqual(0);
     }
@@ -142,4 +145,26 @@ test('la subnavegación agrupada lleva a cada destino y marca dónde estás', as
   await expect(page).toHaveURL(/\/ajustes\/auditoria$/);
   await expect(nav.getByRole('link', { name: 'Auditoría' })).toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('link', { name: 'General' })).not.toHaveAttribute('aria-current', 'page');
+});
+
+/**
+ * SDD-091/WO-705: the three filters of the audit screen are the real ones. The action select is fed by the
+ * scope's facets (so it offers the action the harness's CI token really produced), choosing it filters on the
+ * server and leaves the filter in the URL, and the total of the cut is drawn next to «Cargar más».
+ */
+test('la auditoría acota por la acción real y deja el filtro en la URL (SDD-091)', async () => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${project()}/auditoria`);
+
+  const action = page.getByLabel('Acción');
+  const realAction = action.getByRole('option', { name: /^token\.ci\.created \(\d+\)$/ });
+  await expect(realAction).toHaveCount(1);
+  await expect(page.getByLabel('Persona').getByRole('option', { name: 'Todas las personas' })).toHaveCount(1);
+  await expect(page.getByText(/^Mostrando \d+ de \d+$/)).toBeVisible();
+
+  await action.selectOption((await realAction.getAttribute('value')) ?? 'token.ci.created');
+
+  await expect(page).toHaveURL(/accion=token\.ci\.created/);
+  await expect(page.getByRole('table').getByText('token.ci.created').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Quitar filtros' })).toBeVisible();
 });

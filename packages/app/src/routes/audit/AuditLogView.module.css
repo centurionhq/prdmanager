@@ -13,8 +13,8 @@
 }
 
 .filterField {
-  flex: 1 1 16rem;
-  max-width: 28rem;
+  flex: 1 1 11rem;
+  max-width: 22rem;
   min-width: 0;
 }
 
@@ -26,7 +26,17 @@
 
 .more {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* «Mostrando N de M»: the total of the filtered cut, next to «Cargar más» (SDD-091 D5). */
+.total {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
 }
 
 @media (max-width: 767px) {

@@ -21,6 +21,8 @@ function entry(overrides: Partial<AuditLogEntryDto> = {}): AuditLogEntryDto {
 
 function renderPage(): void {
   vi.spyOn(client, 'listOrganizations').mockResolvedValue([{ id: 'org1', slug: 'acme', name: 'Acme', role: 'admin' }]);
+  // Facets feed the action and person selects (SDD-091); empty is enough for this screen's own test.
+  vi.spyOn(client, 'getOrgAuditFacets').mockResolvedValue({ actions: [], actors: [], total: 0 });
   const router = createMemoryRouter(
     [{ path: '/o/:orgSlug', element: <OrgShell />, children: [{ path: 'ajustes/auditoria', element: <OrgAjustesAuditoria /> }] }],
     { initialEntries: ['/o/acme/ajustes/auditoria'] },
@@ -63,6 +65,8 @@ describe('OrgAjustesAuditoria', () => {
     renderPage();
 
     await screen.findByText('organization.invitation.created');
+    // SDD-091 D5: the action is a select fed by the facets, and «Otra acción…» is the advanced field.
+    await userEvent.selectOptions(screen.getByLabelText('Acción'), 'otra');
     await userEvent.type(screen.getByLabelText('Filtrar por acción'), 'member.role_changed');
     await userEvent.click(screen.getByRole('button', { name: 'Filtrar' }));
 
