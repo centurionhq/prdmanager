@@ -124,7 +124,7 @@
           <sc-for list="{{ filas }}" as="r" hint-placeholder-count="8">
             <div role="treeitem" aria-selected="{{ r.sel }}" aria-level="{{ r.nivel }}" title="{{ r.titulo }}" class="fila {{ r.cls }}" style="padding-left: {{ r.pad }}px; color: {{ r.color }};">
               <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; {{ r.chevDisplay }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span>
-              <span class="dos-lineas" style="flex: 1; min-width: 0; font-size: 14px; line-height: 20px; font-weight: {{ r.peso }};"><span class="id" style="color: #565D63; margin-right: 6px;">{{ r.id }}</span>{{ r.titulo }}</span>
+              <span class="dos-lineas" style="flex: 1; min-width: 0; font-size: 14px; line-height: 20px; font-weight: {{ r.peso }};"><span class="id" style="color: #565D63; margin-right: 6px;">{{ r.id }}</span><sc-for list="{{ r.partes }}" as="p"><span class="{{ p.cls }}">{{ p.t }}</span></sc-for></span>
               <span style="flex: none; {{ r.huerfanaDisplay }}" class="badge"><span style="color: #33383D;">Sin código</span></span>
               <span style="flex: none; {{ r.driftDisplay }} align-items: center; gap: 6px; font-size: 12px; color: #7A5A00;"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 4px; background: #F5C400;"></span><span class="sr-only">Drift abierto</span></span>
             </div>
@@ -359,7 +359,7 @@
         <sc-for list="{{ filasMovil }}" as="r" hint-placeholder-count="6">
           <div role="treeitem" aria-selected="{{ r.sel }}" aria-level="{{ r.nivel }}" title="{{ r.titulo }}" class="fila {{ r.cls }}" style="padding-left: {{ r.padM }}px; color: {{ r.color }};">
             <span style="flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; {{ r.chevDisplay }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span>
-            <span class="dos-lineas" style="flex: 1; min-width: 0; font-size: 14px; line-height: 20px; font-weight: {{ r.peso }};"><span class="id" style="color: #565D63; margin-right: 6px;">{{ r.id }}</span>{{ r.titulo }}</span>
+            <span class="dos-lineas" style="flex: 1; min-width: 0; font-size: 14px; line-height: 20px; font-weight: {{ r.peso }};"><span class="id" style="color: #565D63; margin-right: 6px;">{{ r.id }}</span><sc-for list="{{ r.partes }}" as="p"><span class="{{ p.cls }}">{{ p.t }}</span></sc-for></span>
             <span class="badge" style="flex: none; {{ r.huerfanaDisplay }}"><span style="color: #33383D;">Sin código</span></span>
             <span style="flex: none; {{ r.driftDisplay }} align-items: center;"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 4px; background: #F5C400;"></span><span class="sr-only">Drift abierto</span></span>
           </div>
@@ -494,23 +494,31 @@ class Component extends DCLogic {
     else if (busqueda === 'resultados') conteo = { prefijo: '', a: 2, medio: 'resultados de', b: 68, cola: 'features' };
     else if (isSinResultados) conteo = { prefijo: '', a: 0, medio: 'resultados de', b: 68, cola: 'features' };
 
+    // WO-770 (T6): el maestro pinta el título como el panel: los tramos entre acentos graves van en mono
+    // (`.cod`) y el `title` de la fila lleva el texto plano completo, sin marcas.
+    const inline = (raw) => raw.split('`').map((t, i) => ({ t, cls: i % 2 === 1 ? 'cod' : '' })).filter(p => p.t !== '');
+    const plain = (partes) => partes.map(p => p.t).join('');
     // Árbol completo (hoy) -> sangría de 12 px por nivel con tope de 4 niveles (48 px); el nivel real queda en aria-level.
-    const T = (id, titulo, nivel, o = {}) => ({
-      id, titulo, nivel,
-      pad: 8 + Math.min(nivel - 1, 4) * 12,
-      padM: 4 + Math.min(nivel - 1, 3) * 8,
-      sel: !!o.sel, cls: o.sel ? 'fila-sel' : '',
-      color: o.cerrada ? '#565D63' : '#17191C',
-      peso: o.sel ? 600 : 400,
-      chevDisplay: o.hoja ? 'visibility: hidden;' : '',
-      huerfanaDisplay: o.huerfana ? show : hide,
-      driftDisplay: o.drift ? show : hide
-    });
+    const T = (id, titulo, nivel, o = {}) => {
+      const partes = inline(titulo);
+      return {
+        id, partes, titulo: plain(partes), nivel,
+        pad: 8 + Math.min(nivel - 1, 4) * 12,
+        padM: 4 + Math.min(nivel - 1, 3) * 8,
+        sel: !!o.sel, cls: o.sel ? 'fila-sel' : '',
+        color: o.cerrada ? '#565D63' : '#17191C',
+        peso: o.sel ? 600 : 400,
+        chevDisplay: o.hoja ? 'visibility: hidden;' : '',
+        huerfanaDisplay: o.huerfana ? show : hide,
+        driftDisplay: o.drift ? show : hide
+      };
+    };
     const arbol = [
       T('BC-002', 'Onboarding guiado para el primer proyecto SaaS importado', 1, { huerfana: true }),
       T('PRD-012', 'Estado vacío de «esperando el primer reporte de CI» en Árbol y Planta', 2, { huerfana: true }),
       T('BC-007', 'Los documentos que no son de collab se muestran como markdown crudo', 3),
       T('PRD-015', 'Vista previa renderizada para todo documento, venga de donde venga', 4, { cerrada: true }),
+      T('FR-024', 'El cierre de una feature deja el estado terminal `closed` y no se puede reabrir desde el Árbol', 5),
       T('BC-022', 'Trazabilidad inversa: la métrica de features trazadas deja de mentir y nombra las que faltan', 5),
       T('FR-009', 'Trazabilidad inversa: la lista de features sin código, accionable desde la Planta y el Árbol', 6, { sel: true, drift: true }),
       T('BC-026', 'El buscador del Árbol no se puede compartir ni dice su resultado', 7),
@@ -526,7 +534,10 @@ class Component extends DCLogic {
       T('FR-023', 'Importador incremental de repositorios', 1, { huerfana: true, hoja: true })
     ];
     const filas = isFiltro ? filtradas : arbol;
-    const filasMovil = filas.slice(0, isFiltro ? 6 : 6);
+    // Móvil: seis filas, siempre con la del tramo de código (FR-024) y la seleccionada (FR-009).
+    const filasMovil = isFiltro
+      ? filtradas.slice(0, 6)
+      : ['BC-002', 'PRD-012', 'BC-007', 'PRD-015', 'FR-024', 'FR-009'].map(id => arbol.find(r => r.id === id));
 
     // Órdenes: título en texto plano; el código en línea es una pieza mono (decisión g). `titulo` = texto completo del title.
     const P = (t, code) => ({ t, cls: code ? 'cod' : '' });

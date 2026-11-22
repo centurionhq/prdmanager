@@ -75,3 +75,12 @@ El bloque no existía en el comp, y en la app montaba una fila por referencia (1
 - Campo «Filtrar por ruta o símbolo» con **label visible** (40 px de alto en escritorio, 44 px en móvil) y «Limpiar» cuando hay texto: acota en memoria el conjunto ya cargado y la línea pasa a «Mostrando **25** de **M** coincidencias de **N** referencias». El filtro **no va a la URL**: es una herramienta de lectura local, no un filtro de pantalla como `?q=`/`?sinCodigo=1`.
 - Aplica igual a una feature (conjunto de su branch) y a un blueprint (sus propias referencias). No hay «ver todas»: no existe pantalla de código del proyecto a la que enlazar y un expandible reintroduce las N filas que el criterio (a) prohíbe.
 - A 375 px el filtro va a lo ancho y la tabla se apila (ruta mono arriba, símbolo debajo), sin scroll horizontal.
+
+## 6. WO-770 (SDD-112 T6): el maestro del árbol sin marcas crudas y con el título completo al enfocar
+
+El gate WO-752 midió, en navegador real, que el maestro seguía pintando el título crudo (FR-024 «…estado terminal `closed`…», FR-053 «…`get_node` devuelve `close_reason`…») y que el texto completo viajaba solo en el `title` nativo: al pasar el mouse sí, al enfocar con teclado no.
+
+- **Comp:** las filas del árbol pintan el título con tramos: lo que está entre acentos graves va en `.cod` (IBM Plex Mono 12 px sobre `--relleno`), igual que la columna «Título» de órdenes. Se agregó la fila `FR-024` con `` `closed` `` para que el comp muestre el caso, en escritorio y en móvil. El `title` de la fila sigue siendo el texto plano completo (sin marcas). La fila no cambia de alto: el corte a dos líneas sigue en `.dos-lineas`.
+- **App:** `FeatureTree.tsx` monta `MarkdownInline` (el mismo componente del panel) dentro de la fila y conserva `title={toPlainTitle(...)}`. El treeitem suma `aria-describedby` a un `<span class="visually-hidden">` con el título plano completo, así el texto completo se anuncia al enfocar con teclado. El texto visible va `aria-hidden`: el nombre accesible lo aporta el texto oculto, una sola vez (D6 del SDD-105 sigue en pie).
+- **Sin `Tooltip`:** el trigger del design system tiene `tabIndex={0}` propio, o sea un segundo stop de tab dentro de cada treeitem. El criterio (e) del gate mide un solo enfocable por fila, y ArrowUp/ArrowDown/Enter no cambian.
+
