@@ -65,3 +65,13 @@ Comp: `Arbol.dc.html` (actualizado, no nuevo). Props del canvas: `vista` (escrit
 - Tabla apilada < 640 px, `min-width: 0`/`overflow-wrap` para eliminar los 631 px, targets de 44 px en búsqueda y enlaces del panel.
 - Selección separada del foco (barra interior vs `--focus-ring`).
 - Nada de esto agrega tokens: todo sale de `tokens.css`.
+
+## 5. WO-769 (SDD-112 C6/C7): «Código gobernado» acotado, con filtro local
+
+El bloque no existía en el comp, y en la app montaba una fila por referencia (11.389 en BC-002: el 99 % de los 523.972 px de scroll del panel). Ahora el comp y la app dicen lo mismo:
+
+- La tabla monta **25 filas** como máximo, ordenadas por `updatedAt` descendente y, a igualdad, por ruta ascendente (`CODE_LIMIT = 25`).
+- Debajo va la línea gemela de la de órdenes: «Mostrando las **25** referencias más recientes de **N**», con los dos números en `.num`. Con N <= 25 la línea no se dibuja.
+- Campo «Filtrar por ruta o símbolo» con **label visible** (40 px de alto en escritorio, 44 px en móvil) y «Limpiar» cuando hay texto: acota en memoria el conjunto ya cargado y la línea pasa a «Mostrando **25** de **M** coincidencias de **N** referencias». El filtro **no va a la URL**: es una herramienta de lectura local, no un filtro de pantalla como `?q=`/`?sinCodigo=1`.
+- Aplica igual a una feature (conjunto de su branch) y a un blueprint (sus propias referencias). No hay «ver todas»: no existe pantalla de código del proyecto a la que enlazar y un expandible reintroduce las N filas que el criterio (a) prohíbe.
+- A 375 px el filtro va a lo ancho y la tabla se apila (ruta mono arriba, símbolo debajo), sin scroll horizontal.
