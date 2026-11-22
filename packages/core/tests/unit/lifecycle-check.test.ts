@@ -263,6 +263,61 @@ describe('checkLifecycle — Blueprint (SDD/ADR)', () => {
     const issues = checkLifecycle([approvedPrd(), sdd('impacts_paths: ["src/**"]', '## Tasks\n- [ ] do it')], noGrandfathering);
     expect(blueprintIssuesOf(issues)).toEqual([]);
   });
+
+  // The parser's schema already rejects `architects: []`, so the only way to reach the rule is a ParsedDoc
+  // built elsewhere (an engine). Override the frontmatter instead of re-parsing.
+  const noArchitects = (extra = 'impacts_paths: ["src/**"]', body = '## Tareas\n- [ ] a'): ParsedDoc => {
+    const base = sdd(extra, body);
+    return { ...base, frontmatter: { ...base.frontmatter, architects: [] } } as ParsedDoc;
+  };
+  const messagesOf = (docs: ParsedDoc[]): string[] =>
+    checkLifecycle([approvedPrd(), ...docs], noGrandfathering)
+      .filter((i) => i.nodeId === 'SDD-001')
+      .map((i) => i.message);
+
+  test('architects vacío tiene su propio mensaje, separado de impacts_paths y Tareas (WO-803)', () => {
+    const issues = checkLifecycle([approvedPrd(), noArchitects()], noGrandfathering).filter((i) => i.nodeId === 'SDD-001');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.severity).toBe('error');
+    expect(issues[0]?.message).toContain('non-empty "architects"');
+    expect(issues[0]?.message).not.toContain('impacts_paths');
+    expect(issues[0]?.message).not.toContain('Tareas');
+  });
+
+  test('impacts_paths vacío tiene su propio mensaje, separado de architects y Tareas (WO-803)', () => {
+    const issues = checkLifecycle([approvedPrd(), sdd('', '## Tareas\n- [ ] a')], noGrandfathering).filter((i) => i.nodeId === 'SDD-001');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.severity).toBe('error');
+    expect(issues[0]?.message).toContain('non-empty "impacts_paths"');
+    expect(issues[0]?.message).not.toContain('architects');
+    expect(issues[0]?.message).not.toContain('Tareas');
+  });
+
+  test('la falta de checklist ## Tareas tiene su propio mensaje (WO-803)', () => {
+    const issues = checkLifecycle([approvedPrd(), sdd('impacts_paths: ["src/**"]', 'no checklist')], noGrandfathering).filter((i) => i.nodeId === 'SDD-001');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.severity).toBe('error');
+    expect(issues[0]?.message).toContain('"## Tareas"');
+    expect(issues[0]?.message).not.toContain('impacts_paths');
+    expect(issues[0]?.message).not.toContain('architects');
+  });
+
+  test('sin architects, sin impacts_paths y sin checklist emite tres mensajes distintos (WO-803)', () => {
+    const issues = checkLifecycle([approvedPrd(), noArchitects('', 'nada')], noGrandfathering).filter((i) => i.nodeId === 'SDD-001');
+    expect(issues).toHaveLength(3);
+    expect(issues.every((i) => i.severity === 'error')).toBe(true);
+    const messages = issues.map((i) => i.message);
+    expect(new Set(messages).size).toBe(3);
+    expect(messages.some((m) => m.includes('non-empty "architects"'))).toBe(true);
+    expect(messages.some((m) => m.includes('non-empty "impacts_paths"'))).toBe(true);
+    expect(messages.some((m) => m.includes('"## Tareas"'))).toBe(true);
+  });
+
+  test('ya no existe el mensaje combinado "needs both" (WO-803)', () => {
+    const all = [...messagesOf([sdd('', 'nada')]), ...messagesOf([noArchitects('', 'nada')]), ...messagesOf([sdd('', '## Tareas\n- [ ] a')])];
+    expect(all.length).toBeGreaterThan(0);
+    for (const m of all) expect(m).not.toContain('needs both');
+  });
 });
 
 describe('checkLifecycle — Work Order', () => {

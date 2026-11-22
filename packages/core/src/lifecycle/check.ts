@@ -185,8 +185,18 @@ function checkBusinessCase(doc: BusinessCaseDoc, docs: readonly ParsedDoc[]): Dr
 function checkBlueprint(doc: BlueprintDoc, byId: Map<string, ParsedDoc>): DriftIssue[] {
   const fm = doc.frontmatter;
   const issues: DriftIssue[] = [];
-  if (fm.impacts_paths.length === 0 || !hasTasksChecklist(doc.node.body)) {
-    issues.push(violation(doc.node.id, 'error', `${doc.node.id} needs both "impacts_paths" and a "## Tareas"/"## Tasks" checklist before work orders can be generated from it`));
+  // `blueprintSchema` already requires a non-empty `architects`, so a parsed-from-disk document never trips
+  // this; it stays as a nominal rule (defense in depth) for ParsedDocs handed in by an engine, not the parser.
+  if (fm.architects.length === 0) {
+    issues.push(violation(doc.node.id, 'error', `${doc.node.id} needs a non-empty "architects": a blueprint must say which PRD/FR it designs`));
+  }
+  if (fm.impacts_paths.length === 0) {
+    issues.push(violation(doc.node.id, 'error', `${doc.node.id} needs a non-empty "impacts_paths": a blueprint must declare the code it governs`));
+  }
+  if (!hasTasksChecklist(doc.node.body)) {
+    issues.push(
+      violation(doc.node.id, 'error', `${doc.node.id} needs a "## Tareas"/"## Tasks" checklist with at least one item before work orders can be generated from it`),
+    );
   }
   const unapproved = fm.architects.filter((id) => {
     const feature = byId.get(id);
