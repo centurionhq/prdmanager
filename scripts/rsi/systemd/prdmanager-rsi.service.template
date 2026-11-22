@@ -5,7 +5,7 @@
 # ~/.config/systemd/user/prdmanager-rsi.service with REPO_ROOT substituted, `systemctl --user daemon-
 # reload && systemctl --user enable --now prdmanager-rsi.service`) is deliberately a separate, explicitly-
 # confirmed step -- see PRD-039 "Fuera de alcance" / Fase 3. It must only be installed AFTER
-# prdmanager-server.service (see ../../../packages/server/deploy/systemd/) is already running, since
+# prdm-server.service (see ../../../packages/server/deploy/systemd/) is already running, since
 # `deploy.mjs` restarts that unit every cycle.
 #
 # `stop`/`disable` on this unit are deliberately excluded from `.claude/settings.rsi.json`'s allowlist
@@ -15,7 +15,7 @@
 
 [Unit]
 Description=prdmanager RSI loop driver -- autonomous sense/ideate/implement/deploy cycles
-After=network.target prdmanager-server.service
+After=network.target prdm-server.service
 
 [Service]
 Type=simple
