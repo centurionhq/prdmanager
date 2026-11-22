@@ -1,0 +1,103 @@
+/* ConfirmDialog (SDD-062, ConfirmDialog.dc.html): desktop 1440 and 375. Only tokens, no literals. */
+
+.scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-height: min(48vh, 22rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.resource {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3);
+  background: var(--relleno);
+  border: var(--rule-row);
+  border-left: 3px solid var(--paro);
+  border-radius: var(--radius-plate);
+}
+
+.resourceName {
+  font-size: var(--text-md);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.resourceMeta {
+  font-size: var(--text-sm);
+  line-height: 1.3;
+  color: var(--apagado);
+  overflow-wrap: anywhere;
+}
+
+.progress {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.error {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 20px;
+  color: var(--grafito);
+  background: var(--diff-quitado);
+  border: 1px solid var(--paro);
+  border-radius: var(--radius-plate);
+}
+
+.errorIcon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--paro);
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 2px solid var(--blanco);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+/* 375 px: the safe exit first and full width, 44 px; the destructive action below it. */
+@media (max-width: 767px) {
+  .footer {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .button {
+    width: 100%;
+    min-height: var(--hit-target);
+  }
+}

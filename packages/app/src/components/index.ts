@@ -45,6 +45,9 @@ export type { SearchFieldProps } from './SearchField/SearchField';
 export { Modal } from './Modal/Modal';
 export type { ModalProps, ModalSize } from './Modal/Modal';
 
+export { ConfirmDialog } from './ConfirmDialog/ConfirmDialog';
+export type { ConfirmDialogProps, ConfirmDialogResource } from './ConfirmDialog/ConfirmDialog';
+
 export { Drawer } from './Drawer/Drawer';
 export type { DrawerProps } from './Drawer/Drawer';
 
