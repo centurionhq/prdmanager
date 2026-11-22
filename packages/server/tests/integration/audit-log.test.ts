@@ -210,4 +210,157 @@ describe('GET .../audit-log (project and organization) (WO-342)', () => {
 
     await app.close();
   });
+
+  // --- WO-704 (SDD-091): filtros en el servidor, total y facetas ---
+  async function insertAudit(orgId: string, projectId: string | null, actorType: string, actorId: string, action: string, createdAt?: Date): Promise<void> {
+    await pg.ownerPool.query(
+      `INSERT INTO "audit_log" (org_id, project_id, actor_type, actor_id, action, target, metadata, created_at)
+       VALUES ($1, $2, $3, $4, $5, 'x', '{}', COALESCE($6, now()))`,
+      [orgId, projectId, actorType, actorId, action, createdAt ?? null],
+    );
+  }
+
+  async function getJson<T>(app: ReturnType<typeof buildServer>, url: string, cookie: string): Promise<T> {
+    const res = await app.inject({ method: 'GET', url, headers: { ...AUTH_HOST(), cookie } });
+    expect(res.statusCode).toBe(200);
+    return res.json() as T;
+  }
+
+  type Page = { entries: ActorEntry[]; total?: number };
+
+  test('from/to filter on created_at is inclusive at the exact edges; a bare date covers the whole day', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await seedOrgWithProject();
+    const cookie = await signIn(app, owner.email);
+    const from = new Date('2026-03-10T10:00:00.000Z');
+    const to = new Date('2026-03-10T12:00:00.000Z');
+    await insertAudit(org.id, project.id, 'user', 'u1', 'edge.before', new Date(from.getTime() - 1000));
+    await insertAudit(org.id, project.id, 'user', 'u1', 'edge.from', from);
+    await insertAudit(org.id, project.id, 'user', 'u1', 'edge.to', to);
+    await insertAudit(org.id, project.id, 'user', 'u1', 'edge.after', new Date(to.getTime() + 1000));
+    const url = `/api/app/organizations/${org.slug}/projects/${project.slug}/audit-log`;
+
+    const page = await getJson<Page>(app, `${url}?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`, cookie);
+    expect(page.entries.map((e) => e.action).sort()).toEqual(['edge.from', 'edge.to']);
+    expect(page.total).toBe(2);
+
+    await insertAudit(org.id, project.id, 'user', 'u1', 'day.noon', new Date('2026-04-05T12:00:00.000Z'));
+    const day = await getJson<Page>(app, `${url}?from=2026-04-05&to=2026-04-05`, cookie);
+    expect(day.entries.map((e) => e.action)).toEqual(['day.noon']);
+
+    await app.close();
+  });
+
+  test('action is exact and actor filters narrow by (actorType, actorId); combined filters intersect', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await seedOrgWithProject();
+    const cookie = await signIn(app, owner.email);
+    await insertAudit(org.id, project.id, 'user', 'A', 'x');
+    await insertAudit(org.id, project.id, 'user', 'A', 'x.y');
+    await insertAudit(org.id, project.id, 'user', 'B', 'x');
+    await insertAudit(org.id, project.id, 'token', 'C', 'z');
+    const url = `/api/app/organizations/${org.slug}/projects/${project.slug}/audit-log`;
+
+    const byActor = await getJson<Page>(app, `${url}?actorType=user&actorId=A`, cookie);
+    expect(byActor.entries.map((e) => e.action).sort()).toEqual(['x', 'x.y']);
+    const byAction = await getJson<Page>(app, `${url}?action=x`, cookie);
+    expect(byAction.entries.map((e) => e.actor.id).sort()).toEqual(['A', 'B']);
+    const both = await getJson<Page>(app, `${url}?action=x&actorType=user&actorId=A`, cookie);
+    expect(both.entries).toHaveLength(1);
+    expect(both.entries[0]!.actor.id).toBe('A');
+    expect(both.entries[0]!.action).toBe('x');
+
+    await app.close();
+  });
+
+  test('total matches an independent count, ignores the cursor, and is scoped (project vs organization)', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await seedOrgWithProject();
+    const other = await createProjectFixture(pg, { orgId: org.id });
+    const cookie = await signIn(app, owner.email);
+    await insertAudit(org.id, project.id, 'user', 'A', 'a.one');
+    await insertAudit(org.id, project.id, 'user', 'A', 'a.one');
+    await insertAudit(org.id, project.id, 'user', 'A', 'a.two');
+    await insertAudit(org.id, other.id, 'user', 'A', 'a.one');
+    await insertAudit(org.id, null, 'user', 'A', 'a.one');
+    const projectUrl = `/api/app/organizations/${org.slug}/projects/${project.slug}/audit-log`;
+    const orgUrl = `/api/app/organizations/${org.slug}/audit-log`;
+
+    const filtered = await getJson<Page>(app, `${orgUrl}?action=a.one`, cookie);
+    const { rows } = await pg.ownerPool.query<{ n: number }>(`SELECT count(*)::int AS n FROM "audit_log" WHERE org_id = $1 AND action = 'a.one'`, [org.id]);
+    expect(filtered.total).toBe(rows[0]!.n);
+    expect(filtered.total).toBe(4);
+
+    expect((await getJson<Page>(app, projectUrl, cookie)).total).toBe(3);
+    const paged = await getJson<Page & { nextCursor: string | null }>(app, `${projectUrl}?limit=1`, cookie);
+    expect(paged.entries).toHaveLength(1);
+    expect(paged.total).toBe(3);
+    const second = await getJson<Page>(app, `${projectUrl}?limit=1&cursor=${paged.nextCursor}`, cookie);
+    expect(second.total).toBe(3);
+    const orgTotal = await pg.ownerPool.query<{ n: number }>(`SELECT count(*)::int AS n FROM "audit_log" WHERE org_id = $1`, [org.id]);
+    expect((await getJson<Page>(app, orgUrl, cookie)).total).toBe(orgTotal.rows[0]!.n);
+
+    await app.close();
+  });
+
+  type Facets = { actions: { action: string; count: number }[]; actors: { type: string; id: string; name: string | null; count: number }[]; total: number };
+
+  test('facets: exact counts, resolved names (null for unknown actors), scoped to the project vs the whole org', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await seedOrgWithProject();
+    const other = await createProjectFixture(pg, { orgId: org.id });
+    const cookie = await signIn(app, owner.email);
+    const { rows } = await pg.ownerPool.query<{ name: string }>(`SELECT name FROM "user" WHERE id = $1`, [owner.id]);
+    await insertAudit(org.id, project.id, 'user', owner.id, 'doc.edit');
+    await insertAudit(org.id, project.id, 'user', owner.id, 'doc.edit');
+    await insertAudit(org.id, project.id, 'user', 'no-such-user-id', 'ghost.action');
+    await insertAudit(org.id, other.id, 'token', 'other-token', 'other.action');
+    await insertAudit(org.id, null, 'user', owner.id, 'org.level');
+    const base = `/api/app/organizations/${org.slug}`;
+
+    const projectFacets = await getJson<Facets>(app, `${base}/projects/${project.slug}/audit-log/facets`, cookie);
+    expect(projectFacets.actions).toEqual([
+      { action: 'doc.edit', count: 2 },
+      { action: 'ghost.action', count: 1 },
+    ]);
+    expect(projectFacets.actors).toEqual([
+      { type: 'user', id: owner.id, name: rows[0]!.name, count: 2 },
+      { type: 'user', id: 'no-such-user-id', name: null, count: 1 },
+    ]);
+    expect(projectFacets.total).toBe(3);
+
+    const orgFacets = await getJson<Facets>(app, `${base}/audit-log/facets`, cookie);
+    expect(orgFacets.actions.map((a) => a.action).sort()).toEqual(['doc.edit', 'ghost.action', 'org.level', 'other.action']);
+    expect(orgFacets.actors.some((a) => a.id === 'other-token')).toBe(true);
+    expect(orgFacets.total).toBe(5);
+
+    await app.close();
+  });
+
+  test('facets permissions mirror the listing: editor 403, outsider 404, plain org member 403', async () => {
+    const app = buildApp();
+    const { owner, org, project } = await seedOrgWithProject();
+    const editor = await seedUser(env, pg.appPool, PASSWORD);
+    const outsider = await seedUser(env, pg.appPool, PASSWORD);
+    const member = await seedUser(env, pg.appPool, PASSWORD);
+    await createMemberFixture(pg, { organizationId: org.id, userId: editor.id, role: 'member' });
+    await createMemberFixture(pg, { organizationId: org.id, userId: member.id, role: 'member' });
+    await createMemberFixture(pg, { organizationId: org.id, userId: outsider.id, role: 'member' });
+    await pg.ownerPool.query(`INSERT INTO "project_members" (project_id, user_id, org_id, role) VALUES ($1, $2, $3, 'editor')`, [project.id, editor.id, org.id]);
+    const projectFacetsUrl = `/api/app/organizations/${org.slug}/projects/${project.slug}/audit-log/facets`;
+    const listUrl = `/api/app/organizations/${org.slug}/projects/${project.slug}/audit-log`;
+    const orgFacetsUrl = `/api/app/organizations/${org.slug}/audit-log/facets`;
+    const cookies = new Map<string, string>();
+    for (const u of [editor, outsider, member, owner]) cookies.set(u.email, await signIn(app, u.email));
+    const status = async (url: string, email: string) =>
+      (await app.inject({ method: 'GET', url, headers: { ...AUTH_HOST(), cookie: cookies.get(email)! } })).statusCode;
+
+    expect(await status(projectFacetsUrl, editor.email)).toBe(403);
+    expect(await status(projectFacetsUrl, outsider.email)).toBe(await status(listUrl, outsider.email));
+    expect(await status(projectFacetsUrl, outsider.email)).toBe(404);
+    expect(await status(orgFacetsUrl, member.email)).toBe(403);
+    expect(await status(projectFacetsUrl, owner.email)).toBe(200);
+
+    await app.close();
+  });
 });
