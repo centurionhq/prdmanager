@@ -1,7 +1,7 @@
 import { useId, useState, type ReactElement } from 'react';
 import { Drawer } from '../../components/Drawer/Drawer';
 import { ErrorState } from '../../components/ErrorState/ErrorState';
-import { buildKpis, type PlantaKpi, type PlantaKpiDetail, type PlantaKpiNote } from './planta-overview-data';
+import { buildKpis, type PlantaKpi, type PlantaKpiDetail, type PlantaKpiNote, type PlantaKpiQueue } from './planta-overview-data';
 import styles from './PlantaKpiStrip.module.css';
 
 const COMMITS_DRAWER_WIDTH = 640;
@@ -98,6 +98,53 @@ function UnmeasuredNote({ note }: { readonly note: PlantaKpiNote }): ReactElemen
   );
 }
 
+/** SDD-094 (WO-720): the slow-orders queue under the median. The line is text, the control opens the drawer. */
+function QueueNote({ queue }: { readonly queue: PlantaKpiQueue }): ReactElement {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+
+  return (
+    <>
+      <span className={styles.queueLine}>{queue.line}</span>
+      <button type="button" className={styles.queueControl} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(true)}>
+        {queue.control}
+      </button>
+      <Drawer open={open} title="Órdenes lentas" onClose={() => setOpen(false)} width={COMMITS_DRAWER_WIDTH}>
+        <div id={panelId} className={styles.commitsBody}>
+          <p>{queue.definition}</p>
+          <div className={styles.commitsScroll} tabIndex={0} role="group" aria-label="Órdenes de la lista">
+            <table className={styles.commitsTable}>
+              <thead>
+                <tr>
+                  <th scope="col">Orden</th>
+                  <th scope="col">Reclamo</th>
+                  <th scope="col">Cierre</th>
+                  <th scope="col">Horas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {queue.rows.map((row) => (
+                  <tr key={row.id}>
+                    <td>
+                      <a className={`id ${styles.unmeasuredId}`} href="#">
+                        {row.id}
+                      </a>
+                    </td>
+                    <td>{row.claimedAt}</td>
+                    <td>{row.completedAt}</td>
+                    <td className="num">{row.hours}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {queue.truncatedCopy ? <p>{queue.truncatedCopy}</p> : null}
+        </div>
+      </Drawer>
+    </>
+  );
+}
+
 /** SDD-085: the strip's own states, mirrored from the app (`routes/Planta.tsx`). */
 export type PlantaKpiStripState = 'listo' | 'cargando' | 'error' | 'primer_reporte';
 
@@ -163,6 +210,7 @@ export function PlantaKpiStrip({ estado = 'listo', onRetry = NOOP }: PlantaKpiSt
             </>
           )}
           {kpi.note ? <UnmeasuredNote note={kpi.note} /> : null}
+          {kpi.queue ? <QueueNote queue={kpi.queue} /> : null}
         </div>
       ))}
     </section>

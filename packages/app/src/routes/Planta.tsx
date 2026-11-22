@@ -4,6 +4,8 @@
  * WO-445): the line board (`getLineBoard`, now `LineBoard` — see `../components/LineBoard/LineBoard.tsx`)
  * plus the success-metrics KPI strip (`getMetrics`). See canvas/Main.dc.html — the sidebar itself is
  * `ProjectShell`'s own `AppShell`, unchanged by this WO; this route only renders the line and the strip.
+ * SDD-094 (WO-720): the median KPI also carries the long tail — how many orders took more than a day and
+ * its slowest ones, behind a drawer (canvas/PlantaBanda.dc.html).
  */
 import { useId, useState, type ReactElement, type ReactNode } from 'react';
 import { Link } from 'react-router';
@@ -47,6 +49,112 @@ const UNMEASURED_REASON_COPY: Readonly<Record<string, string>> = {
 
 function formatInstant(iso: string | null): string {
   return iso === null ? '—' : formatDateTime(iso);
+}
+
+type Slowest = Efficiency['slowest'];
+type SlowOrder = Slowest['items'][number];
+
+const HOURS_PER_DAY = 24;
+/** SDD-094 D5: one decimal for the orders' hours, and the same figure in days once they pass 48 h. */
+const HOURS_FORMATTER = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+function formatHours(hours: number): string {
+  return hours >= HOURS_PER_DAY * 2 ? `${HOURS_FORMATTER.format(hours / HOURS_PER_DAY)} d` : `${HOURS_FORMATTER.format(hours)} h`;
+}
+
+/** SDD-094 D5: the threshold reads as copy, not as a raw number, and follows whatever the server sent. */
+function slowThresholdCopy(thresholdHours: number): string {
+  return thresholdHours === HOURS_PER_DAY ? 'más de un día' : `más de ${formatHours(thresholdHours)}`;
+}
+
+const QUEUE_DRAWER_WIDTH = 640;
+
+interface SlowOrdersNoteProps {
+  readonly efficiency: Efficiency;
+  readonly orgSlug: string;
+  readonly projectSlug: string;
+}
+
+/**
+ * WO-720 (SDD-094 D4/D5): the long tail the median hides. Under the KPI's value, in secondary type, how many
+ * completed orders took more than a day and which one was the worst; the control opens the existing `Drawer`
+ * with the slowest ones. Read defensively like `UnmeasuredNote` (the response is not validated at runtime and
+ * front/back deploy separately): no `slowest`, a non-numeric `total` or `total === 0` render nothing.
+ */
+function SlowOrdersNote({ efficiency, orgSlug, projectSlug }: SlowOrdersNoteProps): ReactElement | null {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const slowest = efficiency.slowest as Slowest | undefined;
+  const total = slowest?.total;
+  if (typeof total !== 'number' || !(total > 0)) return null;
+  // Without the list the count is still known, so the line stays and the control goes away.
+  const orders: readonly SlowOrder[] | null = Array.isArray(slowest?.items) ? (slowest.items as readonly SlowOrder[]) : null;
+  const worst = orders?.[0];
+  const threshold = slowThresholdCopy(typeof slowest?.thresholdHours === 'number' ? slowest.thresholdHours : HOURS_PER_DAY);
+  const counted = total === 1 ? '1 orden tardó' : `${COUNT_FORMATTER.format(total)} órdenes tardaron`;
+
+  return (
+    <div className={styles.queueNote}>
+      <p className={styles.queueLine}>
+        {counted} {threshold}
+        {worst ? `; la peor, ${worst.id} · ${formatHours(worst.resolutionHours)}` : ''}
+      </p>
+      {orders && worst ? (
+        <>
+          <button
+            type="button"
+            className={styles.queueControl}
+            aria-expanded={open}
+            aria-controls={panelId}
+            onClick={() => setOpen(true)}
+          >
+            {total === 1 ? 'Ver la 1 orden' : `Ver las ${COUNT_FORMATTER.format(total)} órdenes`}
+          </button>
+          <Drawer open={open} title="Órdenes lentas" onClose={() => setOpen(false)} width={QUEUE_DRAWER_WIDTH}>
+            <div id={panelId} className={styles.commitsBody}>
+              <p>Órdenes completadas que tardaron {threshold} entre el reclamo y el cierre, de la más lenta a la más rápida.</p>
+              <div className={styles.commitsScroll} tabIndex={0} role="group" aria-label="Órdenes de la lista">
+                <table className={styles.commitsTable}>
+                  <thead>
+                    <tr>
+                      <th scope="col">Orden</th>
+                      <th scope="col">Reclamo</th>
+                      <th scope="col">Cierre</th>
+                      <th scope="col">Horas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map((order) => (
+                      <tr key={order.id}>
+                        <td>
+                          <Link
+                            className={`id ${styles.unmeasuredId}`}
+                            to={`/o/${orgSlug}/p/${projectSlug}/ordenes?q=${encodeURIComponent(order.id)}`}
+                          >
+                            {order.id}
+                          </Link>
+                        </td>
+                        <td>{formatInstant(order.claimedAt)}</td>
+                        <td>{formatInstant(order.completedAt)}</td>
+                        <td className="num">{formatHours(order.resolutionHours)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {total > orders.length ? (
+                <p>
+                  {orders.length === 1
+                    ? `Se muestra la 1 más lenta de ${COUNT_FORMATTER.format(total)}.`
+                    : `Se muestran las ${COUNT_FORMATTER.format(orders.length)} más lentas de ${COUNT_FORMATTER.format(total)}.`}
+                </p>
+              ) : null}
+            </div>
+          </Drawer>
+        </>
+      ) : null}
+    </div>
+  );
 }
 
 interface UnmeasuredNoteProps {
@@ -373,7 +481,7 @@ function KpiItems({ metrics, orgSlug, projectSlug }: KpiItemsProps): ReactElemen
     <CommitsKpi kind={kind} label={label} ratio={`${count}/${commitsTotal}`} percent={percent} commitsTotal={commitsTotal} untraced={untraced} />
   );
   const items: { label: string; value: ReactNode; note: ReactNode }[] = [
-    { label: 'Resolución mediana de una orden', value: plain(formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours)), note: <UnmeasuredNote efficiency={metrics.agentHumanEfficiency} orgSlug={orgSlug} projectSlug={projectSlug} /> },
+    { label: 'Resolución mediana de una orden', value: plain(formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours)), note: <><UnmeasuredNote efficiency={metrics.agentHumanEfficiency} orgSlug={orgSlug} projectSlug={projectSlug} /><SlowOrdersNote efficiency={metrics.agentHumanEfficiency} orgSlug={orgSlug} projectSlug={projectSlug} /></> },
     { label: 'Código sincronizado', value: plain(formatPercent(metrics.systemIntegrity.syncedPercent)), note: null },
     { label: 'Features trazadas', value: traced.value, note: traced.note },
     { label: 'Commits trazados', value: commitKpi('traced', 'Commits trazados', metrics.traceability.commitsTraced, formatPercent(metrics.traceability.commitPercent)), note: commitsTotal === 0 ? null : <CommitsScopeNote commitsTotal={commitsTotal} window={commitsWindow} byClass={commitsByClass} /> },

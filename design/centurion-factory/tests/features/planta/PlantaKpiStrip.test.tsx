@@ -12,7 +12,7 @@ import { buildKpis } from '../../../src/features/planta/planta-overview-data';
  * WO-669: the commit KPIs show n/total and open a drawer with the untraced list.
  */
 const METRICS_FIXTURE: Metrics = {
-  agentHumanEfficiency: { completedWorkOrders: 10, measuredWorkOrders: 10, avgResolutionHours: 0.1, medianResolutionHours: 0.083, unmeasured: { total: 0, workOrders: [] } },
+  agentHumanEfficiency: { completedWorkOrders: 10, measuredWorkOrders: 10, avgResolutionHours: 0.1, medianResolutionHours: 0.083, p90ResolutionHours: 1, maxResolutionHours: 1, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 100, governedSynced: 99, syncedPercent: 99.6 },
   traceability: {
     featuresTotal: 4,
@@ -155,5 +155,54 @@ describe('PlantaKpiStrip', () => {
     expect(buildKpis({ ...METRICS_FIXTURE })[0]!.note).toBeUndefined();
     const { unmeasured: _omitted, ...legacy } = METRICS_FIXTURE.agentHumanEfficiency;
     expect(buildKpis({ ...METRICS_FIXTURE, agentHumanEfficiency: legacy as Metrics['agentHumanEfficiency'] })[0]!.note).toBeUndefined();
+  });
+
+  describe('cola de órdenes lentas (SDD-094, WO-720)', () => {
+    it('builds the queue line from the slowest orders and no queue when the tail is empty', () => {
+      const efficiency = METRICS_FIXTURE.agentHumanEfficiency;
+      const kpis = buildKpis({
+        ...METRICS_FIXTURE,
+        agentHumanEfficiency: {
+          ...efficiency,
+          slowest: {
+            thresholdHours: 24,
+            total: 115,
+            items: [
+              { id: 'WO-486', claimedAt: '2026-08-01T10:00:00.000Z', completedAt: '2026-08-18T18:54:36.000Z', resolutionHours: 416.91 },
+              { id: 'WO-490', claimedAt: '2026-09-01T10:00:00.000Z', completedAt: '2026-09-03T09:30:00.000Z', resolutionHours: 47.5 },
+            ],
+          },
+        },
+      });
+
+      expect(kpis[0]!.queue).toMatchObject({
+        line: '115 órdenes tardaron más de un día; la peor, WO-486 · 17,4 d',
+        control: 'Ver las 115 órdenes',
+        truncatedCopy: 'Se muestran las 2 más lentas de 115.',
+      });
+      // SDD-094 D5: days from 48 h on, hours below.
+      expect(kpis[0]!.queue!.rows.map((row) => row.hours)).toEqual(['17,4 d', '47,5 h']);
+      expect(buildKpis(METRICS_FIXTURE)[0]!.queue).toBeUndefined();
+    });
+
+    it('renders the line and opens the drawer with a scoped table', async () => {
+      render(<PlantaKpiStrip />);
+
+      expect(screen.getByText('115 órdenes tardaron más de un día; la peor, WO-486 · 17,4 d')).toBeTruthy();
+      const button = screen.getByRole('button', { name: 'Ver las 115 órdenes' });
+      expect(button.getAttribute('aria-expanded')).toBe('false');
+      expect(document.getElementById(button.getAttribute('aria-controls')!)).toBeTruthy();
+      await userEvent.click(button);
+
+      expect(button.getAttribute('aria-expanded')).toBe('true');
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByRole('heading', { name: 'Órdenes lentas' })).toBeTruthy();
+      const headers = within(dialog).getAllByRole('columnheader');
+      expect(headers.map((header) => header.textContent)).toEqual(['Orden', 'Reclamo', 'Cierre', 'Horas']);
+      for (const header of headers) expect(header.getAttribute('scope')).toBe('col');
+      expect(within(dialog).getAllByRole('row')).toHaveLength(6);
+      expect(within(dialog).getByText('Se muestran las 5 más lentas de 115.')).toBeTruthy();
+      expect(within(dialog).getByRole('group', { name: 'Órdenes de la lista' }).getAttribute('tabindex')).toBe('0');
+    });
   });
 });

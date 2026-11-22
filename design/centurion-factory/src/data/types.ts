@@ -197,6 +197,19 @@ export interface Metrics {
     readonly measuredWorkOrders: number;
     readonly avgResolutionHours: number;
     readonly medianResolutionHours: number;
+    /** SDD-094 (WO-720): the long tail the median hides. Mirrors contracts' `p90`/`max`/`slowest`. */
+    readonly p90ResolutionHours: number;
+    readonly maxResolutionHours: number;
+    readonly slowest: {
+      readonly thresholdHours: number;
+      readonly total: number;
+      readonly items: readonly {
+        readonly id: string;
+        readonly claimedAt: string;
+        readonly completedAt: string;
+        readonly resolutionHours: number;
+      }[];
+    };
     /** WO-672 (SDD-081 D7): completed orders the median leaves out (contracts `unmeasured`). */
     readonly unmeasured: {
       readonly total: number;

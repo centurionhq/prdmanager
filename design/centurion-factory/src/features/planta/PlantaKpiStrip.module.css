@@ -106,6 +106,36 @@
   color: var(--andon-texto);
 }
 
+/* SDD-094 (WO-720): the long tail of the median, under its value and in secondary type. */
+.queueLine {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+/* Reads as a link, is a button: it opens the drawer. 44 px so it is reachable on touch. */
+.queueControl {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hit-target);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--apagado);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.queueControl:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 /* SDD-085: full-width plate for the first-report line and the scoped error. */
 .plate {
   grid-column: 1 / -1;
