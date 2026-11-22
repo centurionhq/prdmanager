@@ -55,11 +55,15 @@
         <div style="font-size: 14px; color: #565D63;">Reporte oficial de <span class="id">main</span> · commit <span class="id">8f2c1d4</span> · hace 4 min</div>
       </div>
       <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 12px;">
-        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Actualizar reporte</div>
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Releer reporte de CI</div>
         <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #B8322A; color: #B8322A; font-weight: 600; font-size: 14px; border-radius: 2px;">Autorizar force-push (destructivo)</div>
         <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Reconocer drift</div>
       </div>
     </header>
+
+    <!-- SDD-114 D4: la semántica de «Releer» es texto visible, no el tooltip del botón. Va siempre, entre el
+         encabezado y el aviso de reporte viejo (que sólo aparece pasados 7 días). -->
+    <p style="margin: 0; font-size: 14px; color: #565D63;">Releer no dispara una corrida de CI: los números cambian cuando CI publica un reporte nuevo.</p>
 
     <section style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid #C9CFCD; border-bottom: 1px solid #C9CFCD;">
       <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px 16px 0;">
@@ -142,6 +146,9 @@
       <div style="display: flex; flex-direction: column; gap: 32px; min-width: 0;">
         <div style="display: flex; flex-direction: column;">
           <h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700;">Previews por rama</h2>
+          <!-- SDD-114 D1: la leyenda visible relaciona los dos totales; el conteo es el del reporte oficial
+               de la placa (6) y la rama sale del default_branch del proyecto, nunca de un literal. -->
+          <p style="margin: 0 0 12px; font-size: 14px; color: #33383D;">Cada fila es el drift de un PR sobre su propio commit: su total no tiene por qué coincidir con el de main. El delta se cuenta contra el reporte oficial de main (6 issues), que es el estado vigente.</p>
           <div style="display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem 1rem; column-gap: 12px; padding: 8px 0; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD;">
             <span>Rama</span><span style="text-align: right;">Issues</span><span></span>
           </div>
@@ -149,7 +156,7 @@
           <div class="cf-row" style="display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem 1rem; column-gap: 12px; align-items: center; width: 100%; min-height: 44px; padding: 8px 0; border-bottom: 1px solid #DDE1DF; font-size: 14px; text-align: left; cursor: pointer;">
             <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
               <span class="id" title="Rama del reporte: 32/merge">PR #32</span>
-              <span title="Reporte de vista previa: no es el reporte oficial de la rama por defecto." style="font-size: 12px; font-weight: 600; color: #565D63;">vista previa</span>
+              <span style="font-size: 12px; font-weight: 600; color: #565D63;">vista previa</span>
             </div>
             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0;">
               <span class="num" style="font-weight: 700; color: #B8322A;">8</span>
@@ -161,7 +168,7 @@
           <div class="cf-row" style="display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem 1rem; column-gap: 12px; align-items: center; width: 100%; min-height: 44px; padding: 8px 0; border-bottom: 1px solid #DDE1DF; font-size: 14px; text-align: left; cursor: pointer;">
             <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
               <span class="id" title="Rama del reporte: feat/fr-002-importer">feat/fr-002-importer</span>
-              <span title="Reporte de vista previa: no es el reporte oficial de la rama por defecto." style="font-size: 12px; font-weight: 600; color: #565D63;">vista previa</span>
+              <span style="font-size: 12px; font-weight: 600; color: #565D63;">vista previa</span>
             </div>
             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0;">
               <span class="num" style="font-weight: 700; color: #B8322A;">6</span>
@@ -173,7 +180,7 @@
           <div class="cf-row" style="display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem 1rem; column-gap: 12px; align-items: center; width: 100%; min-height: 44px; padding: 8px 0; border-bottom: 1px solid #DDE1DF; font-size: 14px; text-align: left; cursor: pointer;">
             <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
               <span class="id" title="Rama del reporte: feat/fr-003-avisos">feat/fr-003-avisos</span>
-              <span title="Reporte de vista previa: no es el reporte oficial de la rama por defecto." style="font-size: 12px; font-weight: 600; color: #565D63;">vista previa</span>
+              <span style="font-size: 12px; font-weight: 600; color: #565D63;">vista previa</span>
             </div>
             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0;">
               <span class="num" style="font-weight: 700; color: #B8322A;">2</span>
@@ -206,6 +213,60 @@
         </div>
       </div>
     </section>
+  </main>
+</div>
+
+<!-- ============================ MÓVIL 375 ============================
+     SDD-114 D6: el rótulo nuevo («Releer reporte de CI», 21 caracteres) en el mismo grupo flex. A 375 px los
+     tres botones ya se apilaban de a uno (cada uno ≥ 44 px de alto) y el bloque no gana scroll horizontal; la
+     leyenda del panel y la línea de «Releer» wrappean sin desbordar. Medido en la app real: bloque de acciones
+     343 px de ancho, 0 de overflow, botones de 44 px de alto; panel 343 px, 0 de overflow. -->
+<div style="position: relative; width: 375px; min-height: 812px; display: flex; flex-direction: column; background: #E9ECEB; overflow-x: hidden;">
+  <main style="display: flex; flex-direction: column; gap: 16px; padding: 16px;">
+
+    <header style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="margin: 0; font-size: 28px; line-height: 1.1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Drift</h1>
+        <div style="font-size: 14px; color: #565D63;">Reporte oficial de <span class="id">main</span> · commit <span class="id">8f2c1d4</span> · hace 4 min</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+        <div style="width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Releer reporte de CI</div>
+        <div style="width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #B8322A; color: #B8322A; font-weight: 600; font-size: 14px; border-radius: 2px;">Autorizar force-push (destructivo)</div>
+        <div style="width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Reconocer drift</div>
+      </div>
+    </header>
+
+    <p style="margin: 0; font-size: 14px; color: #565D63;">Releer no dispara una corrida de CI: los números cambian cuando CI publica un reporte nuevo.</p>
+
+    <div style="display: flex; flex-direction: column;">
+      <h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 700;">Previews por rama</h2>
+      <p style="margin: 0 0 12px; font-size: 14px; color: #33383D;">Cada fila es el drift de un PR sobre su propio commit: su total no tiene por qué coincidir con el de main. El delta se cuenta contra el reporte oficial de main (6 issues), que es el estado vigente.</p>
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem 1rem; column-gap: 12px; padding: 8px 0; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD;">
+        <span>Rama</span><span style="text-align: right;">Issues</span><span></span>
+      </div>
+      <div class="cf-row" style="display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem 1rem; column-gap: 12px; align-items: center; width: 100%; min-height: 44px; padding: 8px 0; border-bottom: 1px solid #DDE1DF; font-size: 14px; text-align: left; cursor: pointer;">
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+          <span class="id" title="Rama del reporte: 32/merge">PR #32</span>
+          <span style="font-size: 12px; font-weight: 600; color: #565D63;">vista previa</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0;">
+          <span class="num" style="font-weight: 700; color: #B8322A;">8</span>
+          <span class="num" style="font-size: 12px; color: #B8322A; white-space: nowrap;">+2 vs main</span>
+        </div>
+        <span aria-hidden="true" style="color: #565D63; font-size: 20px; line-height: 1;">›</span>
+      </div>
+      <div class="cf-row" style="display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem 1rem; column-gap: 12px; align-items: center; width: 100%; min-height: 44px; padding: 8px 0; border-bottom: 1px solid #DDE1DF; font-size: 14px; text-align: left; cursor: pointer;">
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+          <span class="id" title="Rama del reporte: feat/fr-002-importer" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">feat/fr-002-importer</span>
+          <span style="font-size: 12px; font-weight: 600; color: #565D63;">vista previa</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0;">
+          <span class="num" style="font-weight: 700; color: #B8322A;">6</span>
+          <span class="num" style="font-size: 12px; color: #33383D; white-space: nowrap;">0 vs main</span>
+        </div>
+        <span aria-hidden="true" style="color: #565D63; font-size: 20px; line-height: 1;">›</span>
+      </div>
+    </div>
   </main>
 </div>
 </x-dc>

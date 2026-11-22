@@ -189,7 +189,7 @@ describe('DriftDashboard', () => {
 
     renderPage();
     // SDD-122 D1: the one irreversible action of the header says the risk in its own visible label, is styled
-    // destructive (not the same variant as the harmless "Actualizar reporte") and has no aria-label, so the
+    // destructive (not the same variant as the harmless «Releer reporte de CI») and has no aria-label, so the
     // accessible name is the text on screen (WCAG 2.5.3).
     const trigger = await screen.findByRole('button', { name: 'Autorizar force-push (destructivo)' });
     expect(trigger.className).toMatch(/destructive/);
@@ -503,11 +503,14 @@ describe('DriftDashboard · triage (SDD-061)', () => {
 
 // ---------------------------------------------------------------------------------------------------
 // SDD-069 / WO-634 — freshness of the official report: the relative age in the subtitle with the absolute
-// instant in the tooltip, the stale-report warning, and the «Actualizar reporte» re-read action.
+// instant in the tooltip, the stale-report warning, and the «Releer reporte de CI» re-read action.
 // ---------------------------------------------------------------------------------------------------
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const REFRESH_TITLE = 'Vuelve a leer el último reporte de CI; no dispara una corrida nueva.';
+const REFRESH_LABEL = 'Releer reporte de CI';
+const RELEER_NOTE = 'Releer no dispara una corrida de CI: los números cambian cuando CI publica un reporte nuevo.';
+
 
 /** An official report created `days` complete days ago (plus a minute, so rounding lands exactly on `days`). */
 function officialDaysAgo(days: number, overrides: Partial<DriftReportSummaryDto> = {}): DriftReportSummaryDto {
@@ -564,6 +567,9 @@ describe('DriftDashboard · frescura del reporte oficial (SDD-069)', () => {
     expect(screen.getByText(/Los números pueden no reflejar/)).toBeTruthy();
   });
 
+  // SDD-114 D3/D4/D5: the label says what the action does and the accessible name is the text on screen
+  // (WCAG 2.5.3), so the aria-label is gone; the `title` stays as the extra description for a mouse. The
+  // sentence that answers «por qué releo y no cambia nada» is visible text, and the toast says what was re-read.
   it('re-reads the last official report without triggering a new CI run', async () => {
     const dashboardSpy = vi
       .spyOn(client, 'getDriftDashboard')
@@ -574,15 +580,39 @@ describe('DriftDashboard · frescura del reporte oficial (SDD-069)', () => {
     dashboardSpy.mockClear();
     issuesSpy.mockClear();
 
-    const button = screen.getByRole('button', { name: REFRESH_TITLE });
+    const button = screen.getByRole('button', { name: REFRESH_LABEL });
+    expect(button.textContent).toBe(REFRESH_LABEL);
+    expect(button.hasAttribute('aria-label')).toBe(false);
     expect(button.getAttribute('title')).toBe(REFRESH_TITLE);
-    expect(button.textContent).toContain('Actualizar reporte');
 
     await userEvent.click(button);
 
     await waitFor(() => expect(dashboardSpy).toHaveBeenCalled());
     expect(issuesSpy).toHaveBeenCalled();
-    expect(await screen.findByText('Reporte releído')).toBeTruthy();
+    expect(await screen.findByText('Reporte de CI releído')).toBeTruthy();
+    expect(screen.queryByText('Reporte releído')).toBeNull();
+  });
+
+  it('explains in visible text what re-reading does, and it is not the stale-report warning', async () => {
+    renderOfficial(officialDaysAgo(3));
+
+    const note = await screen.findByText(RELEER_NOTE);
+    expect(note.tagName).toBe('P');
+    // The semantic of the action is always on screen; the >7 days warning is a different sentence and
+    // only shows for a stale report.
+    expect(screen.queryByText(/Los números pueden no reflejar/)).toBeNull();
+  });
+
+  it('keeps that explanation before the «esperando el primer reporte» block, even without an official report', async () => {
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({ official: null, previews: [], history: [] });
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+
+    renderPage();
+
+    const note = await screen.findByText(RELEER_NOTE);
+    const awaiting = screen.getByText(/Esperando el primer reporte de CI verificado/);
+    // D4: between the PageHeader and the `!official` block.
+    expect(note.compareDocumentPosition(awaiting) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

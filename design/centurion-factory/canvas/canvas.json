@@ -437,11 +437,11 @@
     },
     {
       "file": "Drift-Previews.dc.html",
-      "title": "Drift · previews por rama con delta contra el reporte oficial",
+      "title": "Drift · previews por rama con delta contra el reporte oficial, la leyenda de cuál total manda y «Releer reporte de CI» (1440 + 375)",
       "x": 0,
       "y": 0,
       "w": 1440,
-      "h": 960,
+      "h": 1772,
       "page": "page-7"
     },
     {
@@ -552,6 +552,14 @@
       "w": 900,
       "page": "page-7",
       "text": "SDD-070 · Previews por rama (WO-755)\n\nEl panel sigue la decisión vigente de SDD-070, que el código ya implementa en packages/app (WO-636/637/638, PR #77): badge «vista previa» como texto apagado sin borde ni radio (D5), delta contra el reporte oficial de la rama por defecto como segunda línea del conteo (D2), la ref 32/merge legible como PR #32 con el valor crudo en el title (D3), la fila entera como botón que abre el detalle (D4) y orden peor-primero (D6).\n\nTres placas de la misma pantalla: Drift-Previews (pantalla base, el panel a contraste pleno), Drift (reconocer drift, el modal sobre la pantalla) y Drift-Detalle (el detalle del reporte, con la etiqueta de rama al frente — D7). Ninguna placa nueva pisa el rol de Drift.dc.html como placa de un modal, que es la que cita Ordenes-Archivar.dc.html.\n\nNo dibujado a propósito: el estado sin reporte oficial (— vs <rama por defecto>). En este artboard hay reporte oficial; dibujar un — al lado sería una contradicción. Está especificado en SDD-070 D2 y en canvas/Drift.decisiones.md.\n\nLa fila «Esperando reporte de CI» salió del panel: un reporte de preview siempre trae conteo y esa espera es un issue de la lista (awaiting_ci_report), no una fila de previews. El mock del paquete de diseño (src/features/drift/BranchPreviews.*) todavía dibuja la versión vieja: se alinea en una tarjeta hija de t_19045ae2."
+    },
+    {
+      "id": "sdd114-releer-intro",
+      "x": 1000,
+      "y": -320,
+      "w": 900,
+      "page": "page-7",
+      "text": "SDD-114 · Cuál total manda y qué hace «Releer» (WO-773)\n\nLa pantalla mostraba dos totales (el oficial de main y el de un preview de PR) sin una frase que los relacionara, y la explicación de «Actualizar reporte» vivía sólo en el title del botón. La decisión de producto: el reporte oficial de la rama por defecto es el estado vigente y es la referencia de los deltas; un preview es el drift de otro commit y por eso su total no tiene por qué coincidir.\n\nEn Drift-Previews.dc.html: (1) la leyenda visible bajo el h2 del panel, con la rama por defecto y el conteo oficial del artboard (6) — sin reporte oficial dice que no hay contra qué contar y no imprime un número; (2) el botón dice «Releer reporte de CI», sin aria-label, con el title intacto; (3) la línea «Releer no dispara una corrida de CI: los números cambian cuando CI publica un reporte nuevo.» debajo del encabezado, visible siempre; (4) el badge «vista previa» ya no se explica por tooltip (el title de la rama cruda, 32/merge, se queda); (5) el board de 375 px, con los tres botones apilados de 44 px y la leyenda wrappeando sin scroll horizontal.\n\nEl documento de la pantalla real desborda horizontalmente por la tabla de Historial (506 px intrínsecos en una columna de 380 px; 147 px de overflow a 375 y 94 a 1440), y es anterior a este WO: se midió igual sobre origin/main (ab3473e). No se dibuja «arreglado» acá; se le pasa a producto."
     },
     {
       "id": "sdd086-lote-intro",

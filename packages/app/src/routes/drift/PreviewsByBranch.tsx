@@ -9,6 +9,11 @@
  * come for free, and there is no nested control. The GitHub link of `branchDisplay` is deliberately
  * NOT rendered here -- an `<a>` inside a `<button>` is invalid HTML; that link belongs to the report
  * detail modal (SDD-070 D3/D4/D7, WO-638).
+ *
+ * SDD-114 moved the explanation out of tooltips: one visible sentence (D1) says which total is the
+ * reference and who counts the delta, and the `vista previa` badge lost its `title` because the sentence
+ * already carries the meaning (D2). The branch label keeps its own `title` -- that is the raw `32/merge`
+ * value, auditable data, not the explanation of the semantics.
  */
 import type { ReactElement } from 'react';
 import type { DriftReportSummaryDto } from '@prdm/contracts';
@@ -23,14 +28,28 @@ export interface PreviewsByBranchProps {
   readonly onOpenReport: (reportId: string) => void;
 }
 
-const BADGE_TITLE = 'Reporte de vista previa: no es el reporte oficial de la rama por defecto.';
-
 const DELTA_CLASS = {
   worse: styles.deltaWorse,
   better: styles.deltaBetter,
   same: styles.deltaSame,
   unknown: styles.deltaUnknown,
 } as const;
+
+/**
+ * SDD-114 D1: one visible sentence relates the two totals the screen shows. The official report of the
+ * default branch is the reference of every delta, so it is also the state in force; a preview is the drift
+ * of another commit and its total has nothing to do with the official one unless it says so. The branch
+ * name comes from the project (`defaultBranch`) and the count from `official.issueCount` -- the same number
+ * the delta already uses, never recomputed. With no official report there is no count to quote, so the
+ * sentence says there is nothing to compare against instead of inventing a `0`.
+ */
+function legendText(defaultBranch: string, officialIssueCount: number | null): string {
+  if (officialIssueCount === null) {
+    return `Cada fila es el drift de un PR sobre su propio commit. Todavía no hay reporte oficial de ${defaultBranch}, así que no hay contra qué contar el delta.`;
+  }
+  const counted = officialIssueCount === 1 ? '1 issue' : `${officialIssueCount} issues`;
+  return `Cada fila es el drift de un PR sobre su propio commit: su total no tiene por qué coincidir con el de ${defaultBranch}. El delta se cuenta contra el reporte oficial de ${defaultBranch} (${counted}), que es el estado vigente.`;
+}
 
 export function PreviewsByBranch({
   previews,
@@ -49,6 +68,7 @@ export function PreviewsByBranch({
         <p>No hay reportes de vista previa todavía.</p>
       ) : (
         <>
+          <p className={styles.legend}>{legendText(defaultBranch, referenceIssueCount)}</p>
           <div className={styles.head}>
             <span>Rama</span>
             <span>Issues</span>
@@ -70,9 +90,7 @@ export function PreviewsByBranch({
                       <span className={`id ${styles.label}`} title={display.title}>
                         {display.label}
                       </span>
-                      <span className={styles.badge} title={BADGE_TITLE}>
-                        vista previa
-                      </span>
+                      <span className={styles.badge}>vista previa</span>
                     </span>
                     <span className={styles.countCell}>
                       <span className={report.issueCount === 0 ? styles.countZero : styles.countSome}>{report.issueCount}</span>

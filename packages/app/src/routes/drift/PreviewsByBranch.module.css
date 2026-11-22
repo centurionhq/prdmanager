@@ -7,6 +7,17 @@
 }
 
 /*
+ * SDD-114 D1: the sentence that relates the two totals of the screen. Visible text under the heading and
+ * above the table header, so it reads the same with a mouse, a keyboard or a finger (no tooltip). Tokens
+ * only: `--text-sm` and `--texto-secundario`, one step louder than the muted row label.
+ */
+.legend {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--texto-secundario);
+}
+
+/*
  * One 3-column grid, shared by the header and every row button so the right edge of "Issues"
  * lines up with the issue counts: label + badge | count + delta | chevron. The middle track is
  * fixed so rows stay aligned with each other; the first track can shrink to zero, which is what

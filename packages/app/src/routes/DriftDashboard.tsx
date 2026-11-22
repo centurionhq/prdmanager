@@ -27,6 +27,10 @@ import styles from './drift/Drift.module.css';
 const BLUEPRINT_TIP = 'Un blueprint (SDD/ADR) es el diseño técnico que gobierna qué archivos y símbolos deben coincidir con él.';
 const REASON_TIP =
   'La razón la reporta el motor: el archivo cambió, el archivo ya no existe, cambió el diseño después de este código o cambió la feature.';
+/**
+ * SDD-114 D3: the label now says what the action does (`Releer reporte de CI`) and is the accessible name
+ * itself -- WCAG 2.5.3 «Label in Name» -- while this `title` stays as the description for a mouse.
+ */
 const REFRESH_REPORT_TITLE = 'Vuelve a leer el último reporte de CI; no dispara una corrida nueva.';
 /**
  * SDD-122 D1: the force-push override is the one irreversible action in this header. The label says the risk
@@ -143,6 +147,7 @@ function DriftContent(): ReactElement {
   /**
    * Re-reads the last CI report. It never asks CI for a new run — it only reads what CI already pushed, so no
    * report timestamp on screen comes from this action (SDD-069 D1: a refetch does not rejuvenate a report).
+   * SDD-114 D5: the toast names what was re-read, so it cannot be mistaken for a new run.
    * `retry()` alone cannot be awaited (SDD-013's hook bumps a tick and returns void), so the handler awaits the
    * same two reads to keep the button disabled until the data is actually back, then re-runs both queries so
    * the visible data and the session cache come from the hook's own cycle.
@@ -153,7 +158,7 @@ function DriftContent(): ReactElement {
       await Promise.all([getDriftDashboard(orgSlug, projectSlug), getDriftIssues(orgSlug, projectSlug)]);
       dashboardQuery.retry();
       issuesQuery.retry();
-      show('Reporte releído', { tone: 'success' });
+      show('Reporte de CI releído', { tone: 'success' });
     } catch (err) {
       show(errorMessage(err));
     } finally {
@@ -185,10 +190,9 @@ function DriftContent(): ReactElement {
               variant="secondary"
               disabled={refreshingReport}
               title={REFRESH_REPORT_TITLE}
-              aria-label={REFRESH_REPORT_TITLE}
               onClick={() => void handleRefreshReport()}
             >
-              Actualizar reporte
+              Releer reporte de CI
             </Button>
             <Button
               type="button"
@@ -211,6 +215,13 @@ function DriftContent(): ReactElement {
           </div>
         }
       />
+
+      {/* SDD-114 D4: the semantic of «Releer» as visible text. Always on screen — unlike the >7 days warning
+          below, which only appears for a stale report — and worded differently from it so that, when both
+          appear, they do not read as the same sentence twice. */}
+      <p className={styles.releerNote}>
+        Releer no dispara una corrida de CI: los números cambian cuando CI publica un reporte nuevo.
+      </p>
 
       {!official ? (
         <div className={styles.awaitingOfficial}>

@@ -88,10 +88,20 @@ describe('PreviewsByBranch', () => {
   it('does not expose the "vista previa" badge as a control', () => {
     renderPanel({ previews: [fakeReport({ branch: 'feat/x' })] });
 
-    expect(screen.getByText('vista previa')).toBeTruthy();
+    const badge = screen.getByText('vista previa');
+    expect(badge).toBeTruthy();
+    // SDD-114 D2: the legend carries the meaning, so the badge stops explaining itself by tooltip.
+    expect(badge.hasAttribute('title')).toBe(false);
     expect(screen.queryByRole('button', { name: /vista previa/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /vista previa/i })).toBeNull();
   });
+
+  it('keeps the raw branch value in the row label title (D2: auditable data, not the explanation)', () => {
+    renderPanel({ previews: [fakeReport({ branch: '32/merge' })] });
+
+    expect(screen.getByText('PR #32').getAttribute('title')).toBe('Rama del reporte: 32/merge');
+  });
+
 
   it('reads <N>/merge as PR #<N>', () => {
     renderPanel({ previews: [fakeReport({ branch: '32/merge' })] });
@@ -166,5 +176,52 @@ describe('PreviewsByBranch', () => {
     });
 
     expect(screen.getByText('+2 vs trunk')).toBeTruthy();
+  });
+
+  // SDD-114 D1/D2: the two totals are related by one visible sentence, not by a tooltip. The sentence names
+  // the default branch from the project (never a literal `main`) and quotes the same official count the
+  // delta already uses -- it never recomputes it.
+  it('says which total rules: the legend names the reference and its issue count', () => {
+    renderPanel({
+      official: fakeReport({ id: 'official', mode: 'baseline', branch: 'main', issueCount: 226 }),
+      previews: [fakeReport({ id: 'p1', branch: '32/merge', issueCount: 380 })],
+    });
+
+    expect(
+      screen.getByText(
+        'Cada fila es el drift de un PR sobre su propio commit: su total no tiene por qué coincidir con el de main. ' +
+          'El delta se cuenta contra el reporte oficial de main (226 issues), que es el estado vigente.',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('takes the branch and the count of the legend from the project and the official report', () => {
+    renderPanel({
+      official: fakeReport({ id: 'official', mode: 'baseline', branch: 'trunk', issueCount: 1714 }),
+      previews: [fakeReport({ id: 'p1', branch: 'feat/x', issueCount: 1809 })],
+      defaultBranch: 'trunk',
+    });
+
+    const legend = screen.getByText(/^Cada fila es el drift de un PR/);
+    expect(legend.textContent).toContain('el de trunk');
+    expect(legend.textContent).toContain('reporte oficial de trunk (1714 issues)');
+    expect(legend.textContent).not.toContain('main');
+  });
+
+  it('says there is nothing to compare against when there is no official report, and invents no count', () => {
+    renderPanel({ previews: [fakeReport({ id: 'p1', branch: '32/merge', issueCount: 380 })], defaultBranch: 'trunk' });
+
+    const legend = screen.getByText(
+      'Cada fila es el drift de un PR sobre su propio commit. Todavía no hay reporte oficial de trunk, ' +
+        'así que no hay contra qué contar el delta.',
+    );
+    expect(legend.textContent).not.toMatch(/\d/);
+  });
+
+  it('does not print the legend over the empty state', () => {
+    renderPanel({ defaultBranch: 'trunk' });
+
+    expect(screen.getByText('No hay reportes de vista previa todavía.')).toBeTruthy();
+    expect(screen.queryByText(/^Cada fila es el drift de un PR/)).toBeNull();
   });
 });

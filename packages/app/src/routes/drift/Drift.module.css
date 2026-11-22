@@ -19,6 +19,17 @@
   gap: var(--space-8);
 }
 
+/*
+ * SDD-114 D4: «Releer no dispara una corrida de CI…». A plain line under the header, always rendered, so the
+ * semantic of the action does not live in a `title` (invisible on touch and for a keyboard-only reader).
+ * Muted on purpose: it explains the control, it is not an alert.
+ */
+.releerNote {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
 .awaitingOfficial {
   display: flex;
   align-items: center;

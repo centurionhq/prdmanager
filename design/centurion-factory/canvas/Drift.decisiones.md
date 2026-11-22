@@ -65,3 +65,20 @@ Todo esto ya venía decidido en SDD-070 D2-D7; acá se aplica a la placa y no se
 
 **Lo que la placa no decide.** El apilado de la fila a 375 px (FB-306) y la variante destructiva rellena (FB-217) siguen abiertos; acá sólo se envuelve la fila (`flex-wrap`) para no ganar scroll horizontal con el rótulo nuevo.
 
+## 6. Cuál total manda y qué hace «Releer» (SDD-114 · WO-773)
+
+**Qué estaba mal en la placa.** Conviven tres números grandes en la pantalla (el total del reporte oficial, el de cada preview y el delta) y la placa no decía cuál era el estado vigente. El significado de «un preview es el drift de otro commit» vivía sólo en el `title` del badge `vista previa`, un tooltip que en táctil no existe. Y el botón de la cabecera decía `Actualizar reporte`, que promete una corrida nueva de CI, con la aclaración (`no dispara una corrida nueva`) también escondida en el `title` y en un `aria-label` que además no contenía el texto visible (incumplía WCAG 2.5.3 «Label in Name»).
+
+**Qué se dibuja ahora.**
+
+- **La leyenda del panel** (D1), debajo del `h2` y arriba de la cabecera de la tabla: `Cada fila es el drift de un PR sobre su propio commit: su total no tiene por qué coincidir con el de main. El delta se cuenta contra el reporte oficial de main (6 issues), que es el estado vigente.` El `6` es el conteo oficial del propio artboard (el mismo que hace que las filas den `+2`, `0` y `-4`), y `main` es la rama por defecto del proyecto, no un literal del componente. Sin reporte oficial la frase cambia a «…todavía no hay reporte oficial de <rama>, así que no hay contra qué contar el delta» y no imprime ningún número inventado. La única inflexión sobre el copy de SDD-114 es el singular cuando el oficial tiene un solo issue (`(1 issue)`, no `(1 issues)`), la misma regla que ya usa el resto de la pantalla.
+- **El botón dice lo que hace** (D3): `Releer reporte de CI`, sin `aria-label` (el nombre accesible es el texto visible) y con el `title` intacto como descripción extra.
+- **La línea visible** (D4) entre el encabezado y el aviso de reporte viejo: `Releer no dispara una corrida de CI: los números cambian cuando CI publica un reporte nuevo.` Aparece siempre; el aviso de >7 días (SDD-069) sigue apareciendo sólo cuando el reporte está viejo y está redactado distinto a propósito, para que no se lean como la misma frase repetida.
+- **El badge `vista previa` pierde el `title`** (D2): la leyenda ya carga el significado. El `title` de la etiqueta de rama (`Rama del reporte: 32/merge`, el valor crudo) **se queda**: es dato auditable, no la explicación de la semántica.
+- **El board de 375** (D6) está en la misma placa, debajo del de 1440: los tres botones apilados de a uno con 44 px de alto, la línea de «Releer» y la leyenda wrappeando sin scroll horizontal. El rótulo nuevo (21 caracteres contra 19) no cambia el apilado: los tres ya caían en filas separadas. `flex-wrap` en `.headerActions` ya venía de SDD-122 D4, así que no se tocó.
+
+**Lo que se midió, no se estimó.** Sobre el build de este worktree servido en Chromium: a 375 px el bloque de acciones mide 343 px con 0 de overflow interno y los botones 44 px de alto; el panel mide 343 px con 0 de overflow y su leyenda 343 px (84 px de alto, sin recorte). A 1440 px el bloque mide 570 px (13 px más que los 557 px del rótulo viejo, por los 2 caracteres extra) y sigue en una sola fila. La placa reproduce esos números.
+
+**Un defecto que la placa no puede tapar y este WO no toca.** El documento de la pantalla real **sí** desborda horizontalmente (147 px a 375, 94 px a 1440) por la tabla de **Historial**: sus 506 px intrínsecos no caben en la columna de 380 px (ni en la de 343 px del móvil). Es anterior a este WO — se midió igual sobre el build de `origin/main` (ab3473e) — y su arreglo es una decisión de diseño de la tabla (qué cede: la celda de commit con su botón de copiar y su enlace, o el ancho de la columna), no copy. Queda fuera de SDD-114 y se le pasa a producto.
+
+
