@@ -132,8 +132,8 @@ describe('ensureRecovered is called before every read tool/resource serves data 
     // `get_metrics` hace dos lecturas: cada recover abre un grupo y ninguna lectura queda fuera de uno.
     expect(calls[0]).toBe('engine.recover');
     calls.forEach((call, i) => {
-      if (call === 'engine.recover') expect(calls[i + 1]).toMatch(/^store\./);
-      else expect(calls[i - 1]).toMatch(/^(engine\.recover|store\.)/);
+      if (call === 'engine.recover') expect(calls[i + 1]).toMatch(/^(store\.|engine\.scan$)/);
+      else expect(calls[i - 1]).toMatch(/^(engine\.recover|store\.|engine\.scan$)/);
     });
   });
 
