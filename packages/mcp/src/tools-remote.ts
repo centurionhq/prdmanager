@@ -42,7 +42,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { addBlueprintTask, archiveWorkOrder, claimWorkOrder, closeFeedback, CommitNotVerifiedError, completeWorkOrder, dismissFeedback, docId, generateWorkOrders, linkFeedback, SHA_PATTERN, submitFeedback } from '@prdm/core';
-import { can, type PermissionAction, type PermissionSubject } from '@prdm/contracts';
+import { can, feedbackCloseReasonSchema, type FeedbackCloseReason, type PermissionAction, type PermissionSubject } from '@prdm/contracts';
 import type { PrdmDeps } from './deps.js';
 import { jsonResult, safeTool, WRITE_ONCE } from './shared.js';
 
@@ -226,15 +226,15 @@ export function registerRemoteWriteTools(server: McpServer, deps: PrdmDeps, auth
     {
       title: 'Close feedback',
       description:
-        'Closes a Feedback in `new` or `triaged` status as resolved (terminal status `closed`), recording who closed it, when, why and optionally which work items resolved it. `reason` is required: closing without a motive is not auditable. A Feedback already in a terminal state is rejected with the valid path. Requires an admin/editor project role.',
+        'Closes a Feedback in `new` or `triaged` status as resolved (terminal status `closed`), recording who closed it, when, why and optionally which work items resolved it. `reason` is required and enumerated (`resuelto | parcial | falso | no_es_un_problema`): closing without a motive is not auditable. A Feedback already in a terminal state is rejected with the valid path. Requires an admin/editor project role.',
       inputSchema: {
         id: docId,
-        reason: z.string().min(1).max(2000),
+        reason: feedbackCloseReasonSchema,
         resolved_by: z.array(z.string().min(1).max(300)).max(20).optional(),
       },
       annotations: { title: 'Close feedback', ...WRITE_ONCE },
     },
-    safeTool(async ({ id, reason, resolved_by }: { id: string; reason: string; resolved_by?: string[] }) => {
+    safeTool(async ({ id, reason, resolved_by }: { id: string; reason: FeedbackCloseReason; resolved_by?: string[] }) => {
       const denial = denyRemoteWrite(auth, 'edit_document');
       if (denial) return denial;
 
@@ -249,11 +249,11 @@ export function registerRemoteWriteTools(server: McpServer, deps: PrdmDeps, auth
     {
       title: 'Dismiss feedback',
       description:
-        'Dismisses a Feedback in `new` or `triaged` status as not actionable (terminal status `dismissed`), with an optional reason. Requires an admin/editor project role.',
-      inputSchema: { id: docId, reason: z.string().min(1).max(2000).optional() },
+        'Dismisses a Feedback in `new` or `triaged` status as not actionable (terminal status `dismissed`), with a required, enumerated reason (`resuelto | parcial | falso | no_es_un_problema`). Requires an admin/editor project role.',
+      inputSchema: { id: docId, reason: feedbackCloseReasonSchema },
       annotations: { title: 'Dismiss feedback', ...WRITE_ONCE },
     },
-    safeTool(async ({ id, reason }: { id: string; reason?: string }) => {
+    safeTool(async ({ id, reason }: { id: string; reason: FeedbackCloseReason }) => {
       const denial = denyRemoteWrite(auth, 'edit_document');
       if (denial) return denial;
 

@@ -334,7 +334,7 @@ describe('remote claim_work_order / complete_work_order (WO-186)', () => {
     const client = new Client({ name: 'test-client', version: '0.0.0' });
     await client.connect(buildClient(`${baseUrl}/mcp/${project.graphProjectId}`, secret));
 
-    const result = await client.callTool({ name: 'close_feedback', arguments: { id: 'FB-001', reason: 'entregado', resolved_by: ['WO-708'] } });
+    const result = await client.callTool({ name: 'close_feedback', arguments: { id: 'FB-001', reason: 'resuelto', resolved_by: ['WO-708'] } });
     expect(result.isError).toBeFalsy();
     const body = JSON.parse((result.content as { text: string }[])[0]!.text) as { id: string; status: string };
     expect(body).toMatchObject({ id: 'FB-001', status: 'closed' });
@@ -422,8 +422,8 @@ describe('remote claim_work_order / complete_work_order (WO-186)', () => {
       { name: 'generate_work_orders', arguments: { blueprint_id: 'SDD-001' } },
       { name: 'add_blueprint_task', arguments: { blueprint_id: 'SDD-001', task: 'x' } },
       { name: 'archive_work_order', arguments: { id: 'WO-001', reason: 'x' } },
-      { name: 'close_feedback', arguments: { id: 'FB-001', reason: 'x' } },
-      { name: 'dismiss_feedback', arguments: { id: 'FB-001', reason: 'x' } },
+      { name: 'close_feedback', arguments: { id: 'FB-001', reason: 'falso' } },
+      { name: 'dismiss_feedback', arguments: { id: 'FB-001', reason: 'falso' } },
     ]) {
       const result = await client.callTool(call);
       expect(result.isError).toBe(true);
