@@ -6,6 +6,7 @@ import {
   issueCopy,
   reasonFromMessage,
 } from '../../src/routes/drift/drift-issue-copy.js';
+import { GROUP_LABELS } from '../../src/routes/drift/drift-groups.js';
 
 let seq = 0;
 
@@ -196,10 +197,16 @@ const KIND_CASES: readonly KindCase[] = [
 ];
 
 describe('issueCopy por kind', () => {
-  test('cubre los 12 IssueKind con copy en español y una acción sugerida', () => {
+  test('cubre los 12 IssueKind con copy en español, su propia etiqueta de grupo y una acción sugerida', () => {
     expect(KIND_CASES).toHaveLength(12);
     for (const { kind, issue: sample, spanish } of KIND_CASES) {
       expect(KIND_COPY[kind], `KIND_COPY must know "${kind}"`).toBeDefined();
+      // The group title falls back to the raw enum when GROUP_LABELS has no entry, and that fallback is
+      // indistinguishable from a missing label on screen — so the guardian checks the label too (SDD-107 D3).
+      const groupLabel = GROUP_LABELS[kind];
+      expect(groupLabel, `GROUP_LABELS must know "${kind}"`).toBeDefined();
+      expect(groupLabel, kind).not.toBe('');
+      expect(groupLabel, kind).not.toBe(kind);
       const copy = issueCopy(sample);
       expect(copy.headline, kind).toContain(spanish);
       expect(copy.headline, kind).not.toBe(sample.message);
@@ -277,6 +284,15 @@ describe('landed_but_open', () => {
     expect(copy.headline).not.toBe(RAW);
   });
 
+  // SDD-107 D2: Drift.dc.html:223 draws the sha in `.id`. The copy module marks the sha it wrote itself, so
+  // no pattern has to guess over a 7-character hex run (and «defaced» can never be promoted to mono).
+  test('el sha corto que el copy escribe va en mono, y nada más', () => {
+    const copy = issueCopy(
+      issue({ kind: 'landed_but_open', nodeId: 'WO-625', target: FULL_SHA, blueprintId: null, message: RAW }),
+    );
+    expect(monoTexts(copy)).toEqual(['9def4e2']);
+  });
+
   test('sin target no imprime undefined y sigue en español', () => {
     const copy = issueCopy(
       issue({ kind: 'landed_but_open', nodeId: 'WO-625', target: undefined, blueprintId: null, message: RAW }),
@@ -284,6 +300,8 @@ describe('landed_but_open', () => {
     expect(copy.headline).toBe('Ya aterrizada: un commit del reporte la referencia en main');
     expect(copy.headline).not.toContain('undefined');
     expect(copy.action).not.toBeNull();
+    // Nothing rendered here is a literal id, so nothing is mono.
+    expect(monoTexts(copy)).toEqual([]);
   });
 });
 
@@ -342,6 +360,21 @@ describe('degradación sin romper', () => {
     );
     expect(copy.headline).toBe('something new happened (code_changed)');
     expect(copy.glossary.map((term) => term.term)).toEqual(['SDD-008']);
+  });
+
+  // A pattern widened to `[0-9a-f]{7,40}` would turn these ordinary words into mono on the raw-message
+  // fallback. Kept as the negative half of D2: only the sha the copy module wrote may be mono.
+  test('palabras hexadecimales del mensaje crudo no se vuelven mono', () => {
+    const copy = issueCopy(
+      issue({
+        kind: 'engine_v2_novel',
+        message: 'the defaced report effaced an acceded entry',
+        blueprintId: null,
+        target: undefined,
+      }),
+    );
+    expect(copy.headline).toBe('the defaced report effaced an acceded entry');
+    expect(monoTexts(copy)).toEqual([]);
   });
 });
 

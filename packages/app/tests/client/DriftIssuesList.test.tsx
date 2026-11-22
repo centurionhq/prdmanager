@@ -71,7 +71,27 @@ describe('DriftIssuesList', () => {
 
     expect(screen.getByText(/Ya aterrizada/)).toBeTruthy();
     expect(screen.getByText(/Completala con ese sha/)).toBeTruthy();
+    // SDD-107 D2: the sha is a literal id inside the row (Drift.dc.html:223 draws it as `<span class="id">`).
+    expect(screen.getByText('9def4e2').className).toBe('id');
     expect(document.body.textContent).not.toContain('already references it');
+  });
+
+  it('titles the landed_but_open group in Spanish, never with the raw engine kind', () => {
+    renderList([
+      fakeIssue({
+        kind: 'landed_but_open',
+        severity: 'warning',
+        nodeId: 'WO-625',
+        target: '9def4e20893f6116ae195acbdf4d07380bc3018c',
+        blueprintId: null,
+        message:
+          'WO-625 is in_progress but commit 9def4e20893f6116ae195acbdf4d07380bc3018c already references it (Refs: WO-625)',
+      }),
+    ]);
+
+    const header = screen.getByText('Órdenes ya aterrizadas');
+    expect(header.closest('summary')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('landed_but_open');
   });
 
   it('falls back to the raw message with no action for an unknown kind', () => {

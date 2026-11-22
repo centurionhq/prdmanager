@@ -80,6 +80,18 @@ function landedButOpenHeadline(issue: DriftIssueDto): string {
 }
 
 /**
+ * The literals this module wrote itself into the headline and wants rendered in `.id` (SDD-107 D2). Only the
+ * short sha of `landed_but_open` qualifies: a bare 7-character hex run cannot be told apart from an ordinary
+ * word by pattern, and a pattern that tried would also turn «defaced» into mono on the raw-message fallback.
+ */
+function monoLiteralsFor(issue: DriftIssueDto): readonly string[] {
+  if (issue.kind !== 'landed_but_open') return [];
+  const target = issue.target;
+  if (target === undefined || target === '') return [];
+  return [target.slice(0, SHORT_SHA_LENGTH)];
+}
+
+/**
  * One row per `IssueKind` (`packages/core/src/sync/monitor.ts:18`): the Spanish headline and the suggested
  * action shown as "Qué hacer:". `headline` always names the real issue values, never a literal placeholder;
  * `action: null` is reserved for the unknown-kind fallback, where there is nothing safe to suggest.
@@ -174,7 +186,7 @@ export function issueCopy(issue: DriftIssueDto): IssueCopy {
   const action = copy ? copy.action : null;
   return {
     headline,
-    tokens: splitMessage(headline),
+    tokens: splitMessage(headline, { literals: monoLiteralsFor(issue) }),
     action,
     glossary: glossaryFor(issue, copy ? reasonFromMessage(issue.message) : null),
   };

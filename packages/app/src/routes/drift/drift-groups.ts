@@ -11,6 +11,7 @@ import type { DriftIssueDto } from '@prdm/contracts';
 export const GROUP_LABELS: Readonly<Record<string, string>> = {
   code_out_of_sync: 'Código fuera de sincronía',
   work_order_out_of_sync: 'Órdenes fuera de sincronía',
+  landed_but_open: 'Órdenes ya aterrizadas',
   broken_link: 'Enlaces rotos',
   invalid_link_target: 'Enlaces a un destino inválido',
   status_write_failed: 'Escritura de estado fallida',
@@ -26,7 +27,9 @@ export const GROUP_LABELS: Readonly<Record<string, string>> = {
 // closely they relate. Any `kind` not listed here still gets its own group via `groupIssues`'s fallback.
 const GROUP_ORDER: readonly string[] = [
   'code_out_of_sync',
+  // Both work-order classes stay adjacent: «Órdenes fuera de sincronía» then «Órdenes ya aterrizadas».
   'work_order_out_of_sync',
+  'landed_but_open',
   'broken_link',
   'invalid_link_target',
   'status_write_failed',
@@ -166,19 +169,58 @@ export interface MessageToken {
   readonly mono: boolean;
 }
 
+export interface SplitMessageOptions {
+  /**
+   * Exact substrings the caller itself wrote into `message` and wants rendered as `.id` (SDD-107 D2). A
+   * commit sha is indistinguishable from any other 7-character hex word by pattern — widening the regex
+   * would also turn «defaced» into mono on the raw-message fallback — so whoever writes the sha names it here.
+   */
+  readonly literals?: readonly string[];
+}
+
 // Matches literal ids (WO-310, SDD-012, FR-002…) and repo paths / branch names (contain a "/").
 const MONO_TOKEN_PATTERN = /\b[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]+|\b[A-Z]{2,4}-\d+\b/g;
 
-/** Splits an issue message into plain/mono runs so ids and paths render in `.id` type. */
-export function splitMessage(message: string): readonly MessageToken[] {
+interface MonoRange {
+  readonly start: number;
+  readonly end: number;
+}
+
+function literalRanges(message: string, literals: readonly string[]): readonly MonoRange[] {
+  const ranges: MonoRange[] = [];
+  for (const literal of literals) {
+    if (literal === '') continue;
+    let at = message.indexOf(literal);
+    while (at !== -1) {
+      ranges.push({ start: at, end: at + literal.length });
+      at = message.indexOf(literal, at + literal.length);
+    }
+  }
+  return ranges;
+}
+
+/**
+ * Splits an issue message into plain/mono runs so ids, paths and the literals the caller declares render in
+ * `.id` type. Ranges are non-overlapping: the first one wins on a tie, the rest stay part of that token.
+ */
+export function splitMessage(message: string, options: SplitMessageOptions = {}): readonly MessageToken[] {
+  const ranges: MonoRange[] = [];
+  for (const match of message.matchAll(MONO_TOKEN_PATTERN)) {
+    const start = match.index ?? 0;
+    ranges.push({ start, end: start + match[0].length });
+  }
+  ranges.push(...literalRanges(message, options.literals ?? []));
+  ranges.sort((a, b) => a.start - b.start || b.end - a.end);
+
   const tokens: MessageToken[] = [];
   let cursor = 0;
 
-  for (const match of message.matchAll(MONO_TOKEN_PATTERN)) {
-    const index = match.index ?? 0;
-    if (index > cursor) tokens.push({ text: message.slice(cursor, index), mono: false });
-    tokens.push({ text: match[0], mono: true });
-    cursor = index + match[0].length;
+  for (const range of ranges) {
+    // A range already covered by the previous token (a literal inside a longer id) is not split again.
+    if (range.start < cursor) continue;
+    if (range.start > cursor) tokens.push({ text: message.slice(cursor, range.start), mono: false });
+    tokens.push({ text: message.slice(range.start, range.end), mono: true });
+    cursor = range.end;
   }
   if (cursor < message.length) tokens.push({ text: message.slice(cursor), mono: false });
 

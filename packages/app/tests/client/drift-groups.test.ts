@@ -9,6 +9,7 @@ import {
   filterIssues,
   groupIssues,
   paginateIssues,
+  splitMessage,
   subgroupLabel,
 } from '../../src/routes/drift/drift-groups.js';
 
@@ -116,8 +117,47 @@ describe('groupIssues', () => {
     expect(groups.some((group) => group.kind === 'work_order_out_of_sync')).toBe(false);
   });
 
+  test('landed_but_open is titled in Spanish and sits right after work_order_out_of_sync (SDD-107 D1)', () => {
+    const groups = groupIssues([
+      issue({ kind: 'broken_link' }),
+      issue({ kind: 'landed_but_open', severity: 'warning' }),
+      issue({ kind: 'work_order_out_of_sync' }),
+    ]);
+
+    // Both are work-order classes, so they stay adjacent: «Órdenes fuera de sincronía» then «Órdenes ya
+    // aterrizadas». The raw engine enum must never reach the title.
+    expect(groups.map((group) => group.kind)).toEqual(['work_order_out_of_sync', 'landed_but_open', 'broken_link']);
+    expect(at(groups, 1).label).toBe('Órdenes ya aterrizadas');
+  });
+
   test('an empty list yields no groups', () => {
     expect(groupIssues([])).toEqual([]);
+  });
+});
+
+describe('splitMessage', () => {
+  test('marks an exact literal the caller wrote as mono, even when it looks like a bare word', () => {
+    // The sha the copy module writes cannot be told apart from any other 7-hex run by a pattern, so the
+    // caller names it explicitly (SDD-107 D2).
+    expect(splitMessage('el commit 9def4e2 la referencia', { literals: ['9def4e2'] })).toEqual([
+      { text: 'el commit ', mono: false },
+      { text: '9def4e2', mono: true },
+      { text: ' la referencia', mono: false },
+    ]);
+  });
+
+  test('a literal that is not in the message changes nothing', () => {
+    expect(splitMessage('sin sha acá', { literals: ['9def4e2'] })).toEqual([{ text: 'sin sha acá', mono: false }]);
+  });
+
+  test('still marks ids and paths as mono alongside a literal', () => {
+    const tokens = splitMessage('SDD-008 fijó 9def4e2 en packages/app/src/a.ts', { literals: ['9def4e2'] });
+    expect(tokens.filter((token) => token.mono).map((token) => token.text)).toEqual([
+      'SDD-008',
+      '9def4e2',
+      'packages/app/src/a.ts',
+    ]);
+    expect(tokens.map((token) => token.text).join('')).toBe('SDD-008 fijó 9def4e2 en packages/app/src/a.ts');
   });
 });
 
