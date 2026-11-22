@@ -23,6 +23,16 @@ export const LABEL_BY_KIND: Readonly<Record<DocKind, NodeLabel>> = {
   FB: 'Feedback',
 };
 
+/**
+ * D4: el denominador de trazabilidad es el Feature Tree (MRD/PRD/FR). Un kind nuevo que reuse el label
+ * `Feature` (como BC) no entra al denominador salvo que se agregue acá a propósito.
+ */
+export const FEATURE_TREE_KINDS = ['MRD', 'PRD', 'FR'] as const;
+export type FeatureTreeKind = (typeof FEATURE_TREE_KINDS)[number];
+/** D2: orden fijo del desglose por kind (el BC viaja, fuera del denominador). */
+export const FEATURE_KIND_ORDER = [...FEATURE_TREE_KINDS, 'BC'] as const;
+export type FeatureKind = (typeof FEATURE_KIND_ORDER)[number];
+
 export const DOC_REL_TYPES = ['EVOLVES_FROM', 'ARCHITECTS', 'IMPLEMENTS', 'PROVIDES_CONTEXT_FOR', 'INFORMS', 'JUSTIFIED_BY'] as const;
 export type DocRelType = (typeof DOC_REL_TYPES)[number];
 

@@ -72,7 +72,16 @@ export const untracedCommitsSchema = z.object({
   items: z.array(untracedCommitSchema),
 });
 
+export const featureKindSchema = z.enum(['MRD', 'PRD', 'FR', 'BC']);
+
+export const featureKindBreakdownSchema = z.object({
+  kind: featureKindSchema,
+  total: z.number().int().min(0),
+  traced: z.number().int().min(0),
+});
+
 export const traceabilitySchema = z.object({
+  featuresByKind: z.array(featureKindBreakdownSchema),
   featuresTotal: z.number().int().min(0),
   featuresTraced: z.number().int().min(0),
   orphanFeatures: z.array(orphanFeatureSchema),

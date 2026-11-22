@@ -159,12 +159,18 @@ export interface UntracedCommits {
   items: UntracedCommit[];
 }
 
+export interface MetricsFeature {
+  id: string;
+  kind: string;
+  title: string;
+  status: string;
+  traced: boolean;
+}
+
 export interface MetricsRaw {
   governedTotal: number;
   governedSynced: number;
-  featuresTotal: number;
-  featuresTraced: number;
-  orphanFeatures: OrphanFeature[];
+  features: MetricsFeature[];
   commitsTotal: number;
   commitsWithRefs: number;
   commitsTraced: number;

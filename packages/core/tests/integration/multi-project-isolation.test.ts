@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { Engine } from '../../src/engine.js';
 import type { Neo4jGraphDatabase } from '../../src/graph/database.js';
 import type { GraphStore } from '../../src/graph/types.js';
+import { computeMetrics } from '../../src/metrics/metrics.js';
 import type { PrdmConfig } from '../../src/config.js';
 import { createFixtureRepo, doc, openTestDb, prd, removeDir, testConfig } from '@prdm/testkit';
 
@@ -73,8 +74,11 @@ describe('multi-project isolation (SDD-002 "Grafo multi-proyecto")', () => {
 
     const metricsA = await storeA.metricsRaw();
     const metricsB = await storeB.metricsRaw();
-    expect(metricsA.featuresTotal).toBe(3);
-    expect(metricsB.featuresTotal).toBe(3);
+    expect(metricsA.features).toHaveLength(3);
+    expect(metricsA.features.map((f) => f.id)).toEqual(metricsB.features.map((f) => f.id));
+    const noUntraced = { total: 0, danglingRefs: 0, truncated: false, items: [] };
+    expect(computeMetrics(metricsA, noUntraced).traceability.featuresTotal).toBe(2);
+    expect(computeMetrics(metricsB, noUntraced).traceability.featuresTotal).toBe(2);
   });
 
   test('the same id can exist unique per project (composite constraint), and mutating B never touches A', async () => {

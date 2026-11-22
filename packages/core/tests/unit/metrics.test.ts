@@ -1,20 +1,22 @@
 import { describe, expect, test } from 'vitest';
 import { computeMetrics, getMetrics, SLOW_RESOLUTION_HOURS, SLOW_RESOLUTION_ITEMS } from '../../src/metrics/metrics.js';
-import type { MetricsRaw, UntracedCommit, UntracedCommits } from '../../src/graph/types.js';
+import type { MetricsFeature, MetricsRaw, UntracedCommit, UntracedCommits } from '../../src/graph/types.js';
 
 function raw(overrides: Partial<MetricsRaw> = {}): MetricsRaw {
   return {
     governedTotal: 0,
     governedSynced: 0,
-    featuresTotal: 0,
-    featuresTraced: 0,
-    orphanFeatures: [],
+    features: [],
     commitsTotal: 0,
     commitsWithRefs: 0,
     commitsTraced: 0,
     workOrders: [],
     ...overrides,
   };
+}
+
+function feature(id: string, kind: string, traced: boolean): MetricsFeature {
+  return { id, kind, title: `t ${id}`, status: 'approved', traced };
 }
 
 function untraced(overrides: Partial<UntracedCommits> = {}): UntracedCommits {
@@ -33,6 +35,7 @@ describe('computeMetrics', () => {
       agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, p90ResolutionHours: null, maxResolutionHours: null, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
       systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
       traceability: {
+        featuresByKind: [],
         featuresTotal: 0,
         featuresTraced: 0,
         orphanFeatures: [],
@@ -47,19 +50,58 @@ describe('computeMetrics', () => {
     });
   });
 
-  test('copies orphanFeatures as-is and keeps featuresTraced + orphans == featuresTotal', () => {
-    const orphan = { id: 'BC-003', kind: 'BC', title: 'Sin linaje', status: 'approved' };
-    const mixed = computeMetrics(raw({ featuresTotal: 4, featuresTraced: 3, orphanFeatures: [orphan] }), untraced()).traceability;
-    expect(mixed.orphanFeatures).toEqual([orphan]);
-    expect(mixed.featuresTraced + mixed.orphanFeatures.length).toBe(mixed.featuresTotal);
+  test('a traced BC does not count in the Tree denominator but travels in featuresByKind', () => {
+    const t = computeMetrics(raw({ features: [feature('MRD-001', 'MRD', true), feature('PRD-001', 'PRD', true), feature('BC-001', 'BC', true)] }), untraced()).traceability;
+    expect(t.featuresTotal).toBe(2);
+    expect(t.featuresTraced).toBe(2);
+    expect(t.featurePercent).toBe(100);
+    expect(t.orphanFeatures).toEqual([]);
+    expect(t.featuresByKind).toEqual([
+      { kind: 'MRD', total: 1, traced: 1 },
+      { kind: 'PRD', total: 1, traced: 1 },
+      { kind: 'BC', total: 1, traced: 1 },
+    ]);
+  });
 
-    expect(computeMetrics(raw({ featuresTotal: 2, featuresTraced: 2 }), untraced()).traceability.featurePercent).toBe(100);
-    const allOrphans = computeMetrics(raw({ featuresTotal: 1, featuresTraced: 0, orphanFeatures: [orphan] }), untraced()).traceability;
-    expect(allOrphans.featurePercent).toBe(0);
+  test('an orphan BC is not in orphanFeatures but shows traced:false inside the BC entry', () => {
+    const features = [feature('MRD-001', 'MRD', true), feature('PRD-001', 'PRD', true), feature('BC-001', 'BC', true), feature('BC-002', 'BC', false)];
+    const t = computeMetrics(raw({ features }), untraced()).traceability;
+    expect(t.orphanFeatures).toEqual([]);
+    expect(t.featuresTotal).toBe(2);
+    expect(t.featuresByKind.find((k) => k.kind === 'BC')).toEqual({ kind: 'BC', total: 2, traced: 1 });
+  });
+
+  test('orphanFeatures keeps the Tree orphans as {id, kind, title, status}', () => {
+    const t = computeMetrics(raw({ features: [feature('PRD-012', 'PRD', false), feature('BC-002', 'BC', false)] }), untraced()).traceability;
+    expect(t.orphanFeatures).toEqual([{ id: 'PRD-012', kind: 'PRD', title: 't PRD-012', status: 'approved' }]);
+    expect(t.featurePercent).toBe(0);
+  });
+
+  test('invariants hold on a mixed fixture', () => {
+    const features = [
+      feature('MRD-001', 'MRD', true), feature('MRD-002', 'MRD', true),
+      feature('PRD-001', 'PRD', true), feature('PRD-002', 'PRD', false),
+      feature('FR-001', 'FR', true), feature('FR-002', 'FR', true),
+      feature('BC-001', 'BC', true), feature('BC-002', 'BC', false), feature('BC-003', 'BC', true),
+    ];
+    const t = computeMetrics(raw({ features }), untraced()).traceability;
+    expect(t.featuresTraced + t.orphanFeatures.length).toBe(t.featuresTotal);
+    expect(t.featuresByKind.reduce((s, k) => s + k.total, 0)).toBe(features.length);
+  });
+
+  test('featuresByKind follows the fixed order MRD, PRD, FR, BC and omits absent kinds', () => {
+    const t = computeMetrics(raw({ features: [feature('BC-001', 'BC', true), feature('FR-001', 'FR', true), feature('MRD-001', 'MRD', true)] }), untraced()).traceability;
+    expect(t.featuresByKind.map((k) => k.kind)).toEqual(['MRD', 'FR', 'BC']);
+  });
+
+  test('the percentage only counts the Tree', () => {
+    const features = [feature('MRD-001', 'MRD', true), feature('PRD-001', 'PRD', false), feature('BC-001', 'BC', true), feature('BC-002', 'BC', true), feature('BC-003', 'BC', true)];
+    expect(computeMetrics(raw({ features }), untraced()).traceability.featurePercent).toBe(50);
   });
 
   test('rounds percentages to 1 decimal', () => {
-    const metrics = computeMetrics(raw({ governedTotal: 3, governedSynced: 1, featuresTotal: 7, featuresTraced: 2, commitsTotal: 6, commitsTraced: 1 }), untraced());
+    const features = Array.from({ length: 7 }, (_, i) => feature(`FR-00${i + 1}`, 'FR', i < 2));
+    const metrics = computeMetrics(raw({ governedTotal: 3, governedSynced: 1, features, commitsTotal: 6, commitsTraced: 1 }), untraced());
 
     expect(metrics.systemIntegrity.syncedPercent).toBe(33.3);
     expect(metrics.traceability.featurePercent).toBe(28.6);

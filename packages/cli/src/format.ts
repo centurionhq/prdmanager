@@ -1,4 +1,4 @@
-import { SLOW_RESOLUTION_ITEMS, type DriftIssue, type RefreshReport, type SearchHit, type SuccessMetrics, type UnmeasuredReason } from '@prdm/core';
+import { SLOW_RESOLUTION_ITEMS, type DriftIssue, type RefreshReport, type SearchHit, type SuccessMetrics, type Traceability, type UnmeasuredReason } from '@prdm/core';
 
 const ISSUE_MARKER: Record<DriftIssue['severity'], string> = { error: '✗', warning: '⚠' };
 
@@ -97,6 +97,12 @@ function formatUntracedCommits(traceability: SuccessMetrics['traceability']): st
   ];
 }
 
+function formatFeaturesByKind(breakdown: Traceability['featuresByKind']): string[] {
+  if (breakdown.length === 0) return [];
+  const entries = breakdown.map((k) => `${k.kind} ${k.traced}/${k.total}${k.kind === 'BC' ? ' (fuera del denominador)' : ''}`);
+  return [`  features por kind: ${entries.join(' · ')}`];
+}
+
 export function formatMetrics(metrics: SuccessMetrics): string {
   const { agentHumanEfficiency: efficiency, systemIntegrity: integrity, traceability, pendingQueue: queue } = metrics;
   return [
@@ -114,6 +120,7 @@ export function formatMetrics(metrics: SuccessMetrics): string {
     `  governed: ${integrity.governedSynced}/${integrity.governedTotal} synced (${formatPercent(integrity.syncedPercent)})`,
     'Traceability:',
     `  features traced: ${traceability.featuresTraced}/${traceability.featuresTotal} (${formatPercent(traceability.featurePercent)})`,
+    ...formatFeaturesByKind(traceability.featuresByKind),
     ...formatOrphanFeatures(traceability.orphanFeatures),
     `  commits traced: ${traceability.commitsTraced}/${traceability.commitsTotal} (${formatPercent(traceability.commitPercent)}), with refs: ${traceability.commitsWithRefs}`,
     ...formatUntracedCommits(traceability),

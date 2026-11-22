@@ -230,7 +230,7 @@ function nodeDetailForMixed(ref: string): NodeDetail {
 const METRICS: SuccessMetricsDto = {
   agentHumanEfficiency: { completedWorkOrders: 3, measuredWorkOrders: 3, avgResolutionHours: 0.2, medianResolutionHours: 0.15, p90ResolutionHours: 1, maxResolutionHours: 1, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 5, governedSynced: 5, syncedPercent: 100 },
-  traceability: { featuresTotal: 3, featuresTraced: 3, orphanFeatures: [], featurePercent: 100, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
+  traceability: { featuresByKind: [{ kind: 'FR', total: 3, traced: 3 }], featuresTotal: 3, featuresTraced: 3, orphanFeatures: [], featurePercent: 100, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
 };
 
 const ONE_ORPHAN: SuccessMetricsDto = {

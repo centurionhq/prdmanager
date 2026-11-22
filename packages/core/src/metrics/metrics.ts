@@ -1,4 +1,5 @@
 import { ageDaysFrom } from '../graph/work-order-age.js';
+import { FEATURE_KIND_ORDER, FEATURE_TREE_KINDS, type FeatureKind } from '../domain/schema.js';
 import type { GraphStore, MetricsRaw, OrphanFeature, UntracedCommits } from '../graph/types.js';
 
 const COMPLETED_STATUSES = new Set(['done', 'out_of_sync']);
@@ -49,7 +50,14 @@ export interface SystemIntegrity {
   syncedPercent: number | null;
 }
 
+export interface FeatureKindBreakdown {
+  kind: FeatureKind;
+  total: number;
+  traced: number;
+}
+
 export interface Traceability {
+  featuresByKind: FeatureKindBreakdown[];
   featuresTotal: number;
   featuresTraced: number;
   orphanFeatures: OrphanFeature[];
@@ -160,6 +168,22 @@ function computePendingQueue(workOrders: MetricsRaw['workOrders']): PendingQueue
   };
 }
 
+type FeatureTraceability = Pick<Traceability, 'featuresTotal' | 'featuresTraced' | 'orphanFeatures' | 'featurePercent' | 'featuresByKind'>;
+
+/** D3: todo sale de la lista cruda `raw.features`; el denominador es el Feature Tree, el BC sólo viaja en el desglose. */
+function computeTraceability(raw: MetricsRaw): FeatureTraceability {
+  const isTree = (kind: string): boolean => (FEATURE_TREE_KINDS as readonly string[]).includes(kind);
+  const tree = raw.features.filter((f) => isTree(f.kind));
+  const orphanFeatures = tree.filter((f) => !f.traced).map((f) => ({ id: f.id, kind: f.kind, title: f.title, status: f.status }));
+  const featuresTotal = tree.length;
+  const featuresTraced = featuresTotal - orphanFeatures.length;
+  const featuresByKind = FEATURE_KIND_ORDER.flatMap((kind) => {
+    const ofKind = raw.features.filter((f) => f.kind === kind);
+    return ofKind.length === 0 ? [] : [{ kind, total: ofKind.length, traced: ofKind.filter((f) => f.traced).length }];
+  });
+  return { featuresTotal, featuresTraced, orphanFeatures, featurePercent: percent(featuresTraced, featuresTotal), featuresByKind };
+}
+
 /** `untraced` es obligatorio a propósito: un default vacío taparía el bug que esta lista viene a mostrar. */
 export function computeMetrics(raw: MetricsRaw, untraced: UntracedCommits): SuccessMetrics {
   return {
@@ -170,10 +194,7 @@ export function computeMetrics(raw: MetricsRaw, untraced: UntracedCommits): Succ
       syncedPercent: percent(raw.governedSynced, raw.governedTotal),
     },
     traceability: {
-      featuresTotal: raw.featuresTotal,
-      featuresTraced: raw.featuresTraced,
-      orphanFeatures: raw.orphanFeatures,
-      featurePercent: percent(raw.featuresTraced, raw.featuresTotal),
+      ...computeTraceability(raw),
       commitsTotal: raw.commitsTotal,
       commitsWithRefs: raw.commitsWithRefs,
       commitsTraced: raw.commitsTraced,

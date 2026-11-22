@@ -67,7 +67,7 @@ function metrics(overrides: Partial<SuccessMetrics> = {}): SuccessMetrics {
   return {
     agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, p90ResolutionHours: null, maxResolutionHours: null, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
     systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
-    traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
+    traceability: { featuresByKind: [], featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
     pendingQueue: { total: 0, unassigned: 0, oldestDays: null, over7Days: 0 },
     ...overrides,
   };
@@ -109,6 +109,36 @@ describe('formatMetrics', () => {
     );
     expect(text).toContain('avg resolution: 4h');
     expect(text).toContain('governed: 1/2 synced (50%)');
+  });
+});
+
+describe('formatMetrics features por kind', () => {
+  const withBreakdown = (featuresByKind: SuccessMetrics['traceability']['featuresByKind']) => {
+    const base = metrics();
+    return formatMetrics({ ...base, traceability: { ...base.traceability, featuresByKind } });
+  };
+
+  test('prints nothing without a breakdown', () => {
+    expect(formatMetrics(metrics())).not.toContain('features por kind');
+  });
+
+  test('prints one line between features traced and orphan features, with the BC suffix', () => {
+    const text = withBreakdown([
+      { kind: 'MRD', total: 1, traced: 1 },
+      { kind: 'PRD', total: 22, traced: 21 },
+      { kind: 'FR', total: 27, traced: 27 },
+      { kind: 'BC', total: 29, traced: 27 },
+    ]);
+    const line = '  features por kind: MRD 1/1 · PRD 21/22 · FR 27/27 · BC 27/29 (fuera del denominador)';
+    expect(text).toContain(line);
+    expect(text.indexOf('features traced:')).toBeLessThan(text.indexOf(line));
+    expect(text.indexOf(line)).toBeLessThan(text.indexOf('orphan features:'));
+  });
+
+  test('without a BC entry there is no suffix', () => {
+    const text = withBreakdown([{ kind: 'MRD', total: 1, traced: 1 }, { kind: 'PRD', total: 22, traced: 21 }]);
+    expect(text).toContain('  features por kind: MRD 1/1 · PRD 21/22');
+    expect(text).not.toContain('fuera del denominador');
   });
 });
 
