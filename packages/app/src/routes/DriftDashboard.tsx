@@ -33,6 +33,17 @@ function isActivationKey(key: string): boolean {
   return key === 'Enter' || key === ' ' || key === 'Spacebar';
 }
 
+/**
+ * SDD-111 A5: what was acknowledged and what the server says is left. No «Deshacer» — the drift history is the
+ * record. Without the server's report the sentence stops after the scope instead of inventing a remainder.
+ */
+function acknowledgedMessage(target: string, count: number | null, remaining: number | null): string {
+  const scope = target === PROJECT_TARGET ? 'todo el proyecto' : target;
+  const counted = count === null ? '' : `: ${count} ${count === 1 ? 'issue' : 'issues'}`;
+  const head = `Reconociste ${scope}${counted}.`;
+  return remaining === null ? head : `${head} Quedan ${remaining} en el proyecto.`;
+}
+
 /** The history row is a click target of its own, and its commit cell now holds a copy button and a link
  * (WO-635): acting on those must not also open the report detail. */
 function isInteractiveTarget(target: EventTarget | null): boolean {
@@ -50,6 +61,8 @@ function DriftContent(): ReactElement {
   const issuesQuery = useApiQuery(`drift-issues:${orgSlug}:${projectSlug}`, () => getDriftIssues(orgSlug, projectSlug), [orgSlug, projectSlug]);
 
   const [ackOpen, setAckOpen] = useState(false);
+  const [ackInitialTarget, setAckInitialTarget] = useState<string | undefined>(undefined);
+  const [ackPendingTarget, setAckPendingTarget] = useState<string | null>(null);
   const [ackSubmitting, setAckSubmitting] = useState(false);
   const [reportId, setReportId] = useState<string | undefined>(undefined);
   const [forcePushOpen, setForcePushOpen] = useState(false);
@@ -73,21 +86,37 @@ function DriftContent(): ReactElement {
   const errorCount = issues.filter((issue) => issue.severity === 'error').length;
   const warningCount = issues.filter((issue) => issue.severity === 'warning').length;
   const targets = acknowledgeableTargets(issues);
+  const canAcknowledge = can(subject, 'acknowledge_drift');
   const hasActiveFilters =
     filters.severity !== 'all' || filters.kind !== 'all' || filters.blueprintId !== 'all' || filters.query.trim() !== '';
 
+  /** The header opens the default; a row or a subgroup opens the same modal on its own document (SDD-111 D3). */
+  function openAcknowledge(target?: string): void {
+    setAckInitialTarget(target);
+    setAckOpen(true);
+  }
+
+  /**
+   * SDD-111 A5: the toast reports what the server answered. `report.issues.length` is the project's remaining
+   * debt after the acknowledge; it is read defensively because the API client casts the body instead of
+   * validating it, and a server one deploy behind would not send `issues` at all.
+   */
   async function handleAcknowledge(target: string): Promise<void> {
+    const chosen = targets.find((option) => option.value === target);
     setAckSubmitting(true);
+    setAckPendingTarget(target);
     try {
-      await acknowledgeDrift(orgSlug, projectSlug, target);
+      const response = await acknowledgeDrift(orgSlug, projectSlug, target);
+      const remaining = Array.isArray(response?.report?.issues) ? response.report.issues.length : null;
       setAckOpen(false);
-      show('Drift reconocido', { tone: 'success' });
+      show(acknowledgedMessage(target, chosen?.count ?? null, remaining), { tone: 'success' });
       dashboardQuery.retry();
       issuesQuery.retry();
     } catch (err) {
       show(errorMessage(err));
     } finally {
       setAckSubmitting(false);
+      setAckPendingTarget(null);
     }
   }
 
@@ -163,7 +192,13 @@ function DriftContent(): ReactElement {
             >
               Autorizar force-push
             </Button>
-            <Button type="button" variant="primary" onClick={() => setAckOpen(true)}>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={!canAcknowledge}
+              title={canAcknowledge ? undefined : 'Requiere admin'}
+              onClick={() => openAcknowledge()}
+            >
               Reconocer drift
             </Button>
           </div>
@@ -256,7 +291,11 @@ function DriftContent(): ReactElement {
                 onChange={(blueprintId) => setFilters((f) => ({ ...f, blueprintId }))}
                 options={[
                   { value: 'all', label: 'Todos los blueprints' },
-                  ...targets.filter((t) => t.value !== PROJECT_TARGET).map((t) => ({ value: t.value, label: t.label })),
+                  // The filter stays a facet of `blueprintId`, so it lists blueprints only — an acknowledge
+                  // target can also be a bare document id (SDD-111 D2), which does not belong in this control.
+                  ...Array.from(new Set(issues.map((issue) => issue.blueprintId).filter((id): id is string => Boolean(id)))).map(
+                    (id) => ({ value: id, label: id }),
+                  ),
                 ]}
               />
               <SearchField
@@ -278,7 +317,13 @@ function DriftContent(): ReactElement {
             </div>
           </div>
           <div className={styles.issuesList} role="region" aria-label="Issues de drift">
-            <DriftIssuesList issues={filtered} />
+            <DriftIssuesList
+              issues={filtered}
+              ackTargets={targets}
+              canAcknowledge={canAcknowledge}
+              acknowledging={ackPendingTarget}
+              onAcknowledgeRequest={openAcknowledge}
+            />
           </div>
         </div>
 
@@ -348,6 +393,9 @@ function DriftContent(): ReactElement {
       <AcknowledgeModal
         open={ackOpen}
         targets={targets}
+        initialTarget={ackInitialTarget}
+        commitSha={official?.headSha ?? null}
+        repository={repository}
         submitting={ackSubmitting}
         onClose={() => setAckOpen(false)}
         onConfirm={(target) => void handleAcknowledge(target)}
