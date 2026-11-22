@@ -7,14 +7,18 @@
  * `AjustesTokens.dc.html`) — a real CI token isn't tied to a chosen branch at all; the official drift
  * baseline instead depends on the project's own default branch plus OIDC verifying which CI run produced
  * a report, so this section says so instead of offering a field with no real effect.
+ *
+ * SDD-062/WO-718 D1: revoking the pipeline credential only happens from the `ConfirmDialog`, whose copy says
+ * what breaks (the pipeline needs a new token and an updated secret). A failed revoke stays in the dialog.
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import type { CreatedTokenResponse, TokenScopeDto, TokenSummaryDto } from '@prdm/contracts';
 import { createCiToken, listCiTokens, revokeCiToken } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { CI_TOKEN_SCOPES } from '../auth/token-scopes.js';
-import { Button, SectionHeader, Skeleton } from '../components/index.js';
+import { Button, ConfirmDialog, SectionHeader, Skeleton } from '../components/index.js';
 import { FormError } from '../components/FormError.js';
+import { tokenResourceMeta } from '../lib/token-resource.js';
 import { TokenCreateForm } from '../components/TokenCreateForm.js';
 import { TokenSecretPanel } from '../components/TokenSecretPanel.js';
 import { TokenTable } from '../components/TokenTable.js';
@@ -25,6 +29,9 @@ export function CiTokensSection({ orgSlug, projectSlug }: { orgSlug: string; pro
   const [error, setError] = useState<string | null>(null);
   const [justCreated, setJustCreated] = useState<CreatedTokenResponse | null>(null);
   const [creating, setCreating] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<TokenSummaryDto | null>(null);
+  const [revoking, setRevoking] = useState(false);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
 
   useEffect(() => {
     setTokens(null);
@@ -40,13 +47,30 @@ export function CiTokensSection({ orgSlug, projectSlug }: { orgSlug: string; pro
     setCreating(false);
   }
 
-  async function handleRevoke(tokenId: string): Promise<void> {
+  /** Same request and same row update as before; only *when* it runs changed — from the dialog's confirm
+   * button, never from the table. */
+  async function handleRevoke(target: TokenSummaryDto): Promise<void> {
+    setRevokeError(null);
+    setRevoking(true);
     try {
-      await revokeCiToken(orgSlug, projectSlug, tokenId);
-      setTokens((prev) => (prev ?? []).map((t) => (t.id === tokenId ? { ...t, revokedAt: new Date().toISOString() } : t)));
+      await revokeCiToken(orgSlug, projectSlug, target.id);
+      setTokens((prev) => (prev ?? []).map((t) => (t.id === target.id ? { ...t, revokedAt: new Date().toISOString() } : t)));
+      setRevokeTarget(null);
     } catch (err) {
-      setError(errorMessage(err));
+      setRevokeError(errorMessage(err));
+    } finally {
+      setRevoking(false);
     }
+  }
+
+  function askRevoke(token: TokenSummaryDto): void {
+    setRevokeError(null);
+    setRevokeTarget(token);
+  }
+
+  function cancelRevoke(): void {
+    setRevokeTarget(null);
+    setRevokeError(null);
   }
 
   return (
@@ -65,7 +89,22 @@ export function CiTokensSection({ orgSlug, projectSlug }: { orgSlug: string; pro
       <FormError message={error} />
       {justCreated ? <TokenSecretPanel secret={justCreated.secret} onDismiss={() => setJustCreated(null)} /> : null}
       {creating ? <TokenCreateForm availableScopes={CI_TOKEN_SCOPES} onCreate={handleCreate} onCancel={() => setCreating(false)} /> : null}
-      {!tokens ? <Skeleton rows={3} /> : <TokenTable tokens={tokens} onRevoke={(id) => void handleRevoke(id)} />}
+      {!tokens ? <Skeleton rows={3} /> : <TokenTable tokens={tokens} onRevoke={askRevoke} />}
+
+      <ConfirmDialog
+        open={revokeTarget !== null}
+        title="Revocar token"
+        description="Deja de funcionar de inmediato. Si lo usa tu pipeline, vas a tener que generar uno nuevo y actualizar el secreto. No se puede deshacer."
+        resource={revokeTarget ? { name: revokeTarget.name, meta: tokenResourceMeta(revokeTarget) } : undefined}
+        confirmLabel="Revocar token"
+        busyLabel="Revocando"
+        error={revokeError}
+        pending={revoking}
+        onConfirm={() => {
+          if (revokeTarget) void handleRevoke(revokeTarget);
+        }}
+        onCancel={cancelRevoke}
+      />
     </div>
   );
 }

@@ -77,3 +77,19 @@ Las decisiones de prdm-pm (P1–P7, en la tarjeta) mandan sobre el comp. Lo que 
 - **X durante el en vuelo.** El Modal del barrel no expone un estado deshabilitado para su X; el cierre queda bloqueado por comportamiento (Esc, X y scrim no cierran), que es lo que exige D3. Que la X se vea apagada requeriría un cambio en `Modal`, fuera de este WO.
 - **Foco inicial.** `Button` no reenvía refs, así que el foco va al primer botón del pie («Cancelar») por ref del contenedor; no se toca `Button`.
 
+## 6. Dónde se cablea (WO-718) — el canvas de cada pantalla sigue válido
+
+El cableado no cambia ninguna pantalla en reposo: el diálogo es un overlay que ya está dibujado acá, y los artboards `AjustesTokens.dc.html`, `AjustesTokensPersonales.dc.html`, `AjustesMiembros.dc.html` y `AjustesMiembrosOrg.dc.html` no cambian. Lo que sí queda registrado es **qué disparador abre qué copy**, para que el comp y la app no se separen:
+
+| Pantalla | Disparador (fila) | title | placa nombre · meta | confirm / busy |
+|---|---|---|---|---|
+| `PersonalTokensSettings` | «Revocar» de `TokenTable` | `Revocar token` | nombre · prefijo · último uso | `Revocar token` / `Revocando` |
+| `CiTokensSection` | «Revocar» de `TokenTable` | `Revocar token` | nombre · prefijo · último uso | `Revocar token` / `Revocando` |
+| `ProjectMembersSection` | «Quitar» de la fila | `Quitar del proyecto` | email · rol | `Quitar` / `Quitando` |
+| `OrgMembersSettings` (miembro) | «Quitar» de la fila | `Quitar de la organización` | email · rol | `Quitar` / `Quitando` |
+| `OrgMembersSettings` (invitación) | «Revocar» de la fila | `Revocar invitación` | email · `Invitación pendiente` | `Revocar invitación` / `Revocando` |
+
+El estado del diálogo vive en la pantalla que ya tiene la mutación (`TokenTable` solo entrega el token completo), y el error se queda adentro del diálogo: no hay toast ni banner nuevo. El botón de la fila sigue siendo `destructive` delineado, como en los artboards (P3).
+
+Verificación de esta pieza en navegador real: `packages/server/tests/e2e/ajustes-seccion.spec.ts` — a 1440 y a 375 el click abre el diálogo, la fila **no** cambia hasta confirmar, el diálogo nombra el token y el foco arranca en «Cancelar».
+

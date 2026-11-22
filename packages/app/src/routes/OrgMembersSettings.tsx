@@ -15,6 +15,11 @@
  * SDD-056/PRD-036: rebuilt on the design-system pieces (`PageHeader`, `DataTable`, `Modal`, `SelectField`,
  * `Button`). It lives in `OrgShell`, not under the project's Ajustes layout, so it keeps its own `h1`. Same
  * requests, same rules; the invite form opens from the primary action instead of sitting under the tables.
+ *
+ * SDD-062/WO-718: removing a member and revoking an invitation are the same destructive gesture on two
+ * different resources, so one discriminated state (`{ kind, id, email, … } | null`) drives a single
+ * `ConfirmDialog`. The rows only open it; the mutation runs from its confirm button, and a failure stays in
+ * the dialog (the member/invitation is still there) instead of the row banner.
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import { ORG_ROLES, type AccessRequest, type InvitationSummary, type OrganizationMember, type OrgRole, type ProjectSummary } from '@prdm/contracts';
@@ -35,7 +40,7 @@ import {
 import { errorMessage } from '../api/error-message.js';
 import { isOrgAdmin } from '../auth/org-role.js';
 import { orgRoleLabel } from '../lib/role-labels.js';
-import { Button, DataTable, Modal, Notice, PageHeader, SelectField, Skeleton, type DataTableColumn } from '../components/index.js';
+import { Button, ConfirmDialog, DataTable, Modal, Notice, PageHeader, SelectField, Skeleton, type DataTableColumn } from '../components/index.js';
 import { FormError } from '../components/FormError.js';
 import { formatDate, formatDateTime } from '../lib/format-date.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
@@ -43,6 +48,28 @@ import { InviteMemberForm } from './InviteMemberForm.js';
 import { useOrgShellContext } from './OrgShell.js';
 import { PersonCell } from './miembros/PersonCell.js';
 import styles from './OrgMembersSettings.module.css';
+
+/** D3 (WO-718): one dialog, so one state. `role` is the plate's second line for a member; an invitation's is
+ * fixed ("Invitación pendiente"), which is what it is. */
+type ConfirmTarget =
+  | { readonly kind: 'member'; readonly id: string; readonly email: string; readonly role: OrgRole }
+  | { readonly kind: 'invite'; readonly id: string; readonly email: string };
+
+/** Copy of the two destructive gestures this screen confirms (WO-718): short title, the consequence as the
+ * description, and the resource named by the dialog's own plate. Never a consequence the product does not have. */
+const REMOVE_MEMBER_COPY = {
+  title: 'Quitar de la organización',
+  description: 'Pierde el acceso a todos los proyectos de la organización. Podés volver a invitarlo cuando quieras.',
+  confirmLabel: 'Quitar',
+  busyLabel: 'Quitando',
+} as const;
+
+const REVOKE_INVITE_COPY = {
+  title: 'Revocar invitación',
+  description: 'El enlace que le mandaste deja de funcionar. Podés invitarlo de nuevo cuando quieras.',
+  confirmLabel: 'Revocar invitación',
+  busyLabel: 'Revocando',
+} as const;
 
 interface Loaded {
   members: OrganizationMember[];
@@ -74,6 +101,9 @@ export function OrgMembersSettings(): ReactElement {
   const [inviting, setInviting] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<AccessRequest | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   useDocumentTitle(`Miembros de ${currentOrg.name}`);
 
   async function reload(): Promise<void> {
@@ -114,24 +144,47 @@ export function OrgMembersSettings(): ReactElement {
     }
   }
 
+  /** Same request, same reload; it now runs from the dialog's confirm button only, and its error stays in the
+   * dialog because the member is still there. */
   async function handleRemove(userId: string): Promise<void> {
     setRowError(null);
+    setConfirmError(null);
+    setConfirming(true);
     try {
       await removeOrganizationMember(orgSlug, userId);
+      setConfirmTarget(null);
       await reload();
     } catch (err) {
-      setRowError(errorMessage(err));
+      setConfirmError(errorMessage(err));
+    } finally {
+      setConfirming(false);
     }
   }
 
+  /** Same as `handleRemove`, for the pending invitation the dialog is naming. */
   async function handleRevoke(invitationId: string): Promise<void> {
     setRowError(null);
+    setConfirmError(null);
+    setConfirming(true);
     try {
       await revokeOrganizationInvitation(orgSlug, invitationId);
+      setConfirmTarget(null);
       await reload();
     } catch (err) {
-      setRowError(errorMessage(err));
+      setConfirmError(errorMessage(err));
+    } finally {
+      setConfirming(false);
     }
+  }
+
+  function askConfirmation(target: ConfirmTarget): void {
+    setConfirmError(null);
+    setConfirmTarget(target);
+  }
+
+  function cancelConfirmation(): void {
+    setConfirmTarget(null);
+    setConfirmError(null);
   }
 
   async function handleResend(invitationId: string): Promise<void> {
@@ -201,7 +254,7 @@ export function OrgMembersSettings(): ReactElement {
               member.userId === data.currentUserId ? (
                 <span className={styles.cannotRemove}>No podés quitarte</span>
               ) : (
-                <Button type="button" variant="destructive" size="sm" aria-label={`Quitar a ${member.email}`} onClick={() => void handleRemove(member.userId)}>
+                <Button type="button" variant="destructive" size="sm" aria-label={`Quitar a ${member.email}`} onClick={() => askConfirmation({ kind: 'member', id: member.userId, email: member.email, role: member.role })}>
                   Quitar
                 </Button>
               ),
@@ -226,7 +279,7 @@ export function OrgMembersSettings(): ReactElement {
               Reenviar
             </Button>
           ) : null}
-          <Button type="button" variant="destructive" size="sm" aria-label={`Revocar la invitación de ${invitation.email}`} onClick={() => void handleRevoke(invitation.id)}>
+          <Button type="button" variant="destructive" size="sm" aria-label={`Revocar la invitación de ${invitation.email}`} onClick={() => askConfirmation({ kind: 'invite', id: invitation.id, email: invitation.email })}>
             Revocar
           </Button>
         </span>
@@ -254,6 +307,10 @@ export function OrgMembersSettings(): ReactElement {
       ),
     },
   ];
+
+  // One dialog, two resources: the invite wording never claims irreversibility, because a person can always be
+  // invited again (P5). The member copy is the default so the always-mounted dialog has real copy when closed.
+  const confirmCopy = confirmTarget?.kind === 'invite' ? REVOKE_INVITE_COPY : REMOVE_MEMBER_COPY;
 
   return (
     <div className={styles.screen}>
@@ -329,6 +386,23 @@ export function OrgMembersSettings(): ReactElement {
               onCancel={() => setInviting(false)}
             />
           </Modal>
+
+          <ConfirmDialog
+            open={confirmTarget !== null}
+            title={confirmCopy.title}
+            description={confirmCopy.description}
+            resource={confirmTarget ? { name: confirmTarget.email, meta: confirmTarget.kind === 'member' ? orgRoleLabel(confirmTarget.role) : 'Invitación pendiente' } : undefined}
+            confirmLabel={confirmCopy.confirmLabel}
+            busyLabel={confirmCopy.busyLabel}
+            error={confirmError}
+            pending={confirming}
+            onConfirm={() => {
+              if (!confirmTarget) return;
+              if (confirmTarget.kind === 'member') void handleRemove(confirmTarget.id);
+              else void handleRevoke(confirmTarget.id);
+            }}
+            onCancel={cancelConfirmation}
+          />
         </>
       ) : null}
 

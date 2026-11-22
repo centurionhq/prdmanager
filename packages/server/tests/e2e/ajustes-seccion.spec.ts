@@ -56,7 +56,9 @@ test('cada pantalla de Ajustes muestra contenido real, en escritorio y a 375 px,
     { name: 'General', url: () => `${project()}/general`, heading: 'General', level: 2, content: 'Rama por defecto' },
     { name: 'Miembros del proyecto', url: () => `${project()}/miembros`, heading: 'Miembros del proyecto', level: 2, content: 'Qué puede hacer cada rol' },
     { name: 'Tokens de CI', url: () => `${project()}/tokens`, heading: 'Tokens de CI', level: 2, content: 'e2e-ci' },
-    { name: 'Tokens personales', url: () => `${project()}/tokens-personales`, heading: 'Tokens personales', level: 2, content: 'Organización' },
+    // SDD-089 (WO-697) movió Tokens personales al nivel de cuenta: la pantalla ya no muestra la organización,
+    // así que la línea que se busca es su propio subtítulo (estaba roja en main desde ese merge).
+    { name: 'Tokens personales', url: () => `${project()}/tokens-personales`, heading: 'Tokens personales', level: 2, content: /Credenciales tuyas/ },
     { name: 'Perfil', url: () => `${project()}/perfil`, heading: 'Perfil', level: 2, content: 'Email' },
     { name: 'Auditoría del proyecto', url: () => `${project()}/auditoria`, heading: 'Auditoría', level: 2, content: 'token.ci.created', inTable: true },
     { name: 'Miembros de la organización', url: () => `${org()}/miembros`, heading: /^Miembros de /, level: 1, content: 'Invitaciones pendientes' },
@@ -111,7 +113,15 @@ test('crear un token con la fecha como viene funciona, y se revoca', async () =>
 
   const fila = page.getByRole('row', { name: /e2e-ajustes/ });
   await expect(fila).toContainText('Activo');
+
+  // WO-718: revocar ya no pasa con el primer clic. El botón de la fila abre la confirmación, que nombra el
+  // token, y recién el botón del diálogo revoca.
   await fila.getByRole('button', { name: /Revocar/ }).click();
+  const confirmacion = page.getByRole('dialog', { name: 'Revocar token' });
+  await expect(confirmacion).toContainText('e2e-ajustes');
+  await expect(fila).toContainText('Activo');
+  await confirmacion.getByRole('button', { name: 'Revocar token' }).click();
+
   await expect(page.getByRole('row', { name: /e2e-ajustes/ })).toContainText('Revocado');
   await expect(page.getByRole('row', { name: /e2e-ajustes/ }).getByRole('button', { name: /Revocar/ })).toHaveCount(0);
 
@@ -167,4 +177,32 @@ test('la auditoría acota por la acción real y deja el filtro en la URL (SDD-09
   await expect(page).toHaveURL(/accion=token\.ci\.created/);
   await expect(page.getByRole('table').getByText('token.ci.created').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Quitar filtros' })).toBeVisible();
+});
+
+/**
+ * WO-718 (SDD-062): la confirmación de una acción destructiva, mirada como la mira una persona. El botón de la
+ * fila abre el diálogo, el diálogo nombra el recurso, nada se muta hasta confirmar, el foco arranca en la salida
+ * segura y a 375 px no aparece scroll lateral. Se cancela: el token de CI del harness sigue vivo para el resto
+ * de la suite.
+ */
+test('confirmar una acción destructiva: nombra el recurso, enfoca Cancelar y no muta hasta confirmar', async () => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${project()}/tokens`);
+
+  const fila = page.getByRole('row', { name: /e2e-ci/ });
+  await fila.getByRole('button', { name: /Revocar/ }).click();
+
+  const confirmacion = page.getByRole('dialog', { name: 'Revocar token' });
+  await expect(confirmacion).toContainText('e2e-ci');
+  await expect(confirmacion).toContainText('Si lo usa tu pipeline');
+  await expect(confirmacion.getByRole('button', { name: 'Cancelar' })).toBeFocused();
+  await expect(fila).toContainText('Activo');
+
+  // A 375 el diálogo entra completo: scrollea por dentro, nunca la página.
+  await page.setViewportSize({ width: 375, height: 812 });
+  expect(await sidewaysOverflow(page)).toBe(0);
+
+  await confirmacion.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('row', { name: /e2e-ci/ })).toContainText('Activo');
 });

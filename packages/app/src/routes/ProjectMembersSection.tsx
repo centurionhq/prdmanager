@@ -11,6 +11,10 @@
  *
  * SDD-056/PRD-036: rebuilt on the design-system pieces against `AjustesMiembros.dc.html`: `SectionHeader` with
  * the primary action, `DataTable`, and the add form in a `Modal`. Same requests, same rules.
+ *
+ * SDD-062/WO-718 D1: "Quitar" no longer removes anybody directly. It opens the `ConfirmDialog` — which names
+ * the person and their role in this project — and the same request runs from the dialog's confirm button. A
+ * failed removal stays inside the dialog, because the person is still a member.
  */
 import { useState, type FormEvent, type ReactElement } from 'react';
 import {
@@ -23,7 +27,7 @@ import {
 } from '@prdm/contracts';
 import { addProjectMember, removeProjectMember, updateProjectMemberRole } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
-import { Button, DataTable, Modal, SectionHeader, SelectField, type DataTableColumn } from '../components/index.js';
+import { Button, ConfirmDialog, DataTable, Modal, SectionHeader, SelectField, type DataTableColumn } from '../components/index.js';
 import { FormError } from '../components/FormError.js';
 import { projectRoleLabel } from '../lib/role-labels.js';
 import { PersonCell } from './miembros/PersonCell.js';
@@ -95,6 +99,9 @@ export function ProjectMembersSection({
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<ProjectMemberDto | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const candidates = orgMembers.filter((om) => !members.some((m) => m.userId === om.userId));
 
@@ -108,14 +115,30 @@ export function ProjectMembersSection({
     }
   }
 
-  async function handleRemove(userId: string): Promise<void> {
+  /** Same request, same reload as before; it is now called from the dialog's confirm button only. */
+  async function handleRemove(target: ProjectMemberDto): Promise<void> {
     setRowError(null);
+    setRemoveError(null);
+    setRemoving(true);
     try {
-      await removeProjectMember(orgSlug, projectSlug, userId);
+      await removeProjectMember(orgSlug, projectSlug, target.userId);
+      setRemoveTarget(null);
       onChanged();
     } catch (err) {
-      setRowError(errorMessage(err));
+      setRemoveError(errorMessage(err));
+    } finally {
+      setRemoving(false);
     }
+  }
+
+  function askRemove(member: ProjectMemberDto): void {
+    setRemoveError(null);
+    setRemoveTarget(member);
+  }
+
+  function cancelRemove(): void {
+    setRemoveTarget(null);
+    setRemoveError(null);
   }
 
   async function handleAdd(event: FormEvent): Promise<void> {
@@ -159,7 +182,7 @@ export function ProjectMembersSection({
               member.userId === currentUserId ? (
                 <span className={styles.cannotRemove}>No podés quitarte</span>
               ) : (
-                <Button type="button" variant="destructive" size="sm" aria-label={`Quitar a ${member.email}`} onClick={() => void handleRemove(member.userId)}>
+                <Button type="button" variant="destructive" size="sm" aria-label={`Quitar a ${member.email}`} onClick={() => askRemove(member)}>
                   Quitar
                 </Button>
               ),
@@ -206,6 +229,21 @@ export function ProjectMembersSection({
           </form>
         </Modal>
       ) : null}
+
+      <ConfirmDialog
+        open={removeTarget !== null}
+        title="Quitar del proyecto"
+        description="Pierde el acceso al proyecto y a sus documentos. Podés volver a invitarlo cuando quieras."
+        resource={removeTarget ? { name: removeTarget.email, meta: projectRoleLabel(removeTarget.role) } : undefined}
+        confirmLabel="Quitar"
+        busyLabel="Quitando"
+        error={removeError}
+        pending={removing}
+        onConfirm={() => {
+          if (removeTarget) void handleRemove(removeTarget);
+        }}
+        onCancel={cancelRemove}
+      />
 
       <RoleMatrix />
     </div>

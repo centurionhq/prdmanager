@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -77,6 +77,37 @@ describe('AjustesMiembros', () => {
     await screen.findByRole('combobox', { name: 'Rol de dev@example.test' });
     expect(screen.getByText('No podés quitarte')).toBeTruthy();
     expect(screen.getAllByRole('button', { name: /^Quitar/ })).toHaveLength(1);
+  });
+
+  /** WO-718 D1: the row only opens the confirmation; the mutation runs from the dialog's own button. */
+  it('asks before removing a member, naming the person and their role, and only removes on confirm', async () => {
+    const remove = vi.spyOn(client, 'removeProjectMember').mockResolvedValue(undefined);
+    renderAjustesMiembros('admin');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Quitar a dev@example.test' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Quitar del proyecto' });
+    expect(within(dialog).getByText('dev@example.test')).toBeTruthy();
+    expect(within(dialog).getByText(/Developer/)).toBeTruthy();
+    expect(within(dialog).getByText('Pierde el acceso al proyecto y a sus documentos. Podés volver a invitarlo cuando quieras.')).toBeTruthy();
+    expect(remove).not.toHaveBeenCalled();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Quitar' }));
+
+    await waitFor(() => expect(remove).toHaveBeenCalledWith('acme', 'web', 'u2'));
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
+
+  it('removes nobody when the confirmation is cancelled', async () => {
+    const remove = vi.spyOn(client, 'removeProjectMember').mockResolvedValue(undefined);
+    renderAjustesMiembros('admin');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Quitar a dev@example.test' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Quitar del proyecto' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+
+    expect(remove).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
   it('marks the row that is you, and lists people by name and email', async () => {

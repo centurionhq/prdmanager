@@ -8,15 +8,20 @@
  * the project context extends the org one. Membership is the shell's business too: an organization the
  * caller does not belong to never reaches this screen (`OrgShell` renders "Organización no encontrada"
  * instead).
+ *
+ * SDD-062/WO-718 D1: revoking is destructive and irreversible, so the row only opens the `ConfirmDialog` and
+ * the mutation runs from its confirm button. The dialog's `pending`/`error` are this screen's own: a failed
+ * revoke stays inside the dialog (the token is still usable) instead of replacing the whole screen.
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import type { CreatedTokenResponse, TokenScopeDto, TokenSummaryDto } from '@prdm/contracts';
 import { createPersonalToken, listPersonalTokens, revokePersonalToken } from '../api/client.js';
 import { errorMessage } from '../api/error-message.js';
 import { PERSONAL_TOKEN_SCOPES } from '../auth/token-scopes.js';
-import { Button, SectionHeader, Skeleton } from '../components/index.js';
+import { Button, ConfirmDialog, SectionHeader, Skeleton } from '../components/index.js';
 import { FormError } from '../components/FormError.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
+import { tokenResourceMeta } from '../lib/token-resource.js';
 import { TokenCreateForm } from '../components/TokenCreateForm.js';
 import { TokenSecretPanel } from '../components/TokenSecretPanel.js';
 import { TokenTable } from '../components/TokenTable.js';
@@ -29,6 +34,9 @@ export function PersonalTokensSettings(): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [justCreated, setJustCreated] = useState<CreatedTokenResponse | null>(null);
   const [creating, setCreating] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<TokenSummaryDto | null>(null);
+  const [revoking, setRevoking] = useState(false);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
   useDocumentTitle('Tokens personales');
 
   useEffect(() => {
@@ -54,13 +62,30 @@ export function PersonalTokensSettings(): ReactElement {
     setCreating(false);
   }
 
-  async function handleRevoke(tokenId: string): Promise<void> {
+  /** The mutation itself is unchanged (`revokePersonalToken`, same optimistic row update); only *when* it runs
+   * changed. It is called from the dialog's confirm button, never from the table. */
+  async function handleRevoke(target: TokenSummaryDto): Promise<void> {
+    setRevokeError(null);
+    setRevoking(true);
     try {
-      await revokePersonalToken(orgSlug, tokenId);
-      setTokens((prev) => (prev ?? []).map((t) => (t.id === tokenId ? { ...t, revokedAt: new Date().toISOString() } : t)));
+      await revokePersonalToken(orgSlug, target.id);
+      setTokens((prev) => (prev ?? []).map((t) => (t.id === target.id ? { ...t, revokedAt: new Date().toISOString() } : t)));
+      setRevokeTarget(null);
     } catch (err) {
-      setError(errorMessage(err));
+      setRevokeError(errorMessage(err));
+    } finally {
+      setRevoking(false);
     }
+  }
+
+  function askRevoke(token: TokenSummaryDto): void {
+    setRevokeError(null);
+    setRevokeTarget(token);
+  }
+
+  function cancelRevoke(): void {
+    setRevokeTarget(null);
+    setRevokeError(null);
   }
 
   if (error) return <FormError message={error} />;
@@ -81,7 +106,22 @@ export function PersonalTokensSettings(): ReactElement {
 
       {justCreated ? <TokenSecretPanel secret={justCreated.secret} onDismiss={() => setJustCreated(null)} /> : null}
       {creating ? <TokenCreateForm availableScopes={PERSONAL_TOKEN_SCOPES} onCreate={handleCreate} onCancel={() => setCreating(false)} /> : null}
-      {!tokens ? <Skeleton rows={3} /> : <TokenTable tokens={tokens} onRevoke={(id) => void handleRevoke(id)} />}
+      {!tokens ? <Skeleton rows={3} /> : <TokenTable tokens={tokens} onRevoke={askRevoke} />}
+
+      <ConfirmDialog
+        open={revokeTarget !== null}
+        title="Revocar token"
+        description="Deja de funcionar de inmediato. No se puede deshacer."
+        resource={revokeTarget ? { name: revokeTarget.name, meta: tokenResourceMeta(revokeTarget) } : undefined}
+        confirmLabel="Revocar token"
+        busyLabel="Revocando"
+        error={revokeError}
+        pending={revoking}
+        onConfirm={() => {
+          if (revokeTarget) void handleRevoke(revokeTarget);
+        }}
+        onCancel={cancelRevoke}
+      />
     </div>
   );
 }
