@@ -114,6 +114,23 @@ const BRANCH: Subgraph = {
   edges: [],
 };
 
+/** WO-747 (SDD-104 D1): el subgrafo del branch trae la cadena -- `IMPLEMENTS` (WO→blueprint) y `RESOLVES`
+ * (commit→WO), con el Commit indexado como `commit:<7 primeros del sha>` (`MERGE_COMMITS`). WO-100 está
+ * `pending` y ya tiene commit: es justo el caso donde la marca no puede cambiar el estado (D4). */
+const CHAIN_BRANCH: Subgraph = {
+  nodes: [
+    { ref: 'SDD-005', label: 'Blueprint', kind: 'SDD', title: 'Diseño', status: 'published' },
+    { ref: 'WO-100', label: 'WorkOrder', kind: 'WO', title: 'Implementación', status: 'pending' },
+    { ref: 'WO-101', label: 'WorkOrder', kind: 'WO', title: 'Tests', status: 'pending' },
+    { ref: 'commit:15e5683', label: 'Commit', kind: null, title: 'feat: la cadena (WO-100)', status: null },
+  ],
+  edges: [
+    { from: 'WO-100', to: 'SDD-005', type: 'IMPLEMENTS', status: null, reviewNeeded: false },
+    { from: 'WO-101', to: 'SDD-005', type: 'IMPLEMENTS', status: null, reviewNeeded: false },
+    { from: 'commit:15e5683', to: 'WO-100', type: 'RESOLVES', status: null, reviewNeeded: false },
+  ],
+};
+
 /** WO-749: un subgrafo con `count` órdenes (más el SDD que las sostiene) para medir el tope del panel. */
 function branchWithOrders(count: number): Subgraph {
   return {
@@ -329,7 +346,8 @@ describe('ProjectGraph (árbol de features)', () => {
     renderPage('SDD-005');
 
     expect(await screen.findByText(/1 referencia/)).toBeTruthy();
-    expect(screen.getByText(/1 commit/)).toBeTruthy();
+    // WO-747 (SDD-104 C4): «Commits» de Trazabilidad pasa a «N aterrizados en main» (en singular, «1 aterrizado»).
+    expect(screen.getByText(/1 aterrizado en main/)).toBeTruthy();
   });
 
   it('an admin can review closure readiness and close a ready feature', async () => {
@@ -481,34 +499,95 @@ describe('ProjectGraph (árbol de features)', () => {
     // BRANCH has SDD-005 (its only blueprint), so only the ref/commit attributed to SDD-005 counts --
     // the one attributed to the unrelated SDD-999 is excluded even though listCodeRefs is project-wide.
     expect(await screen.findByText(/1 referencia\b/)).toBeTruthy();
-    expect(screen.getByText(/1 commit\b/)).toBeTruthy();
+    expect(screen.getByText(/1 aterrizado en main/)).toBeTruthy();
 
     const link = screen.getByRole('link', { name: /ver las 2 órdenes/i });
     expect(link.getAttribute('href')).toBe('/o/acme/p/web/ordenes');
   });
 
-  it('shows the orders table (status, commit, date) and the governed-code table for a selected feature (WO-459)', async () => {
+  it('shows the governed-code table and the orders table for a selected feature (WO-459; la tabla de órdenes es la cadena de WO-747)', async () => {
     vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
     vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
-    vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(BRANCH);
+    vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(CHAIN_BRANCH);
     vi.spyOn(client, 'listCodeRefs').mockResolvedValue([
       { projectId: 'p1', orgId: 'o1', blueprintId: 'SDD-005', refKey: 'k1', path: 'src/a.ts', symbol: 'doThing', hash: null, hashAlgoVersion: 1, reportId: 'r1', headSha: 'abc1234567', updatedAt: '2026-01-01' },
     ]);
-    const commit: CommitDto = { sha: 'abc1234567', subject: 'feat: x', author: 'me', date: '2026-01-02', refs: ['WO-100'], files: [], trust: 'baseline' };
-    vi.spyOn(client, 'listCommits').mockResolvedValue({ items: [commit], nextCursor: null });
+    vi.spyOn(client, 'listCommits').mockResolvedValue({ items: [], nextCursor: null });
 
     renderPage('FR-001');
 
-    // BRANCH: WO-100 (done, resolved by the commit above) and WO-101 (pending, no matching commit).
-    const doneRow = await screen.findByRole('row', { name: /WO-100/ });
-    expect(within(doneRow).getByText('abc1234')).toBeTruthy();
-    expect(within(doneRow).getByText('2026-01-02')).toBeTruthy();
+    // CHAIN_BRANCH: WO-100 (pending, con commit por `RESOLVES`) y WO-101 (pending, sin commit).
+    const landedRow = await screen.findByRole('row', { name: /WO-100/ });
+    expect(within(landedRow).getByRole('link', { name: 'SDD-005' })).toBeTruthy();
+    expect(within(landedRow).getByText('15e5683')).toBeTruthy();
 
     const pendingRow = screen.getByRole('row', { name: /WO-101/ });
-    expect(within(pendingRow).getAllByText('—').length).toBeGreaterThan(0);
+    expect(within(pendingRow).getByText('Sin commit')).toBeTruthy();
 
     expect(screen.getByText('src/a.ts')).toBeTruthy();
     expect(screen.getByText('doThing')).toBeTruthy();
+  });
+
+  /**
+   * WO-747 (SDD-104 D1-D5 + las decisiones C1/C2/C4/C5 de prdm-pm): la fila de cada orden del panel toma su
+   * SDD de la arista `IMPLEMENTS` y su commit de la arista `RESOLVES` del subgrafo del branch -- el que la
+   * pantalla ya consulta. La marca no cierra ni cambia el estado de la orden.
+   */
+  describe('la cadena SDD-rama en el panel (WO-747, SDD-104)', () => {
+    beforeEach(() => {
+      vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+      vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+      vi.spyOn(client, 'getFeatureBranch').mockResolvedValue(CHAIN_BRANCH);
+      vi.spyOn(client, 'listCommits').mockResolvedValue({ items: [], nextCursor: null });
+      vi.spyOn(client, 'listCodeRefs').mockResolvedValue([]);
+    });
+
+    it('muestra el SDD de la orden, enlazado al documento, y el sha corto de su commit (D1/D2/D3)', async () => {
+      renderPage('FR-001');
+
+      const row = await screen.findByRole('row', { name: /WO-100/ });
+
+      // `/documento/<SDD>` del SDD es, en la app real, la ruta `documents/:docId` (router.tsx).
+      expect(within(row).getByRole('link', { name: 'SDD-005' }).getAttribute('href')).toBe('/o/acme/p/web/documents/SDD-005');
+      expect(within(row).getByText('15e5683')).toBeTruthy();
+      expect(within(row).getByText('aterrizado en main')).toBeTruthy();
+      expect(screen.getByRole('columnheader', { name: 'SDD' })).toBeTruthy();
+    });
+
+    it('una orden sin commit muestra un vacío honesto, no un guion mudo (D3)', async () => {
+      renderPage('FR-001');
+
+      const row = await screen.findByRole('row', { name: /WO-101/ });
+
+      expect(within(row).getByText('Sin commit')).toBeTruthy();
+      expect(within(row).queryByText('—')).toBeNull();
+      expect(within(row).queryByText('aterrizado en main')).toBeNull();
+    });
+
+    it('la marca no cierra ni cambia el estado de la orden, y la leyenda lo dice (D4/C2)', async () => {
+      renderPage('FR-001');
+
+      const row = await screen.findByRole('row', { name: /WO-100/ });
+      // WO-100 está pendiente y ya tiene commit: sigue pendiente, con su estado intacto.
+      expect(within(row).getByText('Pendiente')).toBeTruthy();
+      expect(screen.getByText(/no cierra ni cambia el estado de la orden/i)).toBeTruthy();
+    });
+
+    it('el panel resume cuántas pendientes ya tienen commit (D5/C5)', async () => {
+      renderPage('FR-001');
+
+      await screen.findByRole('table', { name: /órdenes de FR-001/i });
+      expect(screen.getByText((_, element) => element?.tagName === 'P' && element.textContent === '1 de 2 órdenes pendientes ya tienen commit')).toBeTruthy();
+    });
+
+    it('la fila no trae columna Fecha y Trazabilidad dice cuántos commits aterrizaron en main (C1/C4)', async () => {
+      renderPage('FR-001');
+
+      await screen.findByRole('table', { name: /órdenes de FR-001/i });
+      expect(screen.queryByRole('columnheader', { name: 'Fecha' })).toBeNull();
+      // `listCommits` está vacío en este fixture: el contador es explícito, no desaparece.
+      expect(screen.getByText('0 aterrizados en main')).toBeTruthy();
+    });
   });
 
   it('shows a real EmptyState (not a blank "Trazabilidad" heading) for a non-feature document reached by url (WO-460)', async () => {
@@ -545,7 +624,7 @@ describe('ProjectGraph (árbol de features)', () => {
     expect(screen.queryByText('Todavía no hay trazabilidad')).toBeNull();
     expect(screen.getByText('0 de 0 hechas')).toBeTruthy();
     expect(await screen.findByText('0 referencias')).toBeTruthy();
-    expect(screen.getByText('0 commits')).toBeTruthy();
+    expect(screen.getByText('0 aterrizados en main')).toBeTruthy();
   });
 
   it('the "Buscar por id o título" field filters the tree, keeping a match\'s ancestors (WO-461; el conteo del header pasa a «N resultados de M features» por SDD-083 D2)', async () => {

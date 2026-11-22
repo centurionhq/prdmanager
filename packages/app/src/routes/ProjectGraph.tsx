@@ -8,8 +8,9 @@
  * CSS module, plus `FeatureTree`'s, now that the tree itself is a design-system component).
  */
 import { useMemo, useState, type ReactElement } from 'react';
+import { CircleCheck, CircleDashed } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import type { CodeRefDto, CommitDto, DriftIssueDto, ForceCloseBypassableCheckDto } from '@prdm/contracts';
+import type { CodeRefDto, DriftIssueDto, ForceCloseBypassableCheckDto } from '@prdm/contracts';
 import { can, FORCE_CLOSE_BYPASSABLE_CHECKS } from '@prdm/contracts';
 import type { NodeDetail, NodeLink, NodeView, Subgraph, TreeNode } from '@prdm/core';
 import type { ClosureCheck, ClosureReadiness } from '@prdm/core';
@@ -41,6 +42,7 @@ import {
   Modal,
   PageHeader,
   SearchField,
+  ShaRef,
   Skeleton,
   StatusBadge,
   type DataTableColumn,
@@ -49,6 +51,7 @@ import {
   type StatusBadgeWorkflowStatus,
 } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
+import { chainSummary, orderChainRows, type OrderChainRow } from './arbol/order-chain.js';
 import { countMatches, filterForestByQuery } from './arbol/tree-search.js';
 import styles from './ProjectGraph.module.css';
 import { useProjectShellContext } from './ProjectShell.js';
@@ -162,11 +165,11 @@ function renderStatus(view: NodeView): ReactElement {
   return <span className={styles.statusFallback}>{view.status}</span>;
 }
 
-interface FeatureOrderRow {
-  readonly ref: string;
-  readonly title: string;
-  readonly status: string | null;
-  readonly commit: CommitDto | null;
+interface PanelOrderRow extends OrderChainRow {
+  /** Sólo para ordenar (WO-749, SDD-105 D1): la fecha del commit tal como la publica `listCommits`. El
+   * subgrafo del branch no la trae, así que la celda no la muestra (decisión C1 de prdm-pm: sin columna
+   * Fecha); sirve para que «las 25 más recientes» siga significando lo mismo que antes. */
+  readonly commitDate: string | null;
 }
 
 /** WO-749 (SDD-105 D1): el panel es un resumen de la feature -- la lista de trabajo es la pantalla de
@@ -176,15 +179,15 @@ const ORDER_LIMIT = 25;
 
 /** WO-749 (SDD-105 D1): la fecha del commit de una orden en milisegundos, o `null` cuando la orden
  * todavía no tiene commit (o su fecha no es parseable) -- esas filas van después de las fechadas. */
-function orderTime(order: FeatureOrderRow): number | null {
-  if (!order.commit) return null;
-  const parsed = Date.parse(order.commit.date);
+function orderTime(order: PanelOrderRow): number | null {
+  if (order.commitDate === null) return null;
+  const parsed = Date.parse(order.commitDate);
   return Number.isNaN(parsed) ? null : parsed;
 }
 
 /** WO-749 (SDD-105 D1): las más recientes primero por fecha de commit y, sin fecha, por id descendente
  * (el id más alto es la orden más nueva), con `numeric` para no depender del relleno con ceros. */
-function byMostRecentOrder(left: FeatureOrderRow, right: FeatureOrderRow): number {
+function byMostRecentOrder(left: PanelOrderRow, right: PanelOrderRow): number {
   const leftTime = orderTime(left);
   const rightTime = orderTime(right);
   if (leftTime !== null && rightTime !== null && leftTime !== rightTime) return rightTime - leftTime;
@@ -193,20 +196,65 @@ function byMostRecentOrder(left: FeatureOrderRow, right: FeatureOrderRow): numbe
   return right.ref.localeCompare(left.ref, undefined, { numeric: true });
 }
 
-const ORDER_COLUMNS: readonly DataTableColumn<FeatureOrderRow>[] = [
-  { key: 'ref', header: 'Orden', render: (row) => <IdTag id={row.ref} /> },
-  // WO-751 (SDD-105 D5/T1): el título es markdown -- la celda pinta el texto plano con los tramos de
-  // código como pieza mono, en vez de imprimir `**`, acentos graves y rutas crudas (FB-263).
-  { key: 'title', header: 'Título', render: (row) => <MarkdownInline text={row.title} /> },
-  {
-    key: 'status',
-    header: 'Estado',
-    render: (row) =>
-      row.status && WORK_ORDER_STATUSES.has(row.status as StatusBadgeWorkOrderStatus) ? <StatusBadge kind="workOrder" status={row.status as StatusBadgeWorkOrderStatus} /> : (row.status ?? '—'),
-  },
-  { key: 'commit', header: 'Commit', render: (row) => (row.commit ? <span className="id">{row.commit.sha.slice(0, 7)}</span> : '—') },
-  { key: 'date', header: 'Fecha', align: 'end', render: (row) => row.commit?.date ?? '—' },
-];
+/** WO-747 (SDD-104 D2): el SDD de la orden, enlazado a su documento. `/documento/<SDD>` del blueprint es,
+ * en la app, la ruta `documents/:docId` (`router.tsx`); el id no se deriva de la convención de la rama. */
+function renderSddCell(row: OrderChainRow, documentsBase: string): ReactElement {
+  if (row.sdds.length === 0) return <span className={styles.sddMissing}>Sin blueprint</span>;
+  return (
+    <span className={styles.sddCell}>
+      {row.sdds.map((sdd) => (
+        <Link key={sdd} to={`${documentsBase}/${encodeURIComponent(sdd)}`} className={styles.sddLink}>
+          <IdTag id={sdd} />
+        </Link>
+      ))}
+    </span>
+  );
+}
+
+/** WO-747 (SDD-104 D3, decisión C2): la marca es no cromática (círculo con tilde / círculo punteado) y
+ * convive con el sha corto; sin commit, «Sin commit» en `--apagado`, nunca un guion mudo. La marca no
+ * cierra ni cambia el estado de la orden (D4). */
+function renderCommitCell(row: OrderChainRow): ReactElement {
+  if (row.landedSha === null) {
+    return (
+      <span className={styles.commitCell}>
+        <span className={styles.commitLine}>
+          <CircleDashed aria-hidden="true" size={14} className={styles.commitMarkOff} />
+          <span className={styles.commitMissing}>Sin commit</span>
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span className={styles.commitCell}>
+      <span className={styles.commitLine}>
+        <CircleCheck aria-hidden="true" size={14} className={styles.commitMarkOn} />
+        <ShaRef sha={row.landedSha} />
+      </span>
+      <span className={styles.commitNote}>aterrizado en main</span>
+    </span>
+  );
+}
+
+/** WO-747 (C1 de prdm-pm): Orden (72) · Título (flexible) · SDD (80) · Estado (104) · Commit (144), sin
+ * Fecha. Las columnas dependen del proyecto para el enlace al documento, así que se arman por panel. */
+function orderColumns(documentsBase: string): readonly DataTableColumn<PanelOrderRow>[] {
+  return [
+    { key: 'ref', header: 'Orden', width: '72px', render: (row) => <IdTag id={row.ref} /> },
+    // WO-751 (SDD-105 D5/T1): el título es markdown -- la celda pinta el texto plano con los tramos de
+    // código como pieza mono, en vez de imprimir `**`, acentos graves y rutas crudas (FB-263).
+    { key: 'title', header: 'Título', render: (row) => <MarkdownInline text={row.title} /> },
+    { key: 'sdds', header: 'SDD', width: '80px', render: (row) => renderSddCell(row, documentsBase) },
+    {
+      key: 'status',
+      header: 'Estado',
+      width: '104px',
+      render: (row) =>
+        row.status && WORK_ORDER_STATUSES.has(row.status as StatusBadgeWorkOrderStatus) ? <StatusBadge kind="workOrder" status={row.status as StatusBadgeWorkOrderStatus} /> : (row.status ?? '—'),
+    },
+    { key: 'commit', header: 'Commit', width: '144px', stack: 'block', render: (row) => renderCommitCell(row) },
+  ];
+}
 
 interface CodeRefRow {
   /** Rework de WO-769 (FB-318): identidad de fila única. `refKey` es el path en el payload real, así que
@@ -245,10 +293,12 @@ interface TraceabilityPanelProps {
   readonly commits: CommitsPage | null;
   readonly canClose: boolean;
   readonly ordersHref: string;
+  /** Prefijo `/o/:org/p/:project/documents` -- WO-747 (D2): el SDD de cada orden enlaza a su documento. */
+  readonly documentsBase: string;
   readonly onOpenClosure: () => void;
 }
 
-function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, ordersHref, onOpenClosure }: TraceabilityPanelProps): ReactElement {
+function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, ordersHref, documentsBase, onOpenClosure }: TraceabilityPanelProps): ReactElement {
   const { node: view, links } = detail;
   const parent = relatedRefs(links, 'EVOLVES_FROM', 'out')[0];
   const children = relatedRefs(links, 'EVOLVES_FROM', 'in');
@@ -280,20 +330,28 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
     .slice(0, CODE_LIMIT)
     .map((ref) => ({ rowId: `${ref.blueprintId}|${ref.refKey}`, path: ref.path, symbol: ref.symbol }));
 
-  // WO-459: each work order's own commit is whichever commit's `refs` names that order's id directly --
-  // the trailer convention every commit in this repo already follows (`Refs: WO-xxx`).
-  const allOrderRows: readonly FeatureOrderRow[] = branchWorkOrders
-    .map((node) => ({
-      ref: node.ref,
-      title: node.title,
-      status: node.status,
-      commit: commits?.items.find((commit) => commit.refs.includes(node.ref)) ?? null,
-    }))
-    .sort(byMostRecentOrder);
+  // WO-747 (SDD-104 D1): la cadena de cada orden -- su SDD y su commit -- sale del subgrafo del branch que
+  // la pantalla YA consulta (`orderChainRows`). `listCommits` sigue alimentando sólo el desempate por fecha
+  // del «las 25 más recientes» de WO-749 y el contador de Trazabilidad: ningún request nuevo. Memoizado
+  // porque el filtro del código gobernado re-renderiza en cada tecla y el branch de una feature grande
+  // trae cientos de nodos y aristas.
+  const allOrderRows = useMemo<readonly PanelOrderRow[]>(() => {
+    const commitDatesByRef = new Map<string, string>();
+    for (const commit of commits?.items ?? []) {
+      for (const ref of commit.refs) if (!commitDatesByRef.has(ref)) commitDatesByRef.set(ref, commit.date);
+    }
+    return orderChainRows(branch)
+      .map((row) => ({ ...row, commitDate: commitDatesByRef.get(row.ref) ?? null }))
+      .sort(byMostRecentOrder);
+  }, [branch, commits]);
+  // WO-747 (D5, decisión C5): «N de M órdenes pendientes ya tienen commit», sobre TODAS las del branch, no
+  // sólo las 25 que se montan.
+  const ordersChain = useMemo(() => chainSummary(allOrderRows), [allOrderRows]);
   // WO-749 (SDD-105 D1/D2): la tabla monta 25 y, si quedaron órdenes afuera, una línea dice cuántas y
   // ofrece la cola completa. Sin recorte no hay línea: el enlace a la cola de «Trazabilidad» ya está.
   const orderRows = allOrderRows.slice(0, ORDER_LIMIT);
   const hiddenOrders = allOrderRows.length - orderRows.length;
+  const orderTableColumns = useMemo(() => orderColumns(documentsBase), [documentsBase]);
 
   // WO-460: every block above is conditional on having something to show -- a document with none of
   // these (no lineage, not a feature/blueprint so no branch/code/commits) used to leave the "Trazabilidad"
@@ -374,8 +432,9 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
             {commits ? (
               <div>
                 <dt className={styles.traceLabel}>Commits</dt>
+                {/* WO-747 (decisión C4): «N aterrizados en main», el mismo vocabulario que la tabla. */}
                 <dd className={`num ${styles.traceValueNum}`}>
-                  {relatedCommits.length} {relatedCommits.length === 1 ? 'commit' : 'commits'}
+                  {relatedCommits.length} {relatedCommits.length === 1 ? 'aterrizado' : 'aterrizados'} en main
                 </dd>
               </div>
             ) : null}
@@ -391,7 +450,15 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
       {branch && orderRows.length > 0 ? (
         <section aria-label="Órdenes de la feature">
           <h3 className={styles.sectionTitle}>Órdenes recientes</h3>
-          <DataTable caption={`Órdenes de ${view.id}`} columns={ORDER_COLUMNS} rows={orderRows} getRowId={(row) => row.ref} />
+          {/* WO-747 (D5, C5): el resumen de la cadena, sobre todas las órdenes del branch. Sin pendientes no
+              hay nada que resumir: la línea no se dibuja. */}
+          {ordersChain.pending > 0 ? (
+            <p className={styles.chainSummary}>
+              <span className="num">{ordersChain.landed}</span> de <span className="num">{ordersChain.pending}</span>{' '}
+              {ordersChain.pending === 1 ? 'orden pendiente ya tiene' : 'órdenes pendientes ya tienen'} commit
+            </p>
+          ) : null}
+          <DataTable caption={`Órdenes de ${view.id}`} columns={orderTableColumns} rows={orderRows} getRowId={(row) => row.ref} />
           {hiddenOrders > 0 ? (
             <p className={styles.ordersRecorte}>
               <span>
@@ -402,6 +469,19 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
               </Link>
             </p>
           ) : null}
+          {/* WO-747 (C5): la leyenda de la marca, una sola línea bajo la tabla -- el círculo es decorativo,
+              el texto delata el caso y la nota evita leer la marca como un cierre (D4). */}
+          <p className={styles.chainLegend}>
+            <span className={styles.chainLegendItem}>
+              <CircleCheck aria-hidden="true" size={14} className={styles.commitMarkOn} />
+              aterrizado en main
+            </span>
+            <span className={styles.chainLegendItem}>
+              <CircleDashed aria-hidden="true" size={14} className={styles.commitMarkOff} />
+              sin commit
+            </span>
+            <span className={styles.chainLegendNote}>La marca no cierra ni cambia el estado de la orden.</span>
+          </p>
         </section>
       ) : null}
 
@@ -789,6 +869,7 @@ export function ProjectGraph(): ReactElement {
             <TraceabilityPanel
               detail={detail}
               ordersHref={`/o/${orgSlug}/p/${projectSlug}/ordenes`}
+              documentsBase={`/o/${orgSlug}/p/${projectSlug}/documents`}
               branch={branchQuery.data ?? null}
               codeRefs={codeRefsQuery.data ?? null}
               commits={commitsQuery.data ?? null}
