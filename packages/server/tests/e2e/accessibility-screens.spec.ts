@@ -53,6 +53,12 @@ test.describe('Accessibility gate: ported frontend screens (WO-369)', () => {
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/arbol`);
     await expectNoViolations(page, 'Árbol de features');
 
+    // Este harness limpia el grafo, así que no hay features huérfanas: el param no enciende el chip. El caso
+    // con chip, badge y filas vive en planta-trazabilidad-sin-codigo.spec.ts.
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/arbol?sinCodigo=1`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Árbol de features' })).toBeVisible();
+    await expectNoViolations(page, 'Árbol de features (?sinCodigo=1)');
+
     await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/ordenes`);
     await expectNoViolations(page, 'Órdenes');
 
