@@ -10,6 +10,37 @@
   overflow-wrap: anywhere;
 }
 
+/* FB-240 / SDD-101 D2: the stopped line is a destination. Same hit target and focus ring as every other cell
+   link; the row itself keeps its own link in the "Proyecto" column. */
+.lineLink {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: var(--hit-target);
+  justify-content: center;
+  color: inherit;
+  text-decoration: none;
+}
+
+.lineLink:hover .lineEvidence {
+  color: var(--cianotipo);
+}
+
+.lineLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-plate);
+}
+
+.lineEvidence {
+  font-size: var(--text-xs);
+  color: var(--apagado);
+  overflow-wrap: anywhere;
+}
+
 .segments {
   display: inline-flex;
   flex-wrap: wrap;
@@ -109,6 +140,46 @@
   background: var(--senal);
 }
 
+/* FB-241 / SDD-101 D6: the alarm never leans on colour alone — a hollow square (shape) plus the consequence in
+   words plus the action, and it is still the link to the members screen. */
+.accessAlarm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-height: var(--hit-target);
+  text-align: right;
+}
+
+.accessMark {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  box-sizing: border-box;
+  border: 2px solid var(--paro);
+}
+
+.accessLink {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-height: var(--hit-target);
+}
+
+.accessText {
+  color: var(--paro);
+  font-weight: 600;
+}
+
+.accessAction {
+  color: var(--cianotipo);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 .rowAction {
   position: relative;
   z-index: 1;
@@ -125,9 +196,53 @@
 }
 
 .legendTitle {
-  margin: 0 0 var(--space-2);
+  margin: 0;
   font-size: var(--text-sm);
   font-weight: 600;
+}
+
+/* FB-242 / SDD-101 D7: the title is the toggle. A real button, so keyboard and `aria-expanded` come for free. */
+.legendToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--hit-target);
+  padding: 0;
+  background: none;
+  border: 0;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+
+.legendToggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-plate);
+}
+
+.legendChevron {
+  flex: none;
+  color: var(--apagado);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.legendChevronOpen {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .legendChevron {
+    transition: none;
+  }
+}
+
+.legendBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .legendList {

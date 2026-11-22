@@ -6,6 +6,7 @@
  */
 import { useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactElement } from 'react';
 import { Link } from 'react-router';
+import { ChevronDown } from 'lucide-react';
 import {
   PROJECT_ROLES,
   PROJECT_SLUG_PATTERN,
@@ -41,6 +42,7 @@ import {
 } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { filterItems, searchItems, sortItems, type SortState } from '../lib/filter-sort.js';
+import { reportFreshness } from './drift/report-freshness.js';
 import { useOrgShellContext } from './OrgShell.js';
 import styles from './ProjectsDashboard.module.css';
 
@@ -64,9 +66,35 @@ function stationPosition(station: Station): number {
   return STATIONS.indexOf(station) + 1;
 }
 
-function lineLabel(project: ProjectOverviewDto): string {
-  const reached = `Llega a ${STATION_LABELS[project.furthestStation]}`;
-  return project.andonStation ? `${reached}, detenida en ${STATION_LABELS[project.andonStation]}` : reached;
+/**
+ * The stage a line can claim to have reached, as a 1-based position in `STATIONS` (`0`: it never advanced).
+ *
+ * FB-237 / SDD-101 D3: a stopped line cannot have reached a station past its stop. Capping the reached stage
+ * at the one right before the andon is what stops the cell from saying "Llegó a Entregado, detenida en Diseño
+ * técnico" — two facts that contradict each other. Pure and parameter-in only, so its own test walks every
+ * edge (first station, stop ahead of the furthest stage, no andon).
+ */
+export function reachedPosition(project: Pick<ProjectOverviewDto, 'furthestStation' | 'andonStation'>): number {
+  const furthest = stationPosition(project.furthestStation);
+  if (!project.andonStation) return furthest;
+  return Math.min(furthest, stationPosition(project.andonStation) - 1);
+}
+
+/** FB-237 / SDD-101 D3: the line sentence names the stage it reached *and* where it stopped, never two
+ * contradictory stages. Approved copy: "Llegó a <estación anterior>, detenida en <parada>". */
+export function lineLabel(project: Pick<ProjectOverviewDto, 'furthestStation' | 'andonStation'>): string {
+  const reached = reachedPosition(project);
+  if (!project.andonStation) return `Llega a ${STATION_LABELS[project.furthestStation]}`;
+  const stoppedAt = STATION_LABELS[project.andonStation];
+  const reachedStation = STATIONS[reached - 1];
+  if (!reachedStation) return `Se detuvo en ${stoppedAt}`;
+  return `Llegó a ${STATION_LABELS[reachedStation]}, detenida en ${stoppedAt}`;
+}
+
+/** SDD-101 D4: the age of the evidence that flagged the stop, never an invented stop date — the graph does
+ * not store when the line stopped, so the cell says how old the report behind the number is. */
+function lineEvidence(project: ProjectOverviewDto): string {
+  return project.lastReportAt ? `Último reporte ${reportFreshness(project.lastReportAt).relative}` : 'Sin reporte de código';
 }
 
 function segmentLabel(station: Station, position: number, reached: number, andonAt: number): string {
@@ -79,19 +107,46 @@ function segmentClass(position: number, reached: number, andonAt: number): strin
   return position <= reached ? `${styles.segment} ${styles.segmentReached}` : styles.segment!;
 }
 
-function LineStatus({ project }: { readonly project: ProjectOverviewDto }): ReactElement {
-  const reached = stationPosition(project.furthestStation);
+function LineStatus({ project, orgSlug }: { readonly project: ProjectOverviewDto; readonly orgSlug: string }): ReactElement {
+  const reached = reachedPosition(project);
   const andonAt = project.andonStation ? stationPosition(project.andonStation) : 0;
 
+  const text = <span className={styles.lineText}>{lineLabel(project)}</span>;
+  const segments = (
+    <span className={styles.segments}>
+      {STATIONS.map((station, index) => {
+        const position = index + 1;
+        return <span key={station} role="img" aria-label={segmentLabel(station, position, reached, andonAt)} className={segmentClass(position, reached, andonAt)} />;
+      })}
+    </span>
+  );
+
+  // FB-240 / SDD-101 D2: with an andon the cell is the way to the blocker, the same `drift?feature=` destination
+  // the Planta already uses. Without one it stays plain text — there is nothing to unblock.
+  const feature = project.andonFeature;
+  if (!feature) {
+    return (
+      <span className={styles.lineCell}>
+        {text}
+        {segments}
+      </span>
+    );
+  }
+
+  const evidence = lineEvidence(project);
   return (
     <span className={styles.lineCell}>
-      <span className={styles.lineText}>{lineLabel(project)}</span>
-      <span className={styles.segments}>
-        {STATIONS.map((station, index) => {
-          const position = index + 1;
-          return <span key={station} role="img" aria-label={segmentLabel(station, position, reached, andonAt)} className={segmentClass(position, reached, andonAt)} />;
-        })}
-      </span>
+      <Link
+        to={`/o/${orgSlug}/p/${project.slug}/drift?feature=${encodeURIComponent(feature.id)}`}
+        className={styles.lineLink}
+        aria-label={`${lineLabel(project)}. ${evidence}. La frena ${feature.id}: ${feature.title}. Ver qué la frena.`}
+      >
+        {text}
+        {segments}
+        <span className={styles.lineEvidence}>
+          {evidence} · Ver qué la frena
+        </span>
+      </Link>
     </span>
   );
 }
@@ -136,36 +191,113 @@ function DriftCell({ project, orgSlug }: { readonly project: ProjectOverviewDto;
   );
 }
 
-function AccessCell({ project, orgSlug }: { readonly project: ProjectOverviewDto; readonly orgSlug: string }): ReactElement {
+interface AccessCellProps {
+  readonly project: ProjectOverviewDto;
+  readonly orgSlug: string;
+  /** `can(..., 'manage_members')` for this row — SDD-101 D6 / SDD-078 D2: the alarm is for everyone who can see
+   * the project, the action only for whoever can actually add a member. The server rejects it regardless. */
+  readonly canManageMembers: boolean;
+}
+
+function AccessCell({ project, orgSlug, canManageMembers }: AccessCellProps): ReactElement {
   const members = project.memberCount ?? 0;
-  const text = members > 0 ? `${members} ${members === 1 ? 'miembro' : 'miembros'}` : 'Sin miembros · nadie del equipo lo ve';
+  const href = `/o/${orgSlug}/p/${project.slug}/ajustes/miembros`;
+  if (members > 0) {
+    return (
+      <Link to={href} className={`${styles.cellLink} num`}>
+        {`${members} ${members === 1 ? 'miembro' : 'miembros'}`}
+      </Link>
+    );
+  }
+
+  // FB-241 / SDD-101 D6: the most serious warning in the table gets a non-chromatic marker (the same mechanism
+  // as the stopped segment: a shape, not just a colour), the consequence in words and the next step. It stays a
+  // link to the members screen. `role="status"`, never `role="alert"`: with N rows, N live alerts would be noise
+  // — the view-level alert is reserved for real failures.
+  const label = canManageMembers
+    ? `Sin miembros: nadie del equipo ve ${project.name}. Agregar miembros.`
+    : `Sin miembros: nadie del equipo ve ${project.name}.`;
   return (
-    <Link to={`/o/${orgSlug}/p/${project.slug}/ajustes/miembros`} className={`${styles.cellLink} num`}>
-      {text}
-    </Link>
+    <span role="status" className={styles.accessAlarm}>
+      <span aria-hidden="true" className={styles.accessMark} />
+      <Link to={href} className={`${styles.cellLink} ${styles.accessLink}`} aria-label={label}>
+        <span className={styles.accessText}>Nadie del equipo lo ve</span>
+        {canManageMembers ? <span className={styles.accessAction}>Agregar miembros</span> : null}
+      </Link>
+    </span>
   );
 }
 
+/** FB-242 / SDD-101 D7: the legend starts collapsed, remembers its state and never hides the title or the
+ * keyboard path to it. `aria-expanded` + `aria-controls` on a real button, body rendered only when open. */
+export const LEGEND_OPEN_STORAGE_KEY = 'prdm.projects.legend-open';
+
+/** The browser storage the preference lives in: `localStorage` when it exists (a real visit keeps it across
+ * days), `sessionStorage` in environments that only ship the session one, `null` when storage is blocked — a
+ * blocked store must close the legend, never crash the screen. */
+function legendStorage(): Storage | null {
+  try {
+    if (typeof window.localStorage !== 'undefined' && window.localStorage !== null) return window.localStorage;
+    if (typeof window.sessionStorage !== 'undefined' && window.sessionStorage !== null) return window.sessionStorage;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function readLegendOpenPreference(): boolean {
+  try {
+    return legendStorage()?.getItem(LEGEND_OPEN_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function writeLegendOpenPreference(open: boolean): void {
+  try {
+    legendStorage()?.setItem(LEGEND_OPEN_STORAGE_KEY, open ? '1' : '0');
+  } catch {
+    // Storage full or blocked: the legend just falls back to its default on the next visit.
+  }
+}
+
 function Legend(): ReactElement {
+  const [open, setOpen] = useState<boolean>(readLegendOpenPreference);
+  const chevronClass = [styles.legendChevron, open ? styles.legendChevronOpen : null].filter((entry): entry is string => Boolean(entry)).join(' ');
+
+  function toggle(): void {
+    const next = !open;
+    setOpen(next);
+    writeLegendOpenPreference(next);
+  }
+
   return (
     <section className={styles.legend} aria-labelledby="projects-legend-title">
       <h2 id="projects-legend-title" className={styles.legendTitle}>
-        Cómo leer la tabla
+        <button type="button" className={styles.legendToggle} aria-expanded={open} aria-controls="projects-legend-body" onClick={toggle}>
+          <ChevronDown aria-hidden="true" size={16} className={chevronClass} />
+          Cómo leer la tabla
+        </button>
       </h2>
-      <ol className={styles.legendStations} aria-label="Estaciones de la línea, en orden">
-        {STATIONS.map((station, index) => (
-          <li key={station}>
-            {STATION_LABELS[station]}
-            {index < STATIONS.length - 1 ? ' ·' : ''}
-          </li>
-        ))}
-      </ol>
-      <ul className={styles.legendList}>
-        <li>Un segmento con contorno está detenido: la línea se frenó en esa estación.</li>
-        <li>Drift: las diferencias entre lo que dice el grafo y lo que reporta el código, detectadas por CI.</li>
-        <li>Órdenes en curso: las que ya se empezaron y todavía no se cerraron.</li>
-        <li>Acceso: las personas del equipo que ven el proyecto.</li>
-      </ul>
+      {open ? (
+        <div id="projects-legend-body" className={styles.legendBody}>
+          <ol className={styles.legendStations} aria-label="Estaciones de la línea, en orden">
+            {STATIONS.map((station, index) => (
+              <li key={station}>
+                {STATION_LABELS[station]}
+                {index < STATIONS.length - 1 ? ' ·' : ''}
+              </li>
+            ))}
+          </ol>
+          <ul className={styles.legendList}>
+            <li>Un segmento con contorno está detenido: la línea se frenó en esa estación.</li>
+            <li>Un cuadrado sin relleno marca un proyecto que nadie del equipo ve.</li>
+            <li>Drift: las diferencias entre lo que dice el grafo y lo que reporta el código, detectadas por CI.</li>
+            <li>Órdenes en curso: las que ya se empezaron y todavía no se cerraron.</li>
+            <li>Acceso: las personas del equipo que ven el proyecto.</li>
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -246,7 +378,7 @@ function buildColumns({ orgSlug, orgRole, onArchive, onUnarchive }: ColumnAction
       key: 'line',
       header: 'Estado de la línea',
       sortValue: (project) => stationPosition(project.andonStation ?? project.furthestStation),
-      render: (project) => <LineStatus project={project} />,
+      render: (project) => <LineStatus project={project} orgSlug={orgSlug} />,
     },
     {
       key: 'drift',
@@ -270,7 +402,9 @@ function buildColumns({ orgSlug, orgRole, onArchive, onUnarchive }: ColumnAction
       header: 'Acceso',
       align: 'end',
       sortValue: (project) => project.memberCount ?? 0,
-      render: (project) => <AccessCell project={project} orgSlug={orgSlug} />,
+      render: (project) => (
+        <AccessCell project={project} orgSlug={orgSlug} canManageMembers={can({ orgRole, projectRole: projectRoleOf(project.myRole) }, 'manage_members')} />
+      ),
     },
     { key: 'role', header: 'Tu rol', render: (project) => projectRoleLabel(project.myRole) },
     {
@@ -457,11 +591,18 @@ function ProjectsDashboardContent(): ReactElement {
   );
   const projects = projectsQuery.data ?? [];
 
-  const activeCount = projects.filter((project) => project.archivedAt === null).length;
-  const archivedCount = projects.length - activeCount;
-  const stoppedCount = projects.filter((project) => matchesLineFilter(project, 'stopped')).length;
-  const driftCount = projects.filter((project) => matchesLineFilter(project, 'drift')).length;
-  const awaitingCount = projects.filter((project) => matchesLineFilter(project, 'awaiting')).length;
+  // FB-239 / SDD-101 D5: each group of chips counts over the set the *other* group leaves visible, so a chip
+  // never promises N rows the table will not show. The project group counts inside the current line filter;
+  // the line group counts inside the current project filter, and its «Todos» is "all rows the project filter
+  // leaves", not "all projects in the org".
+  const byProjectFilter = projects.filter((project) => matchesFilter(project, filter));
+  const byLineFilter = projects.filter((project) => matchesLineFilter(project, lineFilter));
+  const activeCount = byLineFilter.filter((project) => project.archivedAt === null).length;
+  const archivedCount = byLineFilter.length - activeCount;
+  const stoppedCount = byProjectFilter.filter((project) => matchesLineFilter(project, 'stopped')).length;
+  const driftCount = byProjectFilter.filter((project) => matchesLineFilter(project, 'drift')).length;
+  const awaitingCount = byProjectFilter.filter((project) => matchesLineFilter(project, 'awaiting')).length;
+  const lineAllCount = byProjectFilter.length;
 
   const visible = useMemo(() => {
     const byFilter = filterItems(projects, [(project) => matchesFilter(project, filter), (project) => matchesLineFilter(project, lineFilter)]);
@@ -566,7 +707,7 @@ function ProjectsDashboardContent(): ReactElement {
             <FilterChips
               label="Estado de la línea"
               options={[
-                { value: 'all', label: 'Todos', count: projects.length },
+                { value: 'all', label: 'Todos', count: lineAllCount },
                 { value: 'stopped', label: 'Detenidos', count: stoppedCount },
                 { value: 'drift', label: 'Con drift', count: driftCount },
                 { value: 'awaiting', label: 'Esperando CI', count: awaitingCount },
