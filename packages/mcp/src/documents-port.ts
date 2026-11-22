@@ -78,6 +78,8 @@ export interface RemoteImpactsPathsDrift {
   blueprintId: string;
   currentPatterns: readonly string[];
   suggestedAdditions: readonly string[];
+  /** SDD-119 D4: tocados y no cubiertos, pero ya declarados verbatim por otro Blueprint (`by`). */
+  alreadyGoverned: readonly { path: string; by: readonly string[] }[];
   basedOnCommits: readonly string[];
   /** SDD-072 WO-642: patterns of `currentPatterns` that look surplus, each with its evidence (the portable
    * DTO lives here, so the port can return it without a cast). */
@@ -88,6 +90,17 @@ export interface RemoteImpactsPathsDrift {
     alsoDeclaredBy: readonly string[];
     driftIssueCount: number;
   }[];
+}
+
+export type RemoteImpactsPathsSyncResult =
+  | { applied: true; impactsPaths: string[] }
+  | { applied: false; error: 'suggestion_changed' | 'nothing_to_apply' | 'not_found'; message: string };
+
+export interface RemoteImpactsPathsSyncInput {
+  expectedSuggestion: readonly string[];
+  expectedRemovals: readonly string[];
+  reason: string;
+  actorId: string;
 }
 
 export interface RemoteDocumentsPort {
@@ -101,8 +114,10 @@ export interface RemoteDocumentsPort {
   findByDocId(docId: string): Promise<RemoteDocumentWithVersion | null>;
   saveDraftVersion(docId: string, input: RemoteSaveDraftVersionInput): Promise<RemoteDocumentWithVersion>;
   publish(docId: string, input: RemotePublishInput): Promise<RemotePublishResult>;
-  /** `null` when `blueprintId` doesn't exist or isn't a Blueprint (SDD-021, WO-431) -- read-only, exposed
-   * over MCP unlike `saveDraftVersion`/`publish`'s write counterpart (`sync_impacts_paths` stays
-   * REST/dashboard-only, per this project's own trust-tier precedent for governance-metadata writes). */
+  /** `null` when `blueprintId` doesn't exist or isn't a Blueprint (SDD-021, WO-431) -- read-only. Its write
+   * counterpart is the `sync_impacts_paths` tool (admin-only, echo + reason; SDD-119 D9), backed by
+   * `syncImpactsPaths` below -- the same implementation as the REST route. */
   getImpactsPathsDrift(blueprintId: string): Promise<RemoteImpactsPathsDrift | null>;
+  /** Applies exactly the echoed suggestion; business rejections come back as `applied: false`, never thrown. */
+  syncImpactsPaths(blueprintId: string, input: RemoteImpactsPathsSyncInput): Promise<RemoteImpactsPathsSyncResult>;
 }

@@ -21,6 +21,7 @@ import { ConflictError, NotFoundError } from '../errors.js';
 import { computeImpactsPathsDrift, computeImpactsPathsNarrowing } from '../engine/impacts-paths-drift.js';
 import type { PgProjectEngine } from '../engine/pg-project-engine.js';
 import { buildProjectSettings } from '../engine/pg-project-settings.js';
+import { applyImpactsPathsSync } from './apply-impacts-paths-sync.js';
 import { createAndSubmitDocument } from './create-and-submit.js';
 import { publishDocumentVersion } from './publish.js';
 
@@ -131,6 +132,13 @@ export function buildRemoteDocumentsPort(pool: Pool, orgId: string, project: Pro
       });
 
       return { document: toSummary(result.document), workOrders: result.workOrders };
+    },
+
+    async syncImpactsPaths(blueprintId, input) {
+      const outcome = await applyImpactsPathsSync({ pool, orgId, projectId: project.id, engine }, { blueprintId, ...input });
+      if (!outcome) return { applied: false, error: 'not_found', message: `${blueprintId} is not a published Blueprint of this project` };
+      if (!outcome.ok) return { applied: false, error: outcome.code, message: outcome.message };
+      return { applied: true, impactsPaths: outcome.impactsPaths };
     },
 
     async getImpactsPathsDrift(blueprintId): Promise<RemoteImpactsPathsDrift | null> {

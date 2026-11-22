@@ -74,7 +74,7 @@ export interface RemoteWriteAuth {
   audit: (action: string, target: string, metadata?: Record<string, unknown>) => Promise<void>;
 }
 
-function toolErrorResult(code: string, message: string): CallToolResult {
+export function toolErrorResult(code: string, message: string): CallToolResult {
   const data = { error: code, message };
   return { isError: true, content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data };
 }

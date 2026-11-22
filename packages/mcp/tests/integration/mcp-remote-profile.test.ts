@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { Engine, scanDocuments, submitFeedback, triageFeedback, type GraphDatabase, type GraphStore, type PrdmConfig } from '@prdm/core';
 import { createFixtureRepo, openTestDb, removeDir, testConfig } from '@prdm/testkit';
 import { createPrdmServer } from '../../src/create.js';
-import type { RemoteDocumentDetail, RemoteDocumentSummary, RemoteDocumentsPort } from '../../src/documents-port.js';
+import type { RemoteDocumentDetail, RemoteDocumentSummary, RemoteDocumentsPort, RemoteImpactsPathsSyncInput } from '../../src/documents-port.js';
 import { registerRemoteAuthoringTools } from '../../src/tools-remote-authoring.js';
 import { registerRemoteWriteTools } from '../../src/tools-remote.js';
 
@@ -141,7 +141,7 @@ describe('remote MCP profile tool/prompt allow-list (WO-184)', () => {
 
 /** In-memory `RemoteDocumentsPort` reproducing FB-095: unpublished documents live only here (never in the
  * graph) and version 1 carries `frontmatter: {}`. */
-function fakeDocumentsPort(): RemoteDocumentsPort {
+function fakeDocumentsPort(syncCalls: { blueprintId: string; input: RemoteImpactsPathsSyncInput }[] = []): RemoteDocumentsPort {
   const docs = new Map<string, RemoteDocumentSummary>();
   const detail = (document: RemoteDocumentSummary): RemoteDocumentDetail => ({
     document,
@@ -173,6 +173,12 @@ function fakeDocumentsPort(): RemoteDocumentsPort {
     },
     async getImpactsPathsDrift() {
       return null;
+    },
+    async syncImpactsPaths(blueprintId, input) {
+      syncCalls.push({ blueprintId, input });
+      if (blueprintId === 'SDD-404') return { applied: false, error: 'not_found', message: 'SDD-404 is not a published Blueprint of this project' };
+      if (input.expectedSuggestion.includes('stale/path.ts')) return { applied: false, error: 'suggestion_changed', message: `${blueprintId}'s suggested impacts_paths additions changed since you last fetched them; reload and try again` };
+      return { applied: true, impactsPaths: ['src/**', 'src/x.ts'] };
     },
   };
 }
@@ -377,5 +383,88 @@ describe('remote MCP profile: close_feedback / dismiss_feedback (WO-708) / link_
       const result = await callOn(dev, name, args);
       expect(JSON.parse(result.text)).toMatchObject({ error: 'insufficient_role' });
     }
+  });
+});
+
+describe('remote MCP profile: sync_impacts_paths (SDD-119, WO-786)', () => {
+  const auditCalls: { action: string; target: string; metadata: unknown }[] = [];
+  const syncCalls: { blueprintId: string; input: RemoteImpactsPathsSyncInput }[] = [];
+  const opened: { client: Client; server: McpServer }[] = [];
+
+  const connect = async (projectRole: 'admin' | 'editor', scopes: string[]) => {
+    const deps = { config, store, engine, documents: fakeDocumentsPort(syncCalls) };
+    const srv = createPrdmServer(deps, { profile: 'remote' });
+    registerRemoteAuthoringTools(srv, deps, {
+      subject: { projectRole },
+      scopes,
+      callerHandle: 'tester',
+      userId: 'user-1',
+      audit: async (action, target, metadata) => {
+        auditCalls.push({ action, target, metadata });
+      },
+    });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const cli = new Client({ name: 'test-sync-client', version: '0.0.0' });
+    await Promise.all([cli.connect(clientTransport), srv.connect(serverTransport)]);
+    opened.push({ client: cli, server: srv });
+    return cli;
+  };
+
+  const callOn = async (cli: Client, args: Record<string, unknown>) => {
+    const result = await cli.callTool({ name: 'sync_impacts_paths', arguments: args });
+    const text = (result.content as { type: string; text: string }[])[0]!.text;
+    return { isError: result.isError, text };
+  };
+
+  let admin: Client;
+
+  beforeAll(async () => {
+    admin = await connect('admin', ['mcp:write']);
+  });
+
+  afterAll(async () => {
+    for (const { client: c, server: s } of opened) {
+      await c.close();
+      await s.close();
+    }
+  });
+
+  test('applies through the port and audits mcp.sync_impacts_paths', async () => {
+    const result = await callOn(admin, { blueprint_id: 'SDD-001', expectedSuggestion: ['src/x.ts'], reason: 'fix typo' });
+
+    expect(result.isError).toBeFalsy();
+    expect(JSON.parse(result.text)).toEqual({ impactsPaths: ['src/**', 'src/x.ts'] });
+    expect(syncCalls.at(-1)).toEqual({ blueprintId: 'SDD-001', input: { expectedSuggestion: ['src/x.ts'], expectedRemovals: [], reason: 'fix typo', actorId: 'user-1' } });
+    expect(auditCalls).toContainEqual({ action: 'mcp.sync_impacts_paths', target: 'SDD-001', metadata: { added: ['src/x.ts'], removed: [], reason: 'fix typo' } });
+  });
+
+  test('a whitespace-only reason is rejected before reaching the port', async () => {
+    const callsBefore = syncCalls.length;
+    const result = await callOn(admin, { blueprint_id: 'SDD-001', expectedSuggestion: ['src/x.ts'], reason: '   ' });
+
+    expect(result.isError).toBe(true);
+    expect(syncCalls).toHaveLength(callsBefore);
+  });
+
+  test('applied:false surfaces { error, message } and is not audited', async () => {
+    const auditsBefore = auditCalls.length;
+    const stale = await callOn(admin, { blueprint_id: 'SDD-001', expectedSuggestion: ['stale/path.ts'], reason: 'x' });
+    expect(stale.isError).toBe(true);
+    expect(JSON.parse(stale.text)).toMatchObject({ error: 'suggestion_changed' });
+
+    const missing = await callOn(admin, { blueprint_id: 'SDD-404', expectedSuggestion: ['src/x.ts'], reason: 'x' });
+    expect(missing.isError).toBe(true);
+    expect(JSON.parse(missing.text)).toMatchObject({ error: 'not_found', message: expect.stringContaining('SDD-404') });
+    expect(auditCalls).toHaveLength(auditsBefore);
+  });
+
+  test('an editor is denied (admin-only) and a token without mcp:write is missing_scope', async () => {
+    const callsBefore = syncCalls.length;
+    const editor = await connect('editor', ['mcp:write']);
+    expect(JSON.parse((await callOn(editor, { blueprint_id: 'SDD-001', expectedSuggestion: ['src/x.ts'], reason: 'x' })).text)).toMatchObject({ error: 'insufficient_role' });
+
+    const reader = await connect('admin', ['mcp:read']);
+    expect(JSON.parse((await callOn(reader, { blueprint_id: 'SDD-001', expectedSuggestion: ['src/x.ts'], reason: 'x' })).text)).toMatchObject({ error: 'missing_scope' });
+    expect(syncCalls).toHaveLength(callsBefore);
   });
 });

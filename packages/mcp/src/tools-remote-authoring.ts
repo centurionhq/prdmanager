@@ -33,7 +33,7 @@ import { z } from 'zod';
 import { docId, type DraftKind } from '@prdm/core';
 import type { PrdmDeps } from './deps.js';
 import { requireDocumentsPort } from './deps.js';
-import { denyRemoteWrite, type RemoteWriteAuth } from './tools-remote.js';
+import { denyRemoteWrite, toolErrorResult, type RemoteWriteAuth } from './tools-remote.js';
 import { registerImpactsPathsDriftTool } from './tools-drift.js';
 import { jsonResult, safeTool, WRITE_ONCE } from './shared.js';
 
@@ -45,7 +45,7 @@ const AUTHORABLE_KINDS = ['MRD', 'PRD', 'FR', 'BC', 'SDD', 'ADR', 'ART', 'FB'] a
 /** WO-425 (SDD-018's fixed `REMOTE_WRITE_TOOL_NAMES` precedent): the single source of truth for every
  * write tool this file registers, imported by `packages/server/src/api/mcp-remote.ts` into its own
  * `mcp:write`-scope gate instead of a separately hand-maintained set. */
-export const REMOTE_AUTHORING_TOOL_NAMES = ['create_document', 'update_document', 'publish_document'] as const;
+export const REMOTE_AUTHORING_TOOL_NAMES = ['create_document', 'update_document', 'publish_document', 'sync_impacts_paths'] as const;
 
 const fieldsSchema = z.record(z.string(), z.unknown()).optional();
 
@@ -125,4 +125,30 @@ export function registerRemoteAuthoringTools(server: McpServer, deps: PrdmDeps, 
   );
 
   registerImpactsPathsDriftTool(server, deps);
+
+  server.registerTool(
+    'sync_impacts_paths',
+    {
+      title: 'Sync impacts_paths',
+      description:
+        'Applies EXACTLY the impacts_paths suggestion get_impacts_paths_drift just showed you to an already-published Blueprint (SDD/ADR): pass its `suggestedAdditions` verbatim as expectedSuggestion and the `suggestedRemovals` patterns you accept as expectedRemovals. It rejects with suggestion_changed if either list moved underneath (reload and retry) and with nothing_to_apply if there is nothing left. A mandatory reason is recorded in the audit log. Requires an admin project role (same gate as the dashboard\'s own sync).',
+      inputSchema: {
+        blueprint_id: docId,
+        expectedSuggestion: z.array(z.string().min(1)),
+        expectedRemovals: z.array(z.string().min(1)).default([]),
+        reason: z.string().trim().min(1).max(2000),
+      },
+      annotations: { title: 'Sync impacts_paths', ...WRITE_ONCE },
+    },
+    safeTool(async ({ blueprint_id, expectedSuggestion, expectedRemovals, reason }: { blueprint_id: string; expectedSuggestion: string[]; expectedRemovals: string[]; reason: string }) => {
+      const denial = denyRemoteWrite(auth, 'sync_impacts_paths');
+      if (denial) return denial;
+
+      const result = await documents().syncImpactsPaths(blueprint_id, { expectedSuggestion, expectedRemovals, reason, actorId: auth.userId });
+      if (!result.applied) return toolErrorResult(result.error, result.message);
+
+      await auth.audit('mcp.sync_impacts_paths', blueprint_id, { added: expectedSuggestion, removed: expectedRemovals, reason });
+      return jsonResult({ impactsPaths: result.impactsPaths });
+    }),
+  );
 }
