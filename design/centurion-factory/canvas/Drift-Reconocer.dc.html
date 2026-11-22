@@ -1,0 +1,279 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    * { box-sizing: border-box; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    .num { font-variant-numeric: tabular-nums; }
+    /* Valores de tokens.css: --superficie #FBFCFB, --regla #C9CFCD, --relleno #F1F3F2, --focus-ring. */
+    .btn { height: 32px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; color: #17191C; font-family: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; }
+    .btn:hover { background: #F1F3F2; }
+    .btn-m { height: 44px; padding: 0 16px; }
+    .btn-l { height: 40px; padding: 0 16px; }
+    .btn-p { background: #1F4FA0; border-color: transparent; color: #FFFFFF; }
+    .btn-p:hover { background: #173C7A; }
+    .btn-off { background: #DDE1DF; border-color: transparent; color: #565D63; }
+    .btn .cnt { padding-left: 8px; border-left: 1px solid #C9CFCD; font-weight: 600; color: #33383D; }
+    .focus { box-shadow: 0 0 0 2px #FBFCFB, 0 0 0 4px #1F4FA0; }
+    .cap { height: 40px; display: flex; align-items: baseline; gap: 12px; font-size: 14px; color: #33383D; }
+    .cap b { font-size: 20px; font-weight: 700; color: #17191C; }
+    .scrim { position: relative; background: #E9ECEB; overflow: hidden; }
+    .scrim::before { content: ""; position: absolute; inset: 0; background: rgba(23,25,28,0.45); }
+    .modal { position: relative; display: flex; flex-direction: column; background: #FBFCFB; border-radius: 2px; box-shadow: 0 12px 32px rgba(23,25,28,0.18); }
+    .modal h2 { margin: 0; font-size: 28px; line-height: 1.1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.01em; }
+    .sel { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; }
+    .sum { display: grid; grid-template-columns: 148px minmax(0, 1fr); row-gap: 0; border-top: 1px solid #C9CFCD; font-size: 14px; }
+    .sum > div { padding: 10px 0; border-bottom: 1px solid #DDE1DF; }
+    .sum > .k { color: #565D63; }
+    .sum > .v { font-weight: 600; }
+    .opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 12px; font-size: 14px; }
+    .opt:hover { background: #F1F3F2; }
+    .opt .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sg { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid #C9CFCD; }
+    .row { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; column-gap: 16px; align-items: center; min-height: 52px; padding: 8px 0; border-bottom: 1px solid #DDE1DF; font-size: 14px; line-height: 20px; }
+    .sev { display: flex; align-items: center; gap: 6px; font-weight: 600; color: #B8322A; }
+    .sev i { width: 8px; height: 8px; background: #B8322A; display: block; }
+  </style>
+</helmet>
+
+<!-- Drift · Reconocer con granularidad y conteo (FB: «Qué reconocer» no dice cuántos issues cubre y la lista no
+     tiene acción por fila ni por subgrupo). Cuatro placas en un artboard: A desktop, B desktop, A mobile y
+     B mobile. Drift.dc.html NO se toca: Ordenes-Archivar.dc.html lo cita como la placa del modal vigente.
+     El baseline avanza por DOCUMENTO (blueprint), no por issue: por eso el conteo es el del documento y la
+     acción de fila y la de subgrupo abren el mismo modal con el mismo documento elegido. -->
+<div style="width: 1440px; height: 2508px; display: flex; flex-direction: column; gap: 48px; background: #E9ECEB;">
+
+  <!-- ============ A · desktop: el modal con conteo por opción ============ -->
+  <section style="display: flex; flex-direction: column;">
+    <div class="cap"><b>A · Reconocer drift</b> Desktop 1440. Izquierda: la lista abierta. Derecha: documento elegido, con lo que re-baselinea.</div>
+    <div class="scrim" style="width: 1440px; height: 720px; display: flex; align-items: flex-start; justify-content: center; gap: 48px; padding-top: 56px;">
+
+      <!-- A1: lista abierta -->
+      <div class="modal" style="width: 520px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px 24px 0;">
+          <h2>Reconocer drift</h2>
+          <div style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 16px; padding: 16px 24px 24px;">
+          <div style="position: relative; display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-size: 14px; font-weight: 600;">Qué reconocer</label>
+            <div class="sel focus" style="height: 40px; padding: 0 12px;">
+              <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><span class="id">SDD-006</span> · Aislamiento entre organizaciones</span>
+              <span style="display: flex; align-items: center; gap: 8px; flex: none;"><span class="num" style="color: #33383D;">7 issues</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"></path></svg></span>
+            </div>
+            <!-- listbox: orden por conteo descendente; «Todo el proyecto» separado y último -->
+            <div style="position: absolute; z-index: 2; top: 72px; left: 0; right: 0; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; box-shadow: 0 12px 32px rgba(23,25,28,0.18);">
+              <div class="opt"><span class="t"><span class="id">SDD-012</span> · Importador incremental por hash</span><span class="num" style="color: #33383D;">9 issues</span></div>
+              <div class="opt" style="background: #D5E0F1;"><span class="t"><span class="id">SDD-006</span> · Aislamiento entre organizaciones</span><span class="num" style="font-weight: 600;">7 issues</span></div>
+              <div class="opt"><span class="t"><span class="id">SDD-013</span> · Drift y línea base</span><span class="num" style="color: #33383D;">4 issues</span></div>
+              <div class="opt"><span class="t"><span class="id">ADR-008</span> · Estilos de autenticación</span><span class="num" style="color: #33383D;">1 issue</span></div>
+              <div style="padding: 0 12px; height: 28px; display: flex; align-items: center; font-size: 12px; color: #565D63; border-top: 1px solid #DDE1DF;">Y 37 documentos más, ordenados por cantidad de issues</div>
+              <div class="opt" style="border-top: 1px solid #C9CFCD;"><span class="t" style="font-weight: 600;">Todo el proyecto</span><span class="num" style="color: #33383D;">125 issues</span></div>
+            </div>
+          </div>
+          <div class="sum">
+            <div class="k">Documento</div><div class="v"><span class="id">SDD-006</span> · Aislamiento entre organizaciones</div>
+            <div class="k">Issues que cubre</div><div class="v num">7 errores de código</div>
+            <div class="k">Avanza al commit</div><div class="v"><span class="id">438f30f</span></div>
+          </div>
+          <p style="margin: 0; font-size: 14px; line-height: 20px; color: #33383D;">Se reconocen los 7 juntos.</p>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid #DDE1DF;">
+          <div class="btn btn-l">Cancelar</div>
+          <div class="btn btn-l btn-p">Reconocer 7 issues</div>
+        </div>
+      </div>
+
+      <!-- A2: documento elegido, explicación completa -->
+      <div class="modal" style="width: 520px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px 24px 0;">
+          <h2>Reconocer drift</h2>
+          <div style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 16px; padding: 16px 24px 24px;">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-size: 14px; font-weight: 600;">Qué reconocer</label>
+            <div class="sel" style="height: 40px; padding: 0 12px;">
+              <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><span class="id">SDD-006</span> · Aislamiento entre organizaciones</span>
+              <span style="display: flex; align-items: center; gap: 8px; flex: none;"><span class="num" style="color: #33383D;">7 issues</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+            </div>
+          </div>
+          <div class="sum">
+            <div class="k">Documento</div><div class="v"><span class="id">SDD-006</span> · Aislamiento entre organizaciones</div>
+            <div class="k">Issues que cubre</div><div class="v num">7 errores de código</div>
+            <div class="k">Avanza al commit</div><div class="v"><span class="id">438f30f</span></div>
+          </div>
+          <p style="margin: 0; font-size: 14px; line-height: 20px; color: #33383D;">La línea base avanza por documento, no por issue: se reconocen los 7 juntos y desaparecen de la lista. Las órdenes fuera de sincronía siguen abiertas hasta que alguien las retome.</p>
+          <p style="margin: 0; font-size: 13px; line-height: 18px; color: #565D63;">Queda registrado a nombre de Tano en el historial de drift.</p>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid #DDE1DF;">
+          <div class="btn btn-l">Cancelar</div>
+          <div class="btn btn-l btn-p">Reconocer 7 issues</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ B · desktop: acción por fila y por subgrupo ============ -->
+  <section style="display: flex; flex-direction: column;">
+    <div class="cap"><b>B · Lista de issues</b> Desktop 1440. «Reconocer» en el encabezado del documento y en cada fila, con el conteo real.</div>
+    <div style="width: 1440px; height: 760px; padding: 24px 32px; background: #E9ECEB; border-top: 1px solid #C9CFCD; border-bottom: 1px solid #C9CFCD; display: flex; flex-direction: column; position: relative;">
+      <div style="width: 1000px; display: flex; flex-direction: column;">
+        <div style="display: flex; align-items: baseline; gap: 8px; padding: 0 0 8px; font-size: 14px; font-weight: 600; color: #33383D;">▾ Código fuera de sincronía <span class="num" style="font-weight: 400; color: #565D63;">68</span></div>
+        <p style="margin: 0 0 8px; font-size: 13px; line-height: 18px; color: #565D63;">«Reconocer» avanza la línea base del documento: cubre todos sus issues de esta lista, no solo la fila.</p>
+
+        <!-- subgrupo 1: foco visible en el botón de la fila -->
+        <div class="sg" style="border-top: 1px solid #C9CFCD;">
+          <div style="display: flex; align-items: baseline; gap: 10px; min-width: 0;">
+            <span style="color: #565D63;">▾</span>
+            <span class="id" style="color: #1F4FA0;">SDD-012</span>
+            <span style="font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Importador incremental por hash</span>
+            <span class="num" style="font-size: 14px; color: #565D63; white-space: nowrap;">9 issues</span>
+          </div>
+          <div class="btn">Reconocer los 9 issues</div>
+        </div>
+        <div class="row">
+          <div class="sev"><i></i>Error</div>
+          <div><span class="id">packages/server/src/import/scan.ts</span> cambió y ya no coincide con <span class="id">SDD-012</span></div>
+          <div class="btn focus" aria-label="Reconocer SDD-012: cubre 9 issues">Reconocer <span class="cnt num">9</span></div>
+        </div>
+        <div class="row">
+          <div class="sev"><i></i>Error</div>
+          <div><span class="id">packages/server/src/import/hash-table.ts</span> cambió y ya no coincide con <span class="id">SDD-012</span></div>
+          <div class="btn" aria-label="Reconocer SDD-012: cubre 9 issues">Reconocer <span class="cnt num">9</span></div>
+        </div>
+        <div style="display: flex; align-items: center; height: 44px; padding-left: 88px; border-bottom: 1px solid #DDE1DF; font-size: 14px; font-weight: 600; color: #1F4FA0;">Mostrar los 7 issues restantes</div>
+
+        <!-- subgrupo 2: reconocimiento en curso (botón deshabilitado, no se puede doble-enviar) -->
+        <div class="sg" style="margin-top: 16px; border-top: 1px solid #C9CFCD;">
+          <div style="display: flex; align-items: baseline; gap: 10px; min-width: 0;">
+            <span style="color: #565D63;">▾</span>
+            <span class="id" style="color: #1F4FA0;">SDD-006</span>
+            <span style="font-size: 14px; font-weight: 600; white-space: nowrap;">Aislamiento entre organizaciones</span>
+            <span class="num" style="font-size: 14px; color: #565D63; white-space: nowrap;">7 issues</span>
+          </div>
+          <div class="btn btn-off" aria-disabled="true">Reconociendo…</div>
+        </div>
+
+        <!-- subgrupo 3: un solo issue, singular -->
+        <div class="sg" style="margin-top: 16px; border-top: 1px solid #C9CFCD;">
+          <div style="display: flex; align-items: baseline; gap: 10px; min-width: 0;">
+            <span style="color: #565D63;">▾</span>
+            <span class="id" style="color: #1F4FA0;">ADR-008</span>
+            <span style="font-size: 14px; font-weight: 600; white-space: nowrap;">Estilos de autenticación</span>
+            <span class="num" style="font-size: 14px; color: #565D63; white-space: nowrap;">1 issue</span>
+          </div>
+          <div class="btn">Reconocer</div>
+        </div>
+        <div class="row">
+          <div class="sev"><i></i>Error</div>
+          <div><span class="id">packages/app/src/styles/auth.module.css</span> cambió y ya no coincide con <span class="id">ADR-008</span></div>
+          <div class="btn" aria-label="Reconocer ADR-008: cubre 1 issue">Reconocer <span class="cnt num">1</span></div>
+        </div>
+      </div>
+
+      <!-- confirmación: toast con el conteo real -->
+      <div style="position: absolute; right: 32px; bottom: 32px; width: 360px; display: flex; flex-direction: column; gap: 4px; padding: 12px 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-left: 4px solid #1E7F4F; border-radius: 2px; box-shadow: 0 12px 32px rgba(23,25,28,0.18);">
+        <span style="font-size: 14px; font-weight: 600;">Reconociste <span class="id">SDD-013</span></span>
+        <span style="font-size: 14px; line-height: 20px; color: #33383D;">4 issues salieron de la lista. La línea base avanzó al commit <span class="id">438f30f</span>.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Mobile 375 ============ -->
+  <section style="display: flex; flex-direction: column;">
+    <div class="cap"><b>A · B · Mobile</b> 375 px, sin scroll horizontal. Izquierda: el modal sobre «Todo el proyecto». Derecha: la lista.</div>
+    <div style="display: flex; gap: 48px; align-items: flex-start;">
+
+      <!-- A mobile: alcance proyecto -->
+      <div class="scrim" style="width: 375px; height: 812px; display: flex; align-items: center; justify-content: center; padding: 24px;">
+        <div class="modal" style="width: 327px;">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px 24px 0;">
+            <h2>Reconocer drift</h2>
+            <div style="flex: none; width: 44px; height: 44px; margin: -8px -12px 0 0; display: flex; align-items: center; justify-content: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg></div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 16px; padding: 16px 24px 24px;">
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <label style="font-size: 14px; font-weight: 600;">Qué reconocer</label>
+              <div class="sel" style="height: 44px; padding: 0 12px;">
+                <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Todo el proyecto · <span class="num">125 issues</span></span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M6 9l6 6 6-6"></path></svg>
+              </div>
+            </div>
+            <div class="sum" style="grid-template-columns: 112px minmax(0, 1fr);">
+              <div class="k">Alcance</div><div class="v">Todo el proyecto</div>
+              <div class="k">Issues que cubre</div><div class="v num">125 en 41 documentos</div>
+              <div class="k">Avanza al commit</div><div class="v"><span class="id">438f30f</span></div>
+            </div>
+            <div style="display: flex; gap: 10px; padding: 12px; background: #F1F3F2; border-left: 3px solid #F5C400;">
+              <p style="margin: 0; font-size: 14px; line-height: 20px; color: #33383D;"><b style="color: #7A5A00;">Es el reconocimiento más amplio.</b> Avanza la línea base de los 41 documentos. Si no revisaste todos, reconocelos de a uno.</p>
+            </div>
+            <p style="margin: 0; font-size: 13px; line-height: 18px; color: #565D63;">Queda registrado a nombre de Tano en el historial de drift.</p>
+          </div>
+          <!-- en mobile el pie se apila: la acción principal arriba, a ancho completo -->
+          <div style="display: flex; flex-direction: column; gap: 12px; padding: 16px 24px; border-top: 1px solid #DDE1DF;">
+            <div class="btn btn-m btn-p" style="width: 100%;">Reconocer 125 issues</div>
+            <div class="btn btn-m" style="width: 100%;">Cancelar</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- B mobile: lista -->
+      <div style="position: relative; width: 375px; height: 812px; overflow: hidden; background: #E9ECEB; border: 1px solid #C9CFCD; display: flex; flex-direction: column;">
+        <div style="flex: none; padding: 16px 16px 8px;">
+          <div style="display: flex; align-items: baseline; gap: 8px; font-size: 14px; font-weight: 600; color: #33383D;">▾ Código fuera de sincronía <span class="num" style="font-weight: 400; color: #565D63;">68</span></div>
+          <p style="margin: 8px 0 0; font-size: 13px; line-height: 18px; color: #565D63;">«Reconocer» avanza la línea base del documento: cubre todos sus issues de esta lista, no solo la fila.</p>
+        </div>
+
+        <div style="padding: 0 16px; display: flex; flex-direction: column;">
+          <!-- encabezado de subgrupo: dos líneas, acción a ancho completo (44 px) -->
+          <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px solid #C9CFCD; border-bottom: 1px solid #C9CFCD;">
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+              <span style="color: #565D63;">▾</span><span class="id" style="color: #1F4FA0;">SDD-012</span><span class="num" style="font-size: 14px; color: #565D63;">9 issues</span>
+            </div>
+            <div style="font-size: 14px; font-weight: 600; line-height: 20px;">Importador incremental por hash</div>
+            <div class="btn btn-m" style="width: 100%;">Reconocer los 9 issues</div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid #DDE1DF; font-size: 14px; line-height: 20px;">
+            <div class="sev"><i></i>Error</div>
+            <div><span class="id">packages/server/src/import/scan.ts</span> cambió y ya no coincide con <span class="id">SDD-012</span></div>
+            <div class="btn btn-m focus" style="align-self: flex-start;" aria-label="Reconocer SDD-012: cubre 9 issues">Reconocer <span class="cnt num">9</span></div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid #DDE1DF; font-size: 14px; line-height: 20px;">
+            <div class="sev"><i></i>Error</div>
+            <div><span class="id">packages/server/src/import/hash-table.ts</span> cambió y ya no coincide con <span class="id">SDD-012</span></div>
+            <div class="btn btn-m" style="align-self: flex-start;" aria-label="Reconocer SDD-012: cubre 9 issues">Reconocer <span class="cnt num">9</span></div>
+          </div>
+          <div style="display: flex; align-items: center; height: 44px; font-size: 14px; font-weight: 600; color: #1F4FA0; border-bottom: 1px solid #DDE1DF;">Mostrar los 7 issues restantes</div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding: 12px 0; border-top: 1px solid #C9CFCD; border-bottom: 1px solid #C9CFCD;">
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+              <span style="color: #565D63;">▾</span><span class="id" style="color: #1F4FA0;">ADR-008</span><span class="num" style="font-size: 14px; color: #565D63;">1 issue</span>
+            </div>
+            <div style="font-size: 14px; font-weight: 600; line-height: 20px;">Estilos de autenticación</div>
+            <div class="btn btn-m" style="width: 100%;">Reconocer</div>
+          </div>
+        </div>
+
+        <!-- barra inferior real (64 px), para que se vea que el contenido respeta el espacio -->
+        <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 64px; display: grid; grid-template-columns: repeat(6, 1fr); align-items: center; background: #FBFCFB; border-top: 1px solid #C9CFCD; font-size: 12px; color: #33383D; text-align: center;">
+          <span>Planta</span><span>Árbol</span><span>Docs</span><span>Órdenes</span><span style="font-weight: 700; color: #17191C;">Drift</span><span>Más</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+</body>
+</html>
