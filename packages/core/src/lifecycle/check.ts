@@ -6,6 +6,11 @@ import type { DriftIssue } from '../sync/monitor.js';
 export interface LifecycleContext {
   /** Pre-PRD-002 documents exempt while their content hash is unchanged (ADR-002 D13). */
   grandfathered: readonly GrandfatheredDoc[];
+  /**
+   * `publish` turns the PRD/FR section rules (SDD-124) into errors; the default `edit` only warns, so drift and
+   * draft validation enumerate incomplete documents without blocking them (PRD-044 §Despliegue).
+   */
+  mode?: 'edit' | 'publish';
 }
 
 type FeatureDoc = ParsedDoc & { frontmatter: Extract<ParsedDoc['frontmatter'], { type: 'MRD' | 'PRD' | 'FR' }> };
@@ -116,8 +121,34 @@ function checkFeatureBusinessCase(doc: FeatureDoc, docs: readonly ParsedDoc[], b
   return [];
 }
 
-function checkFeature(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>): DriftIssue[] {
-  if (doc.frontmatter.type === 'PRD' || doc.frontmatter.type === 'FR') return checkFeatureBusinessCase(doc, docs, byId);
+const ACCEPTANCE_HEADING = '## Criterio de aceptación';
+
+/** True when the `## Criterio de aceptación` section holds at least one `- [ ]`/`- [x]` line. */
+function hasAcceptanceItem(body: string): boolean {
+  const lines = body.split('\n').map((line) => line.trim());
+  const start = lines.indexOf(ACCEPTANCE_HEADING);
+  if (start < 0) return false;
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => NEXT_HEADING.test(line));
+  return (end < 0 ? rest : rest.slice(0, end)).some((line) => CHECKLIST_LINE.test(line));
+}
+
+function checkPrd(doc: FeatureDoc, severity: DriftIssue['severity']): DriftIssue[] {
+  const missing = missingSections('PRD', doc.node.body);
+  return missing.length > 0 ? [violation(doc.node.id, severity, MISSING_SECTIONS_MESSAGE(doc.node.id, missing))] : [];
+}
+
+function checkFeatureRequest(doc: FeatureDoc, severity: DriftIssue['severity']): DriftIssue[] {
+  const missing = missingSections('FR', doc.node.body);
+  if (missing.length > 0) return [violation(doc.node.id, severity, MISSING_SECTIONS_MESSAGE(doc.node.id, missing))];
+  if (hasAcceptanceItem(doc.node.body)) return [];
+  return [violation(doc.node.id, severity, `${doc.node.id} needs at least one verifiable item (a "- [ ]" or "- [x]" line) under "${ACCEPTANCE_HEADING}"`)];
+}
+
+function checkFeature(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>, mode: 'edit' | 'publish'): DriftIssue[] {
+  const severity = mode === 'publish' ? 'error' : 'warning';
+  if (doc.frontmatter.type === 'PRD') return [...checkFeatureBusinessCase(doc, docs, byId), ...checkPrd(doc, severity)];
+  if (doc.frontmatter.type === 'FR') return [...checkFeatureBusinessCase(doc, docs, byId), ...checkFeatureRequest(doc, severity)];
   if (hasJustification(doc, docs)) return [];
   return [
     violation(
@@ -174,7 +205,7 @@ function checkWorkOrder(doc: WorkOrderDoc): DriftIssue[] {
   return [violation(doc.node.id, 'error', `${doc.node.id} has no "source_task": work orders must come from \`prdm wo generate\` against a blueprint checklist`)];
 }
 
-function checkDoc(doc: ParsedDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>): DriftIssue[] {
+function checkDoc(doc: ParsedDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>, mode: 'edit' | 'publish'): DriftIssue[] {
   switch (doc.frontmatter.type) {
     case 'FB':
       return checkFeedback(doc as FeedbackDoc, docs);
@@ -183,7 +214,7 @@ function checkDoc(doc: ParsedDoc, docs: readonly ParsedDoc[], byId: Map<string, 
     case 'MRD':
     case 'PRD':
     case 'FR':
-      return checkFeature(doc as FeatureDoc, docs, byId);
+      return checkFeature(doc as FeatureDoc, docs, byId, mode);
     case 'SDD':
     case 'ADR':
       return checkBlueprint(doc as BlueprintDoc, byId);
@@ -217,7 +248,7 @@ export function checkLifecycle(docs: readonly ParsedDoc[], ctx: LifecycleContext
       issues.push(violation(doc.node.id, 'warning', `${doc.node.id} grandfathering lapsed (its content changed since it was exempted); lifecycle rules now apply`));
     }
     if (status === 'exempt') continue;
-    issues.push(...checkDoc(doc, docs, byId));
+    issues.push(...checkDoc(doc, docs, byId, ctx.mode ?? 'edit'));
   }
   return issues;
 }

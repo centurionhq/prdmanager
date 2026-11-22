@@ -88,7 +88,7 @@ export function validateDocument(input: ValidateDocumentInput, ctx: ValidateDocu
     }
   }
 
-  for (const issue of newLifecycleIssues(ctx.scan.docs, overlaid, ctx.grandfathered)) {
+  for (const issue of newLifecycleIssues(ctx.scan.docs, overlaid, ctx.grandfathered, { mode: input.mode, includeIds: input.mode === 'publish' ? [input.id] : [] })) {
     issues.push({ severity: issue.severity, code: 'lifecycle', message: issue.message });
   }
 

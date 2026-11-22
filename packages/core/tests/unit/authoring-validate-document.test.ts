@@ -6,6 +6,8 @@ import { doc, mrd, prd, sdd } from '@prdm/testkit';
 
 const rawHashOf = (frontmatter: string, body = 'body'): string => sha256(`---\n${frontmatter.trim()}\n---\n${body}\n`);
 
+const FR_BODY = '## Alcance\n\nx\n\n## Criterio de aceptación\n\n- [ ] hecho\n';
+
 const emptyScan = (): ScanResult => ({ docs: [], errors: [], ids: [] });
 
 describe('validateDocument: schema', () => {
@@ -15,10 +17,11 @@ describe('validateDocument: schema', () => {
   });
 
   test('a well-formed document has no issues in either mode', () => {
-    const fb = doc('id: FB-001\ntype: FB\ntitle: Feedback\nsource: email\nstatus: triaged', 'feedback', 'docs/feedback/FB-001.md');
-    const input = { kind: 'FR' as const, title: 'New capability', body: 'body', id: 'FR-001', fields: { evolves_from: ['PRD-001'], justified_by: ['FB-001'] } };
-    const fr = doc('id: FR-001\ntype: FR\ntitle: New capability\nevolves_from: [PRD-001]\njustified_by: [FB-001]', 'body', 'docs/fr/FR-001.md');
-    const scan: ScanResult = { docs: [prd(), fb, fr], errors: [], ids: ['PRD-001', 'FB-001', 'FR-001'] };
+    // Publishing re-checks the document's own issues (WO-802), so the FR must be justified by an approved BC.
+    const bc = doc('id: BC-001\ntype: BC\ntitle: Business case\nstatus: approved', '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n', 'docs/bc/BC-001.md');
+    const input = { kind: 'FR' as const, title: 'New capability', body: FR_BODY, id: 'FR-001', fields: { evolves_from: ['PRD-001'], justified_by: ['BC-001'] } };
+    const fr = doc('id: FR-001\ntype: FR\ntitle: New capability\nevolves_from: [PRD-001]\njustified_by: [BC-001]', FR_BODY, 'docs/fr/FR-001.md');
+    const scan: ScanResult = { docs: [prd(), bc, fr], errors: [], ids: ['PRD-001', 'BC-001', 'FR-001'] };
     expect(validateDocument({ ...input, mode: 'edit' }, { scan, grandfathered: [] }).issues).toEqual([]);
     expect(validateDocument({ ...input, mode: 'publish' }, { scan, grandfathered: [] }).issues).toEqual([]);
   });
@@ -139,4 +142,35 @@ describe('validateDocument: rendering', () => {
     const outcome = validateDocument({ kind: 'FB', title: 'x', body: 'y', id: 'FB-001', mode: 'edit' }, { scan: emptyScan(), grandfathered: [] });
     expect(outcome.targetPath).toBeNull();
   });
+
+describe('validateDocument: secciones obligatorias de PRD y FR (WO-802)', () => {
+  const bcApprovedDoc = () => doc('id: BC-001\ntype: BC\ntitle: Business case\nstatus: approved', '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n');
+  const PRD_FM = 'id: PRD-001\ntype: PRD\ntitle: Product\nimplements: [MRD-001]\njustified_by: [BC-001]';
+  const prdInput = (mode: 'edit' | 'publish', body = '## Problema\n\nsólo eso\n') => ({
+    kind: 'PRD' as const, title: 'Product', body, id: 'PRD-001', mode, fields: { implements: ['MRD-001'], justified_by: ['BC-001'] },
+  });
+  const lifecycle = (o: ReturnType<typeof validateDocument>) => o.issues.filter((i) => i.code === 'lifecycle' && i.message.includes('missing required section'));
+
+  test('un PRD incompleto no bloquea en edit y bloquea en publish (WO-802)', () => {
+    const scan: ScanResult = { docs: [mrd(), bcApprovedDoc()], errors: [], ids: ['MRD-001', 'BC-001', 'PRD-001'] };
+    expect(lifecycle(validateDocument(prdInput('edit'), { scan, grandfathered: [] })).map((i) => i.severity)).toEqual(['warning']);
+    expect(lifecycle(validateDocument(prdInput('publish'), { scan, grandfathered: [] })).map((i) => i.severity)).toEqual(['error']);
+  });
+
+  test('republicar un PRD que ya estaba publicado incompleto también bloquea en publish (WO-802)', () => {
+    const published = doc(PRD_FM, '## Problema\n\nsólo eso\n');
+    const scan: ScanResult = { docs: [mrd(), bcApprovedDoc(), published], errors: [], ids: ['MRD-001', 'BC-001', 'PRD-001'] };
+    expect(lifecycle(validateDocument(prdInput('publish'), { scan, grandfathered: [] })).map((i) => i.severity)).toEqual(['error']);
+    expect(lifecycle(validateDocument(prdInput('edit'), { scan, grandfathered: [] }))).toEqual([]);
+  });
+
+  test('un FR sin ítem verificable bloquea en publish (WO-802)', () => {
+    const scan: ScanResult = { docs: [prd(), bcApprovedDoc()], errors: [], ids: ['PRD-001', 'BC-001', 'FR-001'] };
+    const outcome = validateDocument(
+      { kind: 'FR', title: 'Request', id: 'FR-001', mode: 'publish', body: '## Alcance\n\nx\n\n## Criterio de aceptación\n\nprosa\n', fields: { evolves_from: ['PRD-001'], justified_by: ['BC-001'] } },
+      { scan, grandfathered: [] },
+    );
+    expect(outcome.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'lifecycle', severity: 'error', message: expect.stringContaining('verifiable item') })]));
+  });
+});
 });
