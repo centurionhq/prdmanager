@@ -176,6 +176,13 @@
       "when": 1791296334600,
       "tag": "0024_access_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795323569303,
+      "tag": "0025_commits_parents_and_commits_window",
+      "breakpoints": true
     }
   ]
 }

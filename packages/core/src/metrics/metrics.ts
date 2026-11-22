@@ -1,5 +1,5 @@
 import { ageDaysFrom } from '../graph/work-order-age.js';
-import type { GraphStore, MetricsRaw, OrphanFeature, UntracedCommits } from '../graph/types.js';
+import type { CommitsWindow, GraphStore, MetricsRaw, OrphanFeature, UntracedCommits } from '../graph/types.js';
 
 const COMPLETED_STATUSES = new Set(['done', 'out_of_sync']);
 const MS_PER_HOUR = 3_600_000;
@@ -58,6 +58,7 @@ export interface Traceability {
   commitsWithRefs: number;
   commitsTraced: number;
   commitPercent: number | null;
+  commitsWindow: CommitsWindow;
   untracedCommits: UntracedCommits;
 }
 
@@ -178,6 +179,7 @@ export function computeMetrics(raw: MetricsRaw, untraced: UntracedCommits): Succ
       commitsWithRefs: raw.commitsWithRefs,
       commitsTraced: raw.commitsTraced,
       commitPercent: percent(raw.commitsTraced, raw.commitsTotal),
+      commitsWindow: { branch: raw.commitsBranch ?? null, sha: raw.commitsSha ?? null, reportedAt: raw.commitsReportedAt ?? null },
       untracedCommits: untraced,
     },
     pendingQueue: computePendingQueue(raw.workOrders),

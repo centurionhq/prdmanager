@@ -114,6 +114,7 @@
         { "name": "subject", "type": "STRING", "description": "Required. Commit subject line (NOT 'message' -- corrected from the pre-multi-project doc)." },
         { "name": "refs", "type": "LIST<STRING>", "description": "Required (defaults to []). Work order ids parsed from the commit's `Refs:` trailer; drives the RESOLVES edge." },
         { "name": "files", "type": "LIST<STRING>", "description": "Required (defaults to []). Files touched by this commit." },
+        { "name": "parentCount", "type": "INTEGER", "description": "Required (defaults to 0). Number of parents reported by CI for this commit (`parents` in the code report, 2+ = merge), written by MERGE_COMMITS (SDD-095 D1)." },
         { "name": "ref", "type": "STRING", "description": "Required. Always 'commit:' + sha.slice(0,7); stable identifier returned in query projections." }
       ],
       "metadata": {}

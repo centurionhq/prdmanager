@@ -53,6 +53,8 @@ export interface ReportedCommitInput {
   subject: string;
   refs: string[];
   files: string[];
+  /** Optional: callers that predate SDD-095 omit it and the column keeps its default/previous value. */
+  parents?: string[];
 }
 
 export interface UpsertReportedCommitsInput {
@@ -80,6 +82,7 @@ export async function upsertReportedCommits(pool: Pool, input: UpsertReportedCom
         subject: commit.subject,
         refs: commit.refs,
         files: commit.files,
+        parents: commit.parents ?? [],
         branches: [input.branch],
       };
       // Union with whatever branches were already recorded, deduplicated — a commit can legitimately
@@ -100,6 +103,7 @@ export async function upsertReportedCommits(pool: Pool, input: UpsertReportedCom
               subject: values.subject,
               refs: values.refs,
               files: values.files,
+              parents: values.parents,
               branches: branchesUnion,
             },
           });
@@ -116,6 +120,7 @@ export async function upsertReportedCommits(pool: Pool, input: UpsertReportedCom
               subject: values.subject,
               refs: values.refs,
               files: values.files,
+              parents: values.parents,
               branches: branchesUnion,
             },
             setWhere: sql`${commits.trust} <> 'baseline'`,

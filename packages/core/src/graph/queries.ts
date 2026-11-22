@@ -1,4 +1,5 @@
 import { NODE_LABELS } from '../domain/schema.js';
+import { untracedCommitClassCypher } from './commit-class.js';
 
 /**
  * Every Cypher string a project-scoped `GraphStore` runs (ADR-002 D1/D2). Each one is parameterized with
@@ -21,7 +22,8 @@ export const PROJECT_FINGERPRINT_CHECK = `MATCH (p:Project {id: $projectId}) RET
 
 export const PROJECT_UPSERT = `
   MERGE (p:Project {id: $projectId})
-  SET p.name = $name, p.updated_at = $updatedAt, p.root_fingerprint = coalesce(p.root_fingerprint, $root)`;
+  SET p.name = $name, p.updated_at = $updatedAt, p.root_fingerprint = coalesce(p.root_fingerprint, $root),
+      p.commits_branch = $commitsBranch, p.commits_sha = $commitsSha, p.commits_reported_at = $commitsReportedAt`;
 
 export const DELETE_STALE_NODES = `
   MATCH (n:Node {project_id: $projectId}) WHERE NOT n.id IN $ids DETACH DELETE n`;
@@ -61,7 +63,7 @@ export const MERGE_GOVERNED = `
 export const MERGE_COMMITS = `
   UNWIND $commits AS c
   MERGE (x:Commit {project_id: $projectId, sha: c.sha})
-  SET x.author = c.author, x.date = c.date, x.subject = c.subject, x.refs = c.refs, x.files = c.files, x.ref = 'commit:' + substring(c.sha, 0, 7)
+  SET x.author = c.author, x.date = c.date, x.subject = c.subject, x.refs = c.refs, x.files = c.files, x.parentCount = size(coalesce(c.parents, [])), x.ref = 'commit:' + substring(c.sha, 0, 7)
   WITH x, c UNWIND c.refs AS woId
   MATCH (wo:WorkOrder {project_id: $projectId, id: woId}) MERGE (x)-[:RESOLVES]->(wo)`;
 
@@ -209,7 +211,11 @@ export const METRICS_RAW = `
     MATCH (wo:WorkOrder {project_id: $projectId}) WITH wo ORDER BY wo.id
     RETURN collect({id: wo.id, status: wo.status, assignedTo: wo.assigned_to, createdAt: wo.created_at, claimedAt: wo.claimed_at, completedAt: wo.completed_at}) AS workOrders
   }
-  RETURN governedTotal, governedSynced, featuresTotal, featuresTraced, orphanFeatures, commitsTotal, commitsWithRefs, commitsTraced, workOrders`;
+  CALL () {
+    OPTIONAL MATCH (p:Project {id: $projectId})
+    RETURN p.commits_branch AS commitsBranch, p.commits_sha AS commitsSha, p.commits_reported_at AS commitsReportedAt
+  }
+  RETURN governedTotal, governedSynced, featuresTotal, featuresTraced, orphanFeatures, commitsTotal, commitsWithRefs, commitsTraced, workOrders, commitsBranch, commitsSha, commitsReportedAt`;
 
 /**
  * Commits sin trazar (SDD-080 WO-A): los que NO cierran `RESOLVES→WorkOrder→IMPLEMENTS→Blueprint→ARCHITECTS→Feature`.
@@ -222,16 +228,21 @@ export const UNTRACED_COMMITS = `
   MATCH (c:Commit {project_id: $projectId})
   WITH c, size(c.refs) > 0 AS hasRefs
   WHERE NOT EXISTS { (c)-[:RESOLVES]->(:WorkOrder)-[:IMPLEMENTS]->(:Blueprint)-[:ARCHITECTS]->(:Feature) }
-  WITH count(*) AS total, coalesce(sum(CASE WHEN hasRefs THEN 1 ELSE 0 END), 0) AS danglingRefs
+  WITH hasRefs, ${untracedCommitClassCypher('c')} AS cls
+  WITH count(*) AS total,
+       coalesce(sum(CASE WHEN hasRefs THEN 1 ELSE 0 END), 0) AS danglingRefs,
+       coalesce(sum(CASE WHEN cls = 'merge' THEN 1 ELSE 0 END), 0) AS mergeCount,
+       coalesce(sum(CASE WHEN cls = 'bookkeeping' THEN 1 ELSE 0 END), 0) AS bookkeepingCount,
+       coalesce(sum(CASE WHEN cls = 'code' THEN 1 ELSE 0 END), 0) AS codeCount
   CALL () {
     MATCH (c:Commit {project_id: $projectId})
     WITH c, size(c.refs) > 0 AS hasRefs
     WHERE NOT EXISTS { (c)-[:RESOLVES]->(:WorkOrder)-[:IMPLEMENTS]->(:Blueprint)-[:ARCHITECTS]->(:Feature) }
-    RETURN {sha: c.sha, subject: coalesce(c.subject, ''), author: coalesce(c.author, ''), date: coalesce(c.date, ''), files: coalesce(c.files, []), gap: CASE WHEN hasRefs THEN 'dangling_refs' ELSE 'no_refs' END} AS item
+    RETURN {sha: c.sha, subject: coalesce(c.subject, ''), author: coalesce(c.author, ''), date: coalesce(c.date, ''), files: coalesce(c.files, []), gap: CASE WHEN hasRefs THEN 'dangling_refs' ELSE 'no_refs' END, class: ${untracedCommitClassCypher('c')}} AS item
     ORDER BY c.date DESC, c.sha ASC
     LIMIT $limit
   }
-  RETURN total, danglingRefs, collect(item) AS items`;
+  RETURN total, danglingRefs, mergeCount, bookkeepingCount, codeCount, collect(item) AS items`;
 
 export const CLEAR_PROJECT = `
   MATCH (n) WHERE (n:Node OR n:CodeRef OR n:Commit OR n:Actor) AND n.project_id = $projectId

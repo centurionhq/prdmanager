@@ -9,6 +9,7 @@ import { eq, sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import type { PgDatabase } from './pool.js';
 import { projectCodeState } from './schema/documents.js';
+import { projects } from './schema/projects.js';
 import { withTenantTx } from './tenant.js';
 
 /** Same numeric salt as `packages/server/src/engine/pg-project-engine.ts`'s own `WRITE_LOCK_SALT` (same
@@ -44,6 +45,8 @@ export interface RecordBaselineHeadInput {
   projectId: string;
   orgId: string;
   headSha: string;
+  /** SDD-095 D4: rama del reporte baseline. */
+  branch?: string | null;
   impactsHashes: Record<string, string>;
   /** WO-333: this report's own `governed_warnings[]` (`@prdm/contracts`' `governedWarningSchema`),
    * stored verbatim — a full replace (not a merge, unlike `impactsHashes`), since a warning list only
@@ -71,8 +74,12 @@ export async function recordBaselineHead(pool: Pool, input: RecordBaselineHeadIn
     const governedWarnings = input.governedWarnings !== undefined ? [...input.governedWarnings] : undefined;
     await tx
       .insert(projectCodeState)
-      .values({ projectId: input.projectId, orgId: input.orgId, impactsHashes: merged, latestBaselineHeadSha: input.headSha, governedWarnings })
-      .onConflictDoUpdate({ target: projectCodeState.projectId, set: { impactsHashes: merged, latestBaselineHeadSha: input.headSha, ...(governedWarnings !== undefined ? { governedWarnings } : {}) } });
+      .values({ projectId: input.projectId, orgId: input.orgId, impactsHashes: merged, latestBaselineHeadSha: input.headSha, latestBaselineBranch: input.branch ?? null, latestBaselineReportedAt: new Date(), governedWarnings })
+      .onConflictDoUpdate({ target: projectCodeState.projectId, set: { impactsHashes: merged, latestBaselineHeadSha: input.headSha, latestBaselineBranch: input.branch ?? null, latestBaselineReportedAt: new Date(), ...(governedWarnings !== undefined ? { governedWarnings } : {}) } });
+    // SDD-095 D4: la ventana de commits (rama/sha/fecha) vive en el grafo; si nada más ensució el proyecto,
+    // el `refresh()` siguiente no proyectaría y el grafo se quedaría con la ventana anterior. Sin tocar
+    // `graph_version`: es el token de frescura de docs que los clientes reenvían (`docs_graph_version`).
+    await tx.update(projects).set({ graphDirty: true }).where(eq(projects.id, input.projectId));
   });
 }
 
@@ -104,4 +111,17 @@ export async function writeProjectLastReport(
     .insert(projectCodeState)
     .values({ projectId: input.projectId, orgId: input.orgId, lastReport: input.report })
     .onConflictDoUpdate({ target: projectCodeState.projectId, set: { lastReport: input.report } });
+}
+
+export interface LatestBaselineWindow { branch: string | null; sha: string; reportedAt: string | null }
+
+/** SDD-095 D4: la identidad del último reporte baseline registrado (`recordBaselineHead` la escribe
+ * ANTES de que el engine proyecte, a diferencia de la fila de `code_reports`). `null` sin reporte. */
+export async function readLatestBaselineWindow(tx: PgDatabase, projectId: string): Promise<LatestBaselineWindow | null> {
+  const [row] = await tx
+    .select({ sha: projectCodeState.latestBaselineHeadSha, branch: projectCodeState.latestBaselineBranch, reportedAt: projectCodeState.latestBaselineReportedAt })
+    .from(projectCodeState)
+    .where(eq(projectCodeState.projectId, projectId));
+  if (!row?.sha) return null;
+  return { branch: row.branch, sha: row.sha, reportedAt: row.reportedAt ? row.reportedAt.toISOString() : null };
 }

@@ -48,11 +48,11 @@ function trackedDeps(calls: string[]): PrdmDeps {
     },
     metricsRaw: async () => {
       calls.push('store.metricsRaw');
-      return { governedTotal: 0, governedSynced: 0, featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, workOrders: [] };
+      return { governedTotal: 0, governedSynced: 0, featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, workOrders: [], commitsBranch: null, commitsSha: null, commitsReportedAt: null };
     },
     untracedCommits: async () => {
       calls.push('store.untracedCommits');
-      return { total: 0, danglingRefs: 0, truncated: false, items: [] };
+      return { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] };
     },
   };
 

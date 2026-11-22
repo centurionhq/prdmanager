@@ -8,6 +8,15 @@ export interface GraphSnapshot {
   governed: (GovernedState & { hash: string | null })[];
   reviewNeeded: { blueprintId: string; featureId: string }[];
   commits: CommitInfo[];
+  /** Ventana sobre la que se calcularon los commits (SDD-095 D4): el reporte de CI vigente; ausente/`null` ⇒ no declarada. */
+  commitsWindow?: CommitsWindow | null;
+}
+
+/** Rama, sha y fecha del reporte de CI que alimenta el ledger de commits; cada campo `null` cuando no se declara. */
+export interface CommitsWindow {
+  branch: string | null;
+  sha: string | null;
+  reportedAt: string | null;
 }
 
 export interface NodeView {
@@ -139,6 +148,9 @@ export interface OrphanFeature {
 /** `no_refs`: el commit no trae `Refs`; `dangling_refs`: trae `Refs` pero ninguna cierra la cadena hasta una Feature. */
 export type UntracedCommitGap = 'no_refs' | 'dangling_refs';
 
+/** Clase del hueco (SDD-095 D2): sólo `code` es trabajo sin trazar; ver `commit-class.ts`. */
+export type UntracedCommitClass = 'merge' | 'bookkeeping' | 'code';
+
 export interface UntracedCommit {
   sha: string;
   subject: string;
@@ -146,12 +158,15 @@ export interface UntracedCommit {
   date: string;
   files: string[];
   gap: UntracedCommitGap;
+  class: UntracedCommitClass;
 }
 
 /** `total`/`danglingRefs` son exactos; `items` va capado (`truncated` avisa si el grafo tiene más). */
 export interface UntracedCommits {
   total: number;
   danglingRefs: number;
+  /** Desglose por clase, calculado en la MISMA agregación que `total` (no de `items`): merge + bookkeeping + code === total. */
+  byClass: Record<UntracedCommitClass, number>;
   truncated: boolean;
   items: UntracedCommit[];
 }
@@ -173,6 +188,9 @@ export interface MetricsRaw {
     claimedAt: string | null;
     completedAt: string | null;
   }[];
+  commitsBranch: string | null;
+  commitsSha: string | null;
+  commitsReportedAt: string | null;
 }
 
 export interface ProjectRecord {

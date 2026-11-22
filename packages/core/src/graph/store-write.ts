@@ -79,7 +79,15 @@ export async function writeSnapshot(driver: Driver, database: string, project: P
       const existing = fp.records[0]?.get('fingerprint') as string | null | undefined;
       if (existing && existing !== project.root) throw new ProjectFingerprintMismatch(projectId, existing);
 
-      await tx.run(PROJECT_UPSERT, { projectId, name: project.name, root: project.root, updatedAt: new Date().toISOString() });
+      await tx.run(PROJECT_UPSERT, {
+        projectId,
+        name: project.name,
+        root: project.root,
+        updatedAt: new Date().toISOString(),
+        commitsBranch: snapshot.commitsWindow?.branch ?? null,
+        commitsSha: snapshot.commitsWindow?.sha ?? null,
+        commitsReportedAt: snapshot.commitsWindow?.reportedAt ?? null,
+      });
       await tx.run(DELETE_STALE_NODES, { projectId, ids: nodes.map((n) => n.id) });
       await tx.run(DELETE_STALE_DERIVED, { projectId });
       await tx.run(DELETE_EDGES, { projectId });

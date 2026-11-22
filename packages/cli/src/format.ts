@@ -87,9 +87,17 @@ function formatSlowest(efficiency: SuccessMetrics['agentHumanEfficiency']): stri
 
 const UNTRACED_ROWS_SHOWN = 20;
 
+function formatCommitsWindow({ branch, sha, reportedAt }: SuccessMetrics['traceability']['commitsWindow']): string {
+  if (branch === null && sha === null && reportedAt === null) return '  commits window: ventana sin fecha';
+  return `  commits window: ${branch ?? 'rama desconocida'}@${sha === null ? 'sin sha' : sha.slice(0, 7)} del ${reportedAt ?? 'sin fecha'}`;
+}
+
 function formatUntracedCommits(traceability: SuccessMetrics['traceability']): string[] {
   const { untracedCommits: untraced, commitsWithRefs, commitsTraced } = traceability;
+  const { byClass } = untraced;
   return [
+    formatCommitsWindow(traceability.commitsWindow),
+    `  commits by class: ${byClass.merge} merges, ${byClass.bookkeeping} bookkeeping, ${byClass.code} de codigo`,
     `  commits untraced: ${untraced.total} (with refs ${commitsWithRefs}, traced ${commitsTraced}, dangling ${untraced.danglingRefs})`,
     ...(untraced.items.length === 0 ? ['    untraced commits: 0 (ninguno sin trazar)'] : []),
     ...untraced.items.slice(0, UNTRACED_ROWS_SHOWN).map((c) => `    ${c.sha}  ${c.subject}`),

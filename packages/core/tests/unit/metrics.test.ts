@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { computeMetrics, getMetrics, SLOW_RESOLUTION_HOURS, SLOW_RESOLUTION_ITEMS } from '../../src/metrics/metrics.js';
+import { classifyCommit } from '../../src/graph/commit-class.js';
 import type { MetricsRaw, UntracedCommit, UntracedCommits } from '../../src/graph/types.js';
 
 function raw(overrides: Partial<MetricsRaw> = {}): MetricsRaw {
@@ -13,16 +14,19 @@ function raw(overrides: Partial<MetricsRaw> = {}): MetricsRaw {
     commitsWithRefs: 0,
     commitsTraced: 0,
     workOrders: [],
+    commitsBranch: null,
+    commitsSha: null,
+    commitsReportedAt: null,
     ...overrides,
   };
 }
 
 function untraced(overrides: Partial<UntracedCommits> = {}): UntracedCommits {
-  return { total: 0, danglingRefs: 0, truncated: false, items: [], ...overrides };
+  return { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [], ...overrides };
 }
 
 function untracedItem(sha: string, gap: UntracedCommit['gap']): UntracedCommit {
-  return { sha, subject: `commit ${sha}`, author: 'dev', date: '2026-01-01T00:00:00Z', files: ['a.ts'], gap };
+  return { sha, subject: `commit ${sha}`, author: 'dev', date: '2026-01-01T00:00:00Z', files: ['a.ts'], gap, class: 'code' };
 }
 
 describe('computeMetrics', () => {
@@ -41,7 +45,8 @@ describe('computeMetrics', () => {
         commitsWithRefs: 0,
         commitsTraced: 0,
         commitPercent: null,
-        untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] },
+        commitsWindow: { branch: null, sha: null, reportedAt: null },
+        untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] },
       },
       pendingQueue: { total: 0, unassigned: 0, oldestDays: null, over7Days: 0 },
     });
@@ -357,5 +362,51 @@ describe('computeMetrics · cola lenta (p90/max/slowest)', () => {
     expect(e.p90ResolutionHours).toBeNull();
     expect(e.maxResolutionHours).toBeNull();
     expect(e.slowest).toEqual({ thresholdHours: 24, total: 0, items: [] });
+  });
+});
+
+describe('computeMetrics commitsWindow / byClass (SDD-095)', () => {
+  test('copies the declared window and leaves null where the raw has null', () => {
+    const full = computeMetrics(raw({ commitsBranch: 'main', commitsSha: 'abc1234', commitsReportedAt: '2026-10-05T12:00:00.000Z' }), untraced());
+    expect(full.traceability.commitsWindow).toEqual({ branch: 'main', sha: 'abc1234', reportedAt: '2026-10-05T12:00:00.000Z' });
+    const partial = computeMetrics(raw({ commitsBranch: 'main' }), untraced());
+    expect(partial.traceability.commitsWindow).toEqual({ branch: 'main', sha: null, reportedAt: null });
+  });
+
+  test('copies untraced.byClass as-is', () => {
+    const byClass = { merge: 1, bookkeeping: 2, code: 3 };
+    expect(computeMetrics(raw(), untraced({ total: 6, byClass })).traceability.untracedCommits.byClass).toEqual(byClass);
+  });
+});
+
+describe('classifyCommit', () => {
+  test.each([
+    [{ parentCount: 2, files: ['docs/x.md'], subject: 'feat: x' }, 'merge'],
+    [{ parentCount: 3, files: [], subject: 'chore: record WO-1' }, 'merge'],
+    [{ parentCount: 1, files: ['docs/a/y.ts'], subject: 'feat: x' }, 'bookkeeping'],
+    [{ parentCount: 0, files: ['.prdm/remote/docs/SDD-095.md'], subject: 'x' }, 'bookkeeping'],
+    [{ parentCount: 1, files: ['design/z.html'], subject: 'x' }, 'bookkeeping'],
+    [{ parentCount: 1, files: ['README.md'], subject: 'x' }, 'bookkeeping'],
+    [{ parentCount: 1, files: ['src/a.ts', 'docs/b.md'], subject: 'x' }, 'code'],
+    [{ parentCount: 1, files: [], subject: 'chore: record WO-1' }, 'bookkeeping'],
+    [{ parentCount: 1, files: [], subject: 'docs(SDD-012): add things' }, 'bookkeeping'],
+    [{ parentCount: 1, files: [], subject: 'build(deps): x' }, 'bookkeeping'],
+    [{ parentCount: 1, files: [], subject: 'build: x' }, 'bookkeeping'],
+    [{ parentCount: 1, files: [], subject: 'ci: x' }, 'bookkeeping'],
+    [{ parentCount: 1, files: [], subject: 'fix: x' }, 'code'],
+    [{ parentCount: 1, files: [], subject: 'feature: x' }, 'code'],
+    [{ parentCount: 1, files: [], subject: 'chores: x' }, 'code'],
+    [{ parentCount: 1, files: [], subject: 'ciao' }, 'code'],
+    [{ parentCount: 1, files: [], subject: 'chore' }, 'bookkeeping'],
+    [{ parentCount: 1, files: [], subject: 'chore: record WO-394 completion' }, 'bookkeeping'],
+    [{ parentCount: 1, files: [], subject: 'docs(SDD-012): add post-closure reconciliation task' }, 'bookkeeping'],
+    [{ parentCount: 1, files: [], subject: 'build(deps): bump' }, 'bookkeeping'],
+    [{ parentCount: 1, files: [], subject: 'ci: run' }, 'bookkeeping'],
+    [{ parentCount: 1, files: [], subject: 'choreography' }, 'code'],
+    [{ parentCount: 1, files: [], subject: 'fix: chore' }, 'code'],
+    [{ parentCount: 1, files: [], subject: '' }, 'code'],
+    [{ parentCount: 1, files: ['src/a.ts'], subject: 'chore: x' }, 'code'],
+  ] as const)('%j → %s', (commit, expected) => {
+    expect(classifyCommit(commit)).toBe(expected);
   });
 });

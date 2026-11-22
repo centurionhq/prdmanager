@@ -190,6 +190,8 @@ export const commits = pgTable(
     subject: text('subject').notNull(),
     refs: text('refs').array().notNull().default(sql`'{}'::text[]`),
     files: text('files').array().notNull().default(sql`'{}'::text[]`),
+    /** Shas de los padres tal como los reporta CI (SDD-095 D1): 2+ ⇒ merge. Vacío para commits previos a la columna. */
+    parents: text('parents').array().notNull().default(sql`'{}'::text[]`),
     branches: text('branches').array().notNull().default(sql`'{}'::text[]`),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
@@ -219,6 +221,10 @@ export const projectCodeState = pgTable(
      * (be an ancestor of) without an audited admin override (`force_push_overrides`). `null` until the
      * project's first-ever CI-verified baseline report. */
     latestBaselineHeadSha: text('latest_baseline_head_sha'),
+    /** SDD-095 D4: rama del último reporte baseline (la ventana sobre la que se calculan los commits del grafo). */
+    latestBaselineBranch: text('latest_baseline_branch'),
+    /** SDD-095 D4: cuándo se registró ese reporte baseline (la fecha de la ventana). */
+    latestBaselineReportedAt: timestamp('latest_baseline_reported_at', { withTimezone: true, mode: 'date' }),
     /** WO-333: the last baseline report's `governed_warnings[]` (`GovernedWarningDto[]`, `@prdm/contracts`
      * `code-reports.ts`), persisted verbatim so the dashboard can show them without re-parsing the raw
      * report. `null` before a project's first baseline report ever sets it. */

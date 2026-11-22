@@ -3,6 +3,7 @@ import type { NodeLabel } from '../domain/schema.js';
 import { buildScopedLuceneQuery } from './lucene.js';
 import { mirrorPathFor } from './paths.js';
 import { ageDaysFrom } from './work-order-age.js';
+import { BOOKKEEPING_SUBJECT_PATTERN } from './commit-class.js';
 import { BRANCH, FULL_GRAPH, GET_NODE, LIST_WORK_ORDERS, METRICS_RAW, QUERY_WORK_ORDERS, MAX_DEPTH, SEARCH, UNTRACED_COMMITS, UP_FILTER, DOWN_FILTER, WORK_ORDER_CONTEXT } from './queries.js';
 import type { MetricsRaw, NodeDetail, SearchHit, Subgraph, UntracedCommits, WorkOrderContextRaw, WorkOrderPage, WorkOrderQueryFilter, WorkOrderSummary } from './types.js';
 
@@ -102,10 +103,11 @@ export async function metricsRaw(driver: Driver, database: string, projectId: st
 export const UNTRACED_COMMITS_LIMIT = 200;
 
 export async function untracedCommits(driver: Driver, database: string, projectId: string, limit = UNTRACED_COMMITS_LIMIT): Promise<UntracedCommits> {
-  const rows = await read<Omit<UntracedCommits, 'truncated'>>(driver, database, UNTRACED_COMMITS, { projectId, limit: neo4j.int(limit) });
+  const rows = await read<Omit<UntracedCommits, 'truncated' | 'byClass'> & { mergeCount: number; bookkeepingCount: number; codeCount: number }>(driver, database, UNTRACED_COMMITS, { projectId, limit: neo4j.int(limit), bookkeepingSubject: BOOKKEEPING_SUBJECT_PATTERN });
   const row = rows[0];
   // Sin commits sin trazar el subquery no devuelve filas: es el caso sano, no un error.
-  if (!row) return { total: 0, danglingRefs: 0, truncated: false, items: [] };
+  if (!row) return { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] };
   const total = Number(row.total);
-  return { total, danglingRefs: Number(row.danglingRefs), truncated: total > row.items.length, items: row.items };
+  const byClass = { merge: Number(row.mergeCount), bookkeeping: Number(row.bookkeepingCount), code: Number(row.codeCount) };
+  return { total, danglingRefs: Number(row.danglingRefs), byClass, truncated: total > row.items.length, items: row.items };
 }

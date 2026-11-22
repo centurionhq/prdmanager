@@ -12,7 +12,7 @@ import { makeProjectShellContext, makeProjectOverview } from './fixtures.js';
 const METRICS: SuccessMetricsDto = {
   agentHumanEfficiency: { completedWorkOrders: 10, measuredWorkOrders: 10, avgResolutionHours: 0.1, medianResolutionHours: 0.083, p90ResolutionHours: 1, maxResolutionHours: 1, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 100, governedSynced: 99, syncedPercent: 99.6 },
-  traceability: { featuresTotal: 4, featuresTraced: 4, orphanFeatures: [], featurePercent: 100, commitsTotal: 10, commitsWithRefs: 7, commitsTraced: 6, commitPercent: 66.4, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
+  traceability: { featuresTotal: 4, featuresTraced: 4, orphanFeatures: [], featurePercent: 100, commitsTotal: 10, commitsWithRefs: 7, commitsTraced: 6, commitPercent: 66.4, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
 };
 
 const METRICS_WITH_ORPHANS: SuccessMetricsDto = {
@@ -29,7 +29,7 @@ const METRICS_WITH_ORPHANS: SuccessMetricsDto = {
     commitsWithRefs: 7,
     commitsTraced: 6,
     commitPercent: 66.4,
-    untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] },
+    commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] },
   },
 };
 
@@ -59,7 +59,7 @@ const METRICS_WITH_UNMEASURED: SuccessMetricsDto = {
 const EMPTY_METRICS: SuccessMetricsDto = {
   agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, p90ResolutionHours: null, maxResolutionHours: null, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
-  traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
+  traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
 };
 
 /**
@@ -428,7 +428,7 @@ describe('Planta', () => {
     vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
     vi.spyOn(client, 'getMetrics').mockResolvedValue({
       ...METRICS,
-      traceability: { featuresTotal: 4, featuresTraced: 4, orphanFeatures: [], featurePercent: 100, commitsTotal: 20, commitsWithRefs: 10, commitsTraced: 6, commitPercent: 30, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
+      traceability: { featuresTotal: 4, featuresTraced: 4, orphanFeatures: [], featurePercent: 100, commitsTotal: 20, commitsWithRefs: 10, commitsTraced: 6, commitPercent: 30, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
     });
     renderPlanta();
 
@@ -460,12 +460,13 @@ describe('Planta', () => {
         untracedCommits: {
           total: 4,
           danglingRefs: 1,
+          byClass: { merge: 0, bookkeeping: 0, code: 4 },
           truncated: true,
           items: [
-            { sha: 'aaaaaaa1111', subject: 'sin trailer uno', author: 'Ana', date: '2026-09-27T18:21:00.000Z', files: ['a.ts', 'b.ts', 'c.ts'], gap: 'no_refs' },
-            { sha: 'bbbbbbb2222', subject: 'sin trailer dos', author: 'Beto', date: '2026-09-27T18:22:00.000Z', files: ['d.ts'], gap: 'no_refs' },
-            { sha: 'ccccccc3333', subject: 'sin trailer tres', author: 'Ana', date: '2026-09-27T18:23:00.000Z', files: ['e.ts', 'f.ts'], gap: 'no_refs' },
-            { sha: 'ddddddd4444', subject: 'ref que no resuelve', author: 'Cleo', date: '2026-09-27T18:24:00.000Z', files: ['g.ts'], gap: 'dangling_refs' },
+            { sha: 'aaaaaaa1111', subject: 'sin trailer uno', author: 'Ana', date: '2026-09-27T18:21:00.000Z', files: ['a.ts', 'b.ts', 'c.ts'], gap: 'no_refs', class: 'code' },
+            { sha: 'bbbbbbb2222', subject: 'sin trailer dos', author: 'Beto', date: '2026-09-27T18:22:00.000Z', files: ['d.ts'], gap: 'no_refs', class: 'code' },
+            { sha: 'ccccccc3333', subject: 'sin trailer tres', author: 'Ana', date: '2026-09-27T18:23:00.000Z', files: ['e.ts', 'f.ts'], gap: 'no_refs', class: 'code' },
+            { sha: 'ddddddd4444', subject: 'ref que no resuelve', author: 'Cleo', date: '2026-09-27T18:24:00.000Z', files: ['g.ts'], gap: 'dangling_refs', class: 'code' },
           ],
         },
       },

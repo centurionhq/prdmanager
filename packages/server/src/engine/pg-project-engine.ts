@@ -112,7 +112,7 @@ import {
   type TransactionOptions,
   type WorkOrderUpdate,
 } from '@prdm/core';
-import { formatDocId, readProjectLastReport, schema, seedIdCounterAtLeast, withTenantTx, writeProjectLastReport, type PgDatabase } from '@prdm/db';
+import { formatDocId, readLatestBaselineWindow, readProjectLastReport, schema, seedIdCounterAtLeast, withTenantTx, writeProjectLastReport, type PgDatabase } from '@prdm/db';
 import { assertValidRoot, createDocumentYDoc, decodeUpdateRanges, FRONTMATTER_ROOT, InvalidDocumentRootError, type FrontmatterValue } from '@prdm/collab';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Hocuspocus } from '@hocuspocus/server';
@@ -467,7 +467,8 @@ export class PgProjectEngine implements ProjectEngine {
     const scan = await loadScanState(tx, this.projectId);
     const input = await this.buildDriftInput(tx, scan);
     const built = buildRefreshReport(input);
-    return { docs: scan.docs, governed: built.governed, reviewNeeded: built.reviewNeeded, commits: input.commits };
+    const commitsWindow = await readLatestBaselineWindow(tx, this.projectId);
+    return { docs: scan.docs, governed: built.governed, reviewNeeded: built.reviewNeeded, commits: input.commits, commitsWindow };
   }
 
   private buildOps(tx: PgDatabase): EngineOps {
@@ -898,9 +899,9 @@ export class PgProjectEngine implements ProjectEngine {
       .from(schema.commits)
       .where(and(eq(schema.commits.projectId, this.projectId), eq(schema.commits.sha, sha), eq(schema.commits.trust, 'baseline')));
     if (!row) return null;
-    // The `commits` table (SDD-007) has no parent-chain column; the WO-231 ancestry check consults
-    // `CodeReportRequest.commits[].parents` directly at report time and never round-trips through here.
-    return { sha: row.sha, parents: [], author: row.author, date: row.date.toISOString(), subject: row.subject, refs: row.refs, files: row.files };
+    // `parents` (SDD-095 D1) is persisted from the CI report; the WO-231 ancestry check still consults
+    // `CodeReportRequest.commits[].parents` directly at report time.
+    return { sha: row.sha, parents: row.parents, author: row.author, date: row.date.toISOString(), subject: row.subject, refs: row.refs, files: row.files };
   }
 
   private async loadBaseline(tx: PgDatabase): Promise<Baseline> {
@@ -921,7 +922,7 @@ export class PgProjectEngine implements ProjectEngine {
       .from(schema.commits)
       .where(and(eq(schema.commits.projectId, this.projectId), eq(schema.commits.trust, 'baseline')));
     return rows
-      .map((row): CommitInfo => ({ sha: row.sha, parents: [], author: row.author, date: row.date.toISOString(), subject: row.subject, refs: row.refs, files: row.files }))
+      .map((row): CommitInfo => ({ sha: row.sha, parents: row.parents, author: row.author, date: row.date.toISOString(), subject: row.subject, refs: row.refs, files: row.files }))
       .sort((a, b) => b.date.localeCompare(a.date));
   }
 

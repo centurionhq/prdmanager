@@ -234,6 +234,7 @@ export function registerCodeReportRoutes(app: FastifyInstance, opts: RegisterCod
             projectId: resolved.projectId,
             orgId: resolved.orgId,
             headSha: report.head_sha,
+            branch: report.branch,
             impactsHashes: report.impacts_hashes,
             governedWarnings: report.governed_warnings,
           });

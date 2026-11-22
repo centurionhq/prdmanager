@@ -294,6 +294,36 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports (WO-180)', () => {
     await app.close();
   });
 
+  test('a report persists each commit\'s real parents array in the commits table (SDD-095 D1)', async () => {
+    const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
+    const { project, secret } = await seedOwnerAndCiToken(app);
+    const mergeSha = 'e'.repeat(40);
+    const docsSha = 'd'.repeat(40);
+    const parentA = '1'.repeat(40);
+    const parentB = '2'.repeat(40);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'parents-key' },
+      payload: baseReport({
+        commits: [
+          { sha: mergeSha, parents: [parentA, parentB], author: 'Alice', date: '2026-09-14T00:00:00.000Z', subject: 'Merge branch', refs: [], files: [] },
+          { sha: docsSha, parents: [parentA], author: 'Alice', date: '2026-09-13T00:00:00.000Z', subject: 'docs: x', refs: [], files: ['docs/x.md'] },
+        ],
+      }),
+    });
+    expect(res.statusCode).toBe(200);
+
+    const { rows } = await pg.ownerPool.query(`SELECT sha, parents FROM "commits" WHERE project_id = $1 ORDER BY sha`, [project.id]);
+    expect(rows).toEqual([
+      { sha: docsSha, parents: [parentA] },
+      { sha: mergeSha, parents: [parentA, parentB] },
+    ]);
+
+    await app.close();
+  });
+
   test('a personal token whose issuing user has since lost their live role is rejected (WO-257)', async () => {
     const app = buildServer({ env, pool: pg.appPool, mailer: new FakeMailer(), logger: false });
     const { org, project, ownerCookie } = await seedOwnerAndCiToken(app);

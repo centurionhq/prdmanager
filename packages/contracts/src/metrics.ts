@@ -63,13 +63,25 @@ export const untracedCommitSchema = z.object({
   date: z.string(),
   files: z.array(z.string()),
   gap: z.enum(['no_refs', 'dangling_refs']),
+  class: z.enum(['merge', 'bookkeeping', 'code']),
 });
 
 export const untracedCommitsSchema = z.object({
   total: z.number().int().min(0),
   danglingRefs: z.number().int().min(0),
+  byClass: z.object({
+    merge: z.number().int().min(0),
+    bookkeeping: z.number().int().min(0),
+    code: z.number().int().min(0),
+  }),
   truncated: z.boolean(),
   items: z.array(untracedCommitSchema),
+});
+
+export const commitsWindowSchema = z.object({
+  branch: z.string().nullable(),
+  sha: z.string().nullable(),
+  reportedAt: z.string().nullable(),
 });
 
 export const traceabilitySchema = z.object({
@@ -81,6 +93,7 @@ export const traceabilitySchema = z.object({
   commitsWithRefs: z.number().int().min(0),
   commitsTraced: z.number().int().min(0),
   commitPercent: z.number().nullable(),
+  commitsWindow: commitsWindowSchema,
   untracedCommits: untracedCommitsSchema,
 });
 

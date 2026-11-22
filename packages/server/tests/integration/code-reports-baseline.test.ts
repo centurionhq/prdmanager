@@ -5,7 +5,7 @@
  * runs. A feature-branch OIDC token (or none at all) silently stays preview; a regressing head without
  * an admin override is rejected.
  */
-import { Neo4jGraphDatabase } from '@prdm/core';
+import { getMetrics, Neo4jGraphDatabase } from '@prdm/core';
 import { createMemberFixture, createOrganizationFixture, createProjectFixture, makeTmpDir, openTestPg, removeDir, testConfig, truncateAll, type PgTestDb } from '@prdm/testkit';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWTVerifyGetKey } from 'jose';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
@@ -142,6 +142,40 @@ describe('POST /api/v1/projects/:graphProjectId/code-reports baseline mode (WO-1
 
     const { rows: stateRows } = await pg.ownerPool.query(`SELECT latest_baseline_head_sha FROM "project_code_state" WHERE project_id = $1`, [project.id]);
     expect(stateRows[0].latest_baseline_head_sha).toBe(headSha);
+
+    await app.close();
+  });
+
+  test('a baseline report publishes the commits window and the merge/bookkeeping/code breakdown through getMetrics (SDD-095)', async () => {
+    const app = buildApp();
+    const { project, secret } = await setupProject(app);
+    const codeSha = 'c'.repeat(40);
+    const docsSha = 'd'.repeat(40);
+    const mergeSha = 'a'.repeat(40);
+    const oidcToken = await signOidcToken({}, mergeSha);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.graphProjectId}/code-reports`,
+      headers: { authorization: `Bearer ${secret}`, 'idempotency-key': 'window-1', 'x-prdm-github-oidc-token': oidcToken },
+      payload: baseReport(mergeSha, {
+        commits: [
+          { sha: mergeSha, parents: [docsSha, codeSha], author: 'Alice', date: '2026-09-14T00:00:03.000Z', subject: 'Merge branch x', refs: [], files: ['src/a.ts'] },
+          { sha: docsSha, parents: [codeSha], author: 'Alice', date: '2026-09-14T00:00:02.000Z', subject: 'docs: add', refs: [], files: ['docs/x.md'] },
+          { sha: codeSha, parents: [], author: 'Alice', date: '2026-09-14T00:00:01.000Z', subject: 'feat: no refs', refs: [], files: ['src/a.ts'] },
+        ],
+      }),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().mode).toBe('baseline');
+
+    const { rows } = await pg.ownerPool.query(`SELECT latest_baseline_reported_at FROM project_code_state WHERE project_id = $1`, [project.id]);
+    const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: `saas://project/${project.id}` });
+    const { traceability } = await getMetrics(store);
+
+    expect(traceability.commitsWindow).toEqual({ branch: DEFAULT_BRANCH, sha: mergeSha, reportedAt: (rows[0].latest_baseline_reported_at as Date).toISOString() });
+    expect(traceability.untracedCommits.byClass).toEqual({ merge: 1, bookkeeping: 1, code: 1 });
+    expect(Object.fromEntries(traceability.untracedCommits.items.map((i) => [i.sha, i.class]))).toEqual({ [mergeSha]: 'merge', [docsSha]: 'bookkeeping', [codeSha]: 'code' });
 
     await app.close();
   });

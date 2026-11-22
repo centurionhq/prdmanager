@@ -67,7 +67,7 @@ function metrics(overrides: Partial<SuccessMetrics> = {}): SuccessMetrics {
   return {
     agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, p90ResolutionHours: null, maxResolutionHours: null, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
     systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
-    traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
+    traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, commitsWindow: { branch: null, sha: null, reportedAt: null }, untracedCommits: { total: 0, danglingRefs: 0, byClass: { merge: 0, bookkeeping: 0, code: 0 }, truncated: false, items: [] } },
     pendingQueue: { total: 0, unassigned: 0, oldestDays: null, over7Days: 0 },
     ...overrides,
   };
@@ -163,6 +163,7 @@ describe('formatMetrics untraced commits', () => {
     date: '2026-01-01T00:00:00Z',
     files: [],
     gap: 'no_refs',
+    class: 'code',
   });
   const withUntraced = (items: ReturnType<typeof commit>[], extra: { total?: number; danglingRefs?: number; truncated?: boolean } = {}) => {
     const base = metrics();
@@ -173,7 +174,7 @@ describe('formatMetrics untraced commits', () => {
           commitsTotal: 9,
           commitsWithRefs: 5,
           commitsTraced: 2,
-          untracedCommits: { total: items.length, danglingRefs: 3, truncated: false, items, ...extra },
+          untracedCommits: { total: items.length, danglingRefs: 3, byClass: { merge: 0, bookkeeping: 0, code: items.length }, truncated: false, items, ...extra },
         },
       }),
     );
@@ -233,5 +234,28 @@ describe('formatMetrics cola lenta', () => {
     const text = formatMetrics(withSlowest(150, items));
     expect(text).toContain('    WO-109  ');
     expect(text).not.toContain('    WO-110  ');
+  });
+});
+
+describe('formatMetrics commits window and class breakdown (SDD-095)', () => {
+  const withTrace = (commitsWindow: SuccessMetrics['traceability']['commitsWindow'], byClass = { merge: 1, bookkeeping: 2, code: 3 }) => {
+    const base = metrics();
+    return formatMetrics(metrics({ traceability: { ...base.traceability, commitsWindow, untracedCommits: { ...base.traceability.untracedCommits, byClass } } }));
+  };
+
+  test('prints the window and the breakdown between traced and untraced', () => {
+    const lines = withTrace({ branch: 'main', sha: 'abcdef0123456', reportedAt: '2026-10-05T12:00:00.000Z' }).split('\n');
+    const at = lines.findIndex((l) => l.startsWith('  commits traced:'));
+    expect(lines[at + 1]).toBe('  commits window: main@abcdef0 del 2026-10-05T12:00:00.000Z');
+    expect(lines[at + 2]).toBe('  commits by class: 1 merges, 2 bookkeeping, 3 de codigo');
+    expect(lines[at + 3]).toMatch(/^ {2}commits untraced:/);
+  });
+
+  test('says the window is undated when all three fields are null', () => {
+    expect(withTrace({ branch: null, sha: null, reportedAt: null })).toContain('  commits window: ventana sin fecha');
+  });
+
+  test('names each missing field when only reportedAt is declared', () => {
+    expect(withTrace({ branch: null, sha: null, reportedAt: '2026-10-05T12:00:00.000Z' })).toContain('  commits window: rama desconocida@sin sha del 2026-10-05T12:00:00.000Z');
   });
 });
