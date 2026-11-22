@@ -40,7 +40,7 @@ export function ForcePushOverrideModal({ open, submitting, onClose, onConfirm }:
           <Button type="button" variant="secondary" onClick={handleClose}>
             Cancelar
           </Button>
-          <Button type="button" variant="primary" disabled={submitting || !isValid} onClick={() => onConfirm(headSha.trim())}>
+          <Button type="button" variant="destructive" disabled={submitting || !isValid} onClick={() => onConfirm(headSha.trim())}>
             Autorizar
           </Button>
         </>

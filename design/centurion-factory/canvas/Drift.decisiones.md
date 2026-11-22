@@ -54,3 +54,14 @@ Todo esto ya venía decidido en SDD-070 D2-D7; acá se aplica a la placa y no se
 
 - Alinear el mock del paquete de diseño con esta placa: `src/features/drift/BranchPreviews.tsx` + `BranchPreviews.module.css` y `src/data/drift.ts` (delta, `PR #32`, fila-botón, orden, y la rama del issue de espera de CI). Va en tarjeta hija de `t_19045ae2`; el mock sigue diciendo «from canvas/Drift.dc.html» y ya no coincide.
 - Lo demás del CÓMO (375 px, tokens, a11y) ya está en el código de `packages/app` desde WO-636/637/638.
+
+## 5. La acción de riesgo (SDD-122 · WO-796)
+
+**Qué estaba mal en la placa.** El bloque de acciones del encabezado dibujaba `Ver historial` —un botón que no existe en la app— y `Reconocer drift`; el force-push, que sí existe y es la única acción irreversible de la pantalla, no estaba dibujado. Una placa que omite la acción de riesgo no sirve para decidir cómo se ve.
+
+**Qué se dibuja ahora.** Las tres acciones reales, en su orden, con las variantes reales: `Actualizar reporte` (secundaria), `Autorizar force-push (destructivo)` (borde y texto `--paro`, fondo `--superficie`, el mismo tratamiento de `Button.module.css:40-48`) y `Reconocer drift` (primaria).
+
+**Por qué el paréntesis y no otro verbo.** El riesgo tiene que leerse en el rótulo (FB-340), pero el admin conoce la acción como «Autorizar force-push» (es el título del modal y el nombre del endpoint). `(destructivo)` agrega la clase de riesgo sin romper ese vocabulario, igual que `(rama desconocida)` en la cabecera. La consecuencia exacta —la línea base pasa a ese commit y el permiso se consume una sola vez— va en el `title`, porque no cabe en una fila de botones.
+
+**Lo que la placa no decide.** El apilado de la fila a 375 px (FB-306) y la variante destructiva rellena (FB-217) siguen abiertos; acá sólo se envuelve la fila (`flex-wrap`) para no ganar scroll horizontal con el rótulo nuevo.
+
