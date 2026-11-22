@@ -22,13 +22,16 @@ const METRICS_FIXTURE: Metrics = {
     commitsWithRefs: 10,
     commitsTraced: 6,
     commitPercent: 30,
+    // WO-723 (SDD-095 D4/D3): the window and the class breakdown travel with the totals.
+    commitsWindow: { branch: 'main', sha: 'abcdef1234567', reportedAt: '2026-10-05T12:00:00.000Z' },
     untracedCommits: {
       total: 14,
       danglingRefs: 4,
+      byClass: { merge: 2, bookkeeping: 5, code: 7 },
       truncated: false,
       items: [
-        { sha: 'aaaaaaa1111', subject: 'sin trailer', author: 'Ana', date: '2026-09-27T18:21:00.000Z', files: ['a.ts', 'b.ts'], gap: 'no_refs' },
-        { sha: 'bbbbbbb2222', subject: 'ref que no resuelve', author: 'Beto', date: '2026-09-27T18:22:00.000Z', files: ['c.ts'], gap: 'dangling_refs' },
+        { sha: 'aaaaaaa1111', subject: 'sin trailer', author: 'Ana', date: '2026-09-27T18:21:00.000Z', files: ['a.ts', 'b.ts'], gap: 'no_refs', class: 'code' },
+        { sha: 'bbbbbbb2222', subject: 'ref que no resuelve', author: 'Beto', date: '2026-09-27T18:22:00.000Z', files: ['c.ts'], gap: 'dangling_refs', class: 'code' },
       ],
     },
   },
@@ -102,7 +105,7 @@ describe('PlantaKpiStrip', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Commits con Refs: 172/250' }));
     const withRefs = await screen.findByRole('dialog');
     expect(within(withRefs).queryByText('ref colgante')).toBeNull();
-    expect(within(withRefs).getByText('Se muestran los primeros 4 de 84.')).toBeTruthy();
+    expect(within(withRefs).getByText('Se muestran los primeros 5 de 84.')).toBeTruthy();
   });
 
   it('shows the scoped error with its own retry, and never the page copy (SDD-085 D2)', async () => {

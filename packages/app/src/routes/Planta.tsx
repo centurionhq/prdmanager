@@ -119,6 +119,79 @@ function readUntracedCommits(traceability: SuccessMetricsDto['traceability']): U
   return untraced && Array.isArray(untraced.items) ? untraced : null;
 }
 
+type CommitsWindow = SuccessMetricsDto['traceability']['commitsWindow'];
+type CommitsByClass = UntracedCommits['byClass'];
+
+/** The window once the three values are known to be present (see `readCommitsWindow`). */
+interface ResolvedCommitsWindow {
+  readonly branch: string;
+  readonly sha: string;
+  readonly reportedAt: string;
+}
+
+/** WO-723 (SDD-095 D7): the class is read as text in its own column, never colour alone. */
+const COMMIT_CLASS_COPY: Readonly<Record<string, string>> = {
+  merge: 'merge',
+  bookkeeping: 'bookkeeping',
+  code: 'código',
+};
+
+/**
+ * WO-723 (SDD-095 D4): the window the commits were computed over. The response is not validated at runtime and
+ * front/back deploy separately, so a server older than WO-722 sends no `commitsWindow`; when the field is absent,
+ * or when any of the three values comes back null, there is no window to name and the UI says «ventana sin fecha»
+ * instead of inventing a branch, a sha or a date.
+ */
+function readCommitsWindow(traceability: SuccessMetricsDto['traceability']): ResolvedCommitsWindow | null {
+  const window = traceability.commitsWindow as Partial<CommitsWindow> | undefined;
+  const branch = typeof window?.branch === 'string' ? window.branch : null;
+  const sha = typeof window?.sha === 'string' ? window.sha : null;
+  const reportedAt = typeof window?.reportedAt === 'string' ? window.reportedAt : null;
+  if (branch === null || sha === null || reportedAt === null) return null;
+  return { branch, sha, reportedAt };
+}
+
+/** `754 commits del reporte de main@1a2b3c4 del 06/10/2026, 12:00`, or the honest empty when there is no window. */
+function formatCommitsWindow(commitsTotal: number, window: ResolvedCommitsWindow | null): string {
+  if (window === null) return 'ventana sin fecha';
+  return `${COUNT_FORMATTER.format(commitsTotal)} ${commitsTotal === 1 ? 'commit' : 'commits'} del reporte de ${window.branch}@${window.sha.slice(0, SHORT_SHA_LENGTH)} del ${formatDateTime(window.reportedAt)}`;
+}
+
+/**
+ * WO-723 (SDD-095 D3/D6): the untraced gap broken down by class, computed by the server in the same aggregation
+ * as `total`. Read defensively: without the numeric triple nothing is claimed -- the KPI omits the breakdown
+ * instead of showing zeros it never received.
+ */
+function readByClass(untraced: UntracedCommits | null): CommitsByClass | null {
+  const byClass = untraced?.byClass as Partial<CommitsByClass> | undefined;
+  const { merge, bookkeeping, code } = byClass ?? {};
+  if (typeof merge !== 'number' || typeof bookkeeping !== 'number' || typeof code !== 'number') return null;
+  return { merge, bookkeeping, code };
+}
+
+interface CommitsScopeNoteProps {
+  readonly commitsTotal: number;
+  readonly window: ResolvedCommitsWindow | null;
+  readonly byClass: CommitsByClass | null;
+}
+
+/**
+ * WO-723 (SDD-095 D4/D6): declares the window the commits were computed over and how the untraced gap splits into
+ * merges, bookkeeping and code, so a number that moves on every push is readable as "of what, and since when".
+ */
+function CommitsScopeNote({ commitsTotal, window, byClass }: CommitsScopeNoteProps): ReactElement {
+  return (
+    <span className={styles.kpiScope}>
+      <span className={styles.kpiLabel}>{formatCommitsWindow(commitsTotal, window)}</span>
+      {byClass === null ? null : (
+        <span className={`num ${styles.kpiLabel}`}>
+          {`${COUNT_FORMATTER.format(byClass.merge)} ${byClass.merge === 1 ? 'merge' : 'merges'}, ${COUNT_FORMATTER.format(byClass.bookkeeping)} bookkeeping, ${COUNT_FORMATTER.format(byClass.code)} de código`}
+        </span>
+      )}
+    </span>
+  );
+}
+
 interface CommitsKpiProps {
   readonly kind: CommitKpiKind;
   readonly label: string;
@@ -165,6 +238,7 @@ function CommitsKpi({ kind, label, ratio, percent, commitsTotal, untraced }: Com
               </p>
               {kind === 'traced' ? <p className="num">{plural(untraced.danglingRefs, 'ref colgante', 'refs colgantes')}</p> : null}
             </div>
+            <p>Sólo las filas de clase código son trabajo; los merges y el bookkeeping no llevan Refs: por política.</p>
             {rows.length === 0 ? <p>No hay commits en esta lista.</p> : <CommitsTable rows={rows} />}
             {untraced.truncated ? <p>Se muestran los primeros {untraced.items.length} de {untraced.total}.</p> : null}
           </div>
@@ -181,6 +255,7 @@ function CommitsTable({ rows }: { readonly rows: readonly UntracedCommit[] }): R
         <thead>
           <tr>
             <th scope="col">Commit</th>
+            <th scope="col">Clase</th>
             <th scope="col">Asunto</th>
             <th scope="col">Autor</th>
             <th scope="col">Fecha</th>
@@ -194,6 +269,7 @@ function CommitsTable({ rows }: { readonly rows: readonly UntracedCommit[] }): R
                 <span className="id">{row.sha.slice(0, SHORT_SHA_LENGTH)}</span>
                 {row.gap === 'dangling_refs' ? <span className={styles.commitDangling}> ref colgante</span> : null}
               </td>
+              <td>{COMMIT_CLASS_COPY[row.class] ?? row.class ?? '—'}</td>
               <td>{row.subject}</td>
               <td>{row.author}</td>
               <td>{formatDateTime(row.date)}</td>
@@ -291,6 +367,8 @@ function KpiItems({ metrics, orgSlug, projectSlug }: KpiItemsProps): ReactElemen
   const plain = (value: string): ReactNode => <span className={`num ${styles.kpiValue}`}>{value}</span>;
   const untraced = readUntracedCommits(metrics.traceability);
   const { commitsTotal } = metrics.traceability;
+  const commitsWindow = readCommitsWindow(metrics.traceability);
+  const commitsByClass = readByClass(untraced);
   const commitKpi = (kind: CommitKpiKind, label: string, count: number, percent: string): ReactNode => (
     <CommitsKpi kind={kind} label={label} ratio={`${count}/${commitsTotal}`} percent={percent} commitsTotal={commitsTotal} untraced={untraced} />
   );
@@ -298,7 +376,7 @@ function KpiItems({ metrics, orgSlug, projectSlug }: KpiItemsProps): ReactElemen
     { label: 'Resolución mediana de una orden', value: plain(formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours)), note: <UnmeasuredNote efficiency={metrics.agentHumanEfficiency} orgSlug={orgSlug} projectSlug={projectSlug} /> },
     { label: 'Código sincronizado', value: plain(formatPercent(metrics.systemIntegrity.syncedPercent)), note: null },
     { label: 'Features trazadas', value: traced.value, note: traced.note },
-    { label: 'Commits trazados', value: commitKpi('traced', 'Commits trazados', metrics.traceability.commitsTraced, formatPercent(metrics.traceability.commitPercent)), note: null },
+    { label: 'Commits trazados', value: commitKpi('traced', 'Commits trazados', metrics.traceability.commitsTraced, formatPercent(metrics.traceability.commitPercent)), note: commitsTotal === 0 ? null : <CommitsScopeNote commitsTotal={commitsTotal} window={commitsWindow} byClass={commitsByClass} /> },
     { label: 'Commits con Refs', value: commitKpi('with_refs', 'Commits con Refs', metrics.traceability.commitsWithRefs, formatCommitRefsPercent(metrics.traceability)), note: null },
   ];
 

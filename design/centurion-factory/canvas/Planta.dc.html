@@ -1,0 +1,170 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; background: #E9ECEB; font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; color: #17191C; }
+    a { color: #1F4FA0; } a:hover { color: #173C7A; }
+    .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+    /* El único momento de motion del producto sigue siendo el reveal de la línea (PRD-011/SDD-024). */
+    @keyframes cf-station { from { color: #3A4046; border-color: #17191C; } }
+    .cf-station { animation: cf-station 320ms ease-out both; }
+    @media (prefers-reduced-motion: reduce) { .cf-station { animation: none; } }
+  </style>
+</helmet>
+<!--
+  WO-723 (SDD-095 D4/D6/D7): el artboard de la Planta no existía y el drift lo marcaba `missing`. Es la
+  pantalla completa con el perfil ya elegido —sin drawer abierto— para poder leer de un vistazo el KPI de
+  commits con su ventana («250 commits del reporte de main@7c4e9a1 del 05/10/2026, 14:12») y su desglose
+  («12 merges, 40 bookkeeping, 32 de código»). Los estados de la banda y el drawer abierto viven en
+  PlantaBanda.dc.html y, a 390 px, en PlantaMobile.dc.html / PlantaBandaMobile.dc.html.
+-->
+<div style="position: relative; overflow: hidden; width: 1440px; height: 960px; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
+
+  <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
+    <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
+      <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 52px; margin-top: -8px; padding: 0 10px 0 12px; border: 1px solid #C9CFCD; border-radius: 2px;">
+      <div style="display: flex; flex-direction: column; min-width: 0;"><span style="font-size: 12px; color: #565D63;">Centurion HQ</span><span style="font-size: 15px; font-weight: 600;">prdmanager</span></div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"></path></svg>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600; font-size: 15px;">Planta</div>
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Árbol de features</div>
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Documentos</div>
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Órdenes de trabajo</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Drift <span class="num" style="min-width: 22px; height: 20px; padding: 0 6px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 12px; font-weight: 700; border-radius: 2px;">3</span></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Bandeja de entrada <span class="num" style="font-size: 13px; color: #565D63;">2</span></div>
+    </div>
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Ajustes</div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 12px 8px 0; border-top: 1px solid #C9CFCD;">
+        <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">AR</div>
+        <div style="display: flex; flex-direction: column;"><span style="font-size: 14px; font-weight: 600;">Ana Ríos</span><span style="font-size: 12px; color: #565D63;">Admin de proyecto</span></div>
+      </div>
+    </div>
+  </nav>
+
+  <main style="display: flex; flex-direction: column; gap: 24px; padding: 24px 32px; min-width: 0;">
+    <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Planta</h1>
+        <div style="font-size: 14px; color: #565D63;">Actualizado hace 4 min desde el reporte oficial de <span class="id">main</span></div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 320px; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; color: #565D63; font-size: 14px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          Buscar documentos, órdenes o código
+        </div>
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Nuevo documento</div>
+      </div>
+    </header>
+
+    <!-- La banda, con el perfil ya elegido: una línea, el próximo paso y la salida a construir. -->
+    <section aria-label="Tu próximo paso" style="display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 24px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+      <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+        <span style="font-size: 13px; color: #565D63;">Definís qué se construye</span>
+        <span style="font-size: 18px; font-weight: 700;">Convertir una iniciativa aprobada en requisitos</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px; flex: none;">
+        <a style="font-size: 14px;">Cambiar</a>
+        <div style="height: 40px; display: flex; align-items: center; padding: 0 18px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 15px; border-radius: 2px;">Escribir los requisitos</div>
+      </div>
+    </section>
+
+    <section style="position: relative; background: #17191C; color: #E9ECEB; margin: 0 -32px; padding: 24px 32px 28px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px;">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 700; font-stretch: 118%;">La línea</h2>
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: #C4CAD0;">
+          <span style="width: 10px; height: 10px; background: #F5C400; border-radius: 5px;"></span>
+          Línea detenida en Construcción: 3 órdenes fuera de sincronía en <span class="id" style="color: #E9ECEB;">BC-001</span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 300px repeat(7, minmax(0, 1fr)); margin-bottom: 10px;">
+        <div style="grid-column: 1;"></div>
+        <div style="grid-column: 2;"></div>
+        <div style="grid-column: 3; margin-right: 8px; padding: 0 0 5px 12px; border-bottom: 1px solid #2E3338; font-size: 12px; color: #8E979F;">Negocio</div>
+        <div style="grid-column: 4; margin-right: 8px; padding: 0 0 5px 12px; border-bottom: 1px solid #2E3338; font-size: 12px; color: #8E979F;">Producto</div>
+        <div style="grid-column: 5 / span 3; margin-right: 8px; padding: 0 0 5px 12px; border-bottom: 1px solid #2E3338; font-size: 12px; color: #8E979F;">Tecnología</div>
+        <div style="grid-column: 8;"></div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 300px repeat(7, minmax(0, 1fr));">
+        <div style="grid-column: 1; font-size: 13px; color: #8E979F; padding-bottom: 10px;">Iniciativa</div>
+        <div class="cf-station" style="grid-column: 2; padding: 0 8px 10px 12px; border-left: 1px solid #2E3338;"><span style="font-size: 13px; color: #C4CAD0;">Entrada</span></div>
+        <div class="cf-station" style="grid-column: 3; padding: 0 8px 10px 12px; border-left: 1px solid #2E3338;"><span style="font-size: 13px; color: #E9ECEB;">Caso de negocio</span></div>
+        <div class="cf-station" style="grid-column: 4; padding: 0 8px 10px 12px; border-left: 1px solid #2E3338;"><span style="font-size: 13px; color: #C4CAD0;">Requisitos</span></div>
+        <div class="cf-station" style="grid-column: 5; padding: 0 8px 10px 12px; border-left: 1px solid #2E3338;"><span style="font-size: 13px; color: #C4CAD0;">Diseño</span></div>
+        <div class="cf-station" style="grid-column: 6; padding: 0 8px 10px 12px; border-left: 1px solid #2E3338;"><span style="font-size: 13px; color: #C4CAD0;">Planificación</span></div>
+        <div class="cf-station" style="grid-column: 7; padding: 0 8px 10px 12px; border-left: 1px solid #2E3338;"><span style="font-size: 13px; color: #C4CAD0;">Construcción</span></div>
+        <div class="cf-station" style="grid-column: 8; padding: 0 8px 10px 12px; border-left: 1px solid #2E3338;"><span style="font-size: 13px; color: #C4CAD0;">Cierre</span></div>
+
+        <div style="grid-column: 1 / -1; height: 1px; background: #2E3338;"></div>
+
+        <div style="grid-column: 1; display: flex; align-items: center; gap: 8px; padding: 14px 16px 14px 0; min-width: 0;">
+          <span class="id" style="color: #8E979F;">BC-001</span>
+          <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Importador de repos existentes</span>
+        </div>
+        <div style="grid-column: 2 / 7; display: flex; align-items: center; padding: 14px 0;"><div style="height: 8px; width: 100%; background: #6FCF9A;"></div></div>
+        <div style="grid-column: 7; display: flex; align-items: center; padding: 14px 0 14px 12px; border-left: 1px solid #2E3338;"><span style="font-size: 13px; color: #17191C; background: #F5C400; padding: 2px 8px;">3 fuera de sincronía</span></div>
+        <div style="grid-column: 8; display: flex; align-items: center; gap: 10px; padding-left: 12px;"><span style="width: 14px; height: 14px; background: #3A4046;"></span><span class="num" style="font-size: 13px; color: #8E979F;">18/21</span></div>
+
+        <div style="grid-column: 1 / -1; height: 1px; background: #2E3338;"></div>
+
+        <div style="grid-column: 1; display: flex; align-items: center; gap: 8px; padding: 14px 16px 14px 0; min-width: 0;">
+          <span class="id" style="color: #8E979F;">BC-002</span>
+          <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Gobernanza multi-proyecto</span>
+        </div>
+        <div style="grid-column: 2 / 9; display: flex; align-items: center; padding: 14px 0;"><div style="height: 8px; width: 100%; background: #6FCF9A;"></div></div>
+      </div>
+    </section>
+
+    <!-- WO-723 (SDD-095 D4/D6): el KPI de commits declara sobre qué ventana se calculó y desglosa el hueco
+         en merge, bookkeeping y código, para que el número se lea como «de qué, y desde cuándo». -->
+    <section style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid #C9CFCD; border-bottom: 1px solid #C9CFCD;">
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px 16px 0;">
+        <span style="font-size: 14px; color: #565D63;">Resolución mediana de una orden</span>
+        <span class="num" style="font-size: 36px; font-weight: 700; font-stretch: 112%;">5 min</span>
+        <span style="font-size: 14px; color: #565D63;">4 de 486 órdenes sin medición</span>
+        <details style="min-width: 0; font-size: 14px; color: #565D63;">
+          <summary style="cursor: pointer;">Ver las 4 órdenes</summary>
+        </details>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px; border-left: 1px solid #C9CFCD;">
+        <span style="font-size: 14px; color: #565D63;">Código sincronizado</span>
+        <span class="num" style="font-size: 36px; font-weight: 700; font-stretch: 112%;">99,6 %</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px; border-left: 1px solid #C9CFCD;">
+        <span style="font-size: 14px; color: #565D63;">Features trazadas</span>
+        <a class="num" href="#" style="font-size: 36px; font-weight: 700; font-stretch: 112%; color: #1F4FA0; text-decoration: none;">21/46</a>
+        <span style="font-size: 14px; color: #565D63;">faltan 25</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 24px; border-left: 1px solid #C9CFCD;">
+        <span style="font-size: 14px; color: #565D63;">Commits trazados</span>
+        <button type="button" class="num" aria-expanded="false" aria-label="Commits trazados: 166/250" style="align-self: flex-start; padding: 0; border: 0; background: none; color: #17191C; text-align: left; font-family: inherit; font-size: 36px; font-weight: 700; font-stretch: 112%; cursor: pointer;">166/250</button>
+        <span style="font-size: 14px; color: #565D63;">66,4 %</span>
+        <span style="font-size: 13px; color: #565D63;">250 commits del reporte de <span class="id">main@7c4e9a1</span> del 05/10/2026, 14:12</span>
+        <span class="num" style="font-size: 13px; color: #565D63;">12 merges, 40 bookkeeping, 32 de código</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 0 16px 24px; border-left: 1px solid #C9CFCD;">
+        <span style="font-size: 14px; color: #565D63;">Commits con Refs</span>
+        <button type="button" class="num" aria-expanded="false" aria-label="Commits con Refs: 172/250" style="align-self: flex-start; padding: 0; border: 0; background: none; color: #17191C; text-align: left; font-family: inherit; font-size: 36px; font-weight: 700; font-stretch: 112%; cursor: pointer;">172/250</button>
+        <span style="font-size: 14px; color: #565D63;">68,8 %</span>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+</body>
+</html>

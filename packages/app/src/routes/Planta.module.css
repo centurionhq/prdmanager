@@ -34,6 +34,16 @@
   color: var(--apagado);
 }
 
+/* WO-723 (SDD-095 D6): the window and the class breakdown sit under the commits KPI, one per line, so the
+   number is read next to what it measures. */
+.kpiScope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* WO-669 (SDD-080 D6): the commit KPIs are buttons that look like their neighbours' values. */
 .kpiControl {
   align-self: flex-start;
@@ -82,7 +92,8 @@
 
 .commitsTable {
   width: 100%;
-  min-width: 520px;
+  /* WO-723 (SDD-095 D7): the extra Clase column needs room; the table still scrolls inside the panel. */
+  min-width: 600px;
   border-collapse: collapse;
   text-align: left;
 }

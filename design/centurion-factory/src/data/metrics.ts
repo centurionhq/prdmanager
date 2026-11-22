@@ -36,17 +36,23 @@ export const METRICS: Metrics = {
     commitsWithRefs: 172,
     commitsTraced: 166,
     commitPercent: 66.4,
+    // WO-723 (SDD-095 D4): the window the graph's commits are computed over — the report of `main@7c4e9a1`.
+    commitsWindow: { branch: 'main', sha: '7c4e9a1d2b3f', reportedAt: '2026-10-05T14:12:00.000Z' },
     // WO-669 (SDD-080): total = 250 - 166 and danglingRefs = 172 - 166, like the real backend. `truncated`
     // is on so the "primeros N de M" notice is visible in the mock; `items` is a sample of the 84.
+    // WO-723 (SDD-095 D3): byClass is the same aggregation as total, so 12 + 40 + 32 === 84; each item
+    // carries its class, and only the `code` rows are work.
     untracedCommits: {
       total: 84,
       danglingRefs: 6,
+      byClass: { merge: 12, bookkeeping: 40, code: 32 },
       truncated: true,
       items: [
-        { sha: '3f9a1c2d84e7', subject: 'fix: el filtro de órdenes ignora el estado archivado', author: 'Tano', date: '2026-10-05T14:12:00.000Z', files: ['packages/app/src/routes/Ordenes.tsx'], gap: 'no_refs' },
-        { sha: 'b71e40a95c3f', subject: 'chore: sube vitest a 4.1', author: 'Tano', date: '2026-10-05T09:40:00.000Z', files: ['package.json', 'package-lock.json'], gap: 'no_refs' },
-        { sha: '5d02c8e16ab9', subject: 'docs: aclara el flujo de reclamo de órdenes', author: 'Lucía', date: '2026-10-04T17:05:00.000Z', files: ['README.md', 'docs/flujo.md', 'docs/ordenes.md'], gap: 'no_refs' },
-        { sha: 'e4a6937b20d1', subject: 'feat: lista de commits de la planta', author: 'Lucía', date: '2026-10-04T11:30:00.000Z', files: ['packages/app/src/routes/Planta.tsx'], gap: 'dangling_refs' },
+        { sha: 'a1b2c3d4e5f6', subject: "Merge branch 'feat/planta' into main", author: 'Tano', date: '2026-10-05T13:02:00.000Z', files: [], gap: 'no_refs', class: 'merge' },
+        { sha: 'b71e40a95c3f', subject: 'chore: sube vitest a 4.1', author: 'Tano', date: '2026-10-05T09:40:00.000Z', files: [], gap: 'no_refs', class: 'bookkeeping' },
+        { sha: '5d02c8e16ab9', subject: 'docs: aclara el flujo de reclamo de órdenes', author: 'Lucía', date: '2026-10-04T17:05:00.000Z', files: ['README.md', 'docs/flujo.md', 'docs/ordenes.md'], gap: 'no_refs', class: 'bookkeeping' },
+        { sha: '3f9a1c2d84e7', subject: 'fix: el filtro de órdenes ignora el estado archivado', author: 'Tano', date: '2026-10-05T14:12:00.000Z', files: ['packages/app/src/routes/Ordenes.tsx'], gap: 'no_refs', class: 'code' },
+        { sha: 'e4a6937b20d1', subject: 'feat: lista de commits de la planta', author: 'Lucía', date: '2026-10-04T11:30:00.000Z', files: ['packages/app/src/routes/Planta.tsx'], gap: 'dangling_refs', class: 'code' },
       ],
     },
   },

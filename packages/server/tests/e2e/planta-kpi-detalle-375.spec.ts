@@ -39,21 +39,25 @@ interface FixtureItem {
   date: string;
   files: string[];
   gap: 'no_refs' | 'dangling_refs';
+  /** WO-723 (SDD-095 D3): what the commit is; only `code` rows are work. */
+  class: 'merge' | 'bookkeeping' | 'code';
 }
 
 /** 20 items: 18 `no_refs` (the first with the known sha/subject) + 2 `dangling_refs`. */
 function buildUntracedItems(): FixtureItem[] {
   const noRefs: FixtureItem[] = Array.from({ length: 18 }, (_, i) => ({
     sha: i === 0 ? FIRST_SHA : `${(i + 1).toString(16).padStart(2, '0')}c0ffee${i.toString(16).padStart(2, '0')}`.padEnd(40, '9'),
-    subject: i === 0 ? 'feat: la Planta abre su lista de commits' : `chore: cambio sin trailer ${i}`,
+    subject: i === 0 ? 'feat: la Planta abre su lista de commits' : i === 1 ? "Merge branch 'feat/planta' into main" : `chore: cambio sin trailer ${i}`,
     author: i % 2 === 0 ? 'Ana Ríos' : 'Luis Mora',
     date: new Date(Date.UTC(2026, 8, 30 - (i % 20), 12, i)).toISOString(),
     files: Array.from({ length: i % 4 }, (_, f) => `packages/app/src/archivo-${i}-${f}.ts`),
     gap: 'no_refs',
+    // Un merge de verdad, un bookkeeping sin archivos (chore) y el resto código: las tres clases en la tabla.
+    class: i === 1 ? 'merge' : i === 0 || i % 4 > 0 ? 'code' : 'bookkeeping',
   }));
   const dangling: FixtureItem[] = [
-    { sha: DANGLING_SHA, subject: 'fix: ref que no resuelve', author: 'Ana Ríos', date: '2026-09-28T10:00:00.000Z', files: ['packages/core/src/ref.ts'], gap: 'dangling_refs' },
-    { sha: 'd4d4d4d4b5b5b5b5c6c6c6c6e7e7e7e7f8f8f8f8', subject: 'fix: otra ref colgante', author: 'Luis Mora', date: '2026-09-27T10:00:00.000Z', files: [], gap: 'dangling_refs' },
+    { sha: DANGLING_SHA, subject: 'fix: ref que no resuelve', author: 'Ana Ríos', date: '2026-09-28T10:00:00.000Z', files: ['packages/core/src/ref.ts'], gap: 'dangling_refs', class: 'code' },
+    { sha: 'd4d4d4d4b5b5b5b5c6c6c6c6e7e7e7e7f8f8f8f8', subject: 'fix: otra ref colgante', author: 'Luis Mora', date: '2026-09-27T10:00:00.000Z', files: [], gap: 'dangling_refs', class: 'code' },
   ];
   return [...noRefs, ...dangling];
 }
@@ -67,7 +71,9 @@ const TRACEABILITY_FIXTURE = {
   featuresTraced: 21,
   orphanFeatures: [],
   featurePercent: 45.7,
-  untracedCommits: { total: 119, danglingRefs: 2, truncated: true, items: buildUntracedItems() },
+  // WO-723 (SDD-095 D4/D3): la ventana del reporte y el desglose por clase (84 + 25 + 10 === 119).
+  commitsWindow: { branch: 'main', sha: '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b', reportedAt: '2026-10-06T12:00:00.000Z' },
+  untracedCommits: { total: 119, danglingRefs: 2, byClass: { merge: 84, bookkeeping: 25, code: 10 }, truncated: true, items: buildUntracedItems() },
 };
 
 test.beforeAll(async () => {
@@ -251,6 +257,11 @@ test('el KPI de commits abre su drill-down y Escape lo cierra (WO-669)', async (
   await expect(kpi).toHaveAttribute('aria-expanded', 'false');
   await expect(tracedKpi).toBeVisible();
 
+  await test.step('el KPI de commits declara su ventana y desglosa el hueco (WO-723, SDD-095 D4/D6)', async () => {
+    await expect(strip.getByText('544 commits del reporte de main@1a2b3c4 del 06/10/2026, 12:00')).toBeVisible();
+    await expect(strip.getByText('84 merges, 25 bookkeeping, 10 de código')).toBeVisible();
+  });
+
   await test.step('«Commits con Refs» abre su drawer sólo con los no_refs; Escape lo cierra y devuelve el foco', async () => {
     await kpi.click();
     const dialog = page.getByRole('dialog');
@@ -280,6 +291,14 @@ test('el KPI de commits abre su drill-down y Escape lo cierra (WO-669)', async (
     await expect(dialog.getByText('2 refs colgantes')).toBeVisible();
     await expect(dialog.getByText('f0e1d2c')).toBeVisible();
     await expect(dialog.getByText('ref colgante').first()).toBeVisible();
+    // WO-723 (SDD-095 D6/D7): la columna Clase con texto por fila y el aviso de que sólo `code` es trabajo.
+    await expect(dialog.getByRole('columnheader', { name: 'Clase' })).toBeVisible();
+    await expect(
+      dialog.getByText('Sólo las filas de clase código son trabajo; los merges y el bookkeeping no llevan Refs: por política.'),
+    ).toBeVisible();
+    const mergeRow = dialog.getByRole('row', { name: /Merge branch 'feat\/planta' into main/ });
+    await expect(mergeRow.getByText('merge', { exact: true })).toBeVisible();
+    await expect(dialog.getByRole('row', { name: new RegExp(DANGLING_SHA.slice(0, 7)) }).getByText('código', { exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     await expect(tracedKpi).toBeFocused();

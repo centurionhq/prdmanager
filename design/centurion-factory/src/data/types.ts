@@ -222,9 +222,21 @@ export interface Metrics {
     readonly commitsWithRefs: number;
     readonly commitsTraced: number;
     readonly commitPercent: number;
+    /** WO-723 (SDD-095 D4): the CI report the commits were computed over; each field null when undeclared. */
+    readonly commitsWindow: {
+      readonly branch: string | null;
+      readonly sha: string | null;
+      readonly reportedAt: string | null;
+    };
     readonly untracedCommits: {
       readonly total: number;
       readonly danglingRefs: number;
+      /** WO-723 (SDD-095 D3): merge + bookkeeping + code === total. */
+      readonly byClass: {
+        readonly merge: number;
+        readonly bookkeeping: number;
+        readonly code: number;
+      };
       readonly truncated: boolean;
       readonly items: readonly UntracedCommit[];
     };
@@ -239,6 +251,8 @@ export interface UntracedCommit {
   readonly date: string;
   readonly files: readonly string[];
   readonly gap: 'no_refs' | 'dangling_refs';
+  /** WO-723 (SDD-095 D2): what the commit is; only `code` rows are work. */
+  readonly class: 'merge' | 'bookkeeping' | 'code';
 }
 
 // ── Closure readiness (core lifecycle/close.ts) ───────────────────────────────────────────────────────

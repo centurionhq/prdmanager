@@ -569,14 +569,14 @@ describe('Planta', () => {
       expect(within(await screen.findByRole('dialog')).queryByText(/Se muestran los primeros/)).toBeNull();
     });
 
-    it('renders a 5-column table with scope="col" and singular/plural file counts', async () => {
+    it('renders a 6-column table with scope="col" and singular/plural file counts', async () => {
       mockCommits();
       renderPlanta();
       await openKpi(TRACED);
 
       const dialog = await screen.findByRole('dialog');
       const headers = within(dialog).getAllByRole('columnheader');
-      expect(headers.map((h) => h.textContent)).toEqual(['Commit', 'Asunto', 'Autor', 'Fecha', 'Archivos']);
+      expect(headers.map((h) => h.textContent)).toEqual(['Commit', 'Clase', 'Asunto', 'Autor', 'Fecha', 'Archivos']);
       for (const header of headers) expect(header.getAttribute('scope')).toBe('col');
       expect(within(dialog).getByText('3 archivos')).toBeTruthy();
       expect(within(dialog).getAllByText('1 archivo').length).toBeGreaterThan(0);
@@ -612,6 +612,101 @@ describe('Planta', () => {
       renderPlanta();
       await screen.findByText('6/10');
       expect(screen.queryByRole('button', { name: /^Commits/ })).toBeNull();
+    });
+  });
+
+  describe('ventana y desglose de los commits (WO-723, SDD-095 D4/D6/D7)', () => {
+    const WINDOW_METRICS: SuccessMetricsDto = {
+      ...METRICS,
+      traceability: {
+        ...METRICS.traceability,
+        featuresTotal: 4,
+        featuresTraced: 4,
+        commitsTotal: 754,
+        commitsWithRefs: 574,
+        commitsTraced: 574,
+        commitPercent: 76.1,
+        commitsWindow: { branch: 'main', sha: '1a2b3c4d5e6f7a8b', reportedAt: '2026-10-06T12:00:00.000Z' },
+        untracedCommits: {
+          total: 180,
+          danglingRefs: 0,
+          byClass: { merge: 84, bookkeeping: 72, code: 24 },
+          truncated: false,
+          items: [
+            { sha: 'aaaaaaaa111', subject: 'merge de la línea', author: 'Ana', date: '2026-10-05T10:00:00.000Z', files: [], gap: 'no_refs', class: 'merge' },
+            { sha: 'bbbbbbbb222', subject: 'docs: registra el cierre del WO', author: 'Beto', date: '2026-10-05T11:00:00.000Z', files: ['docs/x.md'], gap: 'no_refs', class: 'bookkeeping' },
+            { sha: 'cccccccc333', subject: 'fix: el filtro ignora lo archivado', author: 'Ana', date: '2026-10-05T12:00:00.000Z', files: ['packages/app/src/routes/Ordenes.tsx'], gap: 'no_refs', class: 'code' },
+          ],
+        },
+      },
+    };
+    const WINDOW_LINE = '754 commits del reporte de main@1a2b3c4 del 06/10/2026, 12:00';
+
+    function mockWindow(metrics: SuccessMetricsDto = WINDOW_METRICS): void {
+      vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+      vi.spyOn(client, 'getMetrics').mockResolvedValue(metrics);
+    }
+
+    it('declara sobre qué ventana se calcularon los commits, con sha corto y fecha', async () => {
+      mockWindow();
+      renderPlanta();
+
+      const strip = await screen.findByRole('region', { name: 'Indicadores de la planta' });
+      expect(await within(strip).findByText(WINDOW_LINE)).toBeTruthy();
+    });
+
+    it('sin ventana declarada dice «ventana sin fecha» y no inventa sha ni fecha', async () => {
+      mockWindow(METRICS);
+      renderPlanta();
+
+      const strip = await screen.findByRole('region', { name: 'Indicadores de la planta' });
+      expect(await within(strip).findByText('ventana sin fecha')).toBeTruthy();
+      expect(within(strip).queryByText(/del reporte de/)).toBeNull();
+    });
+
+    it('desglosa el hueco en merges, bookkeeping y código', async () => {
+      mockWindow();
+      renderPlanta();
+
+      const strip = await screen.findByRole('region', { name: 'Indicadores de la planta' });
+      expect(await within(strip).findByText('84 merges, 72 bookkeeping, 24 de código')).toBeTruthy();
+    });
+
+    it('con un server anterior a WO-722 no rompe y no afirma un desglose que no recibió', async () => {
+      const { byClass: _byClass, ...untracedWithoutByClass } = WINDOW_METRICS.traceability.untracedCommits;
+      const { commitsWindow: _window, ...traceabilityWithoutWindow } = WINDOW_METRICS.traceability;
+      mockWindow({
+        ...WINDOW_METRICS,
+        traceability: { ...traceabilityWithoutWindow, untracedCommits: untracedWithoutByClass } as SuccessMetricsDto['traceability'],
+      });
+      renderPlanta();
+
+      const strip = await screen.findByRole('region', { name: 'Indicadores de la planta' });
+      expect(await within(strip).findByRole('button', { name: 'Commits trazados: 574/754' })).toBeTruthy();
+      // La nota queda con la ventana sola: sin byClass no se afirma ningún desglose.
+      const scope = within(strip).getByText('ventana sin fecha').parentElement;
+      expect(scope?.textContent).toBe('ventana sin fecha');
+    });
+
+    it('el drawer suma la columna Clase con texto y avisa que sólo las filas de código son trabajo', async () => {
+      mockWindow();
+      renderPlanta();
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Commits trazados: 574/754' }));
+      const dialog = await screen.findByRole('dialog');
+
+      const headers = within(dialog).getAllByRole('columnheader');
+      expect(headers.map((h) => h.textContent)).toEqual(['Commit', 'Clase', 'Asunto', 'Autor', 'Fecha', 'Archivos']);
+      for (const header of headers) expect(header.getAttribute('scope')).toBe('col');
+
+      // La clase se lee como texto en la fila, no sólo como color.
+      expect(within(within(dialog).getByText('aaaaaaa').closest('tr')!).getByText('merge')).toBeTruthy();
+      expect(within(within(dialog).getByText('bbbbbbb').closest('tr')!).getByText('bookkeeping')).toBeTruthy();
+      expect(within(within(dialog).getByText('ccccccc').closest('tr')!).getByText('código')).toBeTruthy();
+
+      expect(
+        within(dialog).getByText('Sólo las filas de clase código son trabajo; los merges y el bookkeeping no llevan Refs: por política.'),
+      ).toBeTruthy();
     });
   });
 
