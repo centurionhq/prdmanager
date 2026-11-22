@@ -53,6 +53,34 @@ describe('buildServer static serving and SPA fallback', () => {
     await app.close();
   });
 
+  test('serves the shell with a real 404 for a path that is not an app route (/o/acme/drift)', async () => {
+    const app = buildServer({ env: TEST_ENV, logger: false, staticDir });
+    const res = await app.inject({ method: 'GET', url: '/o/acme/drift' });
+    expect(res.statusCode).toBe(404);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.body).toContain('app shell');
+    expect(() => res.json()).toThrow();
+    await app.close();
+  });
+
+  test('serves the shell with a real 404 for an unknown root path (/nope)', async () => {
+    const app = buildServer({ env: TEST_ENV, logger: false, staticDir });
+    const res = await app.inject({ method: 'GET', url: '/nope' });
+    expect(res.statusCode).toBe(404);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.body).toContain('app shell');
+    await app.close();
+  });
+
+  test('serves the shell with 200 for a valid app route that carries a querystring', async () => {
+    const app = buildServer({ env: TEST_ENV, logger: false, staticDir });
+    const res = await app.inject({ method: 'GET', url: '/o/acme/p/web/drift?x=1' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.body).toContain('app shell');
+    await app.close();
+  });
+
   test('still returns the shared JSON 404 for an unknown /api/* path, never index.html', async () => {
     const app = buildServer({ env: TEST_ENV, logger: false, staticDir });
     const res = await app.inject({ method: 'GET', url: '/api/does-not-exist' });
@@ -84,13 +112,14 @@ describe('buildServer static serving and SPA fallback', () => {
   test.each([
     ['%2f-encoded traversal', '/assets/..%2f..%2f..%2fetc%2fpasswd'],
     ['%2e-encoded traversal', '/assets/%2e%2e/%2e%2e/%2e%2e/etc/passwd'],
-  ])('never leaks a file outside staticDir for a path-traversal attempt: %s (falls through to the SPA shell instead)', async (_label, path) => {
+  ])('never leaks a file outside staticDir for a path-traversal attempt: %s (falls through to the SPA shell with a 404 instead)', async (_label, path) => {
     const app = buildServer({ env: TEST_ENV, logger: false, staticDir });
     const res = await app.inject({ method: 'GET', url: path });
     // @fastify/static rejects the escaping path before touching the filesystem; the request then falls through
-    // to the SPA fallback any other unknown non-/api path gets.
-    expect(res.statusCode).toBe(200);
+    // to the not-found handler, which serves the SPA shell with a 404 (the path is not an app route).
+    expect(res.statusCode).toBe(404);
     expect(res.headers['content-type']).toContain('text/html');
+    expect(res.body).toContain('app shell');
     expect(res.body).not.toContain('root:');
     await app.close();
   });
