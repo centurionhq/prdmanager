@@ -41,7 +41,20 @@ export type IssueKind =
    * informational: the rule closes nothing and leaves `workOrderUpdates` and the baseline untouched. `target` is
    * the full sha of the first referencing commit.
    */
-  | 'landed_but_open';
+  | 'landed_but_open'
+  /**
+   * SDD-125 D3 (R4, "nada queda sin descendencia"): an approved/closed PRD or FR that no blueprint architects
+   * yet. `severity: 'warning'` -- an approved feature waiting for its design is a hole to see, not a blocker --
+   * but it *stops the line* at `diseno_tecnico` (`issue-attribution.ts`'s `stopsLine`), because that is the
+   * stage the feature cannot pass until the design exists.
+   */
+  | 'feature_without_blueprint'
+  /**
+   * SDD-125 D3 (R4): a published blueprint that designs nothing (`architects` is empty). `severity: 'error'`,
+   * same defect `checkBlueprint` blocks on when publishing (FR-071/SDD-124); this kind is what the drift
+   * report shows for a document that already landed.
+   */
+  | 'blueprint_without_feature';
 
 export interface DriftIssue {
   kind: IssueKind;

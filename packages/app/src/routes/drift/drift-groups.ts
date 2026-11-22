@@ -21,6 +21,8 @@ export const GROUP_LABELS: Readonly<Record<string, string>> = {
   deprecated_field: 'Campos deprecados',
   impacts_warning: 'Avisos de impacts_paths',
   awaiting_ci_report: 'Esperando reporte de CI',
+  feature_without_blueprint: 'Features sin diseño',
+  blueprint_without_feature: 'Diseños sin feature',
 };
 
 // The first two keep the exact relative order Drift.dc.html shows; the rest are interleaved by how
@@ -39,6 +41,8 @@ const GROUP_ORDER: readonly string[] = [
   'deprecated_field',
   'impacts_warning',
   'awaiting_ci_report',
+  'feature_without_blueprint',
+  'blueprint_without_feature',
 ];
 
 /** Label shown for issues the attribution step could not bind to a blueprint (SDD-061 R1). */

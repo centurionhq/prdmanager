@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { doc } from '@prdm/testkit';
 import type { ParsedDoc } from '../../src/domain/schema.js';
 import { BC_REQUIRED_SECTIONS } from '../../src/domain/index.js';
-import { checkLifecycle, type LifecycleContext } from '../../src/lifecycle/check.js';
+import { checkLifecycle, countPassageExceptions, passageException, passageExceptions, type LifecycleContext } from '../../src/lifecycle/check.js';
 
 const noGrandfathering: LifecycleContext = { grandfathered: [] };
 
@@ -178,9 +178,236 @@ describe('checkLifecycle — PRD/FR need an approved BC (WO-439, widened to FR b
     expect(kinds(issues.filter((i) => i.nodeId === 'FR-001'))).toEqual([['lifecycle_violation', 'error', 'FR-001']]);
   });
 
-  test('FR justified by an approved BC satisfies the rule', () => {
+  test('FR justified by an approved BC alone no longer satisfies R3 (SDD-125): it needs its PRD', () => {
     const issues = checkLifecycle([fr('justified_by: [BC-001]'), bcApproved()], noGrandfathering);
-    expect(issues.filter((i) => i.nodeId === 'FR-001')).toEqual([]);
+    expect(kinds(issues.filter((i) => i.nodeId === 'FR-001'))).toEqual([['lifecycle_violation', 'warning', 'FR-001']]);
+  });
+});
+
+const prdApproved = (id = 'PRD-002', status = 'approved'): ParsedDoc =>
+  doc(`id: ${id}\ntype: PRD\ntitle: Product\nimplements: [MRD-001]\njustified_by: [BC-001]\nstatus: ${status}`, PRD_COMPLETE_BODY);
+
+describe('checkLifecycle — R3: el FR declara su PRD (WO-806 / SDD-125 D1)', () => {
+  const publishCtx: LifecycleContext = { ...noGrandfathering, mode: 'publish' };
+  const frIssues = (docs: ParsedDoc[], ctx: LifecycleContext = noGrandfathering) => checkLifecycle(docs, ctx).filter((i) => i.nodeId === 'FR-001');
+
+  test('sin justificación: el mensaje sigue nombrando el BC (gate existente intacto)', () => {
+    const issues = frIssues([fr()], publishCtx);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('BC');
+    expect(issues[0]?.message).not.toContain('PRD');
+  });
+
+  test('justificado pero no por un BC: mensaje propio, sin mencionar el PRD (gate existente intacto)', () => {
+    const issues = frIssues([fr('justified_by: [FB-999]')], publishCtx);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toMatch(/justified.*not by a BC/);
+    expect(issues[0]?.message).not.toContain('PRD');
+  });
+
+  test('BC no aprobado: mensaje propio que nombra el BC y su estado (gate existente intacto)', () => {
+    const draftBc = doc('id: BC-001\ntype: BC\ntitle: Business case\nstatus: draft', BC_ALL_SECTIONS);
+    const issues = frIssues([fr('justified_by: [BC-001]'), draftBc], publishCtx);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('BC-001');
+    expect(issues[0]?.message).toContain('draft');
+  });
+
+  test('BC aprobado pero sin PRD: error al publicar que nombra las dos salidas', () => {
+    const issues = frIssues([fr('justified_by: [BC-001]'), bcApproved()], publishCtx);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.severity).toBe('error');
+    expect(issues[0]?.message).toMatch(/justified, but not by a PRD/);
+    expect(issues[0]?.message).toContain('"justified_by"');
+    expect(issues[0]?.message).toContain('## Excepción de pasaje');
+  });
+
+  test('PRD linkeado pero no aprobado: mensaje propio que nombra el PRD y su estado', () => {
+    const issues = frIssues([fr('justified_by: [BC-001, PRD-002]'), bcApproved(), prdApproved('PRD-002', 'proposed')], publishCtx);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.severity).toBe('error');
+    expect(issues[0]?.message).toContain('PRD-002');
+    expect(issues[0]?.message).toContain('proposed');
+  });
+
+  test('los cinco fracasos del FR son mensajes distintos entre sí', () => {
+    const draftBc = doc('id: BC-001\ntype: BC\ntitle: Business case\nstatus: draft', BC_ALL_SECTIONS);
+    const messages = [
+      frIssues([fr()], publishCtx)[0]?.message,
+      frIssues([fr('justified_by: [FB-999]')], publishCtx)[0]?.message,
+      frIssues([fr('justified_by: [BC-001]'), draftBc], publishCtx)[0]?.message,
+      frIssues([fr('justified_by: [BC-001]'), bcApproved()], publishCtx)[0]?.message,
+      frIssues([fr('justified_by: [BC-001, PRD-002]'), bcApproved(), prdApproved('PRD-002', 'draft')], publishCtx)[0]?.message,
+    ];
+    expect(messages.every((m) => typeof m === 'string')).toBe(true);
+    expect(new Set(messages).size).toBe(5);
+  });
+
+  test('un PRD aprobado en justified_by satisface R3 (publicar)', () => {
+    const issues = frIssues([fr('justified_by: [BC-001, PRD-002]'), bcApproved(), prdApproved()], publishCtx);
+    expect(issues).toEqual([]);
+  });
+
+  test('un PRD cerrado también satisface R3', () => {
+    const issues = frIssues([fr('justified_by: [BC-001, PRD-002]'), bcApproved(), prdApproved('PRD-002', 'closed')], publishCtx);
+    expect(issues).toEqual([]);
+  });
+
+  test('otro tipo (MRD) en justified_by no cuenta como el PRD del FR', () => {
+    const mrdDoc = doc('id: MRD-001\ntype: MRD\ntitle: Market\njustified_by: [FB-999]');
+    const issues = frIssues([fr('justified_by: [BC-001, MRD-001]'), bcApproved(), mrdDoc], publishCtx);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toMatch(/not by a PRD/);
+  });
+
+  test('en edición (drift) la falta de PRD es advertencia; al publicar es error', () => {
+    const docs = [fr('justified_by: [BC-001]'), bcApproved()];
+    expect(frIssues(docs)).toEqual([{ kind: 'lifecycle_violation', severity: 'warning', nodeId: 'FR-001', message: expect.stringMatching(/not by a PRD/) }]);
+    expect(frIssues(docs, publishCtx)).toEqual([{ ...frIssues(docs)[0], severity: 'error' }]);
+  });
+
+  test('un PRD no aprobado es advertencia en edición y error al publicar', () => {
+    const docs = [fr('justified_by: [BC-001, PRD-002]'), bcApproved(), prdApproved('PRD-002', 'proposed')];
+    expect(frIssues(docs)[0]?.severity).toBe('warning');
+    expect(frIssues(docs, publishCtx)[0]?.severity).toBe('error');
+  });
+
+  test('el PRD no hereda la regla de R3 (sigue exigiendo sólo su BC)', () => {
+    const issues = checkLifecycle([prdApproved('PRD-002'), bcApproved()], publishCtx).filter((i) => i.nodeId === 'PRD-002');
+    // sanity: la regla nueva sólo aplica a FR; un PRD con su BC aprobado no gana un issue de "not by a PRD"
+    expect(issues.filter((i) => /not by a PRD/.test(i.message))).toEqual([]);
+  });
+});
+
+describe('checkLifecycle — excepción de pasaje declarada (WO-807 / SDD-125 D2)', () => {
+  const EXCEPTION_REASON = 'un solo diseño, sin cambios de modelo de datos ni de contrato público';
+  const WITH_EXCEPTION = `${FR_COMPLETE_BODY}\n## Excepción de pasaje\n\n${EXCEPTION_REASON}\n`;
+  const EXCEPTION_NO_REASON = `${FR_COMPLETE_BODY}\n## Excepción de pasaje\n`;
+  const frWithBody = (body: string, extra = 'justified_by: [BC-001]'): ParsedDoc => doc(`id: FR-001\ntype: FR\ntitle: Request\n${extra}`, body);
+  const publishCtx: LifecycleContext = { ...noGrandfathering, mode: 'publish' };
+  const frIssues = (docs: ParsedDoc[], ctx: LifecycleContext = publishCtx) => checkLifecycle(docs, ctx).filter((i) => i.nodeId === 'FR-001');
+
+  test('sin la sección no hay excepción', () => {
+    expect(passageException(frWithBody(FR_COMPLETE_BODY))).toBeNull();
+  });
+
+  test('una sección vacía no es una excepción (no hay motivo)', () => {
+    expect(passageException(frWithBody(EXCEPTION_NO_REASON))).toBeNull();
+  });
+
+  test('con un motivo no vacío devuelve el issue info con su motivo', () => {
+    expect(passageException(frWithBody(WITH_EXCEPTION))).toEqual({
+      kind: 'passage_exception',
+      severity: 'info',
+      nodeId: 'FR-001',
+      reason: EXCEPTION_REASON,
+      message: `FR-001 declares a passage exception (R3): "${EXCEPTION_REASON}"`,
+    });
+  });
+
+  test('el motivo puede venir en una línea de lista', () => {
+    const body = `${FR_COMPLETE_BODY}\n## Excepción de pasaje\n\n- ${EXCEPTION_REASON}\n`;
+    expect(passageException(frWithBody(body))?.reason).toBe(EXCEPTION_REASON);
+  });
+
+  test('un PRD con la sección no declara una excepción: es una regla sólo de FR', () => {
+    const prdDoc = doc('id: PRD-002\ntype: PRD\ntitle: Product\njustified_by: [BC-001]\nstatus: approved', `${PRD_COMPLETE_BODY}\n## Excepción de pasaje\n\n${EXCEPTION_REASON}\n`);
+    expect(passageException(prdDoc)).toBeNull();
+  });
+
+  test('sin la sección, el FR con sólo BC no publica', () => {
+    const issues = frIssues([frWithBody(FR_COMPLETE_BODY), bcApproved()]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ severity: 'error' });
+    expect(issues[0]?.message).toMatch(/not by a PRD/);
+  });
+
+  test('con la excepción declarada el FR con sólo BC publica, también en edición', () => {
+    expect(frIssues([frWithBody(WITH_EXCEPTION), bcApproved()])).toEqual([]);
+    expect(frIssues([frWithBody(WITH_EXCEPTION), bcApproved()], noGrandfathering)).toEqual([]);
+  });
+
+  test('una sección sin motivo no exime: el FR con sólo BC sigue sin publicar', () => {
+    const issues = frIssues([frWithBody(EXCEPTION_NO_REASON), bcApproved()]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toMatch(/not by a PRD/);
+  });
+
+  test('la excepción no reemplaza el BC: sin BC el FR sigue fallando y el mensaje nombra el BC', () => {
+    const issues = frIssues([frWithBody(WITH_EXCEPTION, '')]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('BC');
+    expect(issues[0]?.message).not.toContain('PRD');
+  });
+
+  test('la excepción no tapa un BC no aprobado', () => {
+    const draftBc = doc('id: BC-001\ntype: BC\ntitle: Business case\nstatus: draft', BC_ALL_SECTIONS);
+    const issues = frIssues([frWithBody(WITH_EXCEPTION), draftBc]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('BC-001');
+  });
+
+  test('un PRD linkeado sigue exigiendo estar aprobado aunque la excepción esté declarada', () => {
+    const issues = frIssues([frWithBody(WITH_EXCEPTION, 'justified_by: [BC-001, PRD-002]'), bcApproved(), prdApproved('PRD-002', 'proposed')]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('PRD-002');
+  });
+
+  test('passageExceptions/countPassageExceptions cuentan sólo los FR con excepción declarada', () => {
+    const docs = [frWithBody(WITH_EXCEPTION), prdApproved(), bcApproved()];
+    expect(passageExceptions(docs)).toHaveLength(1);
+    expect(countPassageExceptions(docs)).toBe(1);
+    expect(passageExceptions([prdApproved(), bcApproved(), frWithBody(FR_COMPLETE_BODY)])).toEqual([]);
+    expect(countPassageExceptions([frWithBody(EXCEPTION_NO_REASON)])).toBe(0);
+  });
+});
+
+describe('checkLifecycle — huecos de diseño (WO-808 / SDD-125 D3)', () => {
+  const approvedFr = (extra = 'justified_by: [BC-001, PRD-002]\nstatus: approved', body = FR_COMPLETE_BODY): ParsedDoc =>
+    doc(`id: FR-001\ntype: FR\ntitle: Request\n${extra}`, body);
+  const designOf = (featureId: string, status = 'active'): ParsedDoc =>
+    doc(`id: SDD-001\ntype: SDD\ntitle: Design\nstatus: ${status}\narchitects: [${featureId}]\nimpacts_paths: ["src/**"]`, '## Tareas\n- [ ] a');
+  const blueprintsHole = (issues: ReturnType<typeof checkLifecycle>, id: string) => issues.filter((i) => i.nodeId === id && i.kind === 'feature_without_blueprint');
+  const docsFor = (...extra: ParsedDoc[]) => [approvedFr(), bcApproved(), prdApproved(), ...extra];
+
+  test('un FR aprobado sin diseño produce feature_without_blueprint (warning) en edición y al publicar', () => {
+    const issues = blueprintsHole(checkLifecycle(docsFor(), noGrandfathering), 'FR-001');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.severity).toBe('warning');
+    expect(issues[0]?.message).toMatch(/no blueprint architecting it/);
+    expect(issues[0]?.message).toContain('"architects"');
+    expect(blueprintsHole(checkLifecycle(docsFor(), { ...noGrandfathering, mode: 'publish' }), 'FR-001')).toHaveLength(1);
+  });
+
+  test('un FR con un diseño que lo arquitecta no produce el hueco', () => {
+    const issues = checkLifecycle(docsFor(designOf('FR-001')), noGrandfathering);
+    expect(blueprintsHole(issues, 'FR-001')).toEqual([]);
+    expect(issues.filter((i) => i.nodeId === 'SDD-001')).toEqual([]);
+  });
+
+  test('un FR todavía no aprobado no produce el hueco (no se exige diseño antes de aprobar)', () => {
+    const proposed = approvedFr('justified_by: [BC-001, PRD-002]\nstatus: proposed');
+    expect(blueprintsHole(checkLifecycle([proposed, bcApproved(), prdApproved()], noGrandfathering), 'FR-001')).toEqual([]);
+  });
+
+  test('un PRD aprobado sin diseño también produce el hueco', () => {
+    const issues = checkLifecycle(docsFor(), noGrandfathering).filter((i) => i.nodeId === 'PRD-002' && i.kind === 'feature_without_blueprint');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.severity).toBe('warning');
+  });
+
+  test('un blueprint sin architects es blueprint_without_feature (error), con su propio kind de drift', () => {
+    const base = doc('id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\nimpacts_paths: ["src/**"]', '## Tareas\n- [ ] a');
+    const noArchitects: ParsedDoc = { ...base, frontmatter: { ...base.frontmatter, architects: [] } } as ParsedDoc;
+    const issues = checkLifecycle([approvedPrd(), noArchitects], noGrandfathering).filter((i) => i.nodeId === 'SDD-001');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ kind: 'blueprint_without_feature', severity: 'error' });
+    expect(issues[0]?.message).toContain('non-empty "architects"');
+  });
+
+  test('un blueprint con architects sigue siendo lifecycle_violation cuando falla otra regla', () => {
+    const issues = checkLifecycle([approvedPrd(), sdd('', '## Tareas\n- [ ] a')], noGrandfathering).filter((i) => i.nodeId === 'SDD-001');
+    expect(issues.map((i) => i.kind)).toEqual(['lifecycle_violation']);
   });
 });
 
@@ -388,40 +615,45 @@ describe('checkLifecycle: secciones obligatorias de PRD y FR (WO-802)', () => {
   const PRD_ALL = '## Problema\n\n## Alcance\n\n## Personas y trabajos\n\n## Métrica de éxito\n\n## Features derivadas\n';
   const FR_ALL = '## Alcance\n\nx\n\n## Criterio de aceptación\n\n- [ ] algo\n';
   const prdWith = (body: string): ParsedDoc => doc('id: PRD-001\ntype: PRD\ntitle: Product\nimplements: [MRD-001]\njustified_by: [BC-001]\nstatus: approved', body);
-  const frWith = (body: string): ParsedDoc => doc('id: FR-001\ntype: FR\ntitle: Request\njustified_by: [BC-001]', body);
+  const frWith = (body: string): ParsedDoc => doc('id: FR-001\ntype: FR\ntitle: Request\njustified_by: [BC-001, PRD-002]', body);
+  // SDD-125 R3 (WO-806): an FR also declares its PRD, so these section-only tests carry one to stay isolated.
+  const prdOk = (): ParsedDoc => prdApproved();
   const only = (issues: ReturnType<typeof checkLifecycle>, id: string) => kinds(issues).filter(([, , nodeId]) => nodeId === id);
 
+  // WO-808: an approved PRD also needs a blueprint architecting it, so these section-only tests carry one.
+  const prdDesign = (): ParsedDoc => sdd('impacts_paths: ["src/**"]', '## Tareas\n- [ ] a');
+
   test('PRD con las cinco secciones y un BC aprobado no gana issues (WO-802)', () => {
-    expect(only(checkLifecycle([prdWith(PRD_ALL), bcApproved()], noGrandfathering), 'PRD-001')).toEqual([]);
+    expect(only(checkLifecycle([prdWith(PRD_ALL), bcApproved(), prdDesign()], noGrandfathering), 'PRD-001')).toEqual([]);
   });
 
   test('PRD sin una sección: warning por defecto y error al publicar (WO-802)', () => {
     const body = PRD_ALL.replace('## Alcance\n\n', '');
-    const edit = checkLifecycle([prdWith(body), bcApproved()], noGrandfathering).filter((i) => i.nodeId === 'PRD-001');
+    const edit = checkLifecycle([prdWith(body), bcApproved(), prdDesign()], noGrandfathering).filter((i) => i.nodeId === 'PRD-001');
     expect(edit).toEqual([{ kind: 'lifecycle_violation', severity: 'warning', nodeId: 'PRD-001', message: 'PRD-001 is missing required section(s): ## Alcance' }]);
-    const publish = checkLifecycle([prdWith(body), bcApproved()], { ...noGrandfathering, mode: 'publish' }).filter((i) => i.nodeId === 'PRD-001');
+    const publish = checkLifecycle([prdWith(body), bcApproved(), prdDesign()], { ...noGrandfathering, mode: 'publish' }).filter((i) => i.nodeId === 'PRD-001');
     expect(publish).toEqual([{ ...edit[0], severity: 'error' }]);
   });
 
   test('FR sin Criterio de aceptación: warning por defecto y error al publicar (WO-802)', () => {
     const body = '## Alcance\n\nx\n';
     const message = 'FR-001 is missing required section(s): ## Criterio de aceptación';
-    expect(checkLifecycle([frWith(body), bcApproved()], noGrandfathering).filter((i) => i.nodeId === 'FR-001')).toEqual([
+    expect(checkLifecycle([frWith(body), bcApproved(), prdOk()], noGrandfathering).filter((i) => i.nodeId === 'FR-001')).toEqual([
       { kind: 'lifecycle_violation', severity: 'warning', nodeId: 'FR-001', message },
     ]);
-    expect(checkLifecycle([frWith(body), bcApproved()], { ...noGrandfathering, mode: 'publish' }).filter((i) => i.nodeId === 'FR-001')).toEqual([
+    expect(checkLifecycle([frWith(body), bcApproved(), prdOk()], { ...noGrandfathering, mode: 'publish' }).filter((i) => i.nodeId === 'FR-001')).toEqual([
       { kind: 'lifecycle_violation', severity: 'error', nodeId: 'FR-001', message },
     ]);
   });
 
   test('FR con Criterio de aceptación sin ítems verificables es una advertencia que nombra la sección (WO-802)', () => {
-    const issues = checkLifecycle([frWith('## Alcance\n\nx\n\n## Criterio de aceptación\n\nsólo prosa\n'), bcApproved()], noGrandfathering).filter((i) => i.nodeId === 'FR-001');
+    const issues = checkLifecycle([frWith('## Alcance\n\nx\n\n## Criterio de aceptación\n\nsólo prosa\n'), bcApproved(), prdOk()], noGrandfathering).filter((i) => i.nodeId === 'FR-001');
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({ severity: 'warning', message: 'FR-001 needs at least one verifiable item (a "- [ ]" or "- [x]" line) under "## Criterio de aceptación"' });
   });
 
   test('FR con un ítem - [x] satisface el criterio de aceptación (WO-802)', () => {
     const body = '## Alcance\n\nx\n\n## Criterio de aceptación\n\n- [x] hecho\n';
-    expect(only(checkLifecycle([frWith(body), bcApproved()], { ...noGrandfathering, mode: 'publish' }), 'FR-001')).toEqual([]);
+    expect(only(checkLifecycle([frWith(body), bcApproved(), prdOk()], { ...noGrandfathering, mode: 'publish' }), 'FR-001')).toEqual([]);
   });
 });

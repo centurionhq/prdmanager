@@ -17,11 +17,13 @@ describe('validateDocument: schema', () => {
   });
 
   test('a well-formed document has no issues in either mode', () => {
-    // Publishing re-checks the document's own issues (WO-802), so the FR must be justified by an approved BC.
+    // Publishing re-checks the document's own issues (WO-802), so the FR must be justified by an approved BC;
+    // SDD-125 R3 (WO-806) also requires its PRD in the same `justified_by`, approved.
     const bc = doc('id: BC-001\ntype: BC\ntitle: Business case\nstatus: approved', '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n', 'docs/bc/BC-001.md');
-    const input = { kind: 'FR' as const, title: 'New capability', body: FR_BODY, id: 'FR-001', fields: { evolves_from: ['PRD-001'], justified_by: ['BC-001'] } };
-    const fr = doc('id: FR-001\ntype: FR\ntitle: New capability\nevolves_from: [PRD-001]\njustified_by: [BC-001]', FR_BODY, 'docs/fr/FR-001.md');
-    const scan: ScanResult = { docs: [prd(), bc, fr], errors: [], ids: ['PRD-001', 'BC-001', 'FR-001'] };
+    const prdOk = doc('id: PRD-002\ntype: PRD\ntitle: Product\nimplements: [MRD-001]\njustified_by: [BC-001]\nstatus: approved', '## Problema\n\n## Alcance\n\n## Personas y trabajos\n\n## Métrica de éxito\n\n## Features derivadas\n', 'docs/prd/PRD-002.md');
+    const input = { kind: 'FR' as const, title: 'New capability', body: FR_BODY, id: 'FR-001', fields: { evolves_from: ['PRD-001'], justified_by: ['BC-001', 'PRD-002'] } };
+    const fr = doc('id: FR-001\ntype: FR\ntitle: New capability\nevolves_from: [PRD-001]\njustified_by: [BC-001, PRD-002]', FR_BODY, 'docs/fr/FR-001.md');
+    const scan: ScanResult = { docs: [prd(), prdOk, bc, fr], errors: [], ids: ['PRD-001', 'PRD-002', 'BC-001', 'FR-001'] };
     expect(validateDocument({ ...input, mode: 'edit' }, { scan, grandfathered: [] }).issues).toEqual([]);
     expect(validateDocument({ ...input, mode: 'publish' }, { scan, grandfathered: [] }).issues).toEqual([]);
   });

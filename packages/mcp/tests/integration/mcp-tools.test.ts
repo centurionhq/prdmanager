@@ -188,13 +188,15 @@ describe('prdm-graph MCP tools', () => {
 
     // The blueprint itself is acknowledged the same way `prdm sync ack` would (CLI-only path), not through MCP.
     const blueprintAcked = await engine.acknowledge('SDD-001');
-    // The fixture's SDD-001 still uses the deprecated `governs` alias (fixture.ts is shared and not owned by this WO).
-    const relevantIssues = blueprintAcked.issues.filter((i: { kind: string }) => i.kind !== 'deprecated_field');
+    // The fixture's SDD-001 still uses the deprecated `governs` alias (fixture.ts is shared and not owned by this WO),
+    // and the shared fixture predates the SDD-124 section rules and SDD-125 (WO-808) design holes, which this test is not about.
+    const unrelated = new Set(['deprecated_field', 'lifecycle_violation', 'feature_without_blueprint', 'blueprint_without_feature']);
+    const relevantIssues = blueprintAcked.issues.filter((i: { kind: string }) => !unrelated.has(i.kind));
     const staleWorkOrders = relevantIssues.filter((i: { kind: string }) => i.kind === 'work_order_out_of_sync').map((i: { nodeId: string }) => i.nodeId);
-    expect(relevantIssues.every((i: { kind: string }) => i.kind === 'work_order_out_of_sync')).toBe(true);
+    expect(relevantIssues.every((i: { kind: string }) => i.kind === 'work_order_out_of_sync'), JSON.stringify(relevantIssues.map((i: { kind: string; nodeId: string; message: string }) => [i.kind, i.nodeId, i.message]))).toBe(true);
     let acked = blueprintAcked;
     for (const id of staleWorkOrders) acked = json(await client.callTool({ name: 'acknowledge_sync', arguments: { target: id } }));
-    expect(acked.issues.filter((i: { kind: string }) => i.kind !== 'deprecated_field')).toEqual([]);
+    expect(acked.issues.filter((i: { kind: string }) => !unrelated.has(i.kind))).toEqual([]);
     expect(acked.hasBlockingIssues).toBe(false);
   });
 

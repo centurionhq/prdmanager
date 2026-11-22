@@ -2,8 +2,9 @@ import { describe, expect, test } from 'vitest';
 import { doc } from '@prdm/testkit';
 import type { ParsedDoc } from '../../src/domain/schema.js';
 import { attributeIssue, computeAndon, type AttributedIssueLike } from '../../src/sync/issue-attribution.js';
+import { checkLifecycle } from '../../src/lifecycle/check.js';
+import { deriveLineBoard, type LineBoard } from '../../src/lifecycle/station.js';
 import type { DriftIssue } from '../../src/sync/monitor.js';
-import type { LineBoard } from '../../src/lifecycle/station.js';
 
 const prd = (extra = ''): ParsedDoc => doc(`id: PRD-001\ntype: PRD\ntitle: Product\n${extra}`);
 const sdd = (extra = ''): ParsedDoc => doc(`id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\n${extra}`);
@@ -67,6 +68,25 @@ describe('attributeIssue', () => {
     expect(attributeIssue(issue('deprecated_field', 'SDD-001', 'warning'), [sdd()])).toEqual({ featureIds: [], blueprintId: null, station: null });
   });
 
+  test('SDD-125 (WO-808): feature_without_blueprint para en diseno_tecnico y detiene la línea', () => {
+    expect(attributeIssue(issue('feature_without_blueprint', 'PRD-001', 'warning'), [prd()])).toEqual({
+      featureIds: ['PRD-001'],
+      blueprintId: null,
+      station: 'diseno_tecnico',
+      stopsLine: true,
+    });
+  });
+
+  test('SDD-125 (WO-808): blueprint_without_feature atribuye al blueprint en diseno_tecnico', () => {
+    const noArchitects = sdd();
+    const bare: ParsedDoc = { ...noArchitects, frontmatter: { ...noArchitects.frontmatter, architects: [] }, edges: [] } as ParsedDoc;
+    expect(attributeIssue(issue('blueprint_without_feature', 'SDD-001'), [bare])).toEqual({
+      featureIds: [],
+      blueprintId: 'SDD-001',
+      station: 'diseno_tecnico',
+    });
+  });
+
   test('an issue targeting an unknown node attributes to nothing', () => {
     expect(attributeIssue(issue('broken_link', 'FB-999'), [])).toEqual({ featureIds: [], blueprintId: null, station: null });
   });
@@ -120,6 +140,30 @@ describe('computeAndon', () => {
     const issues: AttributedIssueLike[] = [{ severity: 'error', featureIds: ['PRD-001'], station: null }];
     const board = computeAndon(issues, emptyBoard(['PRD-001']));
     expect(board.andon).toBeNull();
+  });
+
+  test('SDD-125 (WO-808): un FR aprobado sin diseño detiene la línea en diseno_tecnico (warning con stopsLine)', () => {
+    // End to end over the real pieces: the lifecycle hole, its attribution and the board derived from the docs.
+    const body = '## Alcance\n\nx\n\n## Criterio de aceptación\n\n- [ ] algo\n';
+    const docs = [
+      doc('id: BC-001\ntype: BC\ntitle: Business case\nstatus: approved', '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n'),
+      doc('id: PRD-002\ntype: PRD\ntitle: Product\nimplements: [MRD-001]\njustified_by: [BC-001]\nstatus: approved', '## Problema\n\n## Alcance\n\n## Personas y trabajos\n\n## Métrica de éxito\n\n## Features derivadas\n'),
+      doc('id: FR-001\ntype: FR\ntitle: Request\njustified_by: [BC-001, PRD-002]\nstatus: approved', body),
+    ];
+    const hole = checkLifecycle(docs, { grandfathered: [] }).filter((i) => i.kind === 'feature_without_blueprint');
+    expect(hole.map((i) => i.nodeId)).toEqual(['PRD-002', 'FR-001']);
+    const attributed = hole.map((i) => ({ severity: i.severity, ...attributeIssue(i, docs) }));
+    const board = computeAndon(attributed, deriveLineBoard(docs));
+    // Both features are justified by BC-001, so they nest under its row (WO-443 collapsing), not top-level.
+    const bcRow = board.features.find((f) => f.id === 'BC-001');
+    const fr = bcRow?.children.find((f) => f.id === 'FR-001');
+    expect(fr?.andonStation).toBe('diseno_tecnico');
+    expect(board.andon).toEqual({ featureId: 'PRD-002', station: 'diseno_tecnico' });
+  });
+
+  test('un warning sin stopsLine no detiene la línea (la regla nueva no afloja el andon)', () => {
+    const issues: AttributedIssueLike[] = [{ severity: 'warning', featureIds: ['PRD-001'], station: 'diseno_tecnico', stopsLine: false }];
+    expect(computeAndon(issues, emptyBoard(['PRD-001'])).andon).toBeNull();
   });
 
   test('WO-444: an error on a nested PRD (WO-443 row collapsing) sets andonStation on the child row, not just the project-wide andon', () => {

@@ -7,6 +7,13 @@ export interface IssueAttribution {
   featureIds: string[];
   blueprintId: string | null;
   station: Station | null;
+  /**
+   * SDD-125 D4: `true` when this issue stops the line at `station` even though its severity is not `error`.
+   * Only `feature_without_blueprint` sets it (the design hole is a warning, but an approved feature with no
+   * design cannot pass `diseno_tecnico`). Omitted everywhere else, so every other warning stays informational
+   * and `computeAndon`'s error-only contract is untouched.
+   */
+  stopsLine?: boolean;
 }
 
 function featuresArchitectedBy(docs: readonly ParsedDoc[], blueprintId: string): string[] {
@@ -38,6 +45,16 @@ export function attributeIssue(issue: DriftIssue, docs: readonly ParsedDoc[]): I
     return { featureIds: featuresInformedBy(target), blueprintId: null, station: 'entrada' };
   }
 
+  if (issue.kind === 'feature_without_blueprint' && target?.node.label === 'Feature') {
+    // SDD-125 D4: the design hole is owned by the feature itself and it stops the line at the stage it cannot
+    // pass. `stopsLine` is why a warning can light the andon (`computeAndon` below).
+    return { featureIds: [issue.nodeId], blueprintId: null, station: 'diseno_tecnico', stopsLine: true };
+  }
+
+  if (issue.kind === 'blueprint_without_feature') {
+    return { featureIds: featuresArchitectedBy(docs, issue.nodeId), blueprintId: issue.nodeId, station: 'diseno_tecnico' };
+  }
+
   if (issue.kind === 'feature_changed' || (issue.kind === 'lifecycle_violation' && target?.node.label === 'Feature')) {
     return { featureIds: [issue.nodeId], blueprintId: null, station: 'producto' };
   }
@@ -64,6 +81,8 @@ export interface AttributedIssueLike {
   severity: 'error' | 'warning';
   featureIds: readonly string[];
   station: Station | null;
+  /** SDD-125 D4: se propaga desde {@link IssueAttribution}; un warning con `stopsLine` sí detiene la línea. */
+  stopsLine?: boolean;
 }
 
 const STATION_ORDER = new Map(STATIONS.map((station, index) => [station, index]));
@@ -87,7 +106,10 @@ function earlierStation(a: Station, b: Station): Station {
 export function computeAndon(issues: readonly AttributedIssueLike[], board: LineBoard): LineBoard {
   const earliestByFeature = new Map<string, Station>();
   for (const issue of issues) {
-    if (issue.severity !== 'error' || issue.station === null) continue;
+    // SDD-125 D4: errors always stop the line; a warning only when its attribution says so
+    // (`feature_without_blueprint` — an approved feature with no design). Every other warning stays inert.
+    if (issue.station === null) continue;
+    if (issue.severity !== 'error' && issue.stopsLine !== true) continue;
     for (const featureId of issue.featureIds) {
       const current = earliestByFeature.get(featureId);
       earliestByFeature.set(featureId, current === undefined ? issue.station : earlierStation(current, issue.station));

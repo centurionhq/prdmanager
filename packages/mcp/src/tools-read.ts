@@ -1,7 +1,10 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import {
+  attributeIssue,
   buildForest,
+  checkLifecycle,
+  deriveLineBoard,
   docId,
   getMetrics,
   getWorkOrderContext,
@@ -10,9 +13,12 @@ import {
   NODE_LABELS,
   renderMermaid,
   renderText,
+  STATIONS,
   triageText,
   WORK_ORDER_STATUSES,
   type NodeDetail,
+  type ParsedDoc,
+  type Station,
   type Subgraph,
 } from '@prdm/core';
 import type { PrdmDeps } from './deps.js';
@@ -53,20 +59,81 @@ async function unpublishedNode(deps: PrdmDeps, id: string): Promise<NodeDetail |
   };
 }
 
+/** One reason a document cannot move on: the lifecycle issue's own `kind` and message, and the station the
+ * line board attributes it to (`null` when the issue kind maps to no station, never a guess). */
+export interface PromotionBlocker {
+  code: string;
+  message: string;
+  station: Station | null;
+}
+
+/** SDD-125 D5 ("qué le falta" es lectura, no adivinanza). */
+export interface Promotion {
+  /** Every lifecycle issue that stops the line at this document, in the order `checkLifecycle` emits them. */
+  blocking: PromotionBlocker[];
+  /** The earliest station this document is blocked at, or -- with nothing blocking -- the station right
+   * after the one the line board places it on. `null` when neither can be derived (no row on the board and
+   * nothing blocking, or an `entregado` row). */
+  nextStation: Station | null;
+}
+
+const stationIndex = (station: Station): number => STATIONS.indexOf(station);
+
+/** The station `deriveLineBoard` places `id` on, searching BC rows' nested children too; `null` when the
+ * board has no row for it (a Work Order, Feedback or Artifact never gets one). */
+function boardStation(docs: readonly ParsedDoc[], id: string): Station | null {
+  const pending = [...deriveLineBoard(docs).features];
+  while (pending.length > 0) {
+    const line = pending.shift();
+    if (line === undefined) break;
+    if (line.id === id) return line.station;
+    pending.push(...line.children);
+  }
+  return null;
+}
+
+/**
+ * SDD-125 D5: what a document still needs before it can pass its station. Derived from the same lifecycle
+ * issues and the same station attribution the drift report and the line board already use -- `edit` mode is
+ * not used here: promotion is the publish question, so the SDD-124/125 rules that block publishing are errors
+ * (`mode: 'publish'`), and a warning only blocks when its attribution says it stops the line
+ * (`feature_without_blueprint`, SDD-125 D4).
+ */
+export async function promotionFor(deps: PrdmDeps, id: string): Promise<Promotion> {
+  const { docs } = await deps.engine.scan();
+  const issues = checkLifecycle(docs, { grandfathered: deps.config.lifecycle?.grandfathered ?? [], mode: 'publish' });
+
+  const blocking: PromotionBlocker[] = [];
+  for (const issue of issues) {
+    if (issue.nodeId !== id) continue;
+    const attribution = attributeIssue(issue, docs);
+    if (issue.severity !== 'error' && attribution.stopsLine !== true) continue;
+    blocking.push({ code: issue.kind, message: issue.message, station: attribution.station });
+  }
+
+  const blockerStations = blocking.map((blocker) => blocker.station).filter((station): station is Station => station !== null);
+  if (blockerStations.length > 0) {
+    return { blocking, nextStation: blockerStations.reduce((earliest, station) => (stationIndex(station) < stationIndex(earliest) ? station : earliest)) };
+  }
+
+  const current = boardStation(docs, id);
+  return { blocking, nextStation: current === null ? null : (STATIONS[stationIndex(current) + 1] ?? null) };
+}
+
 export function registerReadTools(server: McpServer, deps: PrdmDeps): void {
   server.registerTool(
     'get_node',
     {
       title: 'Get node',
       description:
-        'Fetches a single graph node by id (MRD/PRD/FR/SDD/ADR/WO/ART/FB) with its title, body, status and every incoming/outgoing relationship. Use this when you already know an id and need its full detail. If the id is not in the graph, falls back to the project\'s unpublished documents: a draft/in_review document comes back with its real workflowState, indexed: false and no links. Each node publishes source_path (the canonical published path; it may not exist on disk because in remote mode docs/ only ships model/) and mirrorPath (the readable copy that prdm sync leaves in the checkout, .prdm/remote/docs/<ID>.md).',
+        'Fetches a single graph node by id (MRD/PRD/FR/SDD/ADR/WO/ART/FB) with its title, body, status and every incoming/outgoing relationship. Use this when you already know an id and need its full detail. If the id is not in the graph, falls back to the project\'s unpublished documents: a draft/in_review document comes back with its real workflowState, indexed: false and no links. Each node publishes source_path (the canonical published path; it may not exist on disk because in remote mode docs/ only ships model/) and mirrorPath (the readable copy that prdm sync leaves in the checkout, .prdm/remote/docs/<ID>.md). Each node also publishes promotion: {blocking: [{code, message, station}], nextStation}. blocking lists the lifecycle issues that stop the line at this document (an error, or the design-hole warning that stops an approved feature at diseno_tecnico) with the station each one is attributed to; nextStation is the earliest blocking station, or -- with nothing blocking -- the station right after the one the line board places the document on (null when it has no row or is already delivered). Both come from the same rules the drift report and the line board use, never a second copy.',
       inputSchema: { id: docId },
       annotations: { title: 'Get node', ...READ_ONLY },
     },
     safeReadTool(deps, async ({ id }: { id: string }) => {
       const node = (await deps.store.getNode(id)) ?? (await unpublishedNode(deps, id));
       if (!node) throw new Error(`node ${id} not found`);
-      return jsonResult({ ...node });
+      return jsonResult({ ...node, promotion: await promotionFor(deps, id) });
     }),
   );
 

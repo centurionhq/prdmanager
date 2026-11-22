@@ -111,7 +111,9 @@ describe('ensureRecovered is called before every read tool/resource serves data 
     const calls: string[] = [];
     ({ client, server } = await connect(registerReadTools, trackedDeps(calls)));
     await client.callTool({ name: 'get_node', arguments: { id: 'PRD-001' } });
-    expect(calls).toEqual(['engine.recover', 'store.getNode']);
+    // SDD-125 D5: `get_node` also scans to derive `promotion`, but only after the node itself was read.
+    expect(calls.slice(0, 2)).toEqual(['engine.recover', 'store.getNode']);
+    expect(calls[2]).toBe('engine.scan');
   });
 
   test('search_nodes, get_feature_branch, get_feature_tree, list_work_orders, get_work_order_context and get_metrics all recover first', async () => {

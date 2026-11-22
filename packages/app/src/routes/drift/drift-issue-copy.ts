@@ -147,6 +147,14 @@ export const KIND_COPY: Readonly<
     headline: landedButOpenHeadline,
     action: 'Completala con ese sha',
   },
+  feature_without_blueprint: {
+    headline: (issue) => `La feature ${issue.nodeId} está aprobada y ningún blueprint la arquitecta`,
+    action: 'Escribí el diseño (SDD/ADR) que la declare en "architects"',
+  },
+  blueprint_without_feature: {
+    headline: (issue) => `El blueprint ${issue.nodeId} no declara qué PRD o feature diseña`,
+    action: 'Agregá en "architects" el PRD o la feature que diseña',
+  },
 };
 
 export interface GlossaryTerm {

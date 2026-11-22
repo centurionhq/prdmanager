@@ -24,6 +24,60 @@ const TASKS_HEADING = /^##\s+(Tareas|Tasks)\s*$/im;
 const NEXT_HEADING = /^##\s+.+$/m;
 const CHECKLIST_LINE = /^[-*]\s*\[[ xX]\]/;
 
+/**
+ * SDD-125 D2 (R3): the single declared passage exception, read as data from the FR body's own
+ * `## Excepción de pasaje` section. PRD-044 is explicit that it is "dato, no permiso implícito": an empty
+ * section (no reason) is *not* an exception and does not exempt the FR from declaring its PRD, and it never
+ * replaces the BC gate. Severity is always `info`: it is counted and shown, never blocking -- the count is
+ * what the capacities panel reads, so a visible exception never becomes hidden debt.
+ */
+export interface PassageException {
+  kind: 'passage_exception';
+  severity: 'info';
+  nodeId: string;
+  /** The non-empty line of the section, with any leading list/quote marker stripped. */
+  reason: string;
+  message: string;
+}
+
+const PASSAGE_EXCEPTION_HEADING = /^##\s+Excepción de pasaje\s*$/im;
+
+/** The declared passage exception of a Feature Request, or `null` (absent section, empty section, or any
+ * other document kind -- R3's exception is FR-only). */
+export function passageException(doc: ParsedDoc): PassageException | null {
+  if (doc.frontmatter.type !== 'FR') return null;
+  const body = doc.node.body;
+  const heading = PASSAGE_EXCEPTION_HEADING.exec(body);
+  if (!heading) return null;
+  const rest = body.slice(heading.index + heading[0].length);
+  const next = NEXT_HEADING.exec(rest);
+  const section = next ? rest.slice(0, next.index) : rest;
+  const line = section
+    .split('\n')
+    .map((candidate) => candidate.trim())
+    .find((candidate) => candidate.length > 0);
+  if (line === undefined) return null;
+  const reason = line.replace(/^[-*]\s+/, '').replace(/^>\s*/, '').trim();
+  if (reason.length === 0) return null;
+  return {
+    kind: 'passage_exception',
+    severity: 'info',
+    nodeId: doc.node.id,
+    reason,
+    message: `${doc.node.id} declares a passage exception (R3): "${reason}"`,
+  };
+}
+
+/** Every declared passage exception among `docs` -- the indicator the capacities panel counts (SDD-126). */
+export function passageExceptions(docs: readonly ParsedDoc[]): PassageException[] {
+  return docs.map(passageException).filter((exception): exception is PassageException => exception !== null);
+}
+
+/** How many documents declare the R3 exception. */
+export function countPassageExceptions(docs: readonly ParsedDoc[]): number {
+  return passageExceptions(docs).length;
+}
+
 /** True when `body` has a `## Tareas`/`## Tasks` heading whose section contains at least one `- [ ]`/`- [x]` line. */
 function hasTasksChecklist(body: string): boolean {
   const heading = TASKS_HEADING.exec(body);
@@ -34,8 +88,8 @@ function hasTasksChecklist(body: string): boolean {
   return section.split('\n').some((line) => CHECKLIST_LINE.test(line.trim()));
 }
 
-function violation(nodeId: string, severity: DriftIssue['severity'], message: string): DriftIssue {
-  return { kind: 'lifecycle_violation', severity, nodeId, message };
+function violation(nodeId: string, severity: DriftIssue['severity'], message: string, kind: DriftIssue['kind'] = 'lifecycle_violation'): DriftIssue {
+  return { kind, severity, nodeId, message };
 }
 
 /** SDD-096 D1: a Feedback is linked when any MRD/PRD/FR/BC cites it in `justified_by` (the inverse of `hasJustification`). */
@@ -99,6 +153,16 @@ function justifyingBusinessCase(doc: FeatureDoc, byId: Map<string, ParsedDoc>): 
   return null;
 }
 
+/** SDD-125 D1 (R3): the PRD a Feature Request declares as its parent -- same first-match lookups as
+ * {@link justifyingBusinessCase}, on the same `justified_by` list (full lineage: BC *and* PRD). */
+function justifyingPrd(doc: FeatureDoc, byId: Map<string, ParsedDoc>): FeatureDoc | null {
+  for (const id of doc.frontmatter.justified_by ?? []) {
+    const candidate = byId.get(id);
+    if (candidate?.frontmatter.type === 'PRD') return candidate as FeatureDoc;
+  }
+  return null;
+}
+
 /**
  * PRD-011 §4.2/SDD-023 (WO-439), widened to `FR` by SDD-025 (WO-448) after verifying against real project
  * data that a top-level FR with no parent PRD is just as invisible to the old gate as a PRD was --
@@ -106,8 +170,16 @@ function justifyingBusinessCase(doc: FeatureDoc, byId: Map<string, ParsedDoc>): 
  * in "approved"/"closed" status, not any FB/ART like MRD still accepts. Three distinguishable failures, so
  * the message always names exactly what is missing: no justification at all, justified but not by a BC,
  * or a BC linked but not yet approved.
+ *
+ * SDD-125 D1 (R3): the gate *composes* with, never replaces, that rule. An `FR` additionally declares its
+ * PRD in the same `justified_by` (full lineage: BC and PRD), and the PRD must be approved/closed too.
+ * That adds two distinguishable failures of its own (no PRD linked / PRD not approved), so all five FR
+ * failures keep their own message. They are errors when publishing -- PRD-044's two-step rollout: the new
+ * requirement is first enumerated as a warning everywhere (drift, `edit` mode) and only blocks at publish,
+ * exactly like the section rules of SDD-124 -- while the three pre-existing BC failures keep their own
+ * (always blocking) severity untouched.
  */
-function checkFeatureBusinessCase(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>): DriftIssue[] {
+function checkFeatureBusinessCase(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>, mode: 'edit' | 'publish'): DriftIssue[] {
   const bc = justifyingBusinessCase(doc, byId);
   if (!bc) {
     if (!hasJustification(doc, docs)) {
@@ -117,6 +189,24 @@ function checkFeatureBusinessCase(doc: FeatureDoc, docs: readonly ParsedDoc[], b
   }
   if (bc.node.status !== 'approved' && bc.node.status !== 'closed') {
     return [violation(doc.node.id, 'error', `${doc.node.id}'s business case ${bc.node.id} is not yet "approved"/"closed" (currently "${bc.node.status}")`)];
+  }
+  if (doc.frontmatter.type !== 'FR') return [];
+  const severity = mode === 'publish' ? 'error' : 'warning';
+  const prd = justifyingPrd(doc, byId);
+  // SDD-125 D2: the single declared exception (a non-empty `## Excepción de pasaje` reason) accepts the FR
+  // without a PRD. It is read as data; it never exempts the BC rule above, and an empty section is no exception.
+  if (!prd) {
+    if (passageException(doc) !== null) return [];
+    return [
+      violation(
+        doc.node.id,
+        severity,
+        `${doc.node.id} is justified, but not by a PRD: link one via "justified_by" (or declare "## Excepción de pasaje" when its whole scope is a single change)`,
+      ),
+    ];
+  }
+  if (prd.node.status !== 'approved' && prd.node.status !== 'closed') {
+    return [violation(doc.node.id, severity, `${doc.node.id}'s PRD ${prd.node.id} is not yet "approved"/"closed" (currently "${prd.node.status}")`)];
   }
   return [];
 }
@@ -145,10 +235,32 @@ function checkFeatureRequest(doc: FeatureDoc, severity: DriftIssue['severity']):
   return [violation(doc.node.id, severity, `${doc.node.id} needs at least one verifiable item (a "- [ ]" or "- [x]" line) under "${ACCEPTANCE_HEADING}"`)];
 }
 
+/**
+ * SDD-125 D3 (R4, "nada queda sin descendencia"): an approved/closed PRD or FR needs at least one blueprint
+ * that architects it. Emitted as a `warning` -- it is a hole the line must show, not a publish blocker (a
+ * feature is approved *before* its design exists) -- and attributed to `diseno_tecnico` by
+ * `../sync/issue-attribution.js`, where it also stops the line. Never applies to a BC: a business case's
+ * descendant is a PRD/FR, not a blueprint.
+ */
+function checkFeatureDesign(doc: FeatureDoc, docs: readonly ParsedDoc[]): DriftIssue[] {
+  if (doc.node.status !== 'approved' && doc.node.status !== 'closed') return [];
+  const architected = docs.some((d) => d.node.label === 'Blueprint' && d.edges.some((e) => e.type === 'ARCHITECTS' && e.to === doc.node.id));
+  if (architected) return [];
+  return [
+    violation(
+      doc.node.id,
+      'warning',
+      `${doc.node.id} is approved but has no blueprint architecting it: it needs a design (SDD/ADR) that declares it in "architects" before it can reach planning`,
+      'feature_without_blueprint',
+    ),
+  ];
+}
+
 function checkFeature(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>, mode: 'edit' | 'publish'): DriftIssue[] {
   const severity = mode === 'publish' ? 'error' : 'warning';
-  if (doc.frontmatter.type === 'PRD') return [...checkFeatureBusinessCase(doc, docs, byId), ...checkPrd(doc, severity)];
-  if (doc.frontmatter.type === 'FR') return [...checkFeatureBusinessCase(doc, docs, byId), ...checkFeatureRequest(doc, severity)];
+  if (doc.frontmatter.type === 'PRD') return [...checkFeatureBusinessCase(doc, docs, byId, mode), ...checkPrd(doc, severity), ...checkFeatureDesign(doc, docs)];
+  if (doc.frontmatter.type === 'FR')
+    return [...checkFeatureBusinessCase(doc, docs, byId, mode), ...checkFeatureRequest(doc, severity), ...checkFeatureDesign(doc, docs)];
   if (hasJustification(doc, docs)) return [];
   return [
     violation(
@@ -187,8 +299,10 @@ function checkBlueprint(doc: BlueprintDoc, byId: Map<string, ParsedDoc>): DriftI
   const issues: DriftIssue[] = [];
   // `blueprintSchema` already requires a non-empty `architects`, so a parsed-from-disk document never trips
   // this; it stays as a nominal rule (defense in depth) for ParsedDocs handed in by an engine, not the parser.
+  // SDD-125 D3: its own drift kind (`blueprint_without_feature`) so the report -- and the station attribution
+  // that puts it in `diseno_tecnico` -- can name the hole instead of a generic violation.
   if (fm.architects.length === 0) {
-    issues.push(violation(doc.node.id, 'error', `${doc.node.id} needs a non-empty "architects": a blueprint must say which PRD/FR it designs`));
+    issues.push(violation(doc.node.id, 'error', `${doc.node.id} needs a non-empty "architects": a blueprint must say which PRD/FR it designs`, 'blueprint_without_feature'));
   }
   if (fm.impacts_paths.length === 0) {
     issues.push(violation(doc.node.id, 'error', `${doc.node.id} needs a non-empty "impacts_paths": a blueprint must declare the code it governs`));
