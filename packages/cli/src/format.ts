@@ -1,4 +1,4 @@
-import type { DriftIssue, RefreshReport, SearchHit, SuccessMetrics, UnmeasuredReason } from '@prdm/core';
+import { SLOW_RESOLUTION_ITEMS, type DriftIssue, type RefreshReport, type SearchHit, type SuccessMetrics, type UnmeasuredReason } from '@prdm/core';
 
 const ISSUE_MARKER: Record<DriftIssue['severity'], string> = { error: '✗', warning: '⚠' };
 
@@ -75,6 +75,16 @@ function formatUnmeasured({ total, workOrders }: SuccessMetrics['agentHumanEffic
     .map(({ reason, ids }) => `  ordenes sin medicion: ${total} (${UNMEASURED_REASON_COPY[reason]}: ${ids.join(', ')})`);
 }
 
+function formatSlowest(efficiency: SuccessMetrics['agentHumanEfficiency']): string[] {
+  const { slowest, p90ResolutionHours } = efficiency;
+  const worst = slowest.items[0];
+  const worstTail = worst ? ` · peor ${worst.id} ${formatHours(worst.resolutionHours)}` : '';
+  return [
+    `  cola: ${slowest.total} > ${slowest.thresholdHours} h · p90 ${formatHours(p90ResolutionHours)}${worstTail}`,
+    ...slowest.items.slice(0, SLOW_RESOLUTION_ITEMS).map((o) => `    ${o.id}  ${formatHours(o.resolutionHours)}`),
+  ];
+}
+
 const UNTRACED_ROWS_SHOWN = 20;
 
 function formatUntracedCommits(traceability: SuccessMetrics['traceability']): string[] {
@@ -95,6 +105,7 @@ export function formatMetrics(metrics: SuccessMetrics): string {
     `  avg resolution: ${formatHours(efficiency.avgResolutionHours)}`,
     `  median resolution: ${formatHours(efficiency.medianResolutionHours)}`,
     ...formatUnmeasured(efficiency.unmeasured),
+    ...formatSlowest(efficiency),
     'Pending Queue:',
     `  total: ${queue.total} (unassigned: ${queue.unassigned})`,
     `  oldest: ${formatAge(queue.oldestDays)}`,

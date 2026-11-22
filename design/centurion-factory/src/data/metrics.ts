@@ -12,6 +12,21 @@ export const METRICS: Metrics = {
     measuredWorkOrders: 482,
     avgResolutionHours: 2.35,
     medianResolutionHours: 0.09,
+    // SDD-094 (WO-720): the real shape measured on the mirror — p90 373,09 h, max 416,91 h, 115 orders
+    // over a day. The worst five are the same ones the canvas drawer lists.
+    p90ResolutionHours: 373.09,
+    maxResolutionHours: 416.91,
+    slowest: {
+      thresholdHours: 24,
+      total: 115,
+      items: [
+        { id: 'WO-486', claimedAt: '2026-08-01T10:00:00.000Z', completedAt: '2026-08-18T18:54:36.000Z', resolutionHours: 416.91 },
+        { id: 'WO-487', claimedAt: '2026-08-02T09:00:00.000Z', completedAt: '2026-08-16T09:00:00.000Z', resolutionHours: 336 },
+        { id: 'WO-488', claimedAt: '2026-08-03T12:00:00.000Z', completedAt: '2026-08-16T22:00:00.000Z', resolutionHours: 322 },
+        { id: 'WO-489', claimedAt: '2026-08-04T08:00:00.000Z', completedAt: '2026-08-17T10:00:00.000Z', resolutionHours: 314 },
+        { id: 'WO-490', claimedAt: '2026-08-05T10:00:00.000Z', completedAt: '2026-08-18T10:00:00.000Z', resolutionHours: 312 },
+      ],
+    },
     // WO-683 (SDD-085): the WO-672 note, one order per reason, mixing null and set dates.
     unmeasured: {
       total: 4,

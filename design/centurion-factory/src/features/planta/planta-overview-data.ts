@@ -1,9 +1,8 @@
 /** Data selection for the Planta KPI strip and the "Drift reciente" / "Órdenes en curso" preview lists (WO-282). */
 import { DRIFT_ISSUES, METRICS, WORK_ORDERS } from '../../data';
 import type { DriftIssue, Metrics, UntracedCommit, WorkOrder } from '../../data';
-import { formatMedianResolution, formatPercent } from './planta-format';
-
 import { formatDateTimeEs } from '../../lib/format-date';
+import { formatHours, formatMedianResolution, formatPercent, slowThresholdCopy } from './planta-format';
 
 /** WO-669 (SDD-080 D6): what a commit KPI's drawer shows. The copy is the app's own, word for word. */
 export interface PlantaKpiDetail {
@@ -30,6 +29,17 @@ export interface PlantaKpi {
   readonly detail?: PlantaKpiDetail;
   /** Unmeasured-orders note (first KPI only, and only when there are unmeasured orders). */
   readonly note?: PlantaKpiNote;
+  /** SDD-094 (WO-720): the slow-orders queue (first KPI only, and only when the tail is not empty). */
+  readonly queue?: PlantaKpiQueue;
+}
+
+/** SDD-094 (WO-720): the long tail under the median — how many orders took over a day and its worst ones. */
+export interface PlantaKpiQueue {
+  readonly line: string;
+  readonly control: string;
+  readonly definition: string;
+  readonly rows: readonly { readonly id: string; readonly claimedAt: string; readonly completedAt: string; readonly hours: string }[];
+  readonly truncatedCopy: string | null;
 }
 
 const SHORT_SHA_LENGTH = 7;
@@ -105,11 +115,40 @@ function buildUnmeasuredNote(efficiency: Metrics['agentHumanEfficiency']): Plant
   };
 }
 
+/** Read defensively, like the app: no `slowest`, a non-numeric `total` or `total === 0` means no queue. */
+function buildQueue(efficiency: Metrics['agentHumanEfficiency']): PlantaKpiQueue | undefined {
+  const slowest = efficiency.slowest as Metrics['agentHumanEfficiency']['slowest'] | undefined;
+  const total = slowest?.total;
+  if (typeof total !== 'number' || !(total > 0)) return undefined;
+  const orders = Array.isArray(slowest?.items) ? slowest.items : [];
+  const worst = orders[0];
+  const threshold = slowThresholdCopy(typeof slowest?.thresholdHours === 'number' ? slowest.thresholdHours : 24);
+  const counted = total === 1 ? '1 orden tardó' : `${COUNT_FORMATTER.format(total)} órdenes tardaron`;
+  return {
+    line: `${counted} ${threshold}${worst ? `; la peor, ${worst.id} · ${formatHours(worst.resolutionHours)}` : ''}`,
+    control: total === 1 ? 'Ver la 1 orden' : `Ver las ${COUNT_FORMATTER.format(total)} órdenes`,
+    definition: `Órdenes completadas que tardaron ${threshold} entre el reclamo y el cierre, de la más lenta a la más rápida.`,
+    rows: orders.map((order) => ({
+      id: order.id,
+      claimedAt: formatInstant(order.claimedAt),
+      completedAt: formatInstant(order.completedAt),
+      hours: formatHours(order.resolutionHours),
+    })),
+    truncatedCopy:
+      total > orders.length
+        ? orders.length === 1
+          ? `Se muestra la 1 más lenta de ${COUNT_FORMATTER.format(total)}.`
+          : `Se muestran las ${COUNT_FORMATTER.format(orders.length)} más lentas de ${COUNT_FORMATTER.format(total)}.`
+        : null,
+  };
+}
+
 /** The 5 KPIs, left→right in product order (WO-648): the two commit KPIs stay adjacent, refs last. */
 export function buildKpis(metrics = METRICS): readonly PlantaKpi[] {
   const note = buildUnmeasuredNote(metrics.agentHumanEfficiency);
+  const queue = buildQueue(metrics.agentHumanEfficiency);
   return [
-    { label: 'Resolución mediana de una orden', value: formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours), ...(note ? { note } : {}) },
+    { label: 'Resolución mediana de una orden', value: formatMedianResolution(metrics.agentHumanEfficiency.medianResolutionHours), ...(note ? { note } : {}), ...(queue ? { queue } : {}) },
     { label: 'Código sincronizado', value: formatPercent(metrics.systemIntegrity.syncedPercent) },
     { label: 'Features trazadas', value: formatPercent(metrics.traceability.featurePercent) },
     commitKpi('Commits trazados', 'traced', metrics.traceability.commitsTraced, formatPercent(metrics.traceability.commitPercent), metrics.traceability),

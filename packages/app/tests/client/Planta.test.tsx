@@ -10,7 +10,7 @@ import { Planta } from '../../src/routes/Planta.js';
 import { makeProjectShellContext, makeProjectOverview } from './fixtures.js';
 
 const METRICS: SuccessMetricsDto = {
-  agentHumanEfficiency: { completedWorkOrders: 10, measuredWorkOrders: 10, avgResolutionHours: 0.1, medianResolutionHours: 0.083, unmeasured: { total: 0, workOrders: [] } },
+  agentHumanEfficiency: { completedWorkOrders: 10, measuredWorkOrders: 10, avgResolutionHours: 0.1, medianResolutionHours: 0.083, p90ResolutionHours: 1, maxResolutionHours: 1, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 100, governedSynced: 99, syncedPercent: 99.6 },
   traceability: { featuresTotal: 4, featuresTraced: 4, orphanFeatures: [], featurePercent: 100, commitsTotal: 10, commitsWithRefs: 7, commitsTraced: 6, commitPercent: 66.4, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
 };
@@ -41,6 +41,9 @@ const METRICS_WITH_UNMEASURED: SuccessMetricsDto = {
     measuredWorkOrders: 482,
     avgResolutionHours: 0.1,
     medianResolutionHours: 0.083,
+    p90ResolutionHours: 1,
+    maxResolutionHours: 1,
+    slowest: { thresholdHours: 24, total: 0, items: [] },
     unmeasured: {
       total: 4,
       workOrders: [
@@ -54,7 +57,7 @@ const METRICS_WITH_UNMEASURED: SuccessMetricsDto = {
 };
 
 const EMPTY_METRICS: SuccessMetricsDto = {
-  agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, unmeasured: { total: 0, workOrders: [] } },
+  agentHumanEfficiency: { completedWorkOrders: 0, measuredWorkOrders: 0, avgResolutionHours: null, medianResolutionHours: null, p90ResolutionHours: null, maxResolutionHours: null, slowest: { thresholdHours: 24, total: 0, items: [] }, unmeasured: { total: 0, workOrders: [] } },
   systemIntegrity: { governedTotal: 0, governedSynced: 0, syncedPercent: null },
   traceability: { featuresTotal: 0, featuresTraced: 0, orphanFeatures: [], featurePercent: null, commitsTotal: 0, commitsWithRefs: 0, commitsTraced: 0, commitPercent: null, untracedCommits: { total: 0, danglingRefs: 0, truncated: false, items: [] } },
 };
@@ -608,6 +611,151 @@ describe('Planta', () => {
       renderPlanta();
       await screen.findByText('6/10');
       expect(screen.queryByRole('button', { name: /^Commits/ })).toBeNull();
+    });
+  });
+
+  describe('cola de órdenes lentas (WO-720, SDD-094 D4/D5)', () => {
+    /** The real shape: 115 orders over 24 h, the worst four with 17,4 d / 14 d / 47,5 h / 24,5 h. */
+    const SLOWEST_METRICS: SuccessMetricsDto = {
+      ...METRICS,
+      agentHumanEfficiency: {
+        completedWorkOrders: 486,
+        measuredWorkOrders: 482,
+        avgResolutionHours: 63.01,
+        medianResolutionHours: 0.43,
+        p90ResolutionHours: 373.09,
+        maxResolutionHours: 416.91,
+        slowest: {
+          thresholdHours: 24,
+          total: 115,
+          items: [
+            { id: 'WO-486', claimedAt: '2026-08-01T10:00:00.000Z', completedAt: '2026-08-18T18:54:36.000Z', resolutionHours: 416.91 },
+            { id: 'WO-487', claimedAt: '2026-08-02T09:00:00.000Z', completedAt: '2026-08-16T09:00:00.000Z', resolutionHours: 336 },
+            { id: 'WO-490', claimedAt: '2026-09-01T10:00:00.000Z', completedAt: '2026-09-03T09:30:00.000Z', resolutionHours: 47.5 },
+            { id: 'WO-495', claimedAt: '2026-09-02T10:00:00.000Z', completedAt: '2026-09-03T10:30:00.000Z', resolutionHours: 24.5 },
+          ],
+        },
+        unmeasured: { total: 0, workOrders: [] },
+      },
+    };
+
+    const QUEUE_LINE = '115 órdenes tardaron más de un día; la peor, WO-486 · 17,4 d';
+
+    function mockSlow(metrics: SuccessMetricsDto = SLOWEST_METRICS): void {
+      vi.spyOn(client, 'getLineBoard').mockResolvedValue(LINE_BOARD);
+      vi.spyOn(client, 'getMetrics').mockResolvedValue(metrics);
+    }
+
+    it('suma la línea de cola bajo el KPI y su control abre el drawer con una fila por orden', async () => {
+      mockSlow();
+      renderPlanta();
+
+      expect(await screen.findByText(QUEUE_LINE)).toBeTruthy();
+      const button = screen.getByRole('button', { name: 'Ver las 115 órdenes' });
+      expect(button.getAttribute('aria-expanded')).toBe('false');
+      expect(document.getElementById(button.getAttribute('aria-controls')!)).toBeTruthy();
+
+      await userEvent.click(button);
+      expect(button.getAttribute('aria-expanded')).toBe('true');
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByRole('heading', { name: 'Órdenes lentas' })).toBeTruthy();
+
+      const headers = within(dialog).getAllByRole('columnheader');
+      expect(headers.map((header) => header.textContent)).toEqual(['Orden', 'Reclamo', 'Cierre', 'Horas']);
+      for (const header of headers) expect(header.getAttribute('scope')).toBe('col');
+
+      expect(within(dialog).getAllByRole('row')).toHaveLength(5);
+      const first = within(dialog).getByRole('link', { name: 'WO-486' });
+      expect(first.getAttribute('href')).toBe('/o/acme/p/web/ordenes?q=WO-486');
+      const row = first.closest('tr')!;
+      expect(row.textContent).toContain('01/08/2026, 10:00');
+      expect(row.textContent).toContain('18/08/2026, 18:54');
+      expect(row.textContent).toContain('17,4 d');
+    });
+
+    it('formatea las horas en días desde 48 h y en horas por debajo (SDD-094 D5)', async () => {
+      mockSlow();
+      renderPlanta();
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Ver las 115 órdenes' }));
+      const dialog = await screen.findByRole('dialog');
+      const hours = (id: string): string => within(within(dialog).getByRole('link', { name: id }).closest('tr')!).getAllByRole('cell')[3]!.textContent ?? '';
+      expect(hours('WO-486')).toBe('17,4 d');
+      expect(hours('WO-487')).toBe('14,0 d');
+      expect(hours('WO-490')).toBe('47,5 h');
+      expect(hours('WO-495')).toBe('24,5 h');
+    });
+
+    it('la tabla scrollea en un grupo con nombre y entra en el orden de tabulación (scrollable-region-focusable)', async () => {
+      mockSlow();
+      renderPlanta();
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Ver las 115 órdenes' }));
+      const dialog = await screen.findByRole('dialog');
+      const group = within(dialog).getByRole('group', { name: 'Órdenes de la lista' });
+      expect(group.getAttribute('tabindex')).toBe('0');
+    });
+
+    it('con slowest.total === 0 no renderiza ni la línea ni el control', async () => {
+      mockSlow(METRICS);
+      renderPlanta();
+
+      await screen.findByText('5 min');
+      expect(screen.queryByText(/tardaron más de un día/)).toBeNull();
+      expect(screen.queryByRole('button', { name: /^Ver las? .* órdenes$/ })).toBeNull();
+    });
+
+    it('usa el singular con una sola orden', async () => {
+      const efficiency = SLOWEST_METRICS.agentHumanEfficiency;
+      mockSlow({ ...SLOWEST_METRICS, agentHumanEfficiency: { ...efficiency, slowest: { thresholdHours: 24, total: 1, items: [efficiency.slowest.items[0]!] } } });
+      renderPlanta();
+
+      expect(await screen.findByText('1 orden tardó más de un día; la peor, WO-486 · 17,4 d')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Ver la 1 orden' })).toBeTruthy();
+    });
+
+    it('agrupa el conteo con Intl es-AR y declara el recorte de la lista', async () => {
+      const efficiency = SLOWEST_METRICS.agentHumanEfficiency;
+      mockSlow({ ...SLOWEST_METRICS, agentHumanEfficiency: { ...efficiency, slowest: { ...efficiency.slowest, total: 1234 } } });
+      renderPlanta();
+
+      expect(await screen.findByText('1.234 órdenes tardaron más de un día; la peor, WO-486 · 17,4 d')).toBeTruthy();
+      await userEvent.click(screen.getByRole('button', { name: 'Ver las 1.234 órdenes' }));
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByText('Se muestran las 4 más lentas de 1.234.')).toBeTruthy();
+    });
+
+    it('sin la lista muestra sólo la línea y no ofrece el control', async () => {
+      const efficiency = SLOWEST_METRICS.agentHumanEfficiency;
+      mockSlow({ ...SLOWEST_METRICS, agentHumanEfficiency: { ...efficiency, slowest: { thresholdHours: 24, total: 115 } } as unknown as SuccessMetricsDto['agentHumanEfficiency'] });
+      renderPlanta();
+
+      expect(await screen.findByText('115 órdenes tardaron más de un día')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /^Ver las? .* órdenes$/ })).toBeNull();
+    });
+
+    it('aguanta un server anterior a SDD-094, que no manda slowest', async () => {
+      const { slowest: _omitted, ...legacy } = SLOWEST_METRICS.agentHumanEfficiency;
+      mockSlow({ ...SLOWEST_METRICS, agentHumanEfficiency: legacy } as unknown as SuccessMetricsDto);
+      renderPlanta();
+
+      expect(await screen.findByText('26 min')).toBeTruthy();
+      expect(screen.queryByText(/tardaron más de un día/)).toBeNull();
+    });
+
+    it('Escape cierra el drawer y devuelve el foco al control', async () => {
+      mockSlow();
+      renderPlanta();
+      const button = await screen.findByRole('button', { name: 'Ver las 115 órdenes' });
+      await userEvent.click(button);
+
+      act(() => {
+        screen.getByRole('dialog').dispatchEvent(new Event('cancel', { cancelable: true }));
+      });
+
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(button.getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(button);
     });
   });
 
