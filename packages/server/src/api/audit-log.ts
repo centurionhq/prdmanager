@@ -59,10 +59,17 @@ function distinctActorIds(records: readonly AuditLogRecord[], actorType: string)
   return [...new Set(records.filter((r) => r.actorType === actorType).map((r) => r.actorId))];
 }
 
-/** Resolves the display name of every actor on a page with at most two bounded queries (users, tokens).
- * Keys are `"<actorType>:<actorId>"`; an actor with no row (deleted, unknown type) is simply absent. */
+const AGENT_ACTOR_PREFIX = 'agent:';
+
+/** Resolves the display name of every actor on a page with at most two bounded queries (users, tokens);
+ * agents need no query: their name is the `actorId` without the `agent:` prefix.
+ * Keys are `"<actorType>:<actorId>"`; an actor with no row (deleted, unknown type) or an empty agent name is simply absent. */
 async function resolveActorNames(pool: Pool, orgId: string, records: readonly AuditLogRecord[]): Promise<Map<string, string>> {
   const names = new Map<string, string>();
+  for (const agentId of distinctActorIds(records, 'agent')) {
+    const name = agentId.startsWith(AGENT_ACTOR_PREFIX) ? agentId.slice(AGENT_ACTOR_PREFIX.length) : agentId;
+    if (name !== '') names.set(`agent:${agentId}`, name);
+  }
   const userIds = distinctActorIds(records, 'user');
   const tokenIds = distinctActorIds(records, 'token');
   if (userIds.length > 0) {

@@ -179,6 +179,11 @@ describe('GET .../audit-log (project and organization) (WO-342)', () => {
     const audit = createTenantDb(pg.appPool).forOrg(org.id).auditLog;
     await audit.record({ projectId: project.id, actorType: 'token', actorId: tokenId, action: 'mcp.tool_call', target: 'search_nodes', metadata: { tool: 'search_nodes' } });
     await audit.record({ projectId: project.id, actorType: 'user', actorId: 'no-such-user-id', action: 'ghost.action', target: 'x', metadata: {} });
+    await pg.ownerPool.query(
+      `INSERT INTO "audit_log" (org_id, project_id, actor_type, actor_id, action, target, metadata)
+       VALUES ($1, $2, 'agent', 'agent:prdm-reviewer', 'document.impacts_paths_synced', 'SDD-009', '{}')`,
+      [org.id, project.id],
+    );
     const { rows } = await pg.ownerPool.query<{ name: string }>(`SELECT name FROM "user" WHERE id = $1`, [owner.id]);
     const ownerName = rows[0]!.name;
 
@@ -192,6 +197,11 @@ describe('GET .../audit-log (project and organization) (WO-342)', () => {
       expect(byToken.actor.id).toBe(tokenId);
       expect(byToken.actor.name).toBe('ci token');
       expect(byToken.actor.name).not.toBe(tokenId);
+
+      const byAgent = entries.find((e) => e.action === 'document.impacts_paths_synced')!;
+      expect(byAgent.actor).toEqual({ type: 'agent', id: 'agent:prdm-reviewer', name: 'prdm-reviewer' });
+      expect(byAgent.actor.name).not.toContain('agent:');
+      expect(byAgent.actor.name).not.toBe(byAgent.actor.id);
 
       const ghost = entries.find((e) => e.action === 'ghost.action')!;
       expect(ghost.actor.id).toBe('no-such-user-id');
