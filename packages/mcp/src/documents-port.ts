@@ -78,6 +78,8 @@ export interface RemoteImpactsPathsDrift {
   blueprintId: string;
   currentPatterns: readonly string[];
   suggestedAdditions: readonly string[];
+  /** SDD-119 D4: tocados y no cubiertos, pero ya declarados verbatim por otro Blueprint (`by`). */
+  alreadyGoverned: readonly { path: string; by: readonly string[] }[];
   basedOnCommits: readonly string[];
   /** SDD-072 WO-642: patterns of `currentPatterns` that look surplus, each with its evidence (the portable
    * DTO lives here, so the port can return it without a cast). */
