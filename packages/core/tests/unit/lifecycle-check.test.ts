@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { doc } from '@prdm/testkit';
 import type { ParsedDoc } from '../../src/domain/schema.js';
 import { BC_REQUIRED_SECTIONS } from '../../src/domain/index.js';
-import { checkLifecycle, type LifecycleContext } from '../../src/lifecycle/check.js';
+import { checkLifecycle, countPassageExceptions, passageException, passageExceptions, type LifecycleContext } from '../../src/lifecycle/check.js';
 
 const noGrandfathering: LifecycleContext = { grandfathered: [] };
 
@@ -276,6 +276,89 @@ describe('checkLifecycle — R3: el FR declara su PRD (WO-806 / SDD-125 D1)', ()
     const issues = checkLifecycle([prdApproved('PRD-002'), bcApproved()], publishCtx);
     // sanity: la regla nueva sólo aplica a FR; un PRD con su BC aprobado no gana issues
     expect(issues.filter((i) => i.nodeId === 'PRD-002')).toEqual([]);
+  });
+});
+
+describe('checkLifecycle — excepción de pasaje declarada (WO-807 / SDD-125 D2)', () => {
+  const EXCEPTION_REASON = 'un solo diseño, sin cambios de modelo de datos ni de contrato público';
+  const WITH_EXCEPTION = `${FR_COMPLETE_BODY}\n## Excepción de pasaje\n\n${EXCEPTION_REASON}\n`;
+  const EXCEPTION_NO_REASON = `${FR_COMPLETE_BODY}\n## Excepción de pasaje\n`;
+  const frWithBody = (body: string, extra = 'justified_by: [BC-001]'): ParsedDoc => doc(`id: FR-001\ntype: FR\ntitle: Request\n${extra}`, body);
+  const publishCtx: LifecycleContext = { ...noGrandfathering, mode: 'publish' };
+  const frIssues = (docs: ParsedDoc[], ctx: LifecycleContext = publishCtx) => checkLifecycle(docs, ctx).filter((i) => i.nodeId === 'FR-001');
+
+  test('sin la sección no hay excepción', () => {
+    expect(passageException(frWithBody(FR_COMPLETE_BODY))).toBeNull();
+  });
+
+  test('una sección vacía no es una excepción (no hay motivo)', () => {
+    expect(passageException(frWithBody(EXCEPTION_NO_REASON))).toBeNull();
+  });
+
+  test('con un motivo no vacío devuelve el issue info con su motivo', () => {
+    expect(passageException(frWithBody(WITH_EXCEPTION))).toEqual({
+      kind: 'passage_exception',
+      severity: 'info',
+      nodeId: 'FR-001',
+      reason: EXCEPTION_REASON,
+      message: `FR-001 declares a passage exception (R3): "${EXCEPTION_REASON}"`,
+    });
+  });
+
+  test('el motivo puede venir en una línea de lista', () => {
+    const body = `${FR_COMPLETE_BODY}\n## Excepción de pasaje\n\n- ${EXCEPTION_REASON}\n`;
+    expect(passageException(frWithBody(body))?.reason).toBe(EXCEPTION_REASON);
+  });
+
+  test('un PRD con la sección no declara una excepción: es una regla sólo de FR', () => {
+    const prdDoc = doc('id: PRD-002\ntype: PRD\ntitle: Product\njustified_by: [BC-001]\nstatus: approved', `${PRD_COMPLETE_BODY}\n## Excepción de pasaje\n\n${EXCEPTION_REASON}\n`);
+    expect(passageException(prdDoc)).toBeNull();
+  });
+
+  test('sin la sección, el FR con sólo BC no publica', () => {
+    const issues = frIssues([frWithBody(FR_COMPLETE_BODY), bcApproved()]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ severity: 'error' });
+    expect(issues[0]?.message).toMatch(/not by a PRD/);
+  });
+
+  test('con la excepción declarada el FR con sólo BC publica, también en edición', () => {
+    expect(frIssues([frWithBody(WITH_EXCEPTION), bcApproved()])).toEqual([]);
+    expect(frIssues([frWithBody(WITH_EXCEPTION), bcApproved()], noGrandfathering)).toEqual([]);
+  });
+
+  test('una sección sin motivo no exime: el FR con sólo BC sigue sin publicar', () => {
+    const issues = frIssues([frWithBody(EXCEPTION_NO_REASON), bcApproved()]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toMatch(/not by a PRD/);
+  });
+
+  test('la excepción no reemplaza el BC: sin BC el FR sigue fallando y el mensaje nombra el BC', () => {
+    const issues = frIssues([frWithBody(WITH_EXCEPTION, '')]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('BC');
+    expect(issues[0]?.message).not.toContain('PRD');
+  });
+
+  test('la excepción no tapa un BC no aprobado', () => {
+    const draftBc = doc('id: BC-001\ntype: BC\ntitle: Business case\nstatus: draft', BC_ALL_SECTIONS);
+    const issues = frIssues([frWithBody(WITH_EXCEPTION), draftBc]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('BC-001');
+  });
+
+  test('un PRD linkeado sigue exigiendo estar aprobado aunque la excepción esté declarada', () => {
+    const issues = frIssues([frWithBody(WITH_EXCEPTION, 'justified_by: [BC-001, PRD-002]'), bcApproved(), prdApproved('PRD-002', 'proposed')]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('PRD-002');
+  });
+
+  test('passageExceptions/countPassageExceptions cuentan sólo los FR con excepción declarada', () => {
+    const docs = [frWithBody(WITH_EXCEPTION), prdApproved(), bcApproved()];
+    expect(passageExceptions(docs)).toHaveLength(1);
+    expect(countPassageExceptions(docs)).toBe(1);
+    expect(passageExceptions([prdApproved(), bcApproved(), frWithBody(FR_COMPLETE_BODY)])).toEqual([]);
+    expect(countPassageExceptions([frWithBody(EXCEPTION_NO_REASON)])).toBe(0);
   });
 });
 

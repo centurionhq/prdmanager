@@ -24,6 +24,60 @@ const TASKS_HEADING = /^##\s+(Tareas|Tasks)\s*$/im;
 const NEXT_HEADING = /^##\s+.+$/m;
 const CHECKLIST_LINE = /^[-*]\s*\[[ xX]\]/;
 
+/**
+ * SDD-125 D2 (R3): the single declared passage exception, read as data from the FR body's own
+ * `## Excepción de pasaje` section. PRD-044 is explicit that it is "dato, no permiso implícito": an empty
+ * section (no reason) is *not* an exception and does not exempt the FR from declaring its PRD, and it never
+ * replaces the BC gate. Severity is always `info`: it is counted and shown, never blocking -- the count is
+ * what the capacities panel reads, so a visible exception never becomes hidden debt.
+ */
+export interface PassageException {
+  kind: 'passage_exception';
+  severity: 'info';
+  nodeId: string;
+  /** The non-empty line of the section, with any leading list/quote marker stripped. */
+  reason: string;
+  message: string;
+}
+
+const PASSAGE_EXCEPTION_HEADING = /^##\s+Excepción de pasaje\s*$/im;
+
+/** The declared passage exception of a Feature Request, or `null` (absent section, empty section, or any
+ * other document kind -- R3's exception is FR-only). */
+export function passageException(doc: ParsedDoc): PassageException | null {
+  if (doc.frontmatter.type !== 'FR') return null;
+  const body = doc.node.body;
+  const heading = PASSAGE_EXCEPTION_HEADING.exec(body);
+  if (!heading) return null;
+  const rest = body.slice(heading.index + heading[0].length);
+  const next = NEXT_HEADING.exec(rest);
+  const section = next ? rest.slice(0, next.index) : rest;
+  const line = section
+    .split('\n')
+    .map((candidate) => candidate.trim())
+    .find((candidate) => candidate.length > 0);
+  if (line === undefined) return null;
+  const reason = line.replace(/^[-*]\s+/, '').replace(/^>\s*/, '').trim();
+  if (reason.length === 0) return null;
+  return {
+    kind: 'passage_exception',
+    severity: 'info',
+    nodeId: doc.node.id,
+    reason,
+    message: `${doc.node.id} declares a passage exception (R3): "${reason}"`,
+  };
+}
+
+/** Every declared passage exception among `docs` -- the indicator the capacities panel counts (SDD-126). */
+export function passageExceptions(docs: readonly ParsedDoc[]): PassageException[] {
+  return docs.map(passageException).filter((exception): exception is PassageException => exception !== null);
+}
+
+/** How many documents declare the R3 exception. */
+export function countPassageExceptions(docs: readonly ParsedDoc[]): number {
+  return passageExceptions(docs).length;
+}
+
 /** True when `body` has a `## Tareas`/`## Tasks` heading whose section contains at least one `- [ ]`/`- [x]` line. */
 function hasTasksChecklist(body: string): boolean {
   const heading = TASKS_HEADING.exec(body);
@@ -139,7 +193,10 @@ function checkFeatureBusinessCase(doc: FeatureDoc, docs: readonly ParsedDoc[], b
   if (doc.frontmatter.type !== 'FR') return [];
   const severity = mode === 'publish' ? 'error' : 'warning';
   const prd = justifyingPrd(doc, byId);
+  // SDD-125 D2: the single declared exception (a non-empty `## Excepción de pasaje` reason) accepts the FR
+  // without a PRD. It is read as data; it never exempts the BC rule above, and an empty section is no exception.
   if (!prd) {
+    if (passageException(doc) !== null) return [];
     return [
       violation(
         doc.node.id,
