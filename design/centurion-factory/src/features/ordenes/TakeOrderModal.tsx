@@ -29,6 +29,7 @@ export function TakeOrderModal({ open, orderId, handle, onClose, onConfirm }: Ta
   const groupName = useId();
   const noteId = useId();
   const inputId = useId();
+  const helpId = useId();
   const errorId = useId();
 
   // Without a handle «Yo» is not an option: the agent form is the only one left.
@@ -112,11 +113,10 @@ export function TakeOrderModal({ open, orderId, handle, onClose, onConfirm }: Ta
             className={styles.input}
             value={agentName}
             onChange={handleNameChange}
-            placeholder="claude"
             aria-invalid={nameError === null ? undefined : true}
-            aria-describedby={nameError === null ? undefined : errorId}
+            aria-describedby={[helpId, nameError === null ? null : errorId].filter(Boolean).join(' ') || undefined}
           />
-          <span className={styles.help}>
+          <span id={helpId} className={styles.help}>
             Se asigna como <span className="id">agent:&lt;nombre&gt;</span>.
           </span>
           {nameError === null ? null : (

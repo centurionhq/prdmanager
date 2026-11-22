@@ -57,6 +57,57 @@ describe('TakeOrderModal', () => {
     expect((within(dialog).getByRole('radio', { name: 'Yo (sin handle)' }) as HTMLInputElement).checked).toBe(false);
   });
 
+  function describedBy(input: HTMLElement): HTMLElement[] {
+    const ids = (input.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean);
+    return ids.map((id) => {
+      const el = document.getElementById(id);
+      expect(el).not.toBeNull();
+      return el as HTMLElement;
+    });
+  }
+
+  it('describes the agent field with its help text even before there is an error', async () => {
+    const user = userEvent.setup();
+    const { dialog } = renderModal('ana');
+    await user.click(within(dialog).getByRole('radio', { name: /Un agente/ }));
+    const input = within(dialog).getByRole('textbox', { name: 'Nombre del agente' });
+    const described = describedBy(input);
+    expect(described).toHaveLength(1);
+    const text = described.map((el) => el.textContent).join(' ');
+    expect(text).toContain('Se asigna como');
+    expect(text).toContain('agent:');
+    expect(within(dialog).queryByRole('alert')).toBeNull();
+  });
+
+  it('while the error is shown the field is described by the help and the error', async () => {
+    const user = userEvent.setup();
+    const { dialog } = renderModal('ana');
+    await user.click(within(dialog).getByRole('radio', { name: /Un agente/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Tomar orden' }));
+    const input = within(dialog).getByRole('textbox', { name: 'Nombre del agente' });
+    const alert = within(dialog).getByRole('alert');
+    const described = describedBy(input);
+    expect(described).toHaveLength(2);
+    expect(described).toContain(alert);
+    const help = described.find((el) => el !== alert) as HTMLElement;
+    expect(help.textContent).toContain('Se asigna como');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+
+    await user.type(input, 'claude');
+    const after = describedBy(input);
+    expect(after).toHaveLength(1);
+    expect(after[0]).toBe(help);
+    expect(within(dialog).queryByRole('alert')).toBeNull();
+  });
+
+  it('the agent field has no placeholder', async () => {
+    const user = userEvent.setup();
+    const { dialog } = renderModal('ana');
+    await user.click(within(dialog).getByRole('radio', { name: /Un agente/ }));
+    const input = within(dialog).getByRole('textbox', { name: 'Nombre del agente' });
+    expect(input.getAttribute('placeholder')).toBeNull();
+  });
+
   it('drops what was typed when the modal is closed, so reopening it starts clean', async () => {
     const user = userEvent.setup();
     const { dialog, onClose } = renderModal('ana');
