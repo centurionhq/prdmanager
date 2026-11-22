@@ -9,7 +9,7 @@
  * opens the way to Construir.
  */
 import { ChevronDown } from 'lucide-react';
-import { useMemo, useRef, useState, type ChangeEvent, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactElement, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { WorkOrderPage, WorkOrderSummary } from '@prdm/core';
 import { batchWorkOrders, getProfile, queryWorkOrders } from '../api/client.js';
@@ -47,7 +47,9 @@ import {
   ORDENES_PAGE_SIZE,
   ORDENES_STATUS_OPTIONS,
   parseActorFilter,
+  parseBlueprintFilter,
   parsePage,
+  parseQueryText,
   parseStatusFilter,
   sortWorkOrders,
   toWorkOrderQuery,
@@ -159,11 +161,13 @@ function OrdenesContent(): ReactElement {
   const [batchError, setBatchError] = useState<string | null>(null);
   const [batchFailures, setBatchFailures] = useState<readonly BatchFailure[]>([]);
 
-  // The URL is the source of truth for every filter and the page (SDD-064 D6).
+  // The URL is the source of truth for every filter and the page (SDD-064 D6), and every value is
+  // narrowed here to what the server accepts: a hand-edited URL falls back to the default instead of
+  // turning the screen into the error plate of a `400 invalid query`.
   const status = parseStatusFilter(searchParams.get('status'));
-  const blueprintId = searchParams.get('blueprint') ?? ORDENES_BLUEPRINT_ALL;
+  const blueprintId = parseBlueprintFilter(searchParams.get('blueprint'));
   const actor = parseActorFilter(searchParams.get('actor'));
-  const query = searchParams.get('q') ?? '';
+  const query = parseQueryText(searchParams.get('q'));
   const page = parsePage(searchParams.get('page'));
 
   const profileQuery = useApiQuery('profile', () => getProfile(), []);
@@ -187,6 +191,22 @@ function OrdenesContent(): ReactElement {
   const total = data?.total ?? 0;
   const rows = useMemo(() => sortWorkOrders(items, sort), [items, sort]);
   const selectedIds = useMemo(() => [...selected].sort(), [selected]);
+  const totalPages = Math.max(1, Math.ceil(total / ORDENES_PAGE_SIZE));
+
+  // A `page` past the last one would paint an empty table under «Página 99 de 3». The URL is corrected to
+  // the last real page and the query follows it, because the URL stays the source of truth (SDD-064 D6).
+  useEffect(() => {
+    if (data === undefined || page <= totalPages) return;
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        if (totalPages > 1) next.set('page', String(totalPages));
+        else next.delete('page');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [data, page, totalPages, setSearchParams]);
 
   const statusOptions = ORDENES_STATUS_OPTIONS.map((option) => ({
     value: option.value,
@@ -285,7 +305,6 @@ function OrdenesContent(): ReactElement {
 
   const hasActiveFilter = status !== 'todas' || blueprintId !== ORDENES_BLUEPRINT_ALL || effectiveActor !== 'todos' || query !== '';
   const offset = (page - 1) * ORDENES_PAGE_SIZE;
-  const totalPages = Math.max(1, Math.ceil(total / ORDENES_PAGE_SIZE));
   const selfUnavailable = profileReady && handle === null;
 
   return (
@@ -293,7 +312,7 @@ function OrdenesContent(): ReactElement {
       <PageHeader
         title="Órdenes de trabajo"
         subtitle={`${total} ${total === 1 ? 'orden' : 'órdenes'}`}
-        actions={<SearchField label="Buscar órdenes" value={query} onChange={(value) => setParam('q', value, { replace: true })} placeholder="Buscar órdenes" />}
+        actions={<SearchField label="Buscar órdenes" value={query} onChange={(value) => setParam('q', parseQueryText(value), { replace: true })} placeholder="Buscar órdenes" />}
       />
 
       {total === 0 && !hasActiveFilter ? (

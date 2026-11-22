@@ -470,6 +470,22 @@ test('Planta/Entrada/Órdenes real-data flows, with a failing securitypolicyviol
     await expect(page).not.toHaveURL(/page=2/);
   });
 
+  await test.step('Órdenes: un valor inválido en la URL cae al default en vez de romper la pantalla (SDD-064 D6)', async () => {
+    // The real server answers `400 invalid query` for a crude `blueprint` (its `docId`) and for an empty
+    // `q`; a page past the end would paint an empty table. The screen has to come back to «Blueprint: todos»
+    // on the real last page, never on the error plate.
+    await page.goto(`${baseUrl}/o/${org.slug}/p/${project.slug}/ordenes?blueprint=foo&q=&page=99`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Órdenes de trabajo' })).toBeVisible();
+    await expect(page.getByText('No pudimos cargar las órdenes de trabajo')).toHaveCount(0);
+    await expect(page.getByRole('combobox', { name: 'Blueprint' })).toHaveValue('todos');
+
+    const lastPage = Math.ceil(SDD_TASKS.length / 25);
+    await expect(page).toHaveURL(new RegExp(`page=${lastPage}`));
+    await expect(page.getByText(`Página ${lastPage} de ${lastPage}`)).toBeVisible();
+    // One header row plus the leftover rows of the real last page.
+    await expect(page.getByRole('row')).toHaveCount(SDD_TASKS.length - 25 + 1);
+  });
+
   await test.step('Órdenes: un filtro vive en la URL y un reload reproduce la vista (WO-614)', async () => {
     await page.getByRole('radio', { name: /En curso/ }).click();
     await expect(page).toHaveURL(/status=in_progress/);

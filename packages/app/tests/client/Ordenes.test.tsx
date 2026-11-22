@@ -219,13 +219,47 @@ describe('Ordenes', () => {
 
   it('falls back to the defaults on invalid URL values', async () => {
     const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
-    renderPage(['/ctx?status=no-existe&page=0&actor=raro']);
+    // `blueprint=foo` is what the server would reject with `400 invalid query` (its own `docId`), which
+    // used to leave the screen on the error plate (SDD-064 D6).
+    renderPage(['/ctx?status=no-existe&page=0&actor=raro&blueprint=foo']);
 
     expect(await screen.findByText('WO-304')).toBeTruthy();
     const filter = list.mock.calls[0]![2]!;
     expect(filter.status).toBeUndefined();
     expect(filter.actorKind).toBeUndefined();
+    expect(filter.blueprint).toBeUndefined();
     expect(filter.offset).toBe(0);
+  });
+
+  it('falls back to «Blueprint: todos» on an empty blueprint value', async () => {
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    renderPage(['/ctx?blueprint=']);
+
+    expect(await screen.findByText('WO-304')).toBeTruthy();
+    await waitFor(() => expect(list).toHaveBeenCalled());
+    expect(list.mock.calls[0]![2]!.blueprint).toBeUndefined();
+    expect((screen.getByRole('combobox', { name: 'Blueprint' }) as HTMLSelectElement).value).toBe('todos');
+  });
+
+  it('caps the search text at the 300 characters the server accepts, instead of failing the screen', async () => {
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS));
+    renderPage([`/ctx?q=${'x'.repeat(340)}`]);
+
+    expect(await screen.findByText('WO-304')).toBeTruthy();
+    await waitFor(() => expect(list).toHaveBeenCalled());
+    expect((list.mock.calls[0]![2]!.q as string).length).toBe(300);
+    expect((screen.getByLabelText('Buscar órdenes') as HTMLInputElement).value.length).toBe(300);
+  });
+
+  it('clamps a page past the last one onto the server total', async () => {
+    const list = vi.spyOn(client, 'queryWorkOrders').mockResolvedValue(page(ORDERS, 60));
+    const router = renderPage(['/ctx?page=99']);
+
+    // Asking past the end would render an empty table under «Página 99 de 3»: the URL is corrected to the
+    // last real page and the query follows it (SDD-064 D6).
+    expect(await screen.findByText('Página 3 de 3')).toBeTruthy();
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith('acme', 'web', expect.objectContaining({ offset: 50 })));
+    expect(router.state.location.search).toBe('?page=3');
   });
 
   async function openClaimDialog(): Promise<HTMLElement> {
