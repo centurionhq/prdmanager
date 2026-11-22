@@ -8,6 +8,9 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  /* SDD-122 D4: the force-push label grew, and this row already overflowed at 375 px (FB-306). Wrapping keeps
+   * the three actions reachable without horizontal scroll; stacking them into a menu is FB-306's own scope. */
+  flex-wrap: wrap;
 }
 
 .body {

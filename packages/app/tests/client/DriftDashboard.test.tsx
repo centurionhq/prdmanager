@@ -188,12 +188,20 @@ describe('DriftDashboard', () => {
     const authorize = vi.spyOn(graphApi, 'authorizeForcePushOverride').mockResolvedValue({ headSha: 'c'.repeat(40) });
 
     renderPage();
-    await screen.findByRole('button', { name: 'Autorizar force-push' });
+    // SDD-122 D1: the one irreversible action of the header says the risk in its own visible label, is styled
+    // destructive (not the same variant as the harmless "Actualizar reporte") and has no aria-label, so the
+    // accessible name is the text on screen (WCAG 2.5.3).
+    const trigger = await screen.findByRole('button', { name: 'Autorizar force-push (destructivo)' });
+    expect(trigger.className).toMatch(/destructive/);
+    expect(trigger.hasAttribute('aria-label')).toBe(false);
+    expect(trigger.getAttribute('title')).toContain('línea base');
 
-    await userEvent.click(screen.getByRole('button', { name: 'Autorizar force-push' }));
+    await userEvent.click(trigger);
     const dialog = await screen.findByRole('dialog', { name: 'Autorizar force-push' });
 
     const confirmButton = within(dialog).getByRole('button', { name: 'Autorizar' }) as HTMLButtonElement;
+    // SDD-122 D2: the confirmation carries the same destructive treatment; the typed-sha gate is untouched.
+    expect(confirmButton.className).toMatch(/destructive/);
     expect(confirmButton.disabled).toBe(true);
 
     await userEvent.type(within(dialog).getByLabelText('Commit (head_sha) a autorizar'), 'c'.repeat(40));
@@ -204,14 +212,30 @@ describe('DriftDashboard', () => {
     expect(await screen.findByText('Force-push autorizado')).toBeTruthy();
   });
 
+  it('keeps the force-push trigger destructive but explains the admin gate when the role lacks manage_ci_tokens', async () => {
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({ official: fakeReport({ mode: 'baseline', branch: 'main' }), previews: [], history: [] });
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+
+    renderPage({}, 'developer', 'member');
+
+    // SDD-122 D3: the permission gate is unchanged — still disabled, still "Requiere admin" — and the risk
+    // class is not what explains the disablement.
+    const trigger = await screen.findByRole('button', { name: 'Autorizar force-push (destructivo)' });
+    expect((trigger as HTMLButtonElement).disabled).toBe(true);
+    expect(trigger.getAttribute('title')).toBe('Requiere admin');
+    expect(trigger.className).toMatch(/destructive/);
+    // "Reconocer drift" stays the primary action of the header (D3: the order and weights are untouched).
+    expect(screen.getByRole('button', { name: 'Reconocer drift' }).className).toMatch(/primary/);
+  });
+
   it('keeps the force-push confirm button disabled for a sha that is too short', async () => {
     vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({ official: fakeReport({ mode: 'baseline', branch: 'main' }), previews: [], history: [] });
     vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
 
     renderPage();
-    await screen.findByRole('button', { name: 'Autorizar force-push' });
+    await screen.findByRole('button', { name: 'Autorizar force-push (destructivo)' });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Autorizar force-push' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Autorizar force-push (destructivo)' }));
     const dialog = await screen.findByRole('dialog', { name: 'Autorizar force-push' });
 
     await userEvent.type(within(dialog).getByLabelText('Commit (head_sha) a autorizar'), 'abc123');

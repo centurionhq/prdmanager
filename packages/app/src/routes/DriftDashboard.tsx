@@ -28,6 +28,13 @@ const BLUEPRINT_TIP = 'Un blueprint (SDD/ADR) es el diseño técnico que gobiern
 const REASON_TIP =
   'La razón la reporta el motor: el archivo cambió, el archivo ya no existe, cambió el diseño después de este código o cambió la feature.';
 const REFRESH_REPORT_TITLE = 'Vuelve a leer el último reporte de CI; no dispara una corrida nueva.';
+/**
+ * SDD-122 D1: the force-push override is the one irreversible action in this header. The label says the risk
+ * class up front; this `title` says the consequence the product actually has (`force-push-overrides-repository.ts`):
+ * one specific head_sha is authorized, the baseline moves to it and the authorization is consumed once.
+ */
+const FORCE_PUSH_RISK_TITLE =
+  'Acepta un reporte de CI sobre una historia reescrita: la línea base pasa a ese commit y el permiso se consume una sola vez.';
 
 function isActivationKey(key: string): boolean {
   return key === 'Enter' || key === ' ' || key === 'Spacebar';
@@ -185,12 +192,12 @@ function DriftContent(): ReactElement {
             </Button>
             <Button
               type="button"
-              variant="secondary"
+              variant="destructive"
               disabled={!can(subject, 'manage_ci_tokens')}
-              title={can(subject, 'manage_ci_tokens') ? undefined : 'Requiere admin'}
+              title={can(subject, 'manage_ci_tokens') ? FORCE_PUSH_RISK_TITLE : 'Requiere admin'}
               onClick={() => setForcePushOpen(true)}
             >
-              Autorizar force-push
+              Autorizar force-push (destructivo)
             </Button>
             <Button
               type="button"
