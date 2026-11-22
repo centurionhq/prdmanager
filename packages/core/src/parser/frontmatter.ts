@@ -209,7 +209,17 @@ function extraProps(fm: Frontmatter): Record<string, PropValue> {
     case 'ART':
       return { source: fm.source, root: fm.root ?? false };
     case 'FB':
-      return { source: fm.source, customer: fm.customer ?? null, root: fm.root ?? false };
+      return {
+        source: fm.source,
+        customer: fm.customer ?? null,
+        root: fm.root ?? false,
+        // SDD-109 D1-D2: same audit-visibility treatment as the closed_* fields of MRD/PRD/FR and the
+        // resolved_by of WO -- a FB closed via closeFeedback publishes its reason/actor/time/references.
+        closed_at: fm.closed_at ?? null,
+        closed_by: fm.closed_by ?? null,
+        close_reason: fm.close_reason ?? null,
+        resolved_by: fm.resolved_by ?? [],
+      };
     case 'BC':
       // Same shape as MRD/PRD/FR above: businessCaseSchema mirrors featureSchema's justified_by/
       // closed_*/close_reason/closed_forced fields exactly (see its own doc comment).

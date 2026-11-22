@@ -1,5 +1,81 @@
 import { describe, expect, test } from 'vitest';
+import type { ParsedDoc } from '../../src/domain/schema.js';
+import type { EngineOps, ProjectEngine, ProjectSettings, RecoverResult, RefreshReport } from '../../src/engine.js';
+import { closeFeedback } from '../../src/feedback/link.js';
+import type { GraphStore } from '../../src/graph/types.js';
 import { contentHash, parseDocument } from '../../src/parser/frontmatter.js';
+import { setFrontmatterFields, type FieldValue } from '../../src/parser/frontmatter-edit.js';
+import type { ScanResult } from '../../src/parser/scan.js';
+
+const EMPTY_REPORT: RefreshReport = { documents: 0, errors: [], issues: [], governed: [], workOrderUpdates: [], baselineWritten: false, hasBlockingIssues: false };
+
+function parseOrThrow(raw: string, path: string): ParsedDoc {
+  const result = parseDocument(raw, path);
+  if (!result?.ok) throw new Error(`expected ${path} to parse`);
+  return result.doc;
+}
+
+/**
+ * Raw-markdown-backed `ProjectEngine` double: `updateDocument` rewrites the frontmatter with the real
+ * `setFrontmatterFields` and re-parses, exactly like `Engine.updateDocument`, so the test exercises the
+ * real write path of `closeFeedback` instead of a hand-written frontmatter.
+ */
+class RawEngine implements ProjectEngine {
+  readonly settings = {} as ProjectSettings;
+  readonly store = {} as GraphStore;
+  readonly raws: Map<string, string>;
+
+  constructor(raws: Record<string, string>) {
+    this.raws = new Map(Object.entries(raws));
+  }
+
+  async transaction<T>(fn: (ops: EngineOps) => Promise<T>): Promise<T> {
+    return fn(this.buildOps());
+  }
+  refresh(): Promise<RefreshReport> {
+    return Promise.resolve(EMPTY_REPORT);
+  }
+  inspect(): Promise<RefreshReport> {
+    return Promise.resolve(EMPTY_REPORT);
+  }
+  lastReport(): Promise<RefreshReport | null> {
+    return Promise.resolve(null);
+  }
+  acknowledge(): Promise<RefreshReport> {
+    return Promise.resolve(EMPTY_REPORT);
+  }
+  recover(): Promise<RecoverResult> {
+    return Promise.resolve({ recovered: false, warnings: [] });
+  }
+  scan(): Promise<ScanResult> {
+    const docs = [...this.raws].map(([id, raw]) => parseOrThrow(raw, `${id}.md`));
+    return Promise.resolve({ docs, errors: [], ids: docs.map((d) => d.node.id) });
+  }
+
+  private buildOps(): EngineOps {
+    const reject = () => Promise.reject(new Error('not implemented'));
+    return {
+      config: {} as EngineOps['config'],
+      store: this.store,
+      scan: () => this.scan(),
+      createDocument: reject,
+      updateDocument: (id, fields) => this.updateDocument(id, fields),
+      renameFrontmatterField: reject,
+      replaceDocument: reject,
+      refresh: () => this.refresh(),
+      inspect: () => this.inspect(),
+      readCommit: () => Promise.resolve(null),
+    };
+  }
+
+  private updateDocument(id: string, fields: Record<string, FieldValue>): Promise<ParsedDoc> {
+    const raw = this.raws.get(id);
+    if (raw === undefined) return Promise.reject(new Error(`document ${id} not found`));
+    const next = setFrontmatterFields(raw, fields);
+    this.raws.set(id, next);
+    return Promise.resolve(parseOrThrow(next, `${id}.md`));
+  }
+}
 
 const prd = `---
 id: PRD-001
@@ -264,5 +340,36 @@ Objetivo
       return r.doc.node.contentHash;
     };
     expect(hashOf(withTasks)).not.toBe(hashOf(withoutTasks));
+  });
+
+  test('a FB closed through closeFeedback publishes closed_at/closed_by/close_reason/resolved_by in node.props (WO-758/SDD-109)', async () => {
+    const engine = new RawEngine({ 'FB-901': '---\nid: FB-901\ntype: FB\ntitle: Feedback\nstatus: new\nsource: email\n---\nbody\n' });
+
+    await closeFeedback(engine, 'FB-901', 'agent:closer', {
+      reason: 'entregado',
+      resolvedBy: ['WO-707', 'WO-709'],
+      now: new Date('2026-11-22T03:00:00.000Z'),
+    });
+
+    const raw = engine.raws.get('FB-901') ?? '';
+    const result = parseDocument(raw, 'FB-901.md');
+    expect(result?.ok).toBe(true);
+    if (!result?.ok) return;
+    expect(result.doc.node.props).toMatchObject({
+      closed_at: '2026-11-22T03:00:00.000Z',
+      closed_by: 'agent:closer',
+      close_reason: 'entregado',
+      resolved_by: ['WO-707', 'WO-709'],
+    });
+  });
+
+  test('an open FB publishes the four closure keys as null/[] rather than leaving them absent (WO-758/SDD-109)', () => {
+    const open = `---\nid: FB-002\ntype: FB\ntitle: Feedback\nstatus: new\nsource: email\n---\nbody\n`;
+    const result = parseDocument(open, 'FB-002.md');
+    expect(result?.ok).toBe(true);
+    if (!result?.ok) return;
+    const { props } = result.doc.node;
+    expect(Object.keys(props)).toEqual(expect.arrayContaining(['closed_at', 'closed_by', 'close_reason', 'resolved_by']));
+    expect(props).toMatchObject({ closed_at: null, closed_by: null, close_reason: null, resolved_by: [] });
   });
 });
