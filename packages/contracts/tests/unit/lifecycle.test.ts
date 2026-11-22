@@ -93,6 +93,7 @@ describe('projectOverviewSchema', () => {
     docCount: 12,
     furthestStation: 'construccion',
     andonStation: null,
+    andonFeature: null,
     driftErrors: 0,
     driftWarnings: 2,
     awaitingFirstReport: false,
@@ -113,6 +114,28 @@ describe('projectOverviewSchema', () => {
     const parsed = projectOverviewSchema.parse({ ...valid, andonStation: null, lastActivityAt: null });
     expect(parsed.andonStation).toBeNull();
     expect(parsed.lastActivityAt).toBeNull();
+  });
+
+  test('accepts an andonFeature object', () => {
+    const andonFeature = { id: 'FR-001', title: 'Example feature' };
+    expect(projectOverviewSchema.parse({ ...valid, andonFeature }).andonFeature).toEqual(andonFeature);
+  });
+
+  test('accepts a null andonFeature', () => {
+    expect(projectOverviewSchema.parse({ ...valid, andonFeature: null }).andonFeature).toBeNull();
+  });
+
+  test('rejects a missing andonFeature', () => {
+    const { andonFeature: _a, ...without } = valid;
+    expect(() => projectOverviewSchema.parse(without)).toThrow();
+  });
+
+  test('rejects an andonFeature without a title', () => {
+    expect(() => projectOverviewSchema.parse({ ...valid, andonFeature: { id: 'FR-001' } })).toThrow();
+  });
+
+  test('rejects an andonFeature without an id', () => {
+    expect(() => projectOverviewSchema.parse({ ...valid, andonFeature: { title: 'Example feature' } })).toThrow();
   });
 
   test('accepts a null lastReportAt', () => {

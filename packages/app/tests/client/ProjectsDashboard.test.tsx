@@ -19,6 +19,7 @@ function makeProject(overrides: Partial<ProjectOverviewDto> = {}): ProjectOvervi
     docCount: 12,
     furthestStation: 'diseno_tecnico',
     andonStation: null,
+    andonFeature: null,
     driftErrors: 0,
     driftWarnings: 0,
     awaitingFirstReport: false,
