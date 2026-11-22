@@ -69,7 +69,7 @@ export function ToastProvider({ children }: ToastProviderProps): ReactElement {
         {toast ? (
           <div className={styles.toast}>
             {toast.tone === 'success' ? <Check aria-hidden="true" size={16} className={styles.icon} /> : null}
-            {toast.message}
+            <span className={styles.message}>{toast.message}</span>
           </div>
         ) : null}
       </div>
