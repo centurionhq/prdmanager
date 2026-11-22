@@ -10,7 +10,7 @@ const ORGS = [
   { id: 'org2', slug: 'other', name: 'Other Co', role: 'member' as const },
 ];
 
-const NAV_LINKS = ['Proyectos', 'Miembros', 'Auditoría', 'Tokens'] as const;
+const NAV_LINKS = ['Proyectos', 'Miembros', 'Auditoría', 'Perfil', 'Tokens'] as const;
 
 function renderShell(initialPath = '/o/acme') {
   const router = createMemoryRouter(
@@ -35,8 +35,8 @@ function renderShell(initialPath = '/o/acme') {
   render(<RouterProvider router={router} />);
 }
 
-/** Loads the shell at `initialPath`, waits for the routed screen and pins which one of the four
- *  destinations carries `aria-current="page"` (SDD-077 D3). */
+/** Loads the shell at `initialPath`, waits for the routed screen and pins which one of the five
+ *  destinations carries `aria-current="page"` (SDD-077 D3, extended by SDD-089/WO-697 with Perfil). */
 async function expectCurrentNav(initialPath: string, marker: string, expected: string): Promise<void> {
   vi.spyOn(client, 'listOrganizations').mockResolvedValue(ORGS);
   renderShell(initialPath);
@@ -74,7 +74,7 @@ describe('OrgShell', () => {
     expect(within(select).queryByRole('option', { name: /nope/ })).toBeNull();
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Tokens' })).toBeTruthy();
-    for (const name of ['Proyectos', 'Miembros', 'Auditoría']) {
+    for (const name of ['Proyectos', 'Miembros', 'Auditoría', 'Perfil']) {
       expect(screen.queryByRole('link', { name })).toBeNull();
     }
   });
@@ -142,6 +142,14 @@ describe('OrgShell', () => {
     await expectCurrentNav('/o/acme/ajustes/auditoria', 'nested screen', 'Auditoría');
   });
 
+  it('marks Perfil as the current destination on the organization perfil screen (WO-697)', async () => {
+    await expectCurrentNav('/o/acme/ajustes/perfil', 'nested screen', 'Perfil');
+  });
+
+  it('marks Tokens current on its organization-level home (WO-697)', async () => {
+    await expectCurrentNav('/o/acme/ajustes/tokens-personales', 'nested screen', 'Tokens');
+  });
+
   it('keeps Tokens current on the screen the legacy redirect lands on (D3)', async () => {
     await expectCurrentNav('/o/acme/p/web/ajustes/tokens-personales', 'nested screen', 'Tokens');
   });
@@ -152,5 +160,14 @@ describe('OrgShell', () => {
 
     const tokens = await screen.findByRole('link', { name: 'Tokens' });
     expect(tokens.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('links Perfil and Tokens to the organization-level account routes (SDD-089/WO-697)', async () => {
+    vi.spyOn(client, 'listOrganizations').mockResolvedValue(ORGS);
+    renderShell();
+
+    await screen.findByText('projects dashboard');
+    expect(screen.getByRole('link', { name: 'Perfil' }).getAttribute('href')).toBe('/o/acme/ajustes/perfil');
+    expect(screen.getByRole('link', { name: 'Tokens' }).getAttribute('href')).toBe('/o/acme/ajustes/tokens-personales');
   });
 });

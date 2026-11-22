@@ -1,10 +1,13 @@
 /**
- * `/o/:orgSlug/p/:projectSlug/ajustes/tokens-personales` (SDD-013 §"Shell y router", WO-607/FB-083):
- * personal API tokens (SDD-006 §Permisos "Scopes de tokens"). The organization always comes from the
- * project shell, which resolved it from the URL, and this screen is grouped under "Tu cuenta" with no
+ * `/o/:orgSlug/ajustes/tokens-personales` (SDD-089 §D2, WO-697): personal API tokens (SDD-006 §Permisos
+ * "Scopes de tokens"). The screen belongs to the account, not to a project, so it lives at the
+ * organization level and is reachable without belonging to any project. The organization always comes
+ * from the shell, which resolved it from the URL, and this screen is grouped under "Tu cuenta" with no
  * organization picker of its own (canvas `AjustesTokensPersonales.dc.html`) — it must never fall back to
- * `listOrganizations()[0]`. Membership is the shell's business too: an organization the caller does not
- * belong to never reaches this screen (`ProjectShell` renders "Organización no encontrada" instead).
+ * `listOrganizations()[0]`. `useShellOrgSlug()` works under either shell (`OrgShell` and `ProjectShell`):
+ * the project context extends the org one. Membership is the shell's business too: an organization the
+ * caller does not belong to never reaches this screen (`OrgShell` renders "Organización no encontrada"
+ * instead).
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import type { CreatedTokenResponse, TokenScopeDto, TokenSummaryDto } from '@prdm/contracts';
@@ -17,11 +20,11 @@ import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { TokenCreateForm } from '../components/TokenCreateForm.js';
 import { TokenSecretPanel } from '../components/TokenSecretPanel.js';
 import { TokenTable } from '../components/TokenTable.js';
-import { useProjectShellContext } from './ProjectShell.js';
+import { useShellOrgSlug } from './OrgShell.js';
 import styles from './TokensScreen.module.css';
 
 export function PersonalTokensSettings(): ReactElement {
-  const { orgSlug } = useProjectShellContext();
+  const orgSlug = useShellOrgSlug();
   const [tokens, setTokens] = useState<TokenSummaryDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [justCreated, setJustCreated] = useState<CreatedTokenResponse | null>(null);

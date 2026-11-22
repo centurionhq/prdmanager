@@ -1,8 +1,12 @@
 /**
  * Layout for every `/o/:orgSlug/*` route (SDD-006 §Dashboard shell, WO-117): the org switcher, the
- * primary nav (projects / members / personal tokens / sign out) and an `<Outlet>` for the nested screen.
- * Nested routes read the resolved organization via `useOrgShellContext()` instead of re-fetching
- * `listOrganizations()` themselves.
+ * primary nav (projects / members / audit / profile / personal tokens / sign out) and an `<Outlet>` for the
+ * nested screen. Nested routes read the resolved organization via `useOrgShellContext()` instead of
+ * re-fetching `listOrganizations()` themselves.
+ *
+ * SDD-089/WO-697: the two account screens (perfil, tokens personales) now live at the organization level
+ * and are reachable from here without belonging to any project, so the nav links them directly (Perfil and
+ * Tokens) instead of sending Tokens through the legacy `/settings/tokens` redirect.
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router';
@@ -15,17 +19,20 @@ import { LoadingState } from '@prdm/ui';
 import formStyles from '../styles/forms.module.css';
 import styles from '../styles/dashboard.module.css';
 
-/** The project screen the legacy `/settings/tokens` route redirects to (SDD-013, `SettingsTokensRedirect`). */
-const PERSONAL_TOKENS_PATH = /^\/o\/[^/]+\/p\/[^/]+\/ajustes\/tokens-personales$/;
+/** The paths the personal-tokens screen answers on: its organization-level home (SDD-089) and the two
+ * legacy entry points (`/settings/tokens`, `.../p/:projectSlug/ajustes/tokens-personales`) that now
+ * redirect there. */
+const PERSONAL_TOKENS_PATH = /^\/o\/[^/]+\/(?:p\/[^/]+\/)?ajustes\/tokens-personales$/;
 
 /** SDD-077 D3: `NavLink` decides the current org destination and the stylesheet tells it apart by weight + color. */
 function orgNavLinkClass({ isActive }: { isActive: boolean }): string | undefined {
   return isActive ? styles.active : undefined;
 }
 
-/** SDD-077 D3: the Tokens item covers two paths that share no prefix — the legacy entry point and the project
- * screen the redirect lands on — so `NavLink`'s own matcher (which is what declares `aria-current`) cannot mark
- * it. This is the single hand-written exception SDD-077's "alternativas descartadas" allows. */
+/** SDD-077 D3: the Tokens item covers paths that share no prefix — the legacy entry point, the project screen
+ * it redirects to and the organization-level home it lands on (SDD-089) — so `NavLink`'s own matcher (which is
+ * what declares `aria-current`) cannot mark it. This is the single hand-written exception SDD-077's
+ * "alternativas descartadas" allows. */
 function isTokensPath(pathname: string): boolean {
   return pathname === '/settings/tokens' || PERSONAL_TOKENS_PATH.test(pathname);
 }
@@ -40,6 +47,14 @@ export interface OrgShellContext {
  * re-fetching the organization list themselves. */
 export function useOrgShellContext(): OrgShellContext {
   return useOutletContext<OrgShellContext>();
+}
+
+/** SDD-089/WO-697: the account screens (perfil, tokens personales) live at the organization level and are
+ * reachable from either shell. They only need the slug the shell already resolved from the URL — never
+ * `listOrganizations()[0]` (WO-607/FB-083) — and, since `ProjectShellContext extends OrgShellContext`, this
+ * works unchanged whether the screen is mounted under `OrgShell` or under `ProjectShell`. */
+export function useShellOrgSlug(): string {
+  return useOrgShellContext().orgSlug;
 }
 
 export function OrgShell(): ReactElement {
@@ -123,9 +138,11 @@ export function OrgShell(): ReactElement {
     switcher = <span className={styles.orgName}>{currentOrg.name}</span>;
   }
   const tokensActive = isTokensPath(pathname);
+  // SDD-089/WO-697: Tokens points straight at the organization-level screen. Only the not-found branch
+  // (no resolved organization to build a path from) falls back to the legacy entry point, which redirects.
   const tokensLink = (
     <Link
-      to="/settings/tokens"
+      to={currentOrg ? `/o/${currentOrg.slug}/ajustes/tokens-personales` : '/settings/tokens'}
       aria-current={tokensActive ? 'page' : undefined}
       className={tokensActive ? styles.active : undefined}
     >
@@ -170,6 +187,9 @@ export function OrgShell(): ReactElement {
           </NavLink>
           <NavLink to={`/o/${currentOrg.slug}/ajustes/auditoria`} end className={orgNavLinkClass}>
             Auditoría
+          </NavLink>
+          <NavLink to={`/o/${currentOrg.slug}/ajustes/perfil`} end className={orgNavLinkClass}>
+            Perfil
           </NavLink>
           {tokensLink}
           {signOutButton}
