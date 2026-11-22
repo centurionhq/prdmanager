@@ -187,14 +187,106 @@ export function splitMessage(message: string): readonly MessageToken[] {
 
 export const PROJECT_TARGET = 'all';
 
+/**
+ * Document ids the acknowledge endpoint accepts as a `target` (SDD-111 D2). Hand-synced with
+ * `packages/contracts/src/drift.ts:12`'s `ACK_TARGET_PATTERN` — same convention as that file's own
+ * hand-sync with `@prdm/core`'s `ID_PATTERN` and `documents.ts`'s `DOCUMENT_KINDS`. `all` is not part of it:
+ * the project-wide target is {@link PROJECT_TARGET}, decided here and never derived from an issue.
+ *
+ * `WO` is deliberately absent. The `DriftIssueDto` does not carry a work order's status, and the server
+ * rejects any work order that is not `done`/`out_of_sync` (`core/src/sync/monitor.ts:351-353`), so a per-row
+ * action on a `WO-` row would be a button that fails for real pending work. Those rows have no target of their
+ * own; the subgroup of their blueprint covers them (SDD-111 D4).
+ */
+const ACK_TARGET_PATTERN = /^(MRD|PRD|FR|SDD|ADR|ART|FB)-\d{3,9}$/;
+
+/**
+ * Issue kinds that moving the baseline actually resolves (SDD-111 A1, `core/src/sync/monitor.ts:215-229`):
+ * the governed code refs and the finished work orders. Everything else — `lifecycle_violation`,
+ * `impacts_warning` from a declared pattern, `landed_but_open`, links, deprecated fields, changed
+ * features/blueprints — depends on the graph or on a work order's state, not on the baseline, and stays on
+ * screen after an acknowledge. Counting them as "resolved" would be the most expensive lie on this screen.
+ */
+const RESOLVABLE_KINDS: ReadonlySet<string> = new Set(['code_out_of_sync', 'work_order_out_of_sync']);
+
 export interface AcknowledgeTarget {
+  /** `PROJECT_TARGET` or the document id sent to `POST .../drift/acknowledge`. */
   readonly value: string;
+  /** Composed here so the select, the summary and the toast say the same thing: `SDD-013 · 15 issues`. */
   readonly label: string;
+  /** Every issue the named document carries today — never the filtered view (SDD-111 D1). */
+  readonly count: number;
+  /** The part of `count` that acknowledging removes from the list (see {@link RESOLVABLE_KINDS}). */
+  readonly resolvable: number;
+  /** Documents a confirmation advances: 1 for a document, N for {@link PROJECT_TARGET} (SDD-111 A4). */
+  readonly documents: number;
 }
 
-/** Every blueprint with an open issue, plus "Todo el proyecto" last — the "Qué reconocer" select. */
+function issueCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'issue' : 'issues'}`;
+}
+
+/**
+ * The document a row can be acknowledged through (SDD-111 D2): its blueprint when the attribution found one,
+ * otherwise the issue's own `nodeId` when that is a real document id. `null` means "no per-row action" — the
+ * row is covered from its subgroup or from "Todo el proyecto", never by a button the server would reject.
+ *
+ * A `WO-` row returns `null` even when it has a blueprint: the `DriftIssueDto` does not carry the work order's
+ * status and the server rejects any work order that is not `done`/`out_of_sync` (`monitor.ts:351-353`), so the
+ * row itself is not a safe action. Its blueprint's subgroup does cover it.
+ */
+export function acknowledgeTargetFor(issue: DriftIssueDto): string | null {
+  if (issue.nodeId.startsWith('WO-')) return null;
+  if (issue.blueprintId) return issue.blueprintId;
+  return ACK_TARGET_PATTERN.test(issue.nodeId) ? issue.nodeId : null;
+}
+
+/**
+ * Every document that carries debt today, in the order it first appears in `issues` (SDD-111 A3: no
+ * reordering by count; prioritizing belongs to the list, PRD-041), plus "Todo el proyecto" last.
+ *
+ * Counts are taken over the list as given — call it with the unfiltered report, never with the visible rows:
+ * an acknowledge moves `baseline.docs[id]`/`governs[bp]` for the whole document (`monitor.ts:345-356`), so a
+ * count that followed a filter would under-report an irreversible action.
+ */
 export function acknowledgeableTargets(issues: readonly DriftIssueDto[]): readonly AcknowledgeTarget[] {
-  const blueprintIds = Array.from(new Set(issues.map((issue) => issue.blueprintId).filter((id): id is string => Boolean(id))));
-  const targets = blueprintIds.map((id) => ({ value: id, label: id }));
-  return [...targets, { value: PROJECT_TARGET, label: 'Todo el proyecto' }];
+  interface Draft {
+    readonly value: string;
+    count: number;
+    resolvable: number;
+  }
+
+  const drafts: Draft[] = [];
+  const byValue = new Map<string, Draft>();
+  for (const issue of issues) {
+    const value = acknowledgeTargetFor(issue);
+    if (value === null) continue;
+    let draft = byValue.get(value);
+    if (!draft) {
+      draft = { value, count: 0, resolvable: 0 };
+      byValue.set(value, draft);
+      drafts.push(draft);
+    }
+    draft.count += 1;
+    if (RESOLVABLE_KINDS.has(issue.kind)) draft.resolvable += 1;
+  }
+
+  const targets: AcknowledgeTarget[] = drafts.map((draft) => ({
+    value: draft.value,
+    label: `${draft.value} · ${issueCountLabel(draft.count)}`,
+    count: draft.count,
+    resolvable: draft.resolvable,
+    documents: 1,
+  }));
+
+  return [
+    ...targets,
+    {
+      value: PROJECT_TARGET,
+      label: `Todo el proyecto · ${issueCountLabel(issues.length)}`,
+      count: issues.length,
+      resolvable: issues.filter((issue) => RESOLVABLE_KINDS.has(issue.kind)).length,
+      documents: targets.length,
+    },
+  ];
 }
