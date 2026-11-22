@@ -99,6 +99,16 @@ function justifyingBusinessCase(doc: FeatureDoc, byId: Map<string, ParsedDoc>): 
   return null;
 }
 
+/** SDD-125 D1 (R3): the PRD a Feature Request declares as its parent -- same first-match lookups as
+ * {@link justifyingBusinessCase}, on the same `justified_by` list (full lineage: BC *and* PRD). */
+function justifyingPrd(doc: FeatureDoc, byId: Map<string, ParsedDoc>): FeatureDoc | null {
+  for (const id of doc.frontmatter.justified_by ?? []) {
+    const candidate = byId.get(id);
+    if (candidate?.frontmatter.type === 'PRD') return candidate as FeatureDoc;
+  }
+  return null;
+}
+
 /**
  * PRD-011 §4.2/SDD-023 (WO-439), widened to `FR` by SDD-025 (WO-448) after verifying against real project
  * data that a top-level FR with no parent PRD is just as invisible to the old gate as a PRD was --
@@ -106,8 +116,16 @@ function justifyingBusinessCase(doc: FeatureDoc, byId: Map<string, ParsedDoc>): 
  * in "approved"/"closed" status, not any FB/ART like MRD still accepts. Three distinguishable failures, so
  * the message always names exactly what is missing: no justification at all, justified but not by a BC,
  * or a BC linked but not yet approved.
+ *
+ * SDD-125 D1 (R3): the gate *composes* with, never replaces, that rule. An `FR` additionally declares its
+ * PRD in the same `justified_by` (full lineage: BC and PRD), and the PRD must be approved/closed too.
+ * That adds two distinguishable failures of its own (no PRD linked / PRD not approved), so all five FR
+ * failures keep their own message. They are errors when publishing -- PRD-044's two-step rollout: the new
+ * requirement is first enumerated as a warning everywhere (drift, `edit` mode) and only blocks at publish,
+ * exactly like the section rules of SDD-124 -- while the three pre-existing BC failures keep their own
+ * (always blocking) severity untouched.
  */
-function checkFeatureBusinessCase(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>): DriftIssue[] {
+function checkFeatureBusinessCase(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>, mode: 'edit' | 'publish'): DriftIssue[] {
   const bc = justifyingBusinessCase(doc, byId);
   if (!bc) {
     if (!hasJustification(doc, docs)) {
@@ -117,6 +135,21 @@ function checkFeatureBusinessCase(doc: FeatureDoc, docs: readonly ParsedDoc[], b
   }
   if (bc.node.status !== 'approved' && bc.node.status !== 'closed') {
     return [violation(doc.node.id, 'error', `${doc.node.id}'s business case ${bc.node.id} is not yet "approved"/"closed" (currently "${bc.node.status}")`)];
+  }
+  if (doc.frontmatter.type !== 'FR') return [];
+  const severity = mode === 'publish' ? 'error' : 'warning';
+  const prd = justifyingPrd(doc, byId);
+  if (!prd) {
+    return [
+      violation(
+        doc.node.id,
+        severity,
+        `${doc.node.id} is justified, but not by a PRD: link one via "justified_by" (or declare "## Excepción de pasaje" when its whole scope is a single change)`,
+      ),
+    ];
+  }
+  if (prd.node.status !== 'approved' && prd.node.status !== 'closed') {
+    return [violation(doc.node.id, severity, `${doc.node.id}'s PRD ${prd.node.id} is not yet "approved"/"closed" (currently "${prd.node.status}")`)];
   }
   return [];
 }
@@ -147,8 +180,8 @@ function checkFeatureRequest(doc: FeatureDoc, severity: DriftIssue['severity']):
 
 function checkFeature(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>, mode: 'edit' | 'publish'): DriftIssue[] {
   const severity = mode === 'publish' ? 'error' : 'warning';
-  if (doc.frontmatter.type === 'PRD') return [...checkFeatureBusinessCase(doc, docs, byId), ...checkPrd(doc, severity)];
-  if (doc.frontmatter.type === 'FR') return [...checkFeatureBusinessCase(doc, docs, byId), ...checkFeatureRequest(doc, severity)];
+  if (doc.frontmatter.type === 'PRD') return [...checkFeatureBusinessCase(doc, docs, byId, mode), ...checkPrd(doc, severity)];
+  if (doc.frontmatter.type === 'FR') return [...checkFeatureBusinessCase(doc, docs, byId, mode), ...checkFeatureRequest(doc, severity)];
   if (hasJustification(doc, docs)) return [];
   return [
     violation(

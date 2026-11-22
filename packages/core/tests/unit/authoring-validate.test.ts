@@ -8,6 +8,9 @@ import { doc, mrd, prd, sdd } from '@prdm/testkit';
 
 const art = () => doc('id: ART-001\ntype: ART\ntitle: Call notes\nprovides_context_for: [PRD-001]', 'notes');
 const bcApproved = () => doc('id: BC-001\ntype: BC\ntitle: Business case\nstatus: approved', '## Problema\n\n## Impacto esperado\n\n## Métrica de éxito\n\n## Costo estimado\n');
+/** SDD-125 R3 (WO-806): an FR also declares its PRD, so a "well-formed" FR needs an approved PRD-002 of its own. */
+const prdApproved = () =>
+  doc('id: PRD-002\ntype: PRD\ntitle: Product\nimplements: [MRD-001]\njustified_by: [BC-001]\nstatus: approved', '## Problema\n\n## Alcance\n\n## Personas y trabajos\n\n## Métrica de éxito\n\n## Features derivadas\n');
 
 /** Mirrors @prdm/testkit's `doc()` raw-file construction so tests can compute the same "raw bytes" hash `openUpdate`/`validateDraft` compare (WO-023 finding 5). */
 const rawHashOf = (frontmatter: string, body = 'body'): string => sha256(`---\n${frontmatter.trim()}\n---\n${body}\n`);
@@ -37,9 +40,10 @@ describe('validateDraft: schema', () => {
 
   test('a well-formed draft has no issues', () => {
     // WO-448/SDD-025 widened the BC gate to FR, so this FR draft must resolve to an approved BC, not a
-    // plain ART, for the "well-formed" expectation (zero issues) to hold.
-    const record = makeRecord({ kind: 'FR', title: 'New capability', body: '## Alcance\n\nx\n\n## Criterio de aceptación\n\n- [ ] hecho\n', fields: { evolves_from: ['PRD-001'], justified_by: ['BC-001'] } });
-    const outcome = validateDraft(record, { scan: { docs: [prd(), bcApproved()], errors: [], ids: ['PRD-001', 'BC-001'] }, grandfathered: [] });
+    // plain ART, for the "well-formed" expectation (zero issues) to hold; SDD-125 R3 (WO-806) also requires
+    // its PRD in the same `justified_by`, approved.
+    const record = makeRecord({ kind: 'FR', title: 'New capability', body: '## Alcance\n\nx\n\n## Criterio de aceptación\n\n- [ ] hecho\n', fields: { evolves_from: ['PRD-001'], justified_by: ['BC-001', 'PRD-002'] } });
+    const outcome = validateDraft(record, { scan: { docs: [prd(), prdApproved(), bcApproved()], errors: [], ids: ['PRD-001', 'PRD-002', 'BC-001'] }, grandfathered: [] });
     expect(outcome.issues).toEqual([]);
   });
 });
