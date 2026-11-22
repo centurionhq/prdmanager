@@ -115,7 +115,54 @@ function hasTerminalOutcome(fm: FeedbackDoc['frontmatter']): boolean {
   }
 }
 
+/**
+ * SDD-126 D1 (FR-073): Work Orders `done` que entregaron trabajo para alguna de `featureIds`.
+ * Cadena: Feature <- Blueprint (edge ARCHITECTS) <- WO (`implements`). Una WO cuenta como entregada
+ * cuando `status === 'done'` y `resolved_by` no está vacío (la sha la escribe `complete_work_order`, que en
+ * remoto sólo acepta commits verificados por CI). Orden determinista por id.
+ */
+export function deliveredWorkOrdersOf(featureIds: readonly string[], docs: readonly ParsedDoc[]): ParsedDoc[] {
+  const features = new Set(featureIds);
+  const blueprints = new Set(
+    docs
+      .filter((d) => d.node.label === 'Blueprint' && d.edges.some((e) => e.type === 'ARCHITECTS' && features.has(e.to)))
+      .map((d) => d.node.id),
+  );
+  if (blueprints.size === 0) return [];
+  return docs
+    .filter((d) => {
+      const fm = d.frontmatter;
+      return fm.type === 'WO' && fm.status === 'done' && fm.resolved_by.length > 0 && fm.implements.some((id) => blueprints.has(id));
+    })
+    .sort((a, b) => (a.node.id < b.node.id ? -1 : a.node.id > b.node.id ? 1 : 0));
+}
+
+/**
+ * Regla `feedback_resolved_pending_close`: un Feedback en `new`/`triaged` cuyo linaje ya tiene una WO entregada.
+ * Features candidatas = `informs` del FB + toda Feature que lo cita en `justified_by`.
+ * Reporta la WO de id menor. Los estados terminales nunca la producen.
+ */
+export function feedbackResolvedPendingClose(doc: FeedbackDoc, docs: readonly ParsedDoc[]): DriftIssue | null {
+  const fm = doc.frontmatter;
+  if (fm.status !== 'new' && fm.status !== 'triaged') return null;
+  const fbId = doc.node.id;
+  const featureIds = new Set<string>(fm.informs);
+  for (const d of docs) {
+    const dfm = d.frontmatter;
+    if (dfm.type !== 'MRD' && dfm.type !== 'PRD' && dfm.type !== 'FR' && dfm.type !== 'BC') continue;
+    if (d.node.label === 'Feature' && (dfm.justified_by ?? []).includes(fbId)) featureIds.add(d.node.id);
+  }
+  const [delivered] = deliveredWorkOrdersOf([...featureIds], docs);
+  if (!delivered) return null;
+  return violation(fbId, 'warning', `${fbId} is linked to delivered work (${delivered.node.id}) but is still "${fm.status}": close it with a reason`);
+}
+
 function checkFeedback(doc: FeedbackDoc, docs: readonly ParsedDoc[]): DriftIssue[] {
+  const resolved = feedbackResolvedPendingClose(doc, docs);
+  return [...checkFeedbackLinks(doc, docs), ...(resolved ? [resolved] : [])];
+}
+
+function checkFeedbackLinks(doc: FeedbackDoc, docs: readonly ParsedDoc[]): DriftIssue[] {
   const fm = doc.frontmatter;
   if (fm.informs.length > 0 || fm.root) return [];
   if (isCitedByJustifiedBy(doc.node.id, docs) || hasTerminalOutcome(fm)) return [];

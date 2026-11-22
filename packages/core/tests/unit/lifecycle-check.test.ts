@@ -657,3 +657,44 @@ describe('checkLifecycle: secciones obligatorias de PRD y FR (WO-802)', () => {
     expect(only(checkLifecycle([frWith(body), bcApproved(), prdOk()], { ...noGrandfathering, mode: 'publish' }), 'FR-001')).toEqual([]);
   });
 });
+
+describe('checkLifecycle — Feedback resuelto pendiente de cierre (SDD-126 D1)', () => {
+  const MSG = /FB-001 is linked to delivered work \(WO-001\) but is still "(new|triaged)": close it with a reason/;
+  const chain = (fbStatus: string, woExtra: string, fbExtra = 'informs: [FR-001]'): ParsedDoc[] => [
+    fb(fbExtra + (fbStatus === 'closed' ? '\nclose_reason: done\nclosed_by: dev:x' : fbStatus === 'dismissed' ? '\ndismiss_reason: nope' : ''), fbStatus),
+    fr('justified_by: [BC-001, PRD-001]'),
+    doc('id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [FR-001]\nimpacts_paths: ["src/**"]', '## Tareas\n- [ ] a'),
+    wo(woExtra),
+  ];
+  const resolvedIssues = (docs: ParsedDoc[]) => checkLifecycle(docs, noGrandfathering).filter((i) => i.nodeId === 'FB-001' && /delivered work/.test(i.message));
+
+  test.each(['new', 'triaged'])('FB %s con WO done entregada produce el warning', (status) => {
+    const issues = resolvedIssues(chain(status, 'status: done\nresolved_by: [abc1234]'));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.severity).toBe('warning');
+    expect(issues[0]?.kind).toBe('lifecycle_violation');
+    expect(issues[0]?.message).toMatch(MSG);
+  });
+
+  test('FB cerrado o descartado no lo produce', () => {
+    expect(resolvedIssues(chain('closed', 'status: done\nresolved_by: [abc1234]'))).toEqual([]);
+    expect(resolvedIssues(chain('dismissed', 'status: done\nresolved_by: [abc1234]'))).toEqual([]);
+  });
+
+  test('WO pending o sin resolved_by no lo produce', () => {
+    expect(resolvedIssues(chain('new', 'status: pending'))).toEqual([]);
+    expect(resolvedIssues(chain('new', 'status: done\nresolved_by: []'))).toEqual([]);
+  });
+
+  test('FB sin vínculos sólo conserva el warning de untriaged', () => {
+    const issues = checkLifecycle([fb()], noGrandfathering);
+    expect(resolvedIssues([fb()])).toEqual([]);
+    expect(issues).toHaveLength(1);
+  });
+
+  test('convive con el warning de untriaged cuando el vínculo es por justified_by', () => {
+    const docs = chain('new', 'status: done\nresolved_by: [abc1234]', '');
+    docs[1] = fr('justified_by: [BC-001, PRD-001, FB-001]');
+    expect(resolvedIssues(docs)).toHaveLength(1);
+  });
+});
