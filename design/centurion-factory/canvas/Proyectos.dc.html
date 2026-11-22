@@ -48,7 +48,7 @@
     <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;">
       <div style="display: flex; flex-direction: column; gap: 4px;">
         <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em;">Proyectos</h1>
-        <div style="font-size: 14px; color: #565D63;">5 proyectos en Centurion HQ</div>
+        <div style="font-size: 14px; color: #565D63;">6 proyectos en Centurion HQ</div>
       </div>
       <div style="display: flex; align-items: center; gap: 12px;">
         <div style="width: 320px; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; color: #565D63; font-size: 14px;">
@@ -84,6 +84,7 @@
           <div>Un segmento con contorno está detenido: la línea se frenó en esa estación.</div>
           <div>Un cuadrado sin relleno marca un proyecto que nadie del equipo ve.</div>
           <div>Drift: las diferencias entre lo que dice el grafo y lo que reporta el código, detectadas por CI.</div>
+          <div>Un rombo punteado avisa que el último reporte de CI venció (hace 7 días o más): la celda dice cuándo llegó en vez de afirmar «Sin drift». Si nunca llegó, dice «Esperando primer reporte de CI».</div>
           <div>Órdenes en curso: las que ya se empezaron y todavía no se cerraron.</div>
           <div>Acceso: las personas del equipo que ven el proyecto.</div>
         </div>
@@ -122,7 +123,7 @@
             <sc-if value="{{ row.hasMark }}" hint-placeholder-val="{{ true }}">
               <span style="{{ row.markStyle }}"></span>
             </sc-if>
-            {{ row.driftLabel }}
+            <span style="display: flex; flex-direction: column; gap: 2px;">{{ row.driftLabel }}<sc-if value="{{ row.driftHint }}"><span style="font-size: 12px; color: #565D63; font-weight: 400;">{{ row.driftHint }}</span></sc-if></span>
           </a>
           <a class="num" style="{{ row.ordersStyle }}">{{ row.orders }}</a>
           <sc-if value="{{ row.nobodySees }}" hint-placeholder-val="{{ false }}">
@@ -179,7 +180,8 @@ class Component extends DCLogic {
       { name: 'data-report-ms', slug: 'centurion-hq/data-report-ms', slugTail: 'data-report-ms', docs: '12 docs', archived: false, reached: 4, driftAt: 0, drift: 'awaiting', driftLabel: 'Esperando primer reporte de CI', members: 0, orders: 0, role: 'Admin', activity: 'hace 1 h', focused: false, blocker: null, report: null },
       { name: 'ystream', slug: 'centurion-hq/ystream', slugTail: 'ystream', docs: '41 docs', archived: false, reached: 5, driftAt: 0, drift: 'ok', driftLabel: 'Sin drift', members: 1, orders: 2, role: 'Editor', activity: 'ayer', focused: false, blocker: null, report: 'hace 1 d' },
       { name: 'dbmazz', slug: 'centurion-hq/dbmazz', slugTail: 'dbmazz', docs: '67 docs', archived: false, reached: 6, driftAt: 5, drift: 'warning', driftLabel: '1 aviso', members: 3, orders: 4, role: 'Developer', activity: 'hace 3 d', focused: false, blocker: { id: 'FR-027', title: 'Previews por rama' }, report: 'hace 9 d' },
-      { name: 'centurion-core', slug: 'centurion-hq/centurion-core', slugTail: 'centurion-core', docs: 'prototipo V1', archived: true, reached: 7, driftAt: 0, drift: 'ok', driftLabel: 'Sin drift', members: 2, orders: 0, role: 'Viewer', activity: '02/08/2026', focused: false, blocker: null, report: null }
+      { name: 'inventario-bodega', slug: 'centurion-hq/inventario-bodega', slugTail: 'inventario-bodega', docs: '58 docs', archived: false, reached: 5, driftAt: 0, drift: 'stale', driftLabel: 'Sin reporte hace 16 d', members: 2, orders: 1, role: 'Admin', activity: 'hace 5 d', focused: false, blocker: null, report: 'hace 16 d' },
+      { name: 'centurion-core', slug: 'centurion-hq/centurion-core', slugTail: 'centurion-core', docs: 'prototipo V1', archived: true, reached: 7, driftAt: 0, drift: 'ok', driftLabel: 'Sin drift', members: 2, orders: 0, role: 'Viewer', activity: '02/08/2026', focused: false, blocker: null, report: 'hace 6 d' }
     ];
 
     const current = this.state.filter;
@@ -189,7 +191,8 @@ class Component extends DCLogic {
       all: () => true,
       stopped: (p) => p.driftAt !== 0,
       drift: (p) => p.drift === 'error' || p.drift === 'warning',
-      awaiting: (p) => p.drift === 'awaiting'
+      // SDD-100 D4: one chip for both ways of being blind — never arrived or expired — so no overlapping subsets.
+      awaiting: (p) => p.drift === 'awaiting' || p.drift === 'stale'
     };
     // SDD-101 D5: each group counts over the rows the *other* group leaves visible, so a chip never promises
     // more than the table shows. «Todos» of the line group is "all rows the project filter leaves".
@@ -220,7 +223,7 @@ class Component extends DCLogic {
       { key: 'all', label: 'Todos' },
       { key: 'stopped', label: 'Detenidos' },
       { key: 'drift', label: 'Con drift' },
-      { key: 'awaiting', label: 'Esperando CI' }
+      { key: 'awaiting', label: 'Sin reporte reciente' }
     ];
     const lineChips = lineFilters.map((f) => {
       const isSelected = f.key === currentLine;
@@ -240,10 +243,13 @@ class Component extends DCLogic {
     const segBase = 'width: 20px; height: 6px;';
     const stopped = ' outline: 2px solid #7A5A00; outline-offset: 1px;';
     const drift = {
-      error: { style: 'color: #B8322A; font-weight: 600;', mark: 'width: 8px; height: 8px; background: #B8322A;' },
-      warning: { style: 'color: #7A5A00; font-weight: 600;', mark: 'width: 8px; height: 8px; border-radius: 4px; background: #F5C400;' },
-      ok: { style: 'color: #1E7F4F; font-weight: 600;', mark: 'width: 8px; height: 8px; background: #1E7F4F;' },
-      awaiting: { style: 'color: #565D63; font-weight: 400;', mark: '' }
+      error: { style: 'color: #B8322A; font-weight: 600;', mark: 'width: 8px; height: 8px; background: #B8322A;', hint: '' },
+      warning: { style: 'color: #7A5A00; font-weight: 600;', mark: 'width: 8px; height: 8px; border-radius: 4px; background: #F5C400;', hint: '' },
+      ok: { style: 'color: #1E7F4F; font-weight: 600;', mark: 'width: 8px; height: 8px; background: #1E7F4F;', hint: '' },
+      awaiting: { style: 'color: #565D63; font-weight: 400;', mark: '', hint: '' },
+      // SDD-100 D3: an expired report is still a blind spot. The marker is a dashed diamond (shape, not colour)
+      // and the words under the age say what it means; the cell never claims «Sin drift» with old numbers.
+      stale: { style: 'color: #7A5A00; font-weight: 600;', mark: 'width: 8px; height: 8px; box-sizing: border-box; background: none; border: 1px dashed #7A5A00; transform: rotate(45deg);', hint: 'No sabemos si hay drift' }
     };
 
     const rowBase = 'display: grid; grid-template-columns: minmax(0, 1fr) 200px 260px 120px 150px 100px 120px 110px; column-gap: 16px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #DDE1DF; cursor: pointer;';
@@ -281,6 +287,7 @@ class Component extends DCLogic {
         markStyle: 'flex: none; ' + d.mark,
         driftStyle: 'display: flex; text-decoration: none; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; ' + d.style,
         driftLabel: p.driftLabel,
+        driftHint: d.hint,
         orders: p.orders,
         ordersStyle: 'text-align: right; font-size: 14px; ' + (p.orders === 0 ? 'color: #565D63;' : 'color: #17191C; font-weight: 600;'),
         nobodySees: p.members === 0,

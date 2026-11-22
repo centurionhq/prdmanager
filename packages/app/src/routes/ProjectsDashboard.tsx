@@ -42,7 +42,7 @@ import {
 } from '../components/index.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { filterItems, searchItems, sortItems, type SortState } from '../lib/filter-sort.js';
-import { reportFreshness } from './drift/report-freshness.js';
+import { reportFreshness, REPORT_STALE_AFTER_DAYS } from './drift/report-freshness.js';
 import { useOrgShellContext } from './OrgShell.js';
 import styles from './ProjectsDashboard.module.css';
 
@@ -60,7 +60,12 @@ type ProjectFilter = 'active' | 'archived' | 'all';
 type LineFilter = 'all' | 'stopped' | 'drift' | 'awaiting';
 
 const PROJECT_FILTER_LABELS: Record<ProjectFilter, string> = { active: 'Activos', archived: 'Archivados', all: 'Todos' };
-const LINE_FILTER_LABELS: Record<LineFilter, string> = { all: 'Todos', stopped: 'Detenidos', drift: 'Con drift', awaiting: 'Esperando CI' };
+const LINE_FILTER_LABELS: Record<LineFilter, string> = {
+  all: 'Todos',
+  stopped: 'Detenidos',
+  drift: 'Con drift',
+  awaiting: 'Sin reporte reciente',
+};
 
 function stationPosition(station: Station): number {
   return STATIONS.indexOf(station) + 1;
@@ -151,32 +156,57 @@ function LineStatus({ project, orgSlug }: { readonly project: ProjectOverviewDto
   );
 }
 
-type DriftTone = 'error' | 'warning' | 'awaiting' | 'ok';
+type DriftTone = 'error' | 'warning' | 'awaiting' | 'stale' | 'ok';
 
-function driftTone(project: ProjectOverviewDto): DriftTone {
-  if (project.driftErrors > 0) return 'error';
-  if (project.driftWarnings > 0) return 'warning';
-  if (project.awaitingFirstReport) return 'awaiting';
-  return 'ok';
+/**
+ * SDD-100 D3: the numbers in the Drift cell are only as good as the report behind them. A project whose CI
+ * report never arrived and one whose report is older than `REPORT_STALE_AFTER_DAYS` are both blind — the cell
+ * cannot tell whether there is drift. One threshold, the constant from `report-freshness.ts`, never a literal.
+ *
+ * Read defensively: the API client casts the body instead of validating it, so a server one deploy behind would
+ * not send `lastReportAt` at all — a missing report is "never arrived", not a crash.
+ */
+export function isReportBlind(project: Pick<ProjectOverviewDto, 'awaitingFirstReport' | 'lastReportAt'>, now: number = Date.now()): boolean {
+  if (project.awaitingFirstReport || !project.lastReportAt) return true;
+  return reportFreshness(project.lastReportAt, now).stale;
 }
 
-function driftLabel(project: ProjectOverviewDto): string {
+/**
+ * SDD-100 D3: three states for the Drift cell. Findings win over freshness — a stale report with errors still
+ * has errors, and suppressing them would make the cell contradict the «Con drift» chip, which counts by
+ * severity (WO-739). Without findings: no report at all (`awaiting`), an expired one (`stale`) or a usable one
+ * (`ok`).
+ */
+export function driftTone(project: ProjectOverviewDto, now: number = Date.now()): DriftTone {
+  if (project.driftErrors > 0) return 'error';
+  if (project.driftWarnings > 0) return 'warning';
+  if (project.awaitingFirstReport || !project.lastReportAt) return 'awaiting';
+  return reportFreshness(project.lastReportAt, now).stale ? 'stale' : 'ok';
+}
+
+/** SDD-100 D3: an expired report never reads as «Sin drift» — it says how old the last one is, so the reader
+ * knows the silence is a blind spot and not a clean bill of health. */
+export function driftLabel(project: ProjectOverviewDto, now: number = Date.now()): string {
   const errors = project.driftErrors > 0 ? `${project.driftErrors} ${project.driftErrors === 1 ? 'error' : 'errores'}` : null;
   const warnings = project.driftWarnings > 0 ? `${project.driftWarnings} ${project.driftWarnings === 1 ? 'aviso' : 'avisos'}` : null;
   if (errors || warnings) return [errors, warnings].filter(Boolean).join(' · ');
-  return project.awaitingFirstReport ? 'Esperando primer reporte de CI' : 'Sin drift';
+  if (project.awaitingFirstReport || !project.lastReportAt) return 'Esperando primer reporte de CI';
+  const freshness = reportFreshness(project.lastReportAt, now);
+  return freshness.stale ? `Sin reporte hace ${freshness.days} d` : 'Sin drift';
 }
 
 const DRIFT_TEXT_CLASS: Record<DriftTone, string | undefined> = {
   error: styles.driftError,
   warning: styles.driftWarning,
   awaiting: styles.driftAwaiting,
+  stale: styles.driftStale,
   ok: styles.driftOk,
 };
 
 const DRIFT_MARK_CLASS: Record<Exclude<DriftTone, 'awaiting'>, string | undefined> = {
   error: styles.markError,
   warning: styles.markWarning,
+  stale: styles.markStale,
   ok: styles.markOk,
 };
 
@@ -186,7 +216,11 @@ function DriftCell({ project, orgSlug }: { readonly project: ProjectOverviewDto;
   return (
     <Link to={`/o/${orgSlug}/p/${project.slug}/drift`} className={className}>
       {tone === 'awaiting' ? null : <span aria-hidden="true" className={`${styles.mark} ${DRIFT_MARK_CLASS[tone]}`} />}
-      {driftLabel(project)}
+      <span className={styles.driftBody}>
+        <span>{driftLabel(project)}</span>
+        {/* SDD-100 D3/D5: the words carry the meaning, the dashed diamond only reinforces it — never colour alone. */}
+        {tone === 'stale' ? <span className={styles.driftHint}>No sabemos si hay drift</span> : null}
+      </span>
     </Link>
   );
 }
@@ -293,6 +327,10 @@ function Legend(): ReactElement {
             <li>Un segmento con contorno está detenido: la línea se frenó en esa estación.</li>
             <li>Un cuadrado sin relleno marca un proyecto que nadie del equipo ve.</li>
             <li>Drift: las diferencias entre lo que dice el grafo y lo que reporta el código, detectadas por CI.</li>
+            <li>
+              Un rombo punteado avisa que el último reporte de CI venció (hace {REPORT_STALE_AFTER_DAYS} días o más): la celda dice cuándo
+              llegó en vez de afirmar «Sin drift». Si nunca llegó, dice «Esperando primer reporte de CI».
+            </li>
             <li>Órdenes en curso: las que ya se empezaron y todavía no se cerraron.</li>
             <li>Acceso: las personas del equipo que ven el proyecto.</li>
           </ul>
@@ -330,7 +368,9 @@ function matchesFilter(project: ProjectOverviewDto, filter: ProjectFilter): bool
 function matchesLineFilter(project: ProjectOverviewDto, lineFilter: LineFilter): boolean {
   if (lineFilter === 'stopped') return project.andonStation !== null;
   if (lineFilter === 'drift') return project.driftErrors + project.driftWarnings > 0;
-  if (lineFilter === 'awaiting') return project.awaitingFirstReport;
+  // SDD-100 D4: «Sin reporte reciente» is one chip for both ways of being blind — the report never arrived
+  // or it expired — so the group has no overlapping subsets. Never a chip that promises what it cannot show.
+  if (lineFilter === 'awaiting') return isReportBlind(project);
   return true;
 }
 
@@ -601,7 +641,7 @@ function ProjectsDashboardContent(): ReactElement {
   const archivedCount = byLineFilter.length - activeCount;
   const stoppedCount = byProjectFilter.filter((project) => matchesLineFilter(project, 'stopped')).length;
   const driftCount = byProjectFilter.filter((project) => matchesLineFilter(project, 'drift')).length;
-  const awaitingCount = byProjectFilter.filter((project) => matchesLineFilter(project, 'awaiting')).length;
+  const blindCount = byProjectFilter.filter((project) => matchesLineFilter(project, 'awaiting')).length;
   const lineAllCount = byProjectFilter.length;
 
   const visible = useMemo(() => {
@@ -710,7 +750,7 @@ function ProjectsDashboardContent(): ReactElement {
                 { value: 'all', label: 'Todos', count: lineAllCount },
                 { value: 'stopped', label: 'Detenidos', count: stoppedCount },
                 { value: 'drift', label: 'Con drift', count: driftCount },
-                { value: 'awaiting', label: 'Esperando CI', count: awaitingCount },
+                { value: 'awaiting', label: LINE_FILTER_LABELS.awaiting, count: blindCount },
               ]}
               value={lineFilter}
               onChange={(value) => setLineFilter(value as LineFilter)}
