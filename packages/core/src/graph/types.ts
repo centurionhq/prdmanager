@@ -52,6 +52,9 @@ export interface SubgraphNode {
   kind: string | null;
   title: string;
   status: string | null;
+  // Only Commit nodes carry these (null elsewhere); SDD-120 D1 is the source.
+  date?: string | null;
+  sha?: string | null;
 }
 
 export interface SubgraphEdge {
