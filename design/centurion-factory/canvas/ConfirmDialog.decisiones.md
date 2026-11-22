@@ -65,3 +65,15 @@ Observado en `https://centurion.ngrok.app/o/centurionhq/p/prdmanager/ajustes/tok
 - `role="alert"` en el error; `aria-live="polite"` en el texto de progreso.
 - El botón "Revocar" de `TokenTable` abre el diálogo en lugar de llamar `onRevoke`.
 - Verificar a 375 que el diálogo scrollea por dentro si el error no entra; el Modal actual no lo resuelve (`max-height` ausente).
+
+## 5. Qué se implementó (WO-717) — addenda, el canvas ya está actualizado
+
+Las decisiones de prdm-pm (P1–P7, en la tarjeta) mandan sobre el comp. Lo que cambió acá y por qué:
+
+- **P3 — sin variante sólida.** El botón de acción usa el `Button variant="destructive"` que ya existe (rojo delineado sobre `--superficie`); no se toca `Button` ni `tokens.css`. Los artboards se actualizaron para mostrar el delineado, no el sólido. La jerarquía plana que el comp señalaba queda registrada como FB-217 (no se puede cerrar dentro de PRD-036, que declara el design system fuera de alcance).
+- **P6 — sin toast.** El éxito es el diálogo cerrándose. El error vive dentro del diálogo (`role="alert"`), y la acción pasa a «Reintentar». El comp dibujaba un toast en el estado de éxito: no se implementó.
+- **Estado en vuelo.** El comp proponía `aria-disabled` para no perder el foco; se usa `disabled` en ambos botones (D4). El foco se mantiene igual porque el efecto de foco inicial sólo corre al abrir.
+- **Scroll a 375.** El contenedor propio de `ConfirmDialog` limita la altura (`max-height` + `overflow-y: auto`) sin tocar `Modal.module.css` (P7).
+- **X durante el en vuelo.** El Modal del barrel no expone un estado deshabilitado para su X; el cierre queda bloqueado por comportamiento (Esc, X y scrim no cierran), que es lo que exige D3. Que la X se vea apagada requeriría un cambio en `Modal`, fuera de este WO.
+- **Foco inicial.** `Button` no reenvía refs, así que el foco va al primer botón del pie («Cancelar») por ref del contenedor; no se toca `Button`.
+
