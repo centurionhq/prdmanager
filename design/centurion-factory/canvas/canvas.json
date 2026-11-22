@@ -70,11 +70,11 @@
     },
     {
       "file": "Ordenes.dc.html",
-      "title": "Órdenes de trabajo · probá los filtros",
+      "title": "Órdenes de trabajo · selección, barra de lote y los dos vacíos",
       "x": 0,
       "y": 1120,
       "w": 1440,
-      "h": 960,
+      "h": 1016,
       "page": "page-1",
       "is_interactive": true
     },
@@ -126,8 +126,17 @@
     },
     {
       "file": "OrdenesMobile.dc.html",
-      "title": "Órdenes · 390",
+      "title": "Órdenes · 390 con selección y barra de lote",
       "x": 940,
+      "y": 2240,
+      "w": 390,
+      "h": 844,
+      "page": "page-1"
+    },
+    {
+      "file": "OrdenesMobileVacio.dc.html",
+      "title": "Órdenes · 390 sin órdenes (vacío con salida)",
+      "x": 1410,
       "y": 2240,
       "w": 390,
       "h": 844,
@@ -146,6 +155,15 @@
       "file": "Ordenes-Tomar.dc.html",
       "title": "Órdenes · tomar orden (yo, un agente, o sin handle)",
       "x": 3200,
+      "y": 3360,
+      "w": 1440,
+      "h": 960,
+      "page": "page-1"
+    },
+    {
+      "file": "Ordenes-Lote.dc.html",
+      "title": "Órdenes · barra de lote (archivar con motivo / tomar con asignado)",
+      "x": 4800,
       "y": 3360,
       "w": 1440,
       "h": 960,
@@ -516,6 +534,14 @@
       "w": 900,
       "page": "page-7",
       "text": "SDD-070 · Previews por rama (WO-755)\n\nEl panel sigue la decisión vigente de SDD-070, que el código ya implementa en packages/app (WO-636/637/638, PR #77): badge «vista previa» como texto apagado sin borde ni radio (D5), delta contra el reporte oficial de la rama por defecto como segunda línea del conteo (D2), la ref 32/merge legible como PR #32 con el valor crudo en el title (D3), la fila entera como botón que abre el detalle (D4) y orden peor-primero (D6).\n\nTres placas de la misma pantalla: Drift-Previews (pantalla base, el panel a contraste pleno), Drift (reconocer drift, el modal sobre la pantalla) y Drift-Detalle (el detalle del reporte, con la etiqueta de rama al frente — D7). Ninguna placa nueva pisa el rol de Drift.dc.html como placa de un modal, que es la que cita Ordenes-Archivar.dc.html.\n\nNo dibujado a propósito: el estado sin reporte oficial (— vs <rama por defecto>). En este artboard hay reporte oficial; dibujar un — al lado sería una contradicción. Está especificado en SDD-070 D2 y en canvas/Drift.decisiones.md.\n\nLa fila «Esperando reporte de CI» salió del panel: un reporte de preview siempre trae conteo y esa espera es un issue de la lista (awaiting_ci_report), no una fila de previews. El mock del paquete de diseño (src/features/drift/BranchPreviews.*) todavía dibuja la versión vieja: se alinea en una tarjeta hija de t_19045ae2."
+    },
+    {
+      "id": "sdd086-lote-intro",
+      "x": 4800,
+      "y": 3120,
+      "w": 900,
+      "page": "page-1",
+      "text": "Órdenes: barra de lote y vacío con salida (SDD-086 §D6/§D7, FB-147/148, WO-688)\n\nEstas placas gobiernan lo que el código ya implementa (commit 1857a77, PR #82) y que el canvas no dibujaba: selección múltiple opt-in en la tabla (checkbox por fila con el id en el nombre accesible, select-all indeterminado, aria-selected), barra de lote que aparece desde 2 seleccionadas, y el vacío sin órdenes con la línea de que se generan del checklist «## Tareas» de un blueprint publicado más «Ir a Construir».\n\nQué mirar en Ordenes.dc.html (interactivo): los tres estados del control de maqueta. Con órdenes y 3 seleccionadas la barra está visible; en «Proyecto sin órdenes» desaparece la barra de filtros y la salida es Construir; en «Lote con 1 falla» queda la lista persistente con el mensaje del servidor tal cual y el toast efímero, y las dos órdenes que sí se archivaron salen de la lista. El vacío por filtros se llega por el chip «Tomadas por mí»: los filtros siguen a la vista y la acción es «Quitar filtros». La diferencia entre los dos vacíos es estructural, no de copy: uno conserva los filtros.\n\nOrdenes-Lote.dc.html: las dos caras del modal de confirmación. El mismo componente cambia el cuerpo (motivo opcional para archivar, radiogroup con el asignado elegible para tomar) y el copy cambia de número (orden → órdenes), que es cómo el usuario sabe que el alcance es el lote.\n\nNo dibujado a propósito: el error del request entero dentro del modal (conserva la selección y no cierra) y el caso «sin handle» del radiogroup; los dos son el mismo modal ya dibujado en Ordenes-Tomar.dc.html.\n\nA 390 px (OrdenesMobile.dc.html y OrdenesMobileVacio.dc.html): checkbox en la tarjeta, barra de selección con select-all y el recuento una sola vez, y la barra de lote pegada sobre la barra inferior con tres controles de 44 px."
     }
   ],
   "launch": {

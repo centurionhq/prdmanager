@@ -15,166 +15,239 @@
     .id { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0; }
     * { box-sizing: border-box; }
     .num { font-variant-numeric: tabular-nums; }
+    /* Demo-only controls (not part of the screen), same convention as ErrorDePantalla.dc.html. */
+    .demo { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 24px; border-bottom: 1px solid #C9CFCD; background: #F1F3F2; font-size: 13px; color: #565D63; }
   </style>
 </helmet>
-<div style="width: 1440px; height: 960px; overflow: hidden; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
 
-  <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
-    <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
-      <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
-    </div>
-    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 52px; margin-top: -8px; padding: 0 10px 0 12px; border: 1px solid #C9CFCD; border-radius: 2px; cursor: pointer;">
-      <div style="display: flex; flex-direction: column; min-width: 0;"><span style="font-size: 12px; color: #565D63;">Centurion HQ</span><span style="font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">prdmanager</span></div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"></path></svg>
-    </div>
-    <div style="display: flex; flex-direction: column; gap: 2px;">
-      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Planta</div>
-      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Árbol de features</div>
-      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Documentos</div>
-      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600; font-size: 15px;">Órdenes de trabajo</div>
-      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Drift <span class="num" style="min-width: 22px; height: 20px; padding: 0 6px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 12px; font-weight: 700; border-radius: 2px;">3</span></div>
-      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Bandeja de entrada <span class="num" style="font-size: 13px; color: #565D63;">2</span></div>
-    </div>
-    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px;">
-    <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Ajustes</div>
-    <div style="display: flex; align-items: center; gap: 10px; padding: 12px 8px 0; border-top: 1px solid #C9CFCD;">
-      <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">AR</div>
-      <div style="display: flex; flex-direction: column;"><span style="font-size: 14px; font-weight: 600;">Ana Ríos</span><span style="font-size: 12px; color: #565D63;">Admin de proyecto</span></div>
-    </div>
-    </div>
-  </nav>
+<!-- La lámina mide 1440 x 1016: 56 px de controles de maqueta arriba y la pantalla real (1440 x 960)
+     intacta debajo. No se recorta la pantalla para hacerle lugar al control: el alto real de la pantalla
+     es parte de lo que esta placa gobierna. -->
+<div style="width: 1440px; display: flex; flex-direction: column; background: #E9ECEB;">
 
-  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 440px; min-width: 0; height: 960px;">
+  <div class="demo" role="toolbar" aria-label="Controles de la maqueta (no son parte de la pantalla)">
+    <span>Controles de la maqueta</span>
+    <sc-for list="{{ demoStates }}" as="d" hint-placeholder-count="3">
+      <button type="button" onClick="{{ d.pick }}" style="{{ d.style }}">{{ d.label }}</button>
+    </sc-for>
+    <span style="margin-left: auto; font-size: 12px; line-height: 16px; max-width: 560px;">Los checkboxes y los chips de estado responden. Con 2 o más órdenes seleccionadas aparece la barra de lote.</span>
+  </div>
 
-    <main style="display: flex; flex-direction: column; gap: 24px; padding: 24px 32px; min-width: 0;">
-      <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;">
-        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
-          <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em; white-space: nowrap;">Órdenes de trabajo</h1>
-          <div style="font-size: 14px; color: #565D63;">41 órdenes en 16 blueprints</div>
-        </div>
-        <div style="flex: none; width: 200px; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; color: #565D63; font-size: 14px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
-          Buscar órdenes
-        </div>
-      </header>
+  <div style="position: relative; width: 1440px; height: 960px; overflow: hidden; display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #E9ECEB;">
 
-      <section style="display: flex; flex-direction: column; gap: 12px;">
-        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-          <sc-for list="{{ chips }}" as="chip" hint-placeholder-count="7">
-            <button type="button" onClick="{{ chip.pick }}" style="{{ chip.style }}">{{ chip.label }} <span class="num" style="{{ chip.countStyle }}">{{ chip.count }}</span></button>
-          </sc-for>
-        </div>
-        <div style="display: flex; gap: 12px;">
-          <div style="width: 200px; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">
-            Blueprint: todos
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+    <nav style="display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; border-right: 1px solid #C9CFCD;">
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
+        <div style="font-size: 18px; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em;">Centurion Factory</div>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 52px; margin-top: -8px; padding: 0 10px 0 12px; border: 1px solid #C9CFCD; border-radius: 2px; cursor: pointer;">
+        <div style="display: flex; flex-direction: column; min-width: 0;"><span style="font-size: 12px; color: #565D63;">Centurion HQ</span><span style="font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">prdmanager</span></div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"></path></svg>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Planta</div>
+        <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Árbol de features</div>
+        <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Documentos</div>
+        <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-weight: 600; font-size: 15px;">Órdenes de trabajo</div>
+        <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Drift <span class="num" style="min-width: 22px; height: 20px; padding: 0 6px; display: flex; align-items: center; justify-content: center; background: #F5C400; color: #17191C; font-size: 12px; font-weight: 700; border-radius: 2px;">3</span></div>
+        <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Bandeja de entrada <span class="num" style="font-size: 13px; color: #565D63;">2</span></div>
+      </div>
+      <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; font-size: 15px; color: #33383D;">Ajustes</div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 12px 8px 0; border-top: 1px solid #C9CFCD;">
+        <div style="width: 32px; height: 32px; border-radius: 16px; background: #17191C; color: #E9ECEB; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">AR</div>
+        <div style="display: flex; flex-direction: column;"><span style="font-size: 14px; font-weight: 600;">Ana Ríos</span><span style="font-size: 12px; color: #565D63;">Admin de proyecto</span></div>
+      </div>
+      </div>
+    </nav>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 440px; min-width: 0; height: 960px;">
+
+      <main style="display: flex; flex-direction: column; gap: 24px; padding: 24px 32px; min-width: 0;">
+        <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;">
+          <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+            <h1 style="margin: 0; font-size: 44px; line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em; white-space: nowrap;">Órdenes de trabajo</h1>
+            <div style="font-size: 14px; color: #565D63;">{{ subtitle }}</div>
           </div>
-          <div style="width: 200px; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">
-            Asignada a: todos
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+          <div style="flex: none; width: 200px; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; color: #565D63; font-size: 14px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+            Buscar órdenes
           </div>
-        </div>
-      </section>
+        </header>
 
-      <section style="display: flex; flex-direction: column;">
-        <div style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 60px 120px 104px 80px; column-gap: 12px; padding: 8px; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD;">
-          <div>Orden</div><div>Título</div><div>Blueprint</div><div>Estado</div><div>Asignada a</div><div style="text-align: right;">Actualizada</div>
-        </div>
-        <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ true }}">
-          <sc-for list="{{ rows }}" as="row" hint-placeholder-count="10">
-            <div style="{{ row.rowStyle }}">
-              <div class="id">{{ row.id }}</div>
-              <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ row.title }}</div>
-              <div class="id" style="color: #1F4FA0;">{{ row.blueprint }}</div>
-              <div><span style="{{ row.badgeStyle }}"><span style="{{ row.markStyle }}"></span>{{ row.statusLabel }}</span></div>
-              <div style="{{ row.assigneeStyle }}">{{ row.assignee }}</div>
-              <div class="num" style="text-align: right; color: #565D63; white-space: nowrap;">{{ row.updated }}</div>
-            </div>
-          </sc-for>
-          <div class="num" style="padding: 12px 8px 0; font-size: 13px; color: #565D63;">{{ footer }}</div>
+        <!-- Estado A: el proyecto todavía no tiene órdenes (SDD-086 §D7, FB-148). No hay barra de filtros
+             porque no hay nada que filtrar, y la salida es Construir, que es donde nacen las órdenes. -->
+        <sc-if value="{{ isProjectEmpty }}" hint-placeholder-val="{{ false }}">
+          <section style="display: flex; flex-direction: column; gap: 12px; padding: 24px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"></path></svg>
+            <div style="font-size: 16px; font-weight: 600;">Todavía no hay órdenes de trabajo para este proyecto</div>
+            <p style="margin: 0; max-width: 640px; font-size: 14px; line-height: 20px; color: #33383D;">Las órdenes no se crean a mano: se generan del checklist <span class="id" style="color: #17191C;">## Tareas</span> de un blueprint publicado (un SDD o un ADR).</p>
+            <div style="height: 40px; display: inline-flex; align-items: center; align-self: flex-start; padding: 0 16px; margin-top: 4px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px; font-weight: 600;">Ir a Construir</div>
+          </section>
         </sc-if>
-        <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
-          <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 48px 8px; border-bottom: 1px solid #DDE1DF;">
-            <div style="font-size: 20px; font-weight: 700;">Ninguna orden coincide con estos filtros.</div>
-            <div style="font-size: 14px; line-height: 20px; color: #565D63; max-width: 440px;">No tenés órdenes tomadas en este proyecto. Quitá los filtros para ver las 40 órdenes.</div>
-            <button type="button" onClick="{{ resetFilters }}" style="margin-top: 8px; height: 40px; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-family: inherit; font-size: 14px; font-weight: 600; color: #17191C; cursor: pointer;">Quitar filtros</button>
+
+        <!-- Estado B: hay órdenes en el proyecto; los filtros siguen a la vista aunque no devuelvan filas. -->
+        <sc-if value="{{ hasOrders }}" hint-placeholder-val="{{ true }}">
+        <section style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <sc-for list="{{ chips }}" as="chip" hint-placeholder-count="7">
+              <button type="button" onClick="{{ chip.pick }}" style="{{ chip.style }}">{{ chip.label }} <span class="num" style="{{ chip.countStyle }}">{{ chip.count }}</span></button>
+            </sc-for>
+          </div>
+          <div style="display: flex; gap: 12px;">
+            <div style="width: 200px; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">
+              Blueprint: todos
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+            </div>
+            <div style="width: 200px; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 4px; font-size: 14px; color: #33383D;">
+              Asignada a: todos
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+            </div>
+          </div>
+        </section>
+
+        <!-- Barra de lote (SDD-086 §D6, FB-147): misma placa que la barra de filtros, el contador empuja las
+             acciones al extremo. Con una sola fila seleccionada no aparece: el drawer ya resuelve esa. -->
+        <sc-if value="{{ showBatchBar }}" hint-placeholder-val="{{ true }}">
+          <div role="group" aria-label="Acciones en lote" style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+            <span style="margin-right: auto; font-size: 14px; font-weight: 600;">{{ selectedCountLabel }}</span>
+            <div style="height: 32px; display: inline-flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px; font-weight: 600; cursor: pointer;">Archivar seleccionadas</div>
+            <div style="height: 32px; display: inline-flex; align-items: center; padding: 0 12px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px; font-weight: 600; cursor: pointer;">Tomar seleccionadas</div>
+            <div onClick="{{ clearSelection }}" style="height: 32px; display: inline-flex; align-items: center; padding: 0 8px; border-radius: 2px; font-size: 14px; font-weight: 600; color: #1F4FA0; cursor: pointer;">Limpiar selección</div>
           </div>
         </sc-if>
-      </section>
-    </main>
 
-    <aside style="position: relative; z-index: 1; height: 960px; display: flex; flex-direction: column; background: #FBFCFB; border-left: 1px solid #C9CFCD; box-shadow: 0 12px 32px rgba(23,25,28,0.18);">
-      <div style="display: flex; flex-direction: column; gap: 12px; padding: 20px 24px 16px; border-bottom: 1px solid #DDE1DF;">
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-          <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #565D63;"><span class="id" style="color: #17191C;">WO-310</span>·<span class="id" style="color: #1F4FA0;">FR-002</span>·<span class="id" style="color: #1F4FA0;">SDD-012</span></div>
-          <div style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 2px;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg>
+        <!-- Resultado por ítem del último lote: la lista persistente, con el mensaje del servidor tal cual.
+             El toast se va; esto queda (un lote de 200 no cabe en un toast). -->
+        <sc-if value="{{ showFailures }}" hint-placeholder-val="{{ false }}">
+          <ul aria-label="Órdenes que no se pudieron actualizar" style="display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0 0 0 16px; font-size: 14px; line-height: 20px; color: #33383D;">
+            <sc-for list="{{ failures }}" as="f" hint-placeholder-count="1">
+              <li><span class="id">{{ f.id }}</span> — {{ f.error }}</li>
+            </sc-for>
+          </ul>
+        </sc-if>
+
+        <section style="display: flex; flex-direction: column;">
+          <div style="display: grid; grid-template-columns: 40px 56px minmax(0, 1fr) 60px 120px 104px 80px; column-gap: 12px; align-items: center; padding: 8px; font-size: 14px; color: #565D63; border-bottom: 1px solid #C9CFCD;">
+            <button type="button" onClick="{{ toggleAll }}" aria-label="Seleccionar todas las filas" style="{{ selectAllStyle }}">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#E9ECEB" stroke-width="4" stroke-linecap="round"><path d="M6 12h12"></path></svg>
+            </button>
+            <div>Orden</div><div>Título</div><div>Blueprint</div><div>Estado</div><div>Asignada a</div><div style="text-align: right;">Actualizada</div>
           </div>
-        </div>
-        <h2 style="margin: 0; font-size: 28px; line-height: 1.12; font-weight: 800; font-stretch: 112%; letter-spacing: -0.01em;">Resumen del importador en la CLI</h2>
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #B8322A;"><span style="width: 8px; height: 8px; background: #B8322A;"></span>Fuera de sincronía</span>
-          <span style="font-size: 14px; color: #565D63;">Asignada a <span class="id" style="color: #17191C;">agent:claude</span></span>
-        </div>
-        <div style="display: flex; gap: 10px; align-items: baseline; padding: 12px; background: #F1F3F2; border-radius: 2px; font-size: 14px; line-height: 20px; color: #33383D;">
-          <span style="flex: none; width: 8px; height: 8px; background: #B8322A;"></span>
-          <span><span class="id">SDD-012</span> cambió el 15/09 a las 10:02. Revisá los criterios antes de retomar.</span>
-        </div>
-      </div>
 
-      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 24px;">
-        <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px 0; border-bottom: 1px solid #DDE1DF;">
-          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Objetivo</h3>
-          <p style="margin: 0; font-size: 14px; line-height: 20px; color: #33383D;">Al terminar una importación, la CLI muestra cuántos archivos entraron nuevos, cambiaron, se borraron o se omitieron, y cuánto tardó el escaneo.</p>
-        </div>
+          <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ true }}">
+            <sc-for list="{{ rows }}" as="row" hint-placeholder-count="10">
+              <div style="{{ row.rowStyle }}">
+                <button type="button" role="checkbox" aria-checked="{{ row.checked }}" aria-label="{{ row.selectLabel }}" onClick="{{ row.toggle }}" style="{{ row.boxStyle }}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#E9ECEB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="{{ row.tickStyle }}"><path d="M5 12l5 5 9-10"></path></svg>
+                </button>
+                <div class="id">{{ row.id }}</div>
+                <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ row.title }}</div>
+                <div class="id" style="color: #1F4FA0;">{{ row.blueprint }}</div>
+                <div><span style="{{ row.badgeStyle }}"><span style="{{ row.markStyle }}"></span>{{ row.statusLabel }}</span></div>
+                <div style="{{ row.assigneeStyle }}">{{ row.assignee }}</div>
+                <div class="num" style="text-align: right; color: #565D63; white-space: nowrap;">{{ row.updated }}</div>
+              </div>
+            </sc-for>
+            <div class="num" style="padding: 12px 8px 0; font-size: 13px; color: #565D63;">{{ footer }}</div>
+          </sc-if>
 
-        <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px 0; border-bottom: 1px solid #DDE1DF;">
-          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Criterios de aceptación</h3>
-          <div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 20px;">
-            <div style="display: flex; gap: 10px; align-items: flex-start;">
-              <span style="flex: none; margin-top: 2px; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; background: #1E7F4F; border-radius: 2px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg></span>
-              <span style="color: #33383D;">El resumen separa archivos nuevos, modificados, borrados y omitidos</span>
+          <!-- Vacío por filtros: los filtros quedan arriba, el vacío vive donde vivirían las filas. -->
+          <sc-if value="{{ isFilterEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 24px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#565D63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"></path></svg>
+              <div style="font-size: 16px; font-weight: 600;">Ninguna orden coincide con estos filtros</div>
+              <div onClick="{{ resetFilters }}" style="height: 40px; display: inline-flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 14px; font-weight: 600; cursor: pointer;">Quitar filtros</div>
             </div>
-            <div style="display: flex; gap: 10px; align-items: flex-start;">
-              <span style="flex: none; margin-top: 2px; width: 16px; height: 16px; border: 1px solid #C9CFCD; background: #FBFCFB; border-radius: 2px;"></span>
-              <span>Los conteos coinciden con la tabla de hashes que define <span class="id">SDD-012</span></span>
+          </sc-if>
+        </section>
+        </sc-if>
+      </main>
+
+      <!-- El drawer acompaña al estado con órdenes: sin órdenes no hay fila abierta. -->
+      <sc-if value="{{ hasOrders }}" hint-placeholder-val="{{ true }}">
+      <aside style="position: relative; z-index: 1; height: 960px; display: flex; flex-direction: column; background: #FBFCFB; border-left: 1px solid #C9CFCD; box-shadow: 0 12px 32px rgba(23,25,28,0.18);">
+        <div style="display: flex; flex-direction: column; gap: 12px; padding: 20px 24px 16px; border-bottom: 1px solid #DDE1DF;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #565D63;"><span class="id" style="color: #17191C;">WO-310</span>·<span class="id" style="color: #1F4FA0;">FR-002</span>·<span class="id" style="color: #1F4FA0;">SDD-012</span></div>
+            <div style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 2px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#33383D" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg>
             </div>
-            <div style="display: flex; gap: 10px; align-items: flex-start;">
-              <span style="flex: none; margin-top: 2px; width: 16px; height: 16px; border: 1px solid #C9CFCD; background: #FBFCFB; border-radius: 2px;"></span>
-              <span>Commit con el trailer <span class="id">Refs: WO-310</span></span>
+          </div>
+          <h2 style="margin: 0; font-size: 28px; line-height: 1.12; font-weight: 800; font-stretch: 112%; letter-spacing: -0.01em;">Resumen del importador en la CLI</h2>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; background: #FBFCFB; border: 1px solid #C9CFCD; border-radius: 2px; font-size: 12px; font-weight: 600; white-space: nowrap; color: #B8322A;"><span style="width: 8px; height: 8px; background: #B8322A;"></span>Fuera de sincronía</span>
+            <span style="font-size: 14px; color: #565D63;">Asignada a <span class="id" style="color: #17191C;">agent:claude</span></span>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: baseline; padding: 12px; background: #F1F3F2; border-radius: 2px; font-size: 14px; line-height: 20px; color: #33383D;">
+            <span style="flex: none; width: 8px; height: 8px; background: #B8322A;"></span>
+            <span><span class="id">SDD-012</span> cambió el 15/09 a las 10:02. Revisá los criterios antes de retomar.</span>
+          </div>
+        </div>
+
+        <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 24px;">
+          <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px 0; border-bottom: 1px solid #DDE1DF;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Objetivo</h3>
+            <p style="margin: 0; font-size: 14px; line-height: 20px; color: #33383D;">Al terminar una importación, la CLI muestra cuántos archivos entraron nuevos, cambiaron, se borraron o se omitieron, y cuánto tardó el escaneo.</p>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px 0; border-bottom: 1px solid #DDE1DF;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Criterios de aceptación</h3>
+            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 20px;">
+              <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="flex: none; margin-top: 2px; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; background: #1E7F4F; border-radius: 2px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg></span>
+                <span style="color: #33383D;">El resumen separa archivos nuevos, modificados, borrados y omitidos</span>
+              </div>
+              <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="flex: none; margin-top: 2px; width: 16px; height: 16px; border: 1px solid #C9CFCD; background: #FBFCFB; border-radius: 2px;"></span>
+                <span>Los conteos coinciden con la tabla de hashes que define <span class="id">SDD-012</span></span>
+              </div>
+              <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="flex: none; margin-top: 2px; width: 16px; height: 16px; border: 1px solid #C9CFCD; background: #FBFCFB; border-radius: 2px;"></span>
+                <span>Commit con el trailer <span class="id">Refs: WO-310</span></span>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 0; border-bottom: 1px solid #DDE1DF;">
+            <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 700;">Código gobernado</h3>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0;">
+              <span class="id" style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">packages/cli/src/commands/import.ts</span>
+              <span style="flex: none; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #1E7F4F; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #1E7F4F;"></span>Sincronizado</span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0;">
+              <span class="id" style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">packages/server/src/import/scan.ts</span>
+              <span style="flex: none; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #B8322A; font-weight: 600;"><span style="width: 8px; height: 8px; background: #B8322A;"></span>Fuera de sincronía</span>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 0;">
+            <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 700;">Commits</h3>
+            <div style="display: grid; grid-template-columns: 64px minmax(0, 1fr); column-gap: 12px; row-gap: 2px; padding: 6px 0; font-size: 14px;">
+              <span class="id" style="color: #1F4FA0; line-height: 20px;">3c1a5af</span>
+              <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Agrega el resumen de importación a la CLI</span>
+              <span></span>
+              <span style="font-size: 13px; color: #565D63;"><span class="id">agent:claude</span> · 14/09/2026</span>
             </div>
           </div>
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 0; border-bottom: 1px solid #DDE1DF;">
-          <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 700;">Código gobernado</h3>
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0;">
-            <span class="id" style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">packages/cli/src/commands/import.ts</span>
-            <span style="flex: none; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #1E7F4F; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #1E7F4F;"></span>Sincronizado</span>
-          </div>
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0;">
-            <span class="id" style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">packages/server/src/import/scan.ts</span>
-            <span style="flex: none; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #B8322A; font-weight: 600;"><span style="width: 8px; height: 8px; background: #B8322A;"></span>Fuera de sincronía</span>
-          </div>
+        <div style="display: flex; gap: 12px; padding: 16px 24px 24px; border-top: 1px solid #DDE1DF;">
+          <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Retomar orden</div>
+          <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Archivar</div>
+          <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Ver blueprint</div>
         </div>
+      </aside>
+      </sc-if>
 
-        <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px 0;">
-          <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 700;">Commits</h3>
-          <div style="display: grid; grid-template-columns: 64px minmax(0, 1fr); column-gap: 12px; row-gap: 2px; padding: 6px 0; font-size: 14px;">
-            <span class="id" style="color: #1F4FA0; line-height: 20px;">3c1a5af</span>
-            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Agrega el resumen de importación a la CLI</span>
-            <span></span>
-            <span style="font-size: 13px; color: #565D63;"><span class="id">agent:claude</span> · 14/09/2026</span>
-          </div>
+      <!-- Toast del lote: efímero, nombra hasta 3 fallas y se corta a 480 px. El detalle completo queda en
+           la lista de arriba, que no se va. -->
+      <sc-if value="{{ toast }}" hint-placeholder-val="{{ null }}">
+        <div style="position: absolute; z-index: 100; bottom: 24px; right: 24px; max-width: 480px; height: 48px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; background: #17191C; color: #E9ECEB; font-size: 14px; font-weight: 600; border-radius: 2px; box-shadow: 0 12px 32px rgba(23,25,28,0.18);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E7F4F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M5 12l5 5 9-10"></path></svg>
+          <span style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ toast }}</span>
         </div>
-      </div>
-
-      <div style="display: flex; gap: 12px; padding: 16px 24px 24px; border-top: 1px solid #DDE1DF;">
-        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #1F4FA0; color: #FFFFFF; font-weight: 600; font-size: 14px; border-radius: 2px;">Retomar orden</div>
-        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Archivar</div>
-        <div style="height: 40px; display: flex; align-items: center; padding: 0 16px; background: #FBFCFB; border: 1px solid #C9CFCD; color: #17191C; font-weight: 600; font-size: 14px; border-radius: 2px;">Ver blueprint</div>
-      </div>
-    </aside>
+      </sc-if>
+    </div>
   </div>
 </div>
 </x-dc>
@@ -182,12 +255,12 @@
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { filter: 'all' };
+    this.state = { filter: 'all', view: 'filas', selected: ['WO-311', 'WO-276', 'WO-301'] };
   }
 
   renderVals() {
     const filters = [
-      { key: 'all', label: 'Todas', count: 40, total: 40 },
+      { key: 'all', label: 'Todas', count: 41, total: 41 },
       { key: 'pending', label: 'Pendientes', count: 26, total: 26 },
       { key: 'in_progress', label: 'En curso', count: 9, total: 9 },
       { key: 'out_of_sync', label: 'Fuera de sincronía', count: 3, total: 3 },
@@ -196,6 +269,9 @@ class Component extends DCLogic {
       { key: 'mine', label: 'Tomadas por mí', count: 0, total: 0 }
     ];
 
+    // En «Lote con 1 falla» las dos órdenes que sí se archivaron salen de la lista (es lo que hace el
+    // refresco del implementado); la que falló se queda y aparece en la lista de resultado.
+    const batchRan = this.state.view === 'lote-con-fallas';
     const orders = [
       { id: 'WO-304', title: 'Escaneo incremental por hash de archivo', blueprint: 'SDD-012', status: 'in_progress', assignee: 'agent:claude', updated: 'hace 4 min' },
       { id: 'WO-310', title: 'Resumen del importador en la CLI', blueprint: 'SDD-012', status: 'out_of_sync', assignee: 'agent:claude', updated: 'hace 12 min' },
@@ -219,12 +295,16 @@ class Component extends DCLogic {
       archived: { label: 'Archivada', style: badgeBase + ' color: #565D63; background: #F1F3F2; border-color: #DDE1DF;', mark: 'width: 8px; height: 8px; background: #C9CFCD;' }
     };
 
+    const selected = new Set(this.state.selected);
+    const isProjectEmpty = this.state.view === 'sin-ordenes';
     const current = filters.find((f) => f.key === this.state.filter) || filters[0];
+    const visible = orders.filter((o) => !(batchRan && (o.id === 'WO-311' || o.id === 'WO-276')));
     const matches = (order) => {
       if (current.key === 'all') return order.status !== 'archived';
       if (current.key === 'mine') return false;
       return order.status === current.key;
     };
+    const listed = visible.filter(matches);
 
     const chipBase = 'height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 2px; font-family: inherit; font-size: 14px; cursor: pointer; white-space: nowrap;';
     const chips = filters.map((f) => {
@@ -240,29 +320,87 @@ class Component extends DCLogic {
       };
     });
 
-    const rowBase = 'display: grid; grid-template-columns: 56px minmax(0, 1fr) 60px 120px 104px 80px; column-gap: 12px; align-items: center; padding: 10px 8px; border-bottom: 1px solid #DDE1DF; font-size: 14px;';
-    const rows = orders.filter(matches).map((o) => ({
-      id: o.id,
-      title: o.title,
-      blueprint: o.blueprint,
-      statusLabel: badges[o.status].label,
-      badgeStyle: badges[o.status].style,
-      markStyle: badges[o.status].mark,
-      assignee: o.assignee || 'Sin asignar',
-      assigneeStyle: o.assignee
-        ? "font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-        : 'white-space: nowrap; color: #565D63;',
-      updated: o.updated,
-      rowStyle: o.id === 'WO-310' ? rowBase + ' background: #FBFCFB;' : rowBase
+    const rowBase = 'display: grid; grid-template-columns: 40px 56px minmax(0, 1fr) 60px 120px 104px 80px; column-gap: 12px; align-items: center; padding: 10px 8px; border-bottom: 1px solid #DDE1DF; font-size: 14px;';
+    const boxBase = 'width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 2px; cursor: pointer;';
+    const rows = listed.map((o) => {
+      const isSelected = selected.has(o.id);
+      return {
+        id: o.id,
+        title: o.title,
+        blueprint: o.blueprint,
+        statusLabel: badges[o.status].label,
+        badgeStyle: badges[o.status].style,
+        markStyle: badges[o.status].mark,
+        assignee: o.assignee || 'Sin asignar',
+        assigneeStyle: o.assignee
+          ? "font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          : 'white-space: nowrap; color: #565D63;',
+        updated: o.updated,
+        selectLabel: 'Seleccionar ' + o.id,
+        checked: isSelected ? 'true' : 'false',
+        boxStyle: isSelected
+          ? boxBase + ' background: #1F4FA0; border: 1px solid #1F4FA0;'
+          : boxBase + ' background: #FBFCFB; border: 1px solid #C9CFCD;',
+        tickStyle: isSelected ? 'display: block;' : 'display: none;',
+        toggle: () => {
+          const next = new Set(this.state.selected);
+          if (next.has(o.id)) next.delete(o.id); else next.add(o.id);
+          this.setState({ selected: [...next] });
+        },
+        rowStyle: (o.id === 'WO-310' || isSelected) ? rowBase + ' background: #FBFCFB;' : rowBase
+      };
+    });
+
+    const allListedSelected = listed.length > 0 && listed.every((o) => selected.has(o.id));
+    const someListedSelected = listed.some((o) => selected.has(o.id));
+    const selectAllStyle = 'width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 2px; cursor: pointer; '
+      + (allListedSelected
+        ? 'background: #1F4FA0; border: 1px solid #1F4FA0;'
+        : someListedSelected
+          ? 'background: #17191C; border: 1px solid #17191C;'
+          : 'background: #FBFCFB; border: 1px solid #C9CFCD;');
+
+    const demoBase = "height: 32px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 2px; font-family: inherit; font-size: 13px; cursor: pointer;";
+    const demoStates = [
+      { key: 'filas', label: 'Con órdenes · 3 seleccionadas' },
+      { key: 'sin-ordenes', label: 'Proyecto sin órdenes' },
+      { key: 'lote-con-fallas', label: 'Lote con 1 falla' }
+    ].map((d) => ({
+      label: d.label,
+      style: this.state.view === d.key
+        ? demoBase + ' background: #17191C; color: #E9ECEB; border: 1px solid #17191C; font-weight: 600;'
+        : demoBase + ' background: #FBFCFB; color: #17191C; border: 1px solid #C9CFCD;',
+      pick: () => this.setState({ view: d.key, selected: d.key === 'lote-con-fallas' ? [] : this.state.selected })
     }));
 
+    const selectedCount = this.state.selected.length;
     return {
+      demoStates,
       chips,
       rows,
+      subtitle: isProjectEmpty ? '0 órdenes' : '41 órdenes en 16 blueprints',
+      hasOrders: !isProjectEmpty,
+      isProjectEmpty,
       hasRows: rows.length > 0,
-      isEmpty: rows.length === 0,
-      footer: 'Mostrando ' + rows.length + ' de ' + current.total + ' órdenes',
-      resetFilters: () => this.setState({ filter: 'all' })
+      isFilterEmpty: rows.length === 0,
+      showBatchBar: !isProjectEmpty && selectedCount >= 2,
+      selectedCountLabel: selectedCount === 1 ? '1 orden seleccionada' : selectedCount + ' órdenes seleccionadas',
+      selectAllStyle,
+      toggleAll: () => {
+        const next = new Set(this.state.selected);
+        for (const o of listed) {
+          if (allListedSelected) next.delete(o.id); else next.add(o.id);
+        }
+        this.setState({ selected: [...next] });
+      },
+      clearSelection: () => this.setState({ selected: [] }),
+      resetFilters: () => this.setState({ filter: 'all' }),
+      showFailures: batchRan,
+      failures: [
+        { id: 'WO-301', error: 'cannot archive WO-301: status is done, expected pending, in_progress or out_of_sync' }
+      ],
+      toast: batchRan ? '2 de 3 archivadas; no se pudieron archivar: WO-301 (cannot archive WO-301: status is done, expected pending, in_progress or out_of_sync)' : null,
+      footer: 'Mostrando ' + rows.length + ' de ' + current.total + ' órdenes'
     };
   }
 }
