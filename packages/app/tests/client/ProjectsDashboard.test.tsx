@@ -6,7 +6,7 @@ import type { ProjectOverviewDto } from '@prdm/contracts';
 import * as client from '../../src/api/client.js';
 import { clearQueryCache } from '../../src/api/query-cache.js';
 import { OrgShell } from '../../src/routes/OrgShell.js';
-import { ProjectsDashboard } from '../../src/routes/ProjectsDashboard.js';
+import { ProjectsDashboard, lineLabel, readLegendOpenPreference, writeLegendOpenPreference } from '../../src/routes/ProjectsDashboard.js';
 
 function makeProject(overrides: Partial<ProjectOverviewDto> = {}): ProjectOverviewDto {
   return {
@@ -50,6 +50,8 @@ describe('ProjectsDashboard', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     clearQueryCache();
+    // The legend preference outlives a mount on purpose; each test starts from the default (collapsed).
+    writeLegendOpenPreference(false);
   });
 
   it('renders each project with its line status, drift, orders, role and activity', async () => {
@@ -174,7 +176,7 @@ describe('ProjectsDashboard', () => {
     expect(labels).toContain('Entregado · pendiente');
     expect(labels).toContain('Entrada · alcanzada');
     expect(labels.filter((label) => label?.startsWith('Detenida en'))).toHaveLength(1);
-    expect(screen.getByText('Llega a Construcción, detenida en Diseño técnico')).toBeTruthy();
+    expect(screen.getByText('Llegó a Producto, detenida en Diseño técnico')).toBeTruthy();
   });
 
   it('shows the archive action only with the archive permission', async () => {
@@ -250,16 +252,116 @@ describe('ProjectsDashboard', () => {
     await waitFor(() => expect(overview).toHaveBeenCalledTimes(2));
   });
 
-  it('shows who has access, linking to the members settings', async () => {
+  it('reads a project nobody sees as an alarm with a marker and the invite action', async () => {
     vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([
       makeProject({ memberCount: 0 }),
       makeProject({ id: 'proj2', slug: 'ystream', name: 'Ystream', memberCount: 3 }),
     ]);
     renderDashboard('member');
 
-    const empty = await screen.findByRole('link', { name: 'Sin miembros · nadie del equipo lo ve' });
-    expect(empty.getAttribute('href')).toBe('/o/acme/p/web/ajustes/miembros');
-    expect(screen.getByRole('link', { name: '3 miembros' }).getAttribute('href')).toBe('/o/acme/p/ystream/ajustes/miembros');
+    await screen.findByText('Web');
+    // One `role="status"` per alarmed row and never `role="alert"`: the table can hold N rows, so the
+    // alarm is not a live announcement (the view-level alert is reserved for real failures).
+    const row = screen.getByText('Web').closest('tr')!;
+    const alarm = within(row).getByRole('status');
+    expect(alarm.textContent).toContain('Nadie del equipo lo ve');
+    const action = within(row).getByRole('link', { name: /nadie del equipo ve Web.*Agregar miembros/i });
+    expect(action.getAttribute('href')).toBe('/o/acme/p/web/ajustes/miembros');
+    expect(within(row).queryByRole('alert')).toBeNull();
+
+    const populated = screen.getByText('Ystream').closest('tr')!;
+    expect(within(populated).queryByRole('status')).toBeNull();
+    expect(within(populated).getByRole('link', { name: '3 miembros' }).getAttribute('href')).toBe('/o/acme/p/ystream/ajustes/miembros');
+  });
+
+  it('shows the alarm to a viewer but hides the invite action it cannot use', async () => {
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject({ memberCount: 0, myRole: 'viewer' })]);
+    renderDashboard('member');
+
+    await screen.findByText('Web');
+    const row = screen.getByText('Web').closest('tr')!;
+    expect(within(row).getByRole('status').textContent).toContain('Nadie del equipo lo ve');
+    expect(within(row).queryByText('Agregar miembros')).toBeNull();
+    expect(within(row).getByRole('link', { name: /nadie del equipo ve Web/i }).getAttribute('href')).toBe('/o/acme/p/web/ajustes/miembros');
+  });
+
+  it('links a stopped line to its blocking initiative and names it, with the age of the evidence', async () => {
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([
+      makeProject({
+        furthestStation: 'entregado',
+        andonStation: 'diseno_tecnico',
+        andonFeature: { id: 'FR-001', title: 'Inventario de bodega' },
+        lastReportAt: new Date(Date.now() - 8 * 86_400_000).toISOString(),
+      }),
+    ]);
+    renderDashboard('member');
+
+    await screen.findByText('Web');
+    const link = screen.getByRole('link', { name: /Inventario de bodega/ });
+    expect(link.getAttribute('href')).toBe('/o/acme/p/web/drift?feature=FR-001');
+    expect(link.textContent).toContain('Llegó a Producto, detenida en Diseño técnico');
+    expect(link.textContent).toMatch(/Último reporte hace 8 d/);
+    expect(link.textContent).toContain('Ver qué la frena');
+  });
+
+  it('leaves the line cell as plain text when nothing is stopped', async () => {
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([
+      makeProject({ andonStation: null, furthestStation: 'construccion', lastReportAt: new Date(Date.now() - 2 * 86_400_000).toISOString() }),
+    ]);
+    renderDashboard('member');
+
+    const text = await screen.findByText('Llega a Construcción');
+    expect(text.closest('a')).toBeNull();
+    expect(screen.queryByText('Ver qué la frena')).toBeNull();
+  });
+
+  it('never prints two contradictory stages for the same line', async () => {
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([
+      makeProject({
+        furthestStation: 'entregado',
+        andonStation: 'diseno_tecnico',
+        andonFeature: { id: 'FR-001', title: 'Inventario de bodega' },
+      }),
+    ]);
+    renderDashboard('member');
+
+    await screen.findByText('Web');
+    const cell = screen.getByText(/detenida en Diseño técnico/).closest('a')!;
+    expect(cell.textContent).not.toContain('Llega a Entregado');
+    expect(cell.textContent).not.toContain('Llegó a Entregado');
+    expect(cell.textContent).toContain('Llegó a Producto');
+  });
+
+  it('keeps the legend collapsed until the reader opens it with the keyboard, and remembers it', async () => {
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject()]);
+    renderDashboard('member');
+
+    await screen.findByText('Web');
+    const toggle = screen.getByRole('button', { name: 'Cómo leer la tabla' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByText(/detectadas por CI/)).toBeNull();
+
+    toggle.focus();
+    await userEvent.keyboard('{Enter}');
+
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText(/detectadas por CI/)).toBeTruthy();
+    expect(readLegendOpenPreference()).toBe(true);
+  });
+
+  it('starts the legend open when the reader already opened it once', async () => {
+    writeLegendOpenPreference(true);
+    vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject()]);
+    renderDashboard('member');
+
+    await screen.findByText('Web');
+    const toggle = screen.getByRole('button', { name: 'Cómo leer la tabla' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText(/detectadas por CI/)).toBeTruthy();
+
+    await userEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(readLegendOpenPreference()).toBe(false);
   });
 
   it('links drift and orders to their screens', async () => {
@@ -272,14 +374,16 @@ describe('ProjectsDashboard', () => {
     expect(screen.getByRole('link', { name: '7' }).getAttribute('href')).toBe('/o/acme/p/web/ordenes');
   });
 
-  it('explains the line, drift, orders and access in a visible legend', async () => {
+  it('explains the line, drift, orders and access in a legend the reader must open', async () => {
     vi.spyOn(client, 'getProjectsOverview').mockResolvedValue([makeProject()]);
     renderDashboard('member');
 
     await screen.findByText('Web');
+    await userEvent.click(screen.getByRole('button', { name: 'Cómo leer la tabla' }));
     const legend = screen.getByRole('region', { name: 'Cómo leer la tabla' });
     expect(within(legend).getAllByRole('listitem').length).toBeGreaterThanOrEqual(11);
     expect(within(legend).getByText(/detectadas por CI/)).toBeTruthy();
+    expect(within(legend).getByText(/nadie del equipo ve/)).toBeTruthy();
   });
 
   describe('line status filter and severity sort', () => {
@@ -343,14 +447,40 @@ describe('ProjectsDashboard', () => {
       expect(await screen.findByText('Ningún proyecto coincide con «Archivados» y «Con drift».')).toBeTruthy();
     });
 
-    it('shows the count of each line status chip over the full overview', async () => {
+    it('counts each group of chips over the rows the other group leaves visible', async () => {
       vi.spyOn(client, 'getProjectsOverview').mockResolvedValue(lineProjects());
       renderDashboard('member');
 
       await screen.findByText('Web');
-      expect(within(screen.getByRole('radio', { name: /Detenidos/ })).getByText('2')).toBeTruthy();
-      expect(within(screen.getByRole('radio', { name: /Con drift/ })).getByText('1')).toBeTruthy();
-      expect(within(screen.getByRole('radio', { name: /Esperando CI/ })).getByText('1')).toBeTruthy();
+      const lineGroup = screen.getByRole('radiogroup', { name: 'Estado de la línea' });
+      const projectGroup = screen.getByRole('radiogroup', { name: 'Filtrar proyectos' });
+      const chip = (group: HTMLElement, name: RegExp): HTMLElement => within(group).getByRole('radio', { name });
+
+      // «Activos» hides «Viejo», so the stopped chip counts one row, not two, and «Todos» of the
+      // line group counts the four visible rows, not the five projects of the org.
+      expect(within(chip(lineGroup, /Detenidos/)).getByText('1')).toBeTruthy();
+      expect(within(chip(lineGroup, /Todos/)).getByText('4')).toBeTruthy();
+
+      await userEvent.click(chip(lineGroup, /Con drift/));
+      expect(bodyRowNames()).toHaveLength(1);
+      expect(bodyRowNames()[0]).toContain('Driftoso');
+      // The other direction: inside «Con drift» there is one active project and none archived.
+      expect(within(chip(projectGroup, /Activos/)).getByText('1')).toBeTruthy();
+      expect(within(chip(projectGroup, /Archivados/)).getByText('0')).toBeTruthy();
+    });
+
+    it('no chip promises more rows than the table shows when selected', async () => {
+      vi.spyOn(client, 'getProjectsOverview').mockResolvedValue(lineProjects());
+      renderDashboard('member');
+
+      await screen.findByText('Web');
+      const lineGroup = (): HTMLElement => screen.getByRole('radiogroup', { name: 'Estado de la línea' });
+      for (const name of [/Detenidos/, /Con drift/, /Esperando CI/, /Todos/]) {
+        const radio = within(lineGroup()).getByRole('radio', { name });
+        const promised = Number(within(radio).getByText(/^\d+$/).textContent);
+        await userEvent.click(radio);
+        expect(bodyRowNames()).toHaveLength(promised);
+      }
     });
 
     it('sorts by "Estado de la línea" with the stopped line first', async () => {
@@ -384,5 +514,25 @@ describe('ProjectsDashboard', () => {
       expect(header().getAttribute('aria-sort')).toBe('descending');
       expect(bodyRowNames()[0]).toContain('Errores');
     });
+  });
+});
+
+describe('lineLabel (FB-237)', () => {
+  it('clamps the reached station to the one right before the stop', () => {
+    expect(lineLabel({ furthestStation: 'entregado', andonStation: 'diseno_tecnico' })).toBe('Llegó a Producto, detenida en Diseño técnico');
+    expect(lineLabel({ furthestStation: 'construccion', andonStation: 'diseno_tecnico' })).toBe('Llegó a Producto, detenida en Diseño técnico');
+    expect(lineLabel({ furthestStation: 'entregado', andonStation: 'planificacion' })).toBe('Llegó a Diseño técnico, detenida en Planificación');
+  });
+
+  it('says only the hit stage when there is no andon, or when the line stopped at the first station', () => {
+    expect(lineLabel({ furthestStation: 'entregado', andonStation: null })).toBe('Llega a Entregado');
+    expect(lineLabel({ furthestStation: 'entregado', andonStation: 'entrada' })).toBe('Se detuvo en Entrada');
+  });
+
+  it('never prints a reached station past the stop', () => {
+    const label = lineLabel({ furthestStation: 'entregado', andonStation: 'producto' });
+    expect(label).not.toContain('Entregado');
+    expect(label).not.toContain('Construcción');
+    expect(label).toBe('Llegó a Caso de negocio, detenida en Producto');
   });
 });
