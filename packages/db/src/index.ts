@@ -1,3 +1,4 @@
+export * from './audit-log-query.js';
 export * from './audit-metadata.js';
 export * from './agent-repository.js';
 export * from './code-reports-repository.js';

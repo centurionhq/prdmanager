@@ -310,6 +310,16 @@ export function registerBaseIsolationRoutes(): void {
     crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug } })),
   });
 
+  // WO-704 (SDD-091): facetas, mismo gate que su listado.
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/audit-log/facets', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+    sameOrgOtherProject: sameOrgOutsiderSession((f) => ({ path: { orgSlug: f.orgA.slug, projectSlug: f.projectA1.slug } })),
+  });
+
+  registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/audit-log/facets', {
+    crossOrg: crossOrgSession((f) => ({ path: { orgSlug: f.orgA.slug } })),
+  });
+
   // WO-341: commits/code-refs, same tenant-scoped resolution as every other
   // .../projects/:projectSlug/* read below.
   registerIsolationProbe('GET', '/api/app/organizations/:orgSlug/projects/:projectSlug/commits', {
