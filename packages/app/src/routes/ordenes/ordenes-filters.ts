@@ -52,6 +52,17 @@ export const ORDENES_NO_HANDLE_HINT = 'Definí tu handle en Ajustes › Perfil';
 
 export const ORDENES_PAGE_SIZE = 25;
 
+/** The server's own ceiling on `q` (`workOrdersQuerySchema` in `packages/server/src/api/graph.ts`): over
+ * 300 characters it answers `400 invalid query`, which used to turn the screen into the error plate. */
+export const ORDENES_QUERY_MAX_LENGTH = 300;
+
+/**
+ * Mirrors the server's `docId` regex (`packages/core/src/domain/schema.ts`, `ID_PATTERN`). The app cannot
+ * import it as a value — it only type-imports `@prdm/core` (`tests/unit/no-core-value-import.test.ts`) — so
+ * the pattern is restated here, next to the field that must satisfy it.
+ */
+const BLUEPRINT_ID_PATTERN = /^(MRD|PRD|FR|BC|SDD|ADR|WO|ART|FB)-\d{3,9}$/;
+
 const ACTOR_KIND_BY_FILTER: Partial<Record<OrdenesActorFilter, NonNullable<WorkOrderQueryFilter['actorKind']>>> = {
   agentes: 'agent',
   developers: 'dev',
@@ -72,6 +83,19 @@ export function parsePage(value: string | null): number {
   if (value === null || !/^\d+$/.test(value)) return 1;
   const page = Number(value);
   return Number.isSafeInteger(page) && page >= 1 ? page : 1;
+}
+
+/**
+ * `?blueprint=` only ever names a document the server would accept: null, an empty value or anything its
+ * `docId` regex rejects falls back to «Blueprint: todos» instead of a `400 invalid query` (SDD-064 D6).
+ */
+export function parseBlueprintFilter(value: string | null): string {
+  return value !== null && BLUEPRINT_ID_PATTERN.test(value) ? value : ORDENES_BLUEPRINT_ALL;
+}
+
+/** The free text the server accepts for `q`: capped at its own ceiling rather than failing the screen. */
+export function parseQueryText(value: string | null): string {
+  return (value ?? '').slice(0, ORDENES_QUERY_MAX_LENGTH);
 }
 
 export interface OrdenesQueryState {
