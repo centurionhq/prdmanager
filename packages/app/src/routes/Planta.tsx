@@ -203,6 +203,7 @@ function UnmeasuredNote({ efficiency, orgSlug, projectSlug }: UnmeasuredNoteProp
 
 type UntracedCommits = SuccessMetricsDto['traceability']['untracedCommits'];
 type UntracedCommit = UntracedCommits['items'][number];
+type FeatureKindBreakdown = SuccessMetricsDto['traceability']['featuresByKind'][number];
 type CommitKpiKind = 'with_refs' | 'traced';
 
 const COMMIT_DRAWER_WIDTH = 640;
@@ -225,6 +226,34 @@ function plural(count: number, one: string, many: string): string {
 function readUntracedCommits(traceability: SuccessMetricsDto['traceability']): UntracedCommits | null {
   const untraced = traceability.untracedCommits as UntracedCommits | undefined;
   return untraced && Array.isArray(untraced.items) ? untraced : null;
+}
+
+/**
+ * WO-742 (SDD-102 D5): the honest denominator leaves the Business Cases out, and the KPI says so next to the
+ * ratio. Both figures come from the breakdown, never hardcoded. Same defense as `orphanFeatures`: the response
+ * is not validated at runtime and front/back deploy separately, so a server older than WO-741 sends no
+ * `featuresByKind` (or an older, flatter shape) and the KPI stays exactly as it was.
+ */
+function readBusinessCaseBreakdown(traceability: SuccessMetricsDto['traceability']): FeatureKindBreakdown | null {
+  const byKind: unknown = traceability.featuresByKind;
+  if (!Array.isArray(byKind)) return null;
+  const entry = byKind.find((item: unknown): item is FeatureKindBreakdown => {
+    const candidate = item as Partial<FeatureKindBreakdown> | null;
+    return (
+      typeof candidate === 'object' &&
+      candidate !== null &&
+      candidate.kind === 'BC' &&
+      typeof candidate.total === 'number' &&
+      typeof candidate.traced === 'number' &&
+      candidate.total > 0
+    );
+  });
+  return entry ?? null;
+}
+
+/** WO-742 (SDD-102 D5): the accessible name conjugates the verb; the visible note keeps its "faltan N" mechanic. */
+function missingTracedCopy(missing: number): string {
+  return missing === 1 ? 'falta 1' : `faltan ${missing}`;
 }
 
 interface CommitsKpiProps {
@@ -379,21 +408,46 @@ function KpiItems({ metrics, orgSlug, projectSlug }: KpiItemsProps): ReactElemen
   const missing = orphanFeatures?.length ?? null;
   const ratio = `${featuresTraced}/${featuresTotal}`;
   const treeHref = `/o/${orgSlug}/p/${projectSlug}/arbol?sinCodigo=1`;
+  // WO-742 (SDD-102 D5): the denominator is the Feature Tree, so the Business Case is named next to the
+  // number it is left out of. The line only exists when the payload carries the breakdown (WO-741).
+  const businessCase = readBusinessCaseBreakdown(metrics.traceability);
+  const businessCaseLine = businessCase ? (
+    <span className={styles.kpiLabel}>
+      Business case: {businessCase.traced}/{businessCase.total}, fuera del denominador
+    </span>
+  ) : null;
 
   const traced: { readonly value: ReactNode; readonly note: ReactNode } =
     featuresTotal === 0
-      ? { value: <span className={`num ${styles.kpiValue}`}>Sin datos</span>, note: null }
+      ? { value: <span className={`num ${styles.kpiValue}`}>Sin datos</span>, note: businessCaseLine }
       : missing === null
-        ? { value: <span className={`num ${styles.kpiValue}`}>{ratio}</span>, note: null }
+        ? { value: <span className={`num ${styles.kpiValue}`}>{ratio}</span>, note: businessCaseLine }
         : missing === 0
-          ? { value: <span className={`num ${styles.kpiValue}`}>{ratio}</span>, note: <span className={styles.kpiLabel}>Todas trazadas</span> }
+          ? {
+              value: <span className={`num ${styles.kpiValue}`}>{ratio}</span>,
+              note: (
+                <>
+                  <span className={styles.kpiLabel}>Todas trazadas</span>
+                  {businessCaseLine}
+                </>
+              ),
+            }
           : {
               value: (
-                <Link className={`num ${styles.kpiValue}`} to={treeHref} aria-label={`${featuresTraced} de ${featuresTotal} features trazadas; faltan ${missing}`}>
+                <Link
+                  className={`num ${styles.kpiValue}`}
+                  to={treeHref}
+                  aria-label={`${featuresTraced} de ${featuresTotal} features del Árbol trazadas; ${missingTracedCopy(missing)}`}
+                >
                   {ratio}
                 </Link>
               ),
-              note: <span className={styles.kpiLabel}>faltan {missing}</span>,
+              note: (
+                <>
+                  <span className={styles.kpiLabel}>faltan {missing}</span>
+                  {businessCaseLine}
+                </>
+              ),
             };
 
   const plain = (value: string): ReactNode => <span className={`num ${styles.kpiValue}`}>{value}</span>;
