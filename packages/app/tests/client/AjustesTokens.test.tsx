@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -58,8 +58,17 @@ describe('AjustesTokens', () => {
     expect(await screen.findByText('prdm_ci_abcd.SECRET')).toBeTruthy();
 
     const revoke = vi.spyOn(client, 'revokeCiToken').mockResolvedValue(undefined);
-    await userEvent.click(screen.getByRole('button', { name: /^Revocar/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Revocar ci-pipeline' }));
+
+    // WO-718 D1: the pipeline credential is not revoked by the first click; the dialog says what breaks.
+    const dialog = await screen.findByRole('dialog', { name: 'Revocar token' });
+    expect(within(dialog).getByText('ci-pipeline')).toBeTruthy();
+    expect(within(dialog).getByText(/Si lo usa tu pipeline/)).toBeTruthy();
+    expect(revoke).not.toHaveBeenCalled();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Revocar token' }));
     await waitFor(() => expect(revoke).toHaveBeenCalledWith('acme', 'web', 'tok1'));
+    expect(revoke).toHaveBeenCalledTimes(1);
   });
 
   it('explains that the official baseline depends on the default branch and an OIDC-verified token, not a chosen branch', async () => {

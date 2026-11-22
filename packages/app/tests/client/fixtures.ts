@@ -19,12 +19,14 @@ export function makeProjectOverview(overrides: Partial<ProjectOverviewDto> = {})
     docCount: 0,
     furthestStation: 'entrada',
     andonStation: null,
+    andonFeature: null,
     driftErrors: 0,
     driftWarnings: 0,
     awaitingFirstReport: false,
     workOrdersInProgress: 0,
     myRole: 'viewer',
     lastActivityAt: null,
+    lastReportAt: null,
     ...overrides,
   };
 }

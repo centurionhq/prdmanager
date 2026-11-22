@@ -17,11 +17,13 @@ export interface ProjectOverviewComputed {
   docCount: number;
   furthestStation: Station;
   andonStation: Station | null;
+  andonFeature: { id: string; title: string } | null;
   driftErrors: number;
   driftWarnings: number;
   awaitingFirstReport: boolean;
   workOrdersInProgress: number;
   lastActivityAt: string | null;
+  lastReportAt: string | null;
 }
 
 export interface ProjectOverviewCache {
@@ -46,17 +48,25 @@ async function computeProjectOverview(pool: Pool, neo4j: Neo4jGraphDatabase, org
   const attributed = report.issues.map((issue) => ({ severity: issue.severity, ...attributeIssue(issue, scan.docs) }));
   const withAndon = computeAndon(attributed, board);
 
+  const andonId = withAndon.andon?.featureId ?? null;
+  // `deriveLineBoard` titles every row and every collapsed child with `doc.node.title`, and `attributeIssue`
+  // only ever attributes to scanned documents, so the scanned doc's own title is the board's title — including
+  // an initiative collapsed under its BC row, which has no row of its own.
+  const andonDoc = andonId === null ? undefined : scan.docs.find((d) => d.node.id === andonId);
+
   const workOrdersInProgress = scan.docs.filter((d) => d.frontmatter.type === 'WO' && d.frontmatter.status === 'in_progress').length;
 
   return {
     docCount: scan.docs.length,
     furthestStation: board.features.length === 0 ? 'entrada' : furthestStationOf(board.features.map((f) => f.station)),
     andonStation: withAndon.andon?.station ?? null,
+    andonFeature: andonId !== null && andonDoc !== undefined ? { id: andonId, title: andonDoc.node.title } : null,
     driftErrors: report.issues.filter((i) => i.severity === 'error').length,
     driftWarnings: report.issues.filter((i) => i.severity === 'warning').length,
     awaitingFirstReport: false,
     workOrdersInProgress,
     lastActivityAt: lastActivity.items[0]?.createdAt.toISOString() ?? null,
+    lastReportAt: null,
   };
 }
 
@@ -73,7 +83,8 @@ export function createProjectOverviewCache(): ProjectOverviewCache {
       if (cached) return cached;
 
       const computed = await computeProjectOverview(pool, neo4j, orgId, project);
-      const withReportState = { ...computed, awaitingFirstReport: reports.length === 0 };
+      const lastReportAt = reports[0]?.createdAt.toISOString() ?? null;
+      const withReportState = { ...computed, awaitingFirstReport: reports.length === 0, lastReportAt };
       cache.set(key, withReportState);
       return withReportState;
     },

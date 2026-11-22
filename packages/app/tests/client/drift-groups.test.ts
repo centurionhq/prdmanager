@@ -4,9 +4,12 @@ import {
   EMPTY_FILTERS,
   PAGE_SIZE,
   SUBGROUP_NO_BLUEPRINT_LABEL,
+  acknowledgeTargetFor,
+  acknowledgeableTargets,
   filterIssues,
   groupIssues,
   paginateIssues,
+  splitMessage,
   subgroupLabel,
 } from '../../src/routes/drift/drift-groups.js';
 
@@ -114,8 +117,47 @@ describe('groupIssues', () => {
     expect(groups.some((group) => group.kind === 'work_order_out_of_sync')).toBe(false);
   });
 
+  test('landed_but_open is titled in Spanish and sits right after work_order_out_of_sync (SDD-107 D1)', () => {
+    const groups = groupIssues([
+      issue({ kind: 'broken_link' }),
+      issue({ kind: 'landed_but_open', severity: 'warning' }),
+      issue({ kind: 'work_order_out_of_sync' }),
+    ]);
+
+    // Both are work-order classes, so they stay adjacent: «Órdenes fuera de sincronía» then «Órdenes ya
+    // aterrizadas». The raw engine enum must never reach the title.
+    expect(groups.map((group) => group.kind)).toEqual(['work_order_out_of_sync', 'landed_but_open', 'broken_link']);
+    expect(at(groups, 1).label).toBe('Órdenes ya aterrizadas');
+  });
+
   test('an empty list yields no groups', () => {
     expect(groupIssues([])).toEqual([]);
+  });
+});
+
+describe('splitMessage', () => {
+  test('marks an exact literal the caller wrote as mono, even when it looks like a bare word', () => {
+    // The sha the copy module writes cannot be told apart from any other 7-hex run by a pattern, so the
+    // caller names it explicitly (SDD-107 D2).
+    expect(splitMessage('el commit 9def4e2 la referencia', { literals: ['9def4e2'] })).toEqual([
+      { text: 'el commit ', mono: false },
+      { text: '9def4e2', mono: true },
+      { text: ' la referencia', mono: false },
+    ]);
+  });
+
+  test('a literal that is not in the message changes nothing', () => {
+    expect(splitMessage('sin sha acá', { literals: ['9def4e2'] })).toEqual([{ text: 'sin sha acá', mono: false }]);
+  });
+
+  test('still marks ids and paths as mono alongside a literal', () => {
+    const tokens = splitMessage('SDD-008 fijó 9def4e2 en packages/app/src/a.ts', { literals: ['9def4e2'] });
+    expect(tokens.filter((token) => token.mono).map((token) => token.text)).toEqual([
+      'SDD-008',
+      '9def4e2',
+      'packages/app/src/a.ts',
+    ]);
+    expect(tokens.map((token) => token.text).join('')).toBe('SDD-008 fijó 9def4e2 en packages/app/src/a.ts');
   });
 });
 
@@ -224,5 +266,90 @@ describe('paginateIssues', () => {
 
   test('an empty list paginates to nothing', () => {
     expect(paginateIssues([], PAGE_SIZE)).toEqual({ visible: [], remaining: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------
+// SDD-111 / WO-764 — acknowledging moves the whole DOCUMENT (`core/src/sync/monitor.ts:345-356`), so every
+// target carries its own debt: the total count, how much of it the baseline move actually resolves, and how
+// many documents an `all` ack advances. Counting the filtered view would under-report an irreversible action.
+// ---------------------------------------------------------------------------------------------------
+
+describe('acknowledgeTargetFor', () => {
+  test('the blueprint of the issue is its document', () => {
+    expect(acknowledgeTargetFor(issue({ blueprintId: 'SDD-013', nodeId: 'SDD-013' }))).toBe('SDD-013');
+  });
+
+  test('an unattributed issue falls back to its own document nodeId', () => {
+    expect(acknowledgeTargetFor(issue({ blueprintId: null, nodeId: 'FR-009', kind: 'lifecycle_violation' }))).toBe('FR-009');
+  });
+
+  test('a work order row has no per-row target: the DTO does not carry its status and the server rejects non-final ones', () => {
+    expect(acknowledgeTargetFor(issue({ blueprintId: null, nodeId: 'WO-625', kind: 'landed_but_open' }))).toBeNull();
+    // Even attributed, the row itself is never the action: its blueprint's subgroup covers it.
+    expect(acknowledgeTargetFor(issue({ blueprintId: 'SDD-012', nodeId: 'WO-625', kind: 'work_order_out_of_sync' }))).toBeNull();
+  });
+
+  test('a nodeId that is not a document id has no target either', () => {
+    expect(acknowledgeTargetFor(issue({ blueprintId: null, nodeId: 'packages/app/src/a.ts' }))).toBeNull();
+    expect(acknowledgeTargetFor(issue({ blueprintId: null, nodeId: 'sdd-013' }))).toBeNull();
+  });
+});
+
+describe('acknowledgeableTargets', () => {
+  test('counts the whole document, not the rows of one kind, and keeps "Todo el proyecto" last', () => {
+    const targets = acknowledgeableTargets([
+      issue({ blueprintId: 'SDD-013', kind: 'code_out_of_sync' }),
+      issue({ blueprintId: 'SDD-013', kind: 'impacts_warning', severity: 'warning' }),
+      issue({ blueprintId: 'SDD-013', kind: 'lifecycle_violation' }),
+      issue({ blueprintId: 'SDD-002', kind: 'code_out_of_sync' }),
+    ]);
+
+    expect(targets.map((target) => [target.value, target.count, target.documents])).toEqual([
+      ['SDD-013', 3, 1],
+      ['SDD-002', 1, 1],
+      ['all', 4, 2],
+    ]);
+    expect(at(targets, 0).label).toBe('SDD-013 · 3 issues');
+    expect(at(targets, 2).label).toBe('Todo el proyecto · 4 issues');
+  });
+
+  test('splits the debt: only code and work orders are resolved by moving the baseline', () => {
+    const targets = acknowledgeableTargets([
+      issue({ blueprintId: 'SDD-013', kind: 'code_out_of_sync' }),
+      issue({ blueprintId: 'SDD-013', kind: 'work_order_out_of_sync' }),
+      issue({ blueprintId: 'SDD-013', kind: 'lifecycle_violation' }),
+      issue({ blueprintId: 'SDD-013', kind: 'impacts_warning', severity: 'warning' }),
+      issue({ blueprintId: 'SDD-013', kind: 'landed_but_open', severity: 'warning' }),
+    ]);
+
+    expect(at(targets, 0)).toMatchObject({ value: 'SDD-013', count: 5, resolvable: 2 });
+    expect(at(targets, 1)).toMatchObject({ value: 'all', count: 5, resolvable: 2 });
+  });
+
+  test('singular in the label for a single issue', () => {
+    const targets = acknowledgeableTargets([issue({ blueprintId: 'ADR-008' })]);
+    expect(at(targets, 0).label).toBe('ADR-008 · 1 issue');
+    expect(at(targets, 1).label).toBe('Todo el proyecto · 1 issue');
+  });
+
+  test('a document reachable only through its nodeId is a target too', () => {
+    const targets = acknowledgeableTargets([issue({ blueprintId: null, nodeId: 'FR-009', kind: 'lifecycle_violation' })]);
+    expect(targets.map((target) => [target.value, target.count])).toEqual([
+      ['FR-009', 1],
+      ['all', 1],
+    ]);
+  });
+
+  test('rows with no target contribute only to "Todo el proyecto"', () => {
+    const targets = acknowledgeableTargets([issue({ blueprintId: null, nodeId: 'WO-625', kind: 'landed_but_open' })]);
+    expect(targets.map((target) => target.value)).toEqual(['all']);
+    expect(at(targets, 0).documents).toBe(0);
+  });
+
+  test('an empty report still offers "Todo el proyecto" at zero', () => {
+    expect(acknowledgeableTargets([])).toEqual([
+      { value: 'all', label: 'Todo el proyecto · 0 issues', count: 0, resolvable: 0, documents: 0 },
+    ]);
   });
 });

@@ -2,6 +2,10 @@
  * The list of a person's or a project's tokens (SDD-056/PRD-036 R2, canvas `AjustesTokens.dc.html`), on the
  * design system's `DataTable`: sortable-ready, stacks under 640px, real `<table>` semantics. It only ever shows
  * what `TokenSummaryDto` carries -- never a secret or its hash -- and a revoked token offers no action.
+ *
+ * SDD-062/WO-718 D1: the table revokes nothing. It hands the whole token to the consumer, which owns the
+ * `ConfirmDialog` and the mutation's `pending`/`error`; without the full token the confirmation could not
+ * name the resource being revoked.
  */
 import type { ReactElement } from 'react';
 import type { TokenSummaryDto } from '@prdm/contracts';
@@ -19,7 +23,7 @@ function stateOf(token: TokenSummaryDto): TokenState {
 
 const STATE_LABEL: Readonly<Record<TokenState, string>> = { activo: 'Activo', vencido: 'Vencido', revocado: 'Revocado' };
 
-export function TokenTable({ tokens, onRevoke }: { tokens: TokenSummaryDto[]; onRevoke: (tokenId: string) => void }): ReactElement {
+export function TokenTable({ tokens, onRevoke }: { tokens: TokenSummaryDto[]; onRevoke: (token: TokenSummaryDto) => void }): ReactElement {
   if (tokens.length === 0) {
     return <EmptyState title="Todavía no hay tokens." body="Cuando crees uno, aparece acá con su alcance y su vencimiento." />;
   }
@@ -60,7 +64,7 @@ export function TokenTable({ tokens, onRevoke }: { tokens: TokenSummaryDto[]; on
       align: 'end',
       render: (token) =>
         token.revokedAt ? null : (
-          <Button type="button" variant="destructive" size="sm" aria-label={`Revocar ${token.name}`} onClick={() => onRevoke(token.id)}>
+          <Button type="button" variant="destructive" size="sm" aria-label={`Revocar ${token.name}`} onClick={() => onRevoke(token)}>
             Revocar
           </Button>
         ),

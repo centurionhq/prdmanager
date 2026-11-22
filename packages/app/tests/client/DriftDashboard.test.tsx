@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DriftDashboardDto, DriftIssueDto, DriftReportDetailDto, DriftReportSummaryDto, ProjectSettings } from '@prdm/contracts';
+import type { DriftDashboardDto, DriftIssueDto, DriftReportDetailDto, DriftReportSummaryDto, OrgRole, ProjectRole, ProjectSettings } from '@prdm/contracts';
 import * as client from '../../src/api/client.js';
 import * as graphApi from '../../src/api/graph.js';
 import { clearQueryCache } from '../../src/api/query-cache.js';
@@ -40,12 +40,12 @@ function fakeIssue(overrides: Partial<DriftIssueDto> = {}): DriftIssueDto {
   };
 }
 
-function renderPage(settings: Partial<ProjectSettings> = {}): void {
+function renderPage(settings: Partial<ProjectSettings> = {}, projectRole: ProjectRole = 'admin', orgRole: OrgRole = 'owner'): void {
   const router = createMemoryRouter(
     [
       {
         path: '/ctx',
-        element: <Outlet context={makeProjectShellContext('owner', 'admin', null, undefined, settings)} />,
+        element: <Outlet context={makeProjectShellContext(orgRole, projectRole, null, undefined, settings)} />,
         children: [{ index: true, element: <DriftDashboard /> }],
       },
     ],
@@ -167,10 +167,10 @@ describe('DriftDashboard', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Reconocer drift' }));
     const dialog = await screen.findByRole('dialog', { name: 'Reconocer drift' });
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Reconocer drift' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Reconocer 1 issue' }));
 
     await waitFor(() => expect(acknowledge).toHaveBeenCalledWith('acme', 'web', 'SDD-012'));
-    expect(await screen.findByText('Drift reconocido')).toBeTruthy();
+    expect(await screen.findByText('Reconociste SDD-012: 1 issue.')).toBeTruthy();
   });
 
   it('surfaces a load error', async () => {
@@ -188,12 +188,20 @@ describe('DriftDashboard', () => {
     const authorize = vi.spyOn(graphApi, 'authorizeForcePushOverride').mockResolvedValue({ headSha: 'c'.repeat(40) });
 
     renderPage();
-    await screen.findByRole('button', { name: 'Autorizar force-push' });
+    // SDD-122 D1: the one irreversible action of the header says the risk in its own visible label, is styled
+    // destructive (not the same variant as the harmless "Actualizar reporte") and has no aria-label, so the
+    // accessible name is the text on screen (WCAG 2.5.3).
+    const trigger = await screen.findByRole('button', { name: 'Autorizar force-push (destructivo)' });
+    expect(trigger.className).toMatch(/destructive/);
+    expect(trigger.hasAttribute('aria-label')).toBe(false);
+    expect(trigger.getAttribute('title')).toContain('línea base');
 
-    await userEvent.click(screen.getByRole('button', { name: 'Autorizar force-push' }));
+    await userEvent.click(trigger);
     const dialog = await screen.findByRole('dialog', { name: 'Autorizar force-push' });
 
     const confirmButton = within(dialog).getByRole('button', { name: 'Autorizar' }) as HTMLButtonElement;
+    // SDD-122 D2: the confirmation carries the same destructive treatment; the typed-sha gate is untouched.
+    expect(confirmButton.className).toMatch(/destructive/);
     expect(confirmButton.disabled).toBe(true);
 
     await userEvent.type(within(dialog).getByLabelText('Commit (head_sha) a autorizar'), 'c'.repeat(40));
@@ -204,14 +212,30 @@ describe('DriftDashboard', () => {
     expect(await screen.findByText('Force-push autorizado')).toBeTruthy();
   });
 
+  it('keeps the force-push trigger destructive but explains the admin gate when the role lacks manage_ci_tokens', async () => {
+    vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({ official: fakeReport({ mode: 'baseline', branch: 'main' }), previews: [], history: [] });
+    vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
+
+    renderPage({}, 'developer', 'member');
+
+    // SDD-122 D3: the permission gate is unchanged — still disabled, still "Requiere admin" — and the risk
+    // class is not what explains the disablement.
+    const trigger = await screen.findByRole('button', { name: 'Autorizar force-push (destructivo)' });
+    expect((trigger as HTMLButtonElement).disabled).toBe(true);
+    expect(trigger.getAttribute('title')).toBe('Requiere admin');
+    expect(trigger.className).toMatch(/destructive/);
+    // "Reconocer drift" stays the primary action of the header (D3: the order and weights are untouched).
+    expect(screen.getByRole('button', { name: 'Reconocer drift' }).className).toMatch(/primary/);
+  });
+
   it('keeps the force-push confirm button disabled for a sha that is too short', async () => {
     vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({ official: fakeReport({ mode: 'baseline', branch: 'main' }), previews: [], history: [] });
     vi.spyOn(client, 'getDriftIssues').mockResolvedValue([]);
 
     renderPage();
-    await screen.findByRole('button', { name: 'Autorizar force-push' });
+    await screen.findByRole('button', { name: 'Autorizar force-push (destructivo)' });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Autorizar force-push' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Autorizar force-push (destructivo)' }));
     const dialog = await screen.findByRole('dialog', { name: 'Autorizar force-push' });
 
     await userEvent.type(within(dialog).getByLabelText('Commit (head_sha) a autorizar'), 'abc123');
@@ -727,5 +751,162 @@ describe('DriftDashboard · previews por rama montadas (SDD-070 WO-638)', () => 
     expect(screen.queryByText(/^\+\d+ vs trunk$/)).toBeNull();
     expect(screen.queryByText(/^-\d+ vs trunk$/)).toBeNull();
     expect(screen.queryByText('0 vs trunk')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------
+// SDD-111 / WO-767 — acknowledging moves a DOCUMENT, not an issue: the select and the summary say how much
+// each target carries, the project-wide target needs an explicit gesture, the toast quotes the server, and
+// the list offers the action from the row and from the subgroup. The fixture is the real shape of the
+// problem: two documents with code debt, one document that only has issues the baseline does not resolve.
+// ---------------------------------------------------------------------------------------------------
+
+let ackSeq = 0;
+
+function ackIssue(overrides: Partial<DriftIssueDto> = {}): DriftIssueDto {
+  ackSeq += 1;
+  return fakeIssue({ id: `ack-${ackSeq}`, ...overrides });
+}
+
+/** 4 issues over 3 documents: SDD-012 ×2 (code), FR-009 ×1 (lifecycle, no blueprint), SDD-013 ×1 (code). */
+function ackIssues(): DriftIssueDto[] {
+  return [
+    ackIssue({ blueprintId: 'SDD-012', nodeId: 'SDD-012', target: 'pkg/a.ts', message: 'pkg/a.ts is out of sync with SDD-012' }),
+    ackIssue({ blueprintId: 'SDD-012', nodeId: 'SDD-012', target: 'pkg/b.ts', message: 'pkg/b.ts is out of sync with SDD-012' }),
+    ackIssue({
+      kind: 'lifecycle_violation',
+      severity: 'error',
+      blueprintId: null,
+      nodeId: 'FR-009',
+      target: undefined,
+      message: 'FR-009 is in review but its children are done',
+    }),
+    ackIssue({ blueprintId: 'SDD-013', nodeId: 'SDD-013', target: 'pkg/c.ts', message: 'pkg/c.ts is out of sync with SDD-013' }),
+  ];
+}
+
+function renderAckPage(issues: readonly DriftIssueDto[], projectRole: ProjectRole = 'admin', orgRole: OrgRole = 'owner'): void {
+  vi.spyOn(client, 'getDriftDashboard').mockResolvedValue({
+    official: fakeReport({ id: 'official-ack', mode: 'baseline', tokenName: 'ci-pipeline', branch: 'main', issueCount: issues.length }),
+    previews: [],
+    history: [],
+  });
+  vi.spyOn(client, 'getDriftIssues').mockResolvedValue([...issues]);
+  renderPage({}, projectRole, orgRole);
+}
+
+async function openFromHeader(): Promise<HTMLElement> {
+  await screen.findByRole('region', { name: 'Issues de drift' });
+  await userEvent.click(screen.getByRole('button', { name: 'Reconocer drift' }));
+  return screen.findByRole('dialog', { name: 'Reconocer drift' });
+}
+
+function ackSelect(dialog: HTMLElement): HTMLSelectElement {
+  return within(dialog).getByRole('combobox', { name: 'Qué reconocer' }) as HTMLSelectElement;
+}
+
+describe('DriftDashboard · reconocer por documento (SDD-111)', () => {
+  beforeEach(() => clearQueryCache());
+  afterEach(() => vi.restoreAllMocks());
+
+  it('says each document’s debt and the project total in the select', async () => {
+    renderAckPage(ackIssues());
+    const dialog = await openFromHeader();
+
+    expect(within(dialog).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'SDD-012 · 2 issues',
+      'FR-009 · 1 issue',
+      'SDD-013 · 1 issue',
+      'Todo el proyecto · 4 issues',
+    ]);
+  });
+
+  it('summarises the chosen document and splits what acknowledging resolves from what it does not', async () => {
+    renderAckPage(ackIssues());
+    const dialog = await openFromHeader();
+
+    // Default is the first target: SDD-012, two code issues the baseline move resolves.
+    expect(within(dialog).getByText('Documento')).toBeTruthy();
+    expect(within(dialog).getByText('Issues que cubre')).toBeTruthy();
+    expect(within(dialog).getByText('Avanza al commit')).toBeTruthy();
+    expect(within(dialog).getByText(/Los 2 issues se resuelven al reconocer: son código y órdenes fuera de sincronía\./)).toBeTruthy();
+
+    // FR-009 only carries a lifecycle violation: acknowledging does not resolve it, and the modal says so.
+    await userEvent.selectOptions(ackSelect(dialog), 'FR-009');
+    expect(
+      within(dialog).getByText(
+        /El único issue no se resuelve al reconocer: depende del grafo o del estado de una orden, no de la línea base \(ciclo de vida, impacts_paths o ya aterrizadas\)\./,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('needs the explicit checkbox before acknowledging the whole project', async () => {
+    const acknowledge = vi.spyOn(graphApi, 'acknowledgeDrift').mockResolvedValue({ report: { issues: [] } as never });
+    renderAckPage(ackIssues());
+    const dialog = await openFromHeader();
+
+    await userEvent.selectOptions(ackSelect(dialog), 'all');
+
+    const confirm = within(dialog).getByRole('button', { name: 'Reconocer todo el proyecto' }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    expect(within(dialog).getByText(/avanza la línea base de los 3 documentos del proyecto/)).toBeTruthy();
+
+    const checkbox = within(dialog).getByRole('checkbox', {
+      name: 'Entiendo que avanza la línea base de todo el proyecto (3 documentos)',
+    });
+    await userEvent.click(checkbox);
+    expect(confirm.disabled).toBe(false);
+
+    await userEvent.click(confirm);
+    await waitFor(() => expect(acknowledge).toHaveBeenCalledWith('acme', 'web', 'all'));
+  });
+
+  it('opens the modal from a subgroup with that document preselected', async () => {
+    renderAckPage(ackIssues());
+    await screen.findByRole('region', { name: 'Issues de drift' });
+    const subgroup = subgroupFor(groupFor(issuesRegion(), 'Código fuera de sincronía'), 'SDD-012');
+
+    await userEvent.click(within(summaryOf(subgroup)).getByRole('button', { name: 'Reconocer los 2 issues de SDD-012' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Reconocer drift' });
+    expect(ackSelect(dialog).value).toBe('SDD-012');
+    expect(within(dialog).getByRole('button', { name: 'Reconocer 2 issues' })).toBeTruthy();
+  });
+
+  it('opens the modal from a row with its document preselected', async () => {
+    renderAckPage(ackIssues());
+    await screen.findByRole('region', { name: 'Issues de drift' });
+    const subgroup = subgroupFor(groupFor(issuesRegion(), 'Código fuera de sincronía'), 'SDD-013');
+    const row = subgroup.querySelector('ul > li');
+    if (!row) throw new Error('the subgroup has no rows');
+
+    // The row never suggests it acknowledges one issue: its label carries the document's count.
+    await userEvent.click(within(row as HTMLElement).getByRole('button', { name: 'Reconocer SDD-013: cubre 1 issue' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Reconocer drift' });
+    expect(ackSelect(dialog).value).toBe('SDD-013');
+    expect(within(dialog).getByRole('button', { name: 'Reconocer 1 issue' })).toBeTruthy();
+  });
+
+  it('quotes the number the server returns as the project’s remainder', async () => {
+    const remaining = [ackIssue({ id: 'left-1' }), ackIssue({ id: 'left-2' }), ackIssue({ id: 'left-3' }), ackIssue({ id: 'left-4' }), ackIssue({ id: 'left-5' })];
+    const acknowledge = vi.spyOn(graphApi, 'acknowledgeDrift').mockResolvedValue({ report: { issues: remaining } as never });
+    renderAckPage(ackIssues());
+    const dialog = await openFromHeader();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Reconocer 2 issues' }));
+
+    await waitFor(() => expect(acknowledge).toHaveBeenCalledWith('acme', 'web', 'SDD-012'));
+    expect(await screen.findByText('Reconociste SDD-012: 2 issues. Quedan 5 en el proyecto.')).toBeTruthy();
+  });
+
+  it('does not offer any acknowledge without the permission', async () => {
+    // An org member with a `viewer` project role: org owner/admin would inherit project admin.
+    renderAckPage(ackIssues(), 'viewer', 'member');
+    const region = await screen.findByRole('region', { name: 'Issues de drift' });
+
+    expect((screen.getByRole('button', { name: 'Reconocer drift' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(within(region).queryAllByRole('button', { name: /^Reconocer SDD-/ })).toHaveLength(0);
+    expect(within(region).queryByRole('button', { name: /^Reconocer los / })).toBeNull();
   });
 });

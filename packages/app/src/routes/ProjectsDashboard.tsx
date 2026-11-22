@@ -24,6 +24,7 @@ import { errorMessage } from '../api/error-message.js';
 import { useApiMutation } from '../api/use-api-mutation.js';
 import { useApiQuery } from '../api/use-api-query.js';
 import { isOrgAdmin } from '../auth/org-role.js';
+import { projectRoleLabel } from '../lib/role-labels.js';
 import {
   Button,
   DataTable,
@@ -173,10 +174,6 @@ function projectRoleOf(role: string): ProjectRole | undefined {
   return PROJECT_ROLES.find((candidate) => candidate === role);
 }
 
-function roleLabel(role: string): string {
-  return role.length === 0 ? role : role.charAt(0).toUpperCase() + role.slice(1);
-}
-
 const MINUTE_MS = 60_000;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
@@ -275,7 +272,7 @@ function buildColumns({ orgSlug, orgRole, onArchive, onUnarchive }: ColumnAction
       sortValue: (project) => project.memberCount ?? 0,
       render: (project) => <AccessCell project={project} orgSlug={orgSlug} />,
     },
-    { key: 'role', header: 'Tu rol', render: (project) => roleLabel(project.myRole) },
+    { key: 'role', header: 'Tu rol', render: (project) => projectRoleLabel(project.myRole) },
     {
       key: 'activity',
       header: 'Última actividad',

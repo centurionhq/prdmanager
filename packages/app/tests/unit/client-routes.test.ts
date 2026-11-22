@@ -19,7 +19,9 @@ import {
   getFeedbackCandidates,
   getLineBoard,
   getMetrics,
+  getOrgAuditFacets,
   getOrgAuditLog,
+  getProjectAuditFacets,
   getProjectAuditLog,
   getProfile,
   getProjectsOverview,
@@ -371,6 +373,21 @@ describe('getProjectAuditLog', () => {
       '/api/app/organizations/acme/projects/factory/audit-log?action=wo.claim&limit=10&cursor=xyz',
     );
   });
+
+  it('reads the total of the cut when the server sends it, and invents none when an older one does not', async () => {
+    spyOnRequest().mockResolvedValue({ entries: [SERVER_ENTRY], nextCursor: null, total: 3484 });
+    await expect(getProjectAuditLog('acme', 'factory')).resolves.toEqual({ items: [SERVER_ENTRY], nextCursor: null, total: 3484 });
+
+    vi.restoreAllMocks();
+    spyOnRequest().mockResolvedValue({ entries: [SERVER_ENTRY], nextCursor: null });
+    await expect(getProjectAuditLog('acme', 'factory')).resolves.toEqual({ items: [SERVER_ENTRY], nextCursor: null });
+  });
+
+  it('fails loudly on a page whose total is not a count', async () => {
+    spyOnRequest().mockResolvedValue({ entries: [], nextCursor: null, total: 'muchas' });
+
+    await expect(getProjectAuditLog('acme', 'factory')).rejects.toThrow(/auditor/i);
+  });
 });
 
 describe('getOrgAuditLog', () => {
@@ -385,6 +402,37 @@ describe('getOrgAuditLog', () => {
     spyOnRequest().mockResolvedValue({ rows: [] });
 
     await expect(getOrgAuditLog('acme')).rejects.toThrow(/auditor/i);
+  });
+
+  it('carries the SDD-091 filters as the server names them: from/to and the actor pair', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ entries: [], nextCursor: null });
+
+    await getOrgAuditLog('acme', { from: '2026-03-01', to: '2026-03-07', actorType: 'user', actorId: 'u1' });
+
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/audit-log?from=2026-03-01&to=2026-03-07&actorType=user&actorId=u1');
+  });
+});
+
+describe('getProjectAuditFacets / getOrgAuditFacets (SDD-091 D3)', () => {
+  it('GETs the project facets: the actions and people of the scope, each with its count', async () => {
+    const facets = { actions: [{ action: 'wo.claim', count: 3 }], actors: [{ type: 'user', id: 'u1', name: null, count: 3 }], total: 3 };
+    const spy = spyOnRequest().mockResolvedValue(facets);
+
+    await expect(getProjectAuditFacets('acme', 'factory')).resolves.toEqual(facets);
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/projects/factory/audit-log/facets');
+  });
+
+  it('GETs the organisation facets at the org scope', async () => {
+    const spy = spyOnRequest().mockResolvedValue({ actions: [], actors: [], total: 0 });
+
+    await expect(getOrgAuditFacets('acme')).resolves.toEqual({ actions: [], actors: [], total: 0 });
+    expect(spy).toHaveBeenCalledWith('/api/app/organizations/acme/audit-log/facets');
+  });
+
+  it('an answer that is not the facets shape fails here, not inside the select that reads it', async () => {
+    spyOnRequest().mockResolvedValue({ actions: 'ninguna' });
+
+    await expect(getOrgAuditFacets('acme')).rejects.toThrow(/facetas/i);
   });
 });
 

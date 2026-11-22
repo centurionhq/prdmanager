@@ -1,0 +1,95 @@
+# ConfirmDialog — decisiones de diseño
+
+Canvas: `ConfirmDialog.dc.html` (nuevo, registrado en `canvas.json`, página "Acceso y ajustes"). Cubre 1440 y 375, tres estados (reposo, en vuelo, error) y el copy de los cinco casos.
+
+## 1. Qué se veía mal (evidencia)
+
+Observado en `https://centurion.ngrok.app/o/centurionhq/p/prdmanager/ajustes/tokens` a 1440 y 375 (screenshots + DOM). No hice clic en "Revocar" para no destruir un token real; lo siguiente sale del código.
+
+- **Revocar ejecuta sin preguntar.** `TokenTable.tsx:63` llama `onRevoke(token.id)` directo desde el botón. Hay tres tokens reales en la tabla (incluido `github-actions-real-ci`, el que alimenta la baseline) a un clic accidental de distancia.
+- **No existe ningún componente de confirmación.** `grep ConfirmDialog` en `packages/app/src` da cero resultados. Los modales de acción que sí existen (Reconocer drift, Archivar orden, etc.) son formularios con botón primario azul; ninguno comunica "destructivo".
+- **El botón destructivo existente no tiene peso.** `Button variant="destructive"` es rojo delineado sobre fondo claro. Al lado de "Cancelar" (también delineado) los dos pesan igual y la jerarquía queda plana.
+- **El botón de la fila es chico a 1440.** Mide 32 px de alto (`size="sm"`) en desktop. A 375 mide 44 px, está bien.
+- **A 375 el botón queda lejos de lo que revoca.** En la tarjeta, "Revocar" está al final de una pila de seis filas de datos, bajo la etiqueta "Acciones:". Por eso el diálogo tiene que repetir qué recurso se afecta.
+- **Los modales actuales no resuelven el estado de error ni el de envío.** `AcknowledgeModal` solo hace `disabled={submitting}`; no hay lugar para decir "no se pudo" sin cerrar el diálogo.
+
+## 2. Decisiones
+
+**Estructura.** Modal `size="md"` (520) con tres capas, de arriba a abajo:
+1. Título en el slot del Modal: verbo + tipo de recurso ("Revocar token de CI", "Quitar del proyecto"). Corto a propósito: el título del Modal es 28/800 y un nombre largo ocuparía tres líneas a 375.
+2. Descripción: la consecuencia, en una o dos frases. Va antes que el recurso porque es lo que se lee para decidir.
+3. **Placa del recurso**: fondo `--relleno`, filete izquierdo `--paro` de 3 px, nombre en 16/700 y dato de contexto en 13 `--apagado` (quién lo creó, último uso, rol, vencimiento). Es lo que "nombra el recurso afectado" y deja confirmar que es el correcto. `overflow-wrap:anywhere` para emails y nombres largos.
+
+**Jerarquía de acciones.** "Cancelar" = `secondary`; acción = `destructive` **sólido** (`--paro` con texto `--blanco`, contraste 6.3:1). Es lo único rojo y lleno del diálogo. Orden en DOM y visual: Cancelar, luego la acción (la acción queda a la derecha en desktop, como en el resto de los modales).
+
+**Foco.** Inicial en Cancelar, con `--focus-ring` visible (comp, estado 1). Esc, X y clic en el fondo cancelan. El foco vuelve al botón que abrió el diálogo.
+
+**Espaciado y tipografía.** Solo tokens: paddings de `--space-6` (24) en desktop y 20 en mobile, gap interno de `--space-3`/`--space-4`, pie con `--rule-row`. Descripción 14/20 `--texto-secundario`. En mobile el título baja a 24 para que "Quitar de la organización" no pase de dos líneas.
+
+**Densidad / 375.** Panel de 327 px (375 menos 2 × 24 de margen del Modal), sin scroll horizontal. Botones apilados a ancho completo, 44 px, Cancelar arriba (el pulgar llega primero a la salida segura), acción abajo. La X crece a 44 px, como ya hace el Modal.
+
+**Estados.**
+- *En vuelo*: la acción se queda con su ancho, muestra spinner y cambia el texto ("Revocando", "Quitando"); Cancelar y X se apagan; hay un texto `aria-live="polite"`. El diálogo no se cierra hasta que el servidor responde. El spinner se detiene con `prefers-reduced-motion`.
+- *Error*: aviso `role="alert"` dentro del diálogo (fondo `--diff-quitado`, borde `--paro`), que dice qué pasó y **qué estado quedó** ("El token sigue activo"). La acción pasa a "Reintentar", Cancelar vuelve a estar activo y el foco se mueve al aviso o queda en Reintentar.
+- *Éxito*: el diálogo se cierra y el aviso lo da un toast (`ToastProvider`), no el diálogo.
+
+**Copy.** Sentence case, voseo como el resto del canvas ("Copialo", "Podés"), sin jerga del motor (nada de `onRevoke`, 401, "token id"). Todos dicen qué deja de funcionar. Los cinco textos están en la tabla del canvas. Solo la **invitación** omite "No se puede deshacer", porque se puede volver a invitar.
+
+## 3. Qué cambia respecto de hoy
+
+| Hoy | Con ConfirmDialog |
+|---|---|
+| Revocar / quitar se ejecuta al primer clic | Siempre pasa por un diálogo que nombra el recurso |
+| Sin componente de confirmación; cada modal inventa su pie | Una pieza reutilizable con tres estados definidos |
+| Destructivo = botón delineado rojo, igual peso que Cancelar | Acción en rojo sólido, Cancelar neutro, foco en Cancelar |
+| Error de red: depende de cada pantalla | Aviso dentro del diálogo, con el estado en que quedó el recurso y "Reintentar" |
+| En mobile cada modal decide su pie | Botones apilados, 44 px, ancho completo |
+
+## 4. Quién decide qué
+
+**Producto (prdm-pm)**
+- Si el diálogo aplica a *todas* las acciones destructivas de Ajustes o solo a estas cinco (el canvas asume estas cinco).
+- Los textos de consecuencia, sobre todo los que afirman comportamiento del producto y que hay que validar:
+  - quitar del proyecto conserva comentarios y cambios;
+  - quitar de la organización invalida los tokens personales;
+  - que un miembro quitado del proyecto "sigue en la organización";
+  - que revocar un token de CI frena la baseline oficial.
+- Si revocar el token de CI (que alimenta la baseline) merece un paso extra, por ejemplo escribir el nombre. No lo dibujé: me parece desproporcionado para una acción que se corrige creando otro token.
+- Si "Revocar invitación" debe llevar o no el aviso de irreversible (acá no lo lleva).
+
+**Front (prdm-frontend)**
+- Crear `ConfirmDialog` sobre `Modal` con props `title`, `description`, `resource: {name, meta}`, `confirmLabel`, `busyLabel`, `error`, `onConfirm`, `onClose`.
+- **Extender `Button`** con una variante sólida (propuesta: `destructive-solid`, `--paro` / `--blanco`, hover más oscuro; hoy no existe ni el token de hover). Si preferís no tocar `Button`, el fallback es `destructive` delineado, a costa de la jerarquía descrita arriba.
+- Foco inicial en Cancelar (`autoFocus` o ref) y retorno del foco al disparador.
+- Estado "en vuelo" con `aria-disabled` en vez de `disabled` en la acción, para no perder el foco; bloquear Esc, X y clic en el fondo mientras dura.
+- `role="alert"` en el error; `aria-live="polite"` en el texto de progreso.
+- El botón "Revocar" de `TokenTable` abre el diálogo en lugar de llamar `onRevoke`.
+- Verificar a 375 que el diálogo scrollea por dentro si el error no entra; el Modal actual no lo resuelve (`max-height` ausente).
+
+## 5. Qué se implementó (WO-717) — addenda, el canvas ya está actualizado
+
+Las decisiones de prdm-pm (P1–P7, en la tarjeta) mandan sobre el comp. Lo que cambió acá y por qué:
+
+- **P3 — sin variante sólida.** El botón de acción usa el `Button variant="destructive"` que ya existe (rojo delineado sobre `--superficie`); no se toca `Button` ni `tokens.css`. Los artboards se actualizaron para mostrar el delineado, no el sólido. La jerarquía plana que el comp señalaba queda registrada como FB-217 (no se puede cerrar dentro de PRD-036, que declara el design system fuera de alcance).
+- **P6 — sin toast.** El éxito es el diálogo cerrándose. El error vive dentro del diálogo (`role="alert"`), y la acción pasa a «Reintentar». El comp dibujaba un toast en el estado de éxito: no se implementó.
+- **Estado en vuelo.** El comp proponía `aria-disabled` para no perder el foco; se usa `disabled` en ambos botones (D4). El foco se mantiene igual porque el efecto de foco inicial sólo corre al abrir.
+- **Scroll a 375.** El contenedor propio de `ConfirmDialog` limita la altura (`max-height` + `overflow-y: auto`) sin tocar `Modal.module.css` (P7).
+- **X durante el en vuelo.** El Modal del barrel no expone un estado deshabilitado para su X; el cierre queda bloqueado por comportamiento (Esc, X y scrim no cierran), que es lo que exige D3. Que la X se vea apagada requeriría un cambio en `Modal`, fuera de este WO.
+- **Foco inicial.** `Button` no reenvía refs, así que el foco va al primer botón del pie («Cancelar») por ref del contenedor; no se toca `Button`.
+
+## 6. Dónde se cablea (WO-718) — el canvas de cada pantalla sigue válido
+
+El cableado no cambia ninguna pantalla en reposo: el diálogo es un overlay que ya está dibujado acá, y los artboards `AjustesTokens.dc.html`, `AjustesTokensPersonales.dc.html`, `AjustesMiembros.dc.html` y `AjustesMiembrosOrg.dc.html` no cambian. Lo que sí queda registrado es **qué disparador abre qué copy**, para que el comp y la app no se separen:
+
+| Pantalla | Disparador (fila) | title | placa nombre · meta | confirm / busy |
+|---|---|---|---|---|
+| `PersonalTokensSettings` | «Revocar» de `TokenTable` | `Revocar token` | nombre · prefijo · último uso | `Revocar token` / `Revocando` |
+| `CiTokensSection` | «Revocar» de `TokenTable` | `Revocar token` | nombre · prefijo · último uso | `Revocar token` / `Revocando` |
+| `ProjectMembersSection` | «Quitar» de la fila | `Quitar del proyecto` | email · rol | `Quitar` / `Quitando` |
+| `OrgMembersSettings` (miembro) | «Quitar» de la fila | `Quitar de la organización` | email · rol | `Quitar` / `Quitando` |
+| `OrgMembersSettings` (invitación) | «Revocar» de la fila | `Revocar invitación` | email · `Invitación pendiente` | `Revocar invitación` / `Revocando` |
+
+El estado del diálogo vive en la pantalla que ya tiene la mutación (`TokenTable` solo entrega el token completo), y el error se queda adentro del diálogo: no hay toast ni banner nuevo. El botón de la fila sigue siendo `destructive` delineado, como en los artboards (P3).
+
+Verificación de esta pieza en navegador real: `packages/server/tests/e2e/ajustes-seccion.spec.ts` — a 1440 y a 375 el click abre el diálogo, la fila **no** cambia hasta confirmar, el diálogo nombra el token y el foco arranca en «Cancelar».
+

@@ -45,7 +45,7 @@ describe('computeImpactsPathsDrift (WO-427)', () => {
     await pg.close();
   });
 
-  async function makeEngine(): Promise<{ engine: PgProjectEngine; orgId: string; projectId: string }> {
+  async function makeEngine(): Promise<{ engine: PgProjectEngine; orgId: string; projectId: string; project: ProjectRecord }> {
     const org = await createOrganizationFixture(pg);
     const fixture = await createProjectFixture(pg, { orgId: org.id });
     const project = await createTenantDb(pg.appPool).forOrg(org.id).projects.findById(fixture.id);
@@ -53,7 +53,17 @@ describe('computeImpactsPathsDrift (WO-427)', () => {
     const store = neo4j.forProject({ id: project.graphProjectId, name: project.name, root: saasProjectRoot(project.id) });
     await store.clear();
     const engine = createPgProjectEngine({ pool: pg.appPool, orgId: org.id, projectId: project.id, settings: buildProjectSettings(project), hashAlgoVersion: 1, store });
-    return { engine, orgId: org.id, projectId: project.id };
+    return { engine, orgId: org.id, projectId: project.id, project };
+  }
+
+  /** Siembra otro Blueprint publicado (mismo shape que `blueprintTemplate`) con sus `impacts_paths`. */
+  async function seedOtherBlueprint(orgId: string, projectId: string, id: string, patterns: readonly string[]): Promise<void> {
+    const raw = `---\nid: ${id}\ntype: SDD\ntitle: "Other ${id}"\narchitects: ["FR-001"]\nimpacts_paths: [${patterns.map((p) => `"${p}"`).join(', ')}]\n---\n\n## Contexto\n\n## Tareas\n\n- [ ] x\n`;
+    await pg.ownerPool.query(
+      `INSERT INTO "documents" (org_id, project_id, doc_id, kind, title, source_path, origin, workflow_state, published_raw)
+       VALUES ($1, $2, $3, 'SDD', $4, $5, 'collab', 'published', $6)`,
+      [orgId, projectId, id, `Other ${id}`, `docs/sdd/${id}-other.md`, raw],
+    );
   }
 
   async function seedDocs(orgId: string, projectId: string, impactsPaths: string): Promise<void> {
@@ -143,6 +153,59 @@ describe('computeImpactsPathsDrift (WO-427)', () => {
 
     expect(drift!.suggestedAdditions).toEqual([]);
     expect(drift!.basedOnCommits).toEqual([]);
+  });
+
+  const driftOf = async (e: { engine: PgProjectEngine; orgId: string; projectId: string }) =>
+    computeImpactsPathsDrift(pg.appPool, e.orgId, e.projectId, (await e.engine.scan()).docs, BLUEPRINT_ID);
+
+  test('a touched path another blueprint declares verbatim goes to alreadyGoverned, not suggestedAdditions (SDD-119 D4)', async () => {
+    const env = await makeEngine();
+    await seedDocs(env.orgId, env.projectId, 'packages/core/tests');
+    await seedOtherBlueprint(env.orgId, env.projectId, 'SDD-002', ['packages/core/tests/unit/foo.test.ts']);
+    await reportCommit(env.orgId, env.projectId, 'd'.repeat(40), ['packages/core/tests/unit/foo.test.ts']);
+
+    const drift = await driftOf(env);
+
+    expect(drift!.alreadyGoverned).toEqual([{ path: 'packages/core/tests/unit/foo.test.ts', by: ['SDD-002'] }]);
+    expect(drift!.suggestedAdditions).toEqual([]);
+  });
+
+  test('a path covered only by a foreign glob stays in suggestedAdditions (SDD-119 D4)', async () => {
+    const env = await makeEngine();
+    await seedDocs(env.orgId, env.projectId, 'packages/core/tests');
+    await seedOtherBlueprint(env.orgId, env.projectId, 'SDD-002', ['packages/app/tests/**']);
+    await reportCommit(env.orgId, env.projectId, 'e'.repeat(40), ['packages/app/tests/x.test.tsx']);
+
+    const drift = await driftOf(env);
+
+    expect(drift!.suggestedAdditions).toEqual(['packages/app/tests/x.test.tsx']);
+    expect(drift!.alreadyGoverned).toEqual([]);
+  });
+
+  test('suggestedAdditions and alreadyGoverned partition the uncovered files exhaustively (SDD-119 D4)', async () => {
+    const env = await makeEngine();
+    await seedDocs(env.orgId, env.projectId, 'packages/core/tests');
+    await seedOtherBlueprint(env.orgId, env.projectId, 'SDD-002', ['packages/core/tests/unit/foo.test.ts', 'packages/app/tests/**']);
+    await seedOtherBlueprint(env.orgId, env.projectId, 'SDD-003', ['packages/core/tests/unit/foo.test.ts']);
+    await reportCommit(env.orgId, env.projectId, 'f'.repeat(40), ['packages/cli/src/foo.ts', 'packages/core/tests/unit/foo.test.ts', 'packages/app/tests/x.test.tsx']);
+
+    const drift = await driftOf(env);
+
+    expect(drift!.suggestedAdditions).toEqual(['packages/app/tests/x.test.tsx', 'packages/cli/src/foo.ts']);
+    expect(drift!.alreadyGoverned).toEqual([{ path: 'packages/core/tests/unit/foo.test.ts', by: ['SDD-002', 'SDD-003'] }]);
+    expect(drift!.suggestedAdditions.length + drift!.alreadyGoverned.length).toBe(3);
+  });
+
+  test('the remote documents port exposes the same alreadyGoverned (SDD-119 D4)', async () => {
+    const env = await makeEngine();
+    await seedDocs(env.orgId, env.projectId, 'packages/core/tests');
+    await seedOtherBlueprint(env.orgId, env.projectId, 'SDD-002', ['packages/core/tests/unit/foo.test.ts']);
+    await reportCommit(env.orgId, env.projectId, '1'.repeat(40), ['packages/core/tests/unit/foo.test.ts']);
+
+    const remote = await buildRemoteDocumentsPort(pg.appPool, env.orgId, env.project, env.engine).getImpactsPathsDrift(BLUEPRINT_ID);
+
+    expect(remote!.alreadyGoverned).toEqual((await driftOf(env))!.alreadyGoverned);
+    expect(remote!.alreadyGoverned).toHaveLength(1);
   });
 
   test('returns null for a nonexistent blueprint id', async () => {

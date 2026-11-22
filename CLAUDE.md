@@ -43,7 +43,7 @@ el driver lo revisa antes de cada ciclo y no invoca a `claude` si está presente
 
 ### Verbos systemctl permitidos/prohibidos
 
-Permitidos (vía `.claude/settings.rsi.json`): `systemctl --user restart|status prdmanager-server.service`.
+Permitidos: `systemctl --user restart|status prdm-server.service`.
 Prohibidos explícitamente: `systemctl --user stop|disable` sobre cualquiera de las dos unidades
-(`prdmanager-server.service`, `prdmanager-rsi.service`) — así un `stop` humano nunca puede ser
+(`prdm-server.service`, `prdmanager-rsi.service`) — así un `stop` humano nunca puede ser
 auto-reparado por el propio loop.

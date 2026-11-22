@@ -22,5 +22,28 @@ export type AuditLogEntryDto = z.infer<typeof auditLogEntrySchema>;
 export const auditLogPageSchema = z.object({
   entries: z.array(auditLogEntrySchema),
   nextCursor: z.string().nullable(),
+  /** Total del recorte filtrado (SDD-091); opcional para que un servidor viejo siga parseando. */
+  total: z.number().int().min(0).optional(),
 });
 export type AuditLogPageDto = z.infer<typeof auditLogPageSchema>;
+
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/;
+const isoInstant = z.string().refine((v) => ISO_INSTANT.test(v) && !Number.isNaN(Date.parse(v)), { message: 'invalid ISO-8601 instant' });
+
+/** Filtros del listado de auditoría (SDD-091): todos opcionales; `from`/`to` inclusivos sobre `created_at`. */
+export const auditLogQuerySchema = z.object({
+  action: z.string().min(1).max(120).optional(),
+  from: isoInstant.optional(),
+  to: isoInstant.optional(),
+  actorType: z.string().min(1).max(40).optional(),
+  actorId: z.string().min(1).max(200).optional(),
+});
+export type AuditLogQueryDto = z.infer<typeof auditLogQuerySchema>;
+
+/** Facetas de auditoría (SDD-091): acciones y actores distintos con conteo, y el total del alcance. */
+export const auditFacetsSchema = z.object({
+  actions: z.array(z.object({ action: z.string(), count: z.number().int().min(0) })),
+  actors: z.array(z.object({ type: z.string(), id: z.string(), name: z.string().nullable(), count: z.number().int().min(0) })),
+  total: z.number().int().min(0),
+});
+export type AuditFacetsDto = z.infer<typeof auditFacetsSchema>;

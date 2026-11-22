@@ -28,6 +28,9 @@ export interface ImpactsPathsDrift {
   /** Files touched by a commit referencing one of this blueprint's Work Orders, but not matched by any
    * of `currentPatterns` -- sorted for a stable, deterministic result. */
   suggestedAdditions: readonly string[];
+  /** SDD-119 D4: archivos tocados y no cubiertos por un patrón propio, pero que otro Blueprint publicado ya
+   * declara verbatim; `by` son los ids (ordenados) de quienes lo gobiernan. Complementa `suggestedAdditions`. */
+  alreadyGoverned: readonly { path: string; by: readonly string[] }[];
   /** The commit shas the suggestion is based on, for traceability. */
   basedOnCommits: readonly string[];
 }
@@ -44,18 +47,28 @@ export async function computeImpactsPathsDrift(pool: Pool, orgId: string, projec
 
   const currentPatterns = blueprint.impactsPaths;
   const woIds = workOrdersImplementing(docs, blueprintId).map((wo) => wo.node.id);
-  if (woIds.length === 0) return { blueprintId, currentPatterns, suggestedAdditions: [], basedOnCommits: [] };
+  if (woIds.length === 0) return { blueprintId, currentPatterns, suggestedAdditions: [], alreadyGoverned: [], basedOnCommits: [] };
 
   const relevantCommits = await findCommitsReferencingAny(pool, orgId, projectId, woIds);
-  if (relevantCommits.length === 0) return { blueprintId, currentPatterns, suggestedAdditions: [], basedOnCommits: [] };
+  if (relevantCommits.length === 0) return { blueprintId, currentPatterns, suggestedAdditions: [], alreadyGoverned: [], basedOnCommits: [] };
 
   const allFiles = new Set<string>();
   for (const commit of relevantCommits) for (const file of commit.files) allFiles.add(file);
 
   const policyBlueprint: PolicyBlueprint = { type: blueprint.frontmatter.type as 'SDD' | 'ADR', id: blueprintId, impactsPaths: currentPatterns };
-  const suggestedAdditions = [...allFiles].filter((file) => !isGovernedPath(file, [policyBlueprint])).sort();
+  const touchedUncovered = [...allFiles].filter((file) => !isGovernedPath(file, [policyBlueprint])).sort();
 
-  return { blueprintId, currentPatterns, suggestedAdditions, basedOnCommits: relevantCommits.map((c) => c.sha).sort() };
+  // SDD-119 D4: «ya gobernado» = otro Blueprint lo declara verbatim (un glob ajeno no cuenta).
+  const otherBlueprints = docs.filter((d) => d.node.label === 'Blueprint' && d.node.id !== blueprintId);
+  const suggestedAdditions: string[] = [];
+  const alreadyGoverned: { path: string; by: string[] }[] = [];
+  for (const path of touchedUncovered) {
+    const by = otherBlueprints.filter((bp) => bp.impactsPaths.includes(path)).map((bp) => bp.node.id).sort();
+    if (by.length > 0) alreadyGoverned.push({ path, by });
+    else suggestedAdditions.push(path);
+  }
+
+  return { blueprintId, currentPatterns, suggestedAdditions, alreadyGoverned, basedOnCommits: relevantCommits.map((c) => c.sha).sort() };
 }
 
 /** SDD-072 D2: a pattern is "actually shared" once this many commits outside the blueprint's own Work Orders touch it. */

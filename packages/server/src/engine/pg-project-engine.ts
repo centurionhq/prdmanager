@@ -868,9 +868,10 @@ export class PgProjectEngine implements ProjectEngine {
    * `collab`-origin fields a human draft could otherwise set from being silently overwritten by an
    * ordinary authoring write; `impacts_paths` is deliberately *not* in that server-managed set (authors
    * normally set it freely when drafting an SDD/ADR), so reusing it here would incorrectly also forbid
-   * normal human authoring of the field. This method is reachable only from the admin-gated, audited
-   * `sync_impacts_paths` REST route (WO-430) -- never a general-purpose field setter a human draft path
-   * could accidentally trigger -- which is what makes bypassing that protection safe here.
+   * normal human authoring of the field. This is the only `impacts_paths` write outside normal authoring, and
+   * it is reached only through `applyImpactsPathsSync` -- from the admin-gated, audited REST route (WO-430) and
+   * the MCP tool `sync_impacts_paths` (SDD-119 WO-786) -- never a general-purpose field setter a human draft
+   * path could accidentally trigger, which is what makes bypassing that protection safe here.
    *
    * `nextImpactsPaths` replaces the field entirely (the caller -- `sync_impacts_paths` -- already merged
    * the CI-suggested additions onto the current patterns and asked the operator to confirm the exact

@@ -13,7 +13,7 @@ export const DOWN_FILTER = '<EVOLVES_FROM|<ARCHITECTS|<IMPLEMENTS|<PROVIDES_CONT
 export const MAX_DEPTH = 25;
 
 const SUBGRAPH_PROJECTION = `
-  RETURN [n IN ns | {ref: n.ref, label: ${LABEL_OF}, kind: n.kind, title: coalesce(n.title, n.subject, n.key, n.id), status: n.status}] AS nodes,
+  RETURN [n IN ns | {ref: n.ref, label: ${LABEL_OF}, kind: n.kind, title: coalesce(n.title, n.subject, n.key, n.id), status: n.status, date: n.date, sha: n.sha}] AS nodes,
          [r IN rs | {from: startNode(r).ref, to: endNode(r).ref, type: type(r), status: r.status, reviewNeeded: coalesce(r.review_needed, false)}] AS edges`;
 
 // -- writeSnapshot -----------------------------------------------------------------------------

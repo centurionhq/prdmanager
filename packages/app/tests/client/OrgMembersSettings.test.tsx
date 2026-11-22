@@ -66,6 +66,27 @@ describe('OrgMembersSettings', () => {
     expect(screen.queryByRole('button', { name: 'Invitar persona' })).toBeNull();
   });
 
+  it('shows roles in Spanish, never the raw enum, in the member and invitation rows', async () => {
+    vi.spyOn(client, 'listOrganizationMembers').mockResolvedValue(MEMBERS);
+    vi.spyOn(client, 'listOrganizationInvitations').mockResolvedValue(INVITATIONS);
+    renderPage('admin');
+
+    const ownerRow = within((await screen.findByText('owner@example.test')).closest('tr')!);
+    const memberRow = within((await screen.findByText('member@example.test')).closest('tr')!);
+    const invitationRow = within((await screen.findByText('pending@example.test')).closest('tr')!);
+
+    expect(ownerRow.getByText('Dueño')).toBeTruthy();
+    expect(memberRow.getByText('Miembro')).toBeTruthy();
+    expect(invitationRow.getByText('Miembro')).toBeTruthy();
+    for (const row of [ownerRow, memberRow, invitationRow]) {
+      expect(row.queryByText('owner')).toBeNull();
+      expect(row.queryByText('member')).toBeNull();
+      expect(row.queryByText('admin')).toBeNull();
+    }
+  });
+
+  /** WO-718 D1/D3: one dialog for both destructive invite/member actions; the row button only opens it and
+   * the mutation runs from the dialog's own button. */
   it('lets an admin change a role, remove a member, and revoke an invitation', async () => {
     vi.spyOn(client, 'listOrganizationMembers').mockResolvedValue(MEMBERS);
     vi.spyOn(client, 'listOrganizationInvitations').mockResolvedValue(INVITATIONS);
@@ -79,12 +100,41 @@ describe('OrgMembersSettings', () => {
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Rol de member@example.test' }), 'admin');
     await waitFor(() => expect(updateRole).toHaveBeenCalledWith('acme', 'u2', 'admin'));
 
-    const rows = screen.getAllByRole('button', { name: /^Quitar/ });
-    await userEvent.click(rows[rows.length - 1]!);
+    await userEvent.click(screen.getByRole('button', { name: 'Quitar a member@example.test' }));
+    const memberDialog = await screen.findByRole('dialog', { name: 'Quitar de la organización' });
+    expect(within(memberDialog).getByText('member@example.test')).toBeTruthy();
+    expect(within(memberDialog).getByText(/Pierde el acceso a todos los proyectos/)).toBeTruthy();
+    expect(remove).not.toHaveBeenCalled();
+    await userEvent.click(within(memberDialog).getByRole('button', { name: 'Quitar' }));
     await waitFor(() => expect(remove).toHaveBeenCalledWith('acme', 'u2'));
+    expect(remove).toHaveBeenCalledTimes(1);
 
-    await userEvent.click(screen.getByRole('button', { name: /^Revocar/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Revocar la invitación de pending@example.test' }));
+    const inviteDialog = await screen.findByRole('dialog', { name: 'Revocar invitación' });
+    expect(within(inviteDialog).getByText('pending@example.test')).toBeTruthy();
+    expect(within(inviteDialog).getByText(/El enlace que le mandaste deja de funcionar/)).toBeTruthy();
+    expect(revoke).not.toHaveBeenCalled();
+    await userEvent.click(within(inviteDialog).getByRole('button', { name: 'Revocar invitación' }));
     await waitFor(() => expect(revoke).toHaveBeenCalledWith('acme', 'inv1'));
+    expect(revoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancelling either confirmation leaves the member and the invitation alone', async () => {
+    vi.spyOn(client, 'listOrganizationMembers').mockResolvedValue(MEMBERS);
+    vi.spyOn(client, 'listOrganizationInvitations').mockResolvedValue(INVITATIONS);
+    const remove = vi.spyOn(client, 'removeOrganizationMember').mockResolvedValue(undefined);
+    const revoke = vi.spyOn(client, 'revokeOrganizationInvitation').mockResolvedValue(undefined);
+    renderPage('admin');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Quitar a owner@example.test' }));
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Quitar de la organización' })).getByRole('button', { name: 'Cancelar' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Revocar la invitación de pending@example.test' }));
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Revocar invitación' })).getByRole('button', { name: 'Cancelar' }));
+
+    expect(remove).not.toHaveBeenCalled();
+    expect(revoke).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
   it('surfaces a server error (e.g. last-owner rule) without crashing the page', async () => {
@@ -94,10 +144,14 @@ describe('OrgMembersSettings', () => {
     renderPage('admin');
 
     await screen.findByText('owner@example.test');
-    const [removeOwnerButton] = screen.getAllByRole('button', { name: /^Quitar/ });
-    await userEvent.click(removeOwnerButton!);
+    await userEvent.click(screen.getByRole('button', { name: 'Quitar a owner@example.test' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Quitar de la organización' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Quitar' }));
 
-    expect(await screen.findByText('cannot remove the last owner')).toBeTruthy();
+    // The error stays inside the dialog — no toast, no screen-level banner — with the action as "Reintentar".
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('cannot remove the last owner'));
+    expect(screen.getByRole('dialog', { name: 'Quitar de la organización' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeTruthy();
   });
 
   it('an admin (not owner) cannot invite a new owner', async () => {

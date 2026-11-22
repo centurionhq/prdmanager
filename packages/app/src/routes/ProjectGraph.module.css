@@ -149,6 +149,100 @@
   min-width: 0;
 }
 
+/* -- WO-747 (SDD-104): la cadena SDD-rama en la fila de cada orden ------------------------------- */
+
+/* El SDD de la orden: ids mono en cianotipo, enlazados a su documento. Con más de un blueprint van en
+   línea, separados, sin elegir uno en silencio (D2). */
+.sddCell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-2);
+}
+
+.sddLink {
+  color: var(--cianotipo);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sddLink:hover {
+  color: var(--cianotipo-hover);
+}
+
+.sddLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.sddMissing {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+/* La celda del commit: marca no cromática + sha, y «aterrizado en main» debajo (decisión C2). */
+.commitCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.commitLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.commitMarkOn {
+  flex: none;
+  color: var(--grafito);
+}
+
+.commitMarkOff {
+  flex: none;
+  color: var(--apagado);
+}
+
+.commitMissing {
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+.commitNote {
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  color: var(--texto-secundario);
+}
+
+/* Resumen «N de M órdenes pendientes ya tienen commit», arriba de la tabla (D5/C5). */
+.chainSummary {
+  margin: calc(var(--space-2) * -1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--apagado);
+}
+
+/* La leyenda de la marca, una sola línea bajo la tabla (C5). */
+.chainLegend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--apagado);
+}
+
+.chainLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chainLegendNote {
+  color: var(--texto-secundario);
+}
+
 .checkList {
   list-style: none;
   margin: 0;

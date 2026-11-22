@@ -112,7 +112,16 @@ export async function resolveGoverned(
             })
           ).sort()
         : [rel];
-    if (files.length === 0) warnings.push(`impacts_paths pattern "${pattern}" matches no files`);
+    if (files.length === 0) {
+      if (isStaticDir) {
+        // An empty static directory is still declared (like a nonexistent static file): without a ref the
+        // drift would see its baseline key as undeclared and raise code_out_of_sync instead of impacts_warning.
+        const key = symbol ? `${rel}#${symbol}` : rel;
+        if (!refs.has(key)) refs.set(key, { key, path: rel, symbol, hash: null });
+      } else {
+        warnings.push(`impacts_paths pattern "${pattern}" matches no files`);
+      }
+    }
 
     for (const path of files) {
       const key = symbol ? `${path}#${symbol}` : path;

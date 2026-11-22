@@ -8,6 +8,9 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  /* SDD-122 D4: the force-push label grew, and this row already overflowed at 375 px (FB-306). Wrapping keeps
+   * the three actions reachable without horizontal scroll; stacking them into a menu is FB-306's own scope. */
+  flex-wrap: wrap;
 }
 
 .body {
@@ -236,6 +239,25 @@ details[open] > .subgroupHeader::before {
   color: var(--apagado);
 }
 
+/* The acknowledge action per document: in the subgroup summary, pushed to the end of the row. */
+.subgroupAction {
+  margin-left: auto;
+}
+
+/* The acknowledge action per row: the document's count rides after a rule, never a bare "1". */
+.issueAck {
+  display: flex;
+  flex: none;
+  align-items: center;
+  align-self: flex-start;
+}
+
+.issueAckCount {
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--regla);
+  font-variant-numeric: tabular-nums;
+}
+
 .issueList {
   margin: 0 0 var(--space-4);
   padding: 0;
@@ -341,5 +363,31 @@ details[open] > .subgroupHeader::before {
 
   .summaryItem:first-child {
     border-top: none;
+  }
+
+  /* SDD-111: the acknowledge action becomes a full-width 44 px row under the message, not a squeezed cell. */
+  .subgroupHeader {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+  }
+
+  .subgroupAction {
+    width: 100%;
+    min-height: var(--hit-target);
+    margin-left: 0;
+  }
+
+  .issueRow {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+  }
+
+  .issueAck {
+    width: 100%;
+    padding-left: calc(var(--space-3) + 12px);
+  }
+
+  .issueAck > button {
+    min-height: var(--hit-target);
   }
 }

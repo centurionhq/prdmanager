@@ -1,3 +1,5 @@
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { extractSymbol, resolveGoverned } from '../../src/sync/code-refs.js';
 import { SymbolCache } from '../../src/sync/symbol-cache.js';
@@ -204,6 +206,22 @@ describe('resolveGoverned', () => {
       { key: 'packages/core/tests/sub/b.py', path: 'packages/core/tests/sub/b.py', symbol: null, hash: sha256(py.replace(/\s+$/, '')) },
     ]);
     expect(warnings).toEqual([]);
+  });
+
+  test('un patrón estático que nombra un directorio vacío es un ref declarado con hash null, no sólo un warning', async () => {
+    root = makeTmpDir();
+    await mkdir(join(root, 'paquete/tests/empty'), { recursive: true });
+    const plain = await resolveGoverned(root, ['paquete/tests/empty'], []);
+    expect(plain.refs).toEqual([{ key: 'paquete/tests/empty', path: 'paquete/tests/empty', symbol: null, hash: null }]);
+    expect(plain.warnings).toEqual([]);
+
+    const withSymbol = await resolveGoverned(root, ['paquete/tests/empty#foo'], []);
+    expect(withSymbol.refs).toEqual([{ key: 'paquete/tests/empty#foo', path: 'paquete/tests/empty', symbol: 'foo', hash: null }]);
+    expect(withSymbol.warnings).toEqual([]);
+
+    const dynamic = await resolveGoverned(root, ['paquete/tests/empty/**'], []);
+    expect(dynamic.refs).toEqual([]);
+    expect(dynamic.warnings).toEqual(['impacts_paths pattern "paquete/tests/empty/**" matches no files']);
   });
 
   test('a static impacts_paths entry that names a real file, or a path that does not exist at all, is unaffected by the directory check', async () => {

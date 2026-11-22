@@ -20,6 +20,9 @@ function entry(overrides: Partial<AuditLogEntryDto> = {}): AuditLogEntryDto {
 }
 
 function renderPage(): void {
+  // Facets feed the action and person selects (SDD-091); the shape they answer with is not what this screen's
+  // own test is about, so it answers empty.
+  vi.spyOn(client, 'getProjectAuditFacets').mockResolvedValue({ actions: [], actors: [], total: 0 });
   const router = createMemoryRouter(
     [{ path: '/ctx', element: <Outlet context={makeProjectShellContext('admin')} />, children: [{ index: true, element: <AjustesAuditoria /> }] }],
     { initialEntries: ['/ctx'] },
@@ -63,6 +66,8 @@ describe('AjustesAuditoria', () => {
     renderPage();
 
     await screen.findByText('document.published');
+    // SDD-091 D5: the action is a select fed by the facets, and «Otra acción…» is the advanced field.
+    await userEvent.selectOptions(screen.getByLabelText('Acción'), 'otra');
     await userEvent.type(screen.getByLabelText('Filtrar por acción'), 'drift.acknowledged');
     await userEvent.click(screen.getByRole('button', { name: 'Filtrar' }));
 

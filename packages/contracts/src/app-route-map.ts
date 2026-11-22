@@ -20,6 +20,8 @@ const APP_ROUTE_PATTERNS = [
   '/o/:orgSlug',
   '/o/:orgSlug/ajustes/miembros',
   '/o/:orgSlug/ajustes/auditoria',
+  '/o/:orgSlug/ajustes/perfil',
+  '/o/:orgSlug/ajustes/tokens-personales',
   '/o/:orgSlug/p/:projectSlug',
   '/o/:orgSlug/p/:projectSlug/construir/negocio',
   '/o/:orgSlug/p/:projectSlug/construir/developer',

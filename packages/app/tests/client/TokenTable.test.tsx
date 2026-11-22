@@ -82,14 +82,17 @@ describe('TokenTable (WO-580, SDD-056)', () => {
     expect(within(screen.getByRole('row', { name: /caido/ })).getByText('Revocado')).toBeTruthy();
   });
 
-  it('offers to revoke only what is still alive', async () => {
+  /** WO-718 D1: the row hands over the whole token, not just its id — only the consumer can name the token
+   * (and its prefix / last use) in the confirmation, and the consumer owns the dialog. */
+  it('offers to revoke only what is still alive, handing the whole token to the consumer', async () => {
     const onRevoke = vi.fn();
-    render(<TokenTable tokens={[token({ id: 'a', name: 'vivo' }), token({ id: 'c', name: 'caido', revokedAt: '2026-01-01T00:00:00.000Z' })]} onRevoke={onRevoke} />);
+    const vivo = token({ id: 'a', name: 'vivo' });
+    render(<TokenTable tokens={[vivo, token({ id: 'c', name: 'caido', revokedAt: '2026-01-01T00:00:00.000Z' })]} onRevoke={onRevoke} />);
 
     expect(within(screen.getByRole('row', { name: /caido/ })).queryByRole('button', { name: /Revocar/ })).toBeNull();
     await userEvent.click(within(screen.getByRole('row', { name: /vivo/ })).getByRole('button', { name: /Revocar/ }));
 
-    expect(onRevoke).toHaveBeenCalledWith('a');
+    expect(onRevoke).toHaveBeenCalledWith(vivo);
   });
 
   it('names each revoke button after its token, so a screen reader can tell them apart', () => {

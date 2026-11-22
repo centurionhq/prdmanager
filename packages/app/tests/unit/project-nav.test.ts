@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildPrimaryNav, initialsFor, projectBasePath, projectRoleLabel } from '../../src/components/shell/project-nav.js';
+import { buildPrimaryNav, initialsFor, projectBasePath } from '../../src/components/shell/project-nav.js';
+import { projectRoleLabel } from '../../src/lib/role-labels.js';
 
 describe('projectBasePath', () => {
   it('builds the /o/:org/p/:project prefix', () => {
@@ -29,11 +30,11 @@ describe('buildPrimaryNav', () => {
 
 describe('projectRoleLabel', () => {
   it('translates every known project role', () => {
-    expect(projectRoleLabel('admin')).toBe('Admin de proyecto');
+    expect(projectRoleLabel('admin')).toBe('Administrador');
     expect(projectRoleLabel('editor')).toBe('Editor');
     expect(projectRoleLabel('developer')).toBe('Developer');
     expect(projectRoleLabel('commenter')).toBe('Comentarista');
-    expect(projectRoleLabel('viewer')).toBe('Viewer');
+    expect(projectRoleLabel('viewer')).toBe('Lector');
   });
 
   it('falls back to a generic label with no role', () => {

@@ -206,6 +206,8 @@
         <!-- Decisiones a/b/c/g: tope de 25, sin columna Fecha, Commit = marca + sha + «aterrizado en main», títulos planos a 2 líneas. -->
         <div style="display: flex; flex-direction: column; gap: 8px;">
           <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Órdenes recientes</h3>
+          <!-- WO-747 (SDD-104 D5/C5): el resumen de la cadena, sobre todas las órdenes del branch. -->
+          <p style="margin: 0; font-size: 14px; color: #565D63;"><span class="num">3</span> de <span class="num">5</span> órdenes pendientes ya tienen commit</p>
           <div role="table" aria-label="Órdenes recientes de FR-009" style="display: grid; grid-template-columns: 72px minmax(0, 1fr) 80px 104px 144px; column-gap: 12px;">
             <div class="th">Orden</div><div class="th">Título</div><div class="th">SDD</div><div class="th">Estado</div><div class="th">Commit</div>
             <sc-for list="{{ ordenes }}" as="o" hint-placeholder-count="6">
@@ -228,6 +230,18 @@
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 4px; font-size: 14px; color: #565D63;">
             <span>Mostrando las <span class="num">25</span> órdenes más recientes de <span class="num">37</span></span>
             <a class="btn-ghost" style="padding: 0;">Ver las 37 órdenes en la cola</a>
+          </div>
+          <!-- WO-747 (SDD-104 C5): la leyenda de la marca, una línea bajo la tabla; el círculo es decorativo. -->
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 12px; color: #565D63;">
+            <span style="display: inline-flex; align-items: center; gap: 6px; color: #17191C;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l3 3 5-6"></path></svg>
+              aterrizado en main
+            </span>
+            <span style="display: inline-flex; align-items: center; gap: 6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"></circle></svg>
+              sin commit
+            </span>
+            <span style="color: #33383D;">La marca no cierra ni cambia el estado de la orden.</span>
           </div>
         </div>
 
@@ -400,7 +414,7 @@
             <div style="padding: 12px 8px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Origen</span><span class="id" style="font-size: 14px;">FB-179, FB-151, BC-022</span></div>
             <div style="padding: 12px 0 12px 8px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Blueprints</span><span class="id" style="font-size: 14px;">SDD-005, ADR-004, SDD-006</span></div>
             <div style="padding: 12px 8px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Órdenes</span><span class="num" style="font-size: 16px; font-weight: 600;">3 de 8 hechas</span></div>
-            <div style="padding: 12px 0 12px 8px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Commits</span><span class="num" style="font-size: 16px; font-weight: 600;">3 en main</span></div>
+            <div style="padding: 12px 0 12px 8px; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Commits</span><span class="num" style="font-size: 16px; font-weight: 600;">3 aterrizados en main</span></div>
             <div style="padding: 12px 8px 12px 0; border-bottom: 1px solid #DDE1DF; display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 14px; color: #565D63;">Código</span><span class="num" style="font-size: 16px; font-weight: 600; color: #19703F;">29 referencias</span></div>
           </div>
         </div>
@@ -408,6 +422,8 @@
         <!-- Por debajo de 640 px la tabla se apila: una orden por bloque, sin scroll horizontal. -->
         <div style="display: flex; flex-direction: column; gap: 8px;">
           <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Órdenes recientes</h3>
+          <!-- WO-747 (SDD-104 D5/C5): el mismo resumen que en escritorio, sobre todas las órdenes del branch. -->
+          <p style="margin: 0; font-size: 14px; color: #565D63;"><span class="num">3</span> de <span class="num">5</span> órdenes pendientes ya tienen commit</p>
           <div style="display: flex; flex-direction: column; border-top: 1px solid #C9CFCD;">
             <sc-for list="{{ ordenes }}" as="o" hint-placeholder-count="4">
               <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid #DDE1DF;">
@@ -432,6 +448,18 @@
           <div style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #565D63;">
             <span>Mostrando las <span class="num">25</span> órdenes más recientes de <span class="num">37</span></span>
             <a class="btn-ghost" style="padding: 0; align-self: flex-start;">Ver las 37 órdenes en la cola</a>
+          </div>
+          <!-- WO-747 (SDD-104 C5): la leyenda, una línea que se envuelve a 375 px; el círculo es decorativo. -->
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 12px; color: #565D63;">
+            <span style="display: inline-flex; align-items: center; gap: 6px; color: #17191C;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l3 3 5-6"></path></svg>
+              aterrizado en main
+            </span>
+            <span style="display: inline-flex; align-items: center; gap: 6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"></circle></svg>
+              sin commit
+            </span>
+            <span style="color: #33383D;">La marca no cierra ni cambia el estado de la orden.</span>
           </div>
         </div>
 

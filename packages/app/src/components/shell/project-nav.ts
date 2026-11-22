@@ -27,19 +27,6 @@ export function buildPrimaryNav(orgSlug: string, projectSlug: string): readonly 
   ];
 }
 
-const PROJECT_ROLE_LABEL: Record<string, string> = {
-  admin: 'Admin de proyecto',
-  editor: 'Editor',
-  developer: 'Developer',
-  commenter: 'Comentarista',
-  viewer: 'Viewer',
-};
-
-export function projectRoleLabel(role: string | undefined): string {
-  if (!role) return 'Sin rol asignado';
-  return PROJECT_ROLE_LABEL[role] ?? role;
-}
-
 /** Two-letter avatar initials from a display name (e.g. "Ana Ríos" → "AR"), falling back to the first
  * two letters of an email's local part when there's no space-separated name. */
 export function initialsFor(name: string): string {

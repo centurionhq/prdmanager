@@ -57,6 +57,7 @@ export const projectOverviewSchema = projectSummarySchema.extend({
   docCount: z.number().int().min(0),
   furthestStation: stationSchema,
   andonStation: stationSchema.nullable(),
+  andonFeature: z.object({ id: z.string(), title: z.string() }).nullable(),
   driftErrors: z.number().int().min(0),
   driftWarnings: z.number().int().min(0),
   awaitingFirstReport: z.boolean(),
@@ -64,5 +65,6 @@ export const projectOverviewSchema = projectSummarySchema.extend({
   myRole: z.string(),
   memberCount: z.number().int().min(0).optional(),
   lastActivityAt: z.string().nullable(),
+  lastReportAt: z.string().nullable(),
 });
 export type ProjectOverviewDto = z.infer<typeof projectOverviewSchema>;

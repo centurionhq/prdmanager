@@ -12,7 +12,7 @@
  */
 import type { ReactElement } from 'react';
 import { SectionHeader } from '../components/index.js';
-import { getProjectAuditLog } from '../api/client.js';
+import { getProjectAuditFacets, getProjectAuditLog } from '../api/client.js';
 import { useDocumentTitle } from '../hooks/use-document-title.js';
 import { useProjectShellContext } from './ProjectShell.js';
 import { AuditLogView } from './audit/AuditLogView.js';
@@ -25,7 +25,11 @@ export function AjustesAuditoria(): ReactElement {
   return (
     <div className={styles.screen}>
       <SectionHeader title="Auditoría" subtitle="Lo que pasó en este proyecto, quién lo hizo y cuándo." />
-      <AuditLogView scopeKey={`${orgSlug}/${projectSlug}`} load={(params) => getProjectAuditLog(orgSlug, projectSlug, params)} />
+      <AuditLogView
+        scopeKey={`${orgSlug}/${projectSlug}`}
+        load={(params) => getProjectAuditLog(orgSlug, projectSlug, params)}
+        loadFacets={() => getProjectAuditFacets(orgSlug, projectSlug)}
+      />
     </div>
   );
 }
