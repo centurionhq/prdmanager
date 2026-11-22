@@ -88,8 +88,8 @@ function hasTasksChecklist(body: string): boolean {
   return section.split('\n').some((line) => CHECKLIST_LINE.test(line.trim()));
 }
 
-function violation(nodeId: string, severity: DriftIssue['severity'], message: string): DriftIssue {
-  return { kind: 'lifecycle_violation', severity, nodeId, message };
+function violation(nodeId: string, severity: DriftIssue['severity'], message: string, kind: DriftIssue['kind'] = 'lifecycle_violation'): DriftIssue {
+  return { kind, severity, nodeId, message };
 }
 
 /** SDD-096 D1: a Feedback is linked when any MRD/PRD/FR/BC cites it in `justified_by` (the inverse of `hasJustification`). */
@@ -235,10 +235,32 @@ function checkFeatureRequest(doc: FeatureDoc, severity: DriftIssue['severity']):
   return [violation(doc.node.id, severity, `${doc.node.id} needs at least one verifiable item (a "- [ ]" or "- [x]" line) under "${ACCEPTANCE_HEADING}"`)];
 }
 
+/**
+ * SDD-125 D3 (R4, "nada queda sin descendencia"): an approved/closed PRD or FR needs at least one blueprint
+ * that architects it. Emitted as a `warning` -- it is a hole the line must show, not a publish blocker (a
+ * feature is approved *before* its design exists) -- and attributed to `diseno_tecnico` by
+ * `../sync/issue-attribution.js`, where it also stops the line. Never applies to a BC: a business case's
+ * descendant is a PRD/FR, not a blueprint.
+ */
+function checkFeatureDesign(doc: FeatureDoc, docs: readonly ParsedDoc[]): DriftIssue[] {
+  if (doc.node.status !== 'approved' && doc.node.status !== 'closed') return [];
+  const architected = docs.some((d) => d.node.label === 'Blueprint' && d.edges.some((e) => e.type === 'ARCHITECTS' && e.to === doc.node.id));
+  if (architected) return [];
+  return [
+    violation(
+      doc.node.id,
+      'warning',
+      `${doc.node.id} is approved but has no blueprint architecting it: it needs a design (SDD/ADR) that declares it in "architects" before it can reach planning`,
+      'feature_without_blueprint',
+    ),
+  ];
+}
+
 function checkFeature(doc: FeatureDoc, docs: readonly ParsedDoc[], byId: Map<string, ParsedDoc>, mode: 'edit' | 'publish'): DriftIssue[] {
   const severity = mode === 'publish' ? 'error' : 'warning';
-  if (doc.frontmatter.type === 'PRD') return [...checkFeatureBusinessCase(doc, docs, byId, mode), ...checkPrd(doc, severity)];
-  if (doc.frontmatter.type === 'FR') return [...checkFeatureBusinessCase(doc, docs, byId, mode), ...checkFeatureRequest(doc, severity)];
+  if (doc.frontmatter.type === 'PRD') return [...checkFeatureBusinessCase(doc, docs, byId, mode), ...checkPrd(doc, severity), ...checkFeatureDesign(doc, docs)];
+  if (doc.frontmatter.type === 'FR')
+    return [...checkFeatureBusinessCase(doc, docs, byId, mode), ...checkFeatureRequest(doc, severity), ...checkFeatureDesign(doc, docs)];
   if (hasJustification(doc, docs)) return [];
   return [
     violation(
@@ -277,8 +299,10 @@ function checkBlueprint(doc: BlueprintDoc, byId: Map<string, ParsedDoc>): DriftI
   const issues: DriftIssue[] = [];
   // `blueprintSchema` already requires a non-empty `architects`, so a parsed-from-disk document never trips
   // this; it stays as a nominal rule (defense in depth) for ParsedDocs handed in by an engine, not the parser.
+  // SDD-125 D3: its own drift kind (`blueprint_without_feature`) so the report -- and the station attribution
+  // that puts it in `diseno_tecnico` -- can name the hole instead of a generic violation.
   if (fm.architects.length === 0) {
-    issues.push(violation(doc.node.id, 'error', `${doc.node.id} needs a non-empty "architects": a blueprint must say which PRD/FR it designs`));
+    issues.push(violation(doc.node.id, 'error', `${doc.node.id} needs a non-empty "architects": a blueprint must say which PRD/FR it designs`, 'blueprint_without_feature'));
   }
   if (fm.impacts_paths.length === 0) {
     issues.push(violation(doc.node.id, 'error', `${doc.node.id} needs a non-empty "impacts_paths": a blueprint must declare the code it governs`));

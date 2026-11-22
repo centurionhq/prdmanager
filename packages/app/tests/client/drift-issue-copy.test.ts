@@ -43,7 +43,7 @@ function monoTexts(copy: { readonly tokens: readonly { readonly text: string; re
 }
 
 /**
- * The 12 `IssueKind`s, each with the exact real-format message the engine builds
+ * The 14 `IssueKind`s, each with the exact real-format message the engine builds
  * (`packages/core/src/sync/monitor.ts:195-267`, `packages/core/src/engine.ts:347`,
  * `packages/server/src/engine/pg-project-engine.ts:999`) and a distinctive Spanish fragment its copy must
  * carry. Shared by the per-kind test and the guardian test.
@@ -194,11 +194,37 @@ const KIND_CASES: readonly KindCase[] = [
     }),
     spanish: 'Ya aterrizada',
   },
+  {
+    kind: 'feature_without_blueprint',
+    issue: issue({
+      kind: 'feature_without_blueprint',
+      severity: 'warning',
+      nodeId: 'FR-072',
+      target: undefined,
+      blueprintId: null,
+      station: 'diseno_tecnico',
+      message: 'FR-072 is approved but has no blueprint architecting it: it needs a design (SDD/ADR) that declares it in "architects" before it can reach planning',
+    }),
+    spanish: 'ningún blueprint la arquitecta',
+  },
+  {
+    kind: 'blueprint_without_feature',
+    issue: issue({
+      kind: 'blueprint_without_feature',
+      severity: 'error',
+      nodeId: 'SDD-125',
+      target: undefined,
+      blueprintId: 'SDD-125',
+      station: 'diseno_tecnico',
+      message: 'SDD-125 needs a non-empty "architects": a blueprint must say which PRD/FR it designs',
+    }),
+    spanish: 'no declara qué PRD o feature diseña',
+  },
 ];
 
 describe('issueCopy por kind', () => {
-  test('cubre los 12 IssueKind con copy en español, su propia etiqueta de grupo y una acción sugerida', () => {
-    expect(KIND_CASES).toHaveLength(12);
+  test('cubre los 14 IssueKind con copy en español, su propia etiqueta de grupo y una acción sugerida', () => {
+    expect(KIND_CASES).toHaveLength(14);
     for (const { kind, issue: sample, spanish } of KIND_CASES) {
       expect(KIND_COPY[kind], `KIND_COPY must know "${kind}"`).toBeDefined();
       // The group title falls back to the raw enum when GROUP_LABELS has no entry, and that fallback is

@@ -28,6 +28,8 @@ const ISSUE_KINDS = [
   'lifecycle_violation',
   'awaiting_ci_report',
   'landed_but_open',
+  'feature_without_blueprint',
+  'blueprint_without_feature',
 ] as const satisfies readonly IssueKind[];
 type MissingIssueKind = Exclude<IssueKind, (typeof ISSUE_KINDS)[number]>;
 type AssertNever<T extends never> = T;

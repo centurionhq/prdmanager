@@ -273,9 +273,9 @@ describe('checkLifecycle — R3: el FR declara su PRD (WO-806 / SDD-125 D1)', ()
   });
 
   test('el PRD no hereda la regla de R3 (sigue exigiendo sólo su BC)', () => {
-    const issues = checkLifecycle([prdApproved('PRD-002'), bcApproved()], publishCtx);
-    // sanity: la regla nueva sólo aplica a FR; un PRD con su BC aprobado no gana issues
-    expect(issues.filter((i) => i.nodeId === 'PRD-002')).toEqual([]);
+    const issues = checkLifecycle([prdApproved('PRD-002'), bcApproved()], publishCtx).filter((i) => i.nodeId === 'PRD-002');
+    // sanity: la regla nueva sólo aplica a FR; un PRD con su BC aprobado no gana un issue de "not by a PRD"
+    expect(issues.filter((i) => /not by a PRD/.test(i.message))).toEqual([]);
   });
 });
 
@@ -359,6 +359,55 @@ describe('checkLifecycle — excepción de pasaje declarada (WO-807 / SDD-125 D2
     expect(countPassageExceptions(docs)).toBe(1);
     expect(passageExceptions([prdApproved(), bcApproved(), frWithBody(FR_COMPLETE_BODY)])).toEqual([]);
     expect(countPassageExceptions([frWithBody(EXCEPTION_NO_REASON)])).toBe(0);
+  });
+});
+
+describe('checkLifecycle — huecos de diseño (WO-808 / SDD-125 D3)', () => {
+  const approvedFr = (extra = 'justified_by: [BC-001, PRD-002]\nstatus: approved', body = FR_COMPLETE_BODY): ParsedDoc =>
+    doc(`id: FR-001\ntype: FR\ntitle: Request\n${extra}`, body);
+  const designOf = (featureId: string, status = 'active'): ParsedDoc =>
+    doc(`id: SDD-001\ntype: SDD\ntitle: Design\nstatus: ${status}\narchitects: [${featureId}]\nimpacts_paths: ["src/**"]`, '## Tareas\n- [ ] a');
+  const blueprintsHole = (issues: ReturnType<typeof checkLifecycle>, id: string) => issues.filter((i) => i.nodeId === id && i.kind === 'feature_without_blueprint');
+  const docsFor = (...extra: ParsedDoc[]) => [approvedFr(), bcApproved(), prdApproved(), ...extra];
+
+  test('un FR aprobado sin diseño produce feature_without_blueprint (warning) en edición y al publicar', () => {
+    const issues = blueprintsHole(checkLifecycle(docsFor(), noGrandfathering), 'FR-001');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.severity).toBe('warning');
+    expect(issues[0]?.message).toMatch(/no blueprint architecting it/);
+    expect(issues[0]?.message).toContain('"architects"');
+    expect(blueprintsHole(checkLifecycle(docsFor(), { ...noGrandfathering, mode: 'publish' }), 'FR-001')).toHaveLength(1);
+  });
+
+  test('un FR con un diseño que lo arquitecta no produce el hueco', () => {
+    const issues = checkLifecycle(docsFor(designOf('FR-001')), noGrandfathering);
+    expect(blueprintsHole(issues, 'FR-001')).toEqual([]);
+    expect(issues.filter((i) => i.nodeId === 'SDD-001')).toEqual([]);
+  });
+
+  test('un FR todavía no aprobado no produce el hueco (no se exige diseño antes de aprobar)', () => {
+    const proposed = approvedFr('justified_by: [BC-001, PRD-002]\nstatus: proposed');
+    expect(blueprintsHole(checkLifecycle([proposed, bcApproved(), prdApproved()], noGrandfathering), 'FR-001')).toEqual([]);
+  });
+
+  test('un PRD aprobado sin diseño también produce el hueco', () => {
+    const issues = checkLifecycle(docsFor(), noGrandfathering).filter((i) => i.nodeId === 'PRD-002' && i.kind === 'feature_without_blueprint');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.severity).toBe('warning');
+  });
+
+  test('un blueprint sin architects es blueprint_without_feature (error), con su propio kind de drift', () => {
+    const base = doc('id: SDD-001\ntype: SDD\ntitle: Design\narchitects: [PRD-001]\nimpacts_paths: ["src/**"]', '## Tareas\n- [ ] a');
+    const noArchitects: ParsedDoc = { ...base, frontmatter: { ...base.frontmatter, architects: [] } } as ParsedDoc;
+    const issues = checkLifecycle([approvedPrd(), noArchitects], noGrandfathering).filter((i) => i.nodeId === 'SDD-001');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ kind: 'blueprint_without_feature', severity: 'error' });
+    expect(issues[0]?.message).toContain('non-empty "architects"');
+  });
+
+  test('un blueprint con architects sigue siendo lifecycle_violation cuando falla otra regla', () => {
+    const issues = checkLifecycle([approvedPrd(), sdd('', '## Tareas\n- [ ] a')], noGrandfathering).filter((i) => i.nodeId === 'SDD-001');
+    expect(issues.map((i) => i.kind)).toEqual(['lifecycle_violation']);
   });
 });
 
@@ -571,15 +620,18 @@ describe('checkLifecycle: secciones obligatorias de PRD y FR (WO-802)', () => {
   const prdOk = (): ParsedDoc => prdApproved();
   const only = (issues: ReturnType<typeof checkLifecycle>, id: string) => kinds(issues).filter(([, , nodeId]) => nodeId === id);
 
+  // WO-808: an approved PRD also needs a blueprint architecting it, so these section-only tests carry one.
+  const prdDesign = (): ParsedDoc => sdd('impacts_paths: ["src/**"]', '## Tareas\n- [ ] a');
+
   test('PRD con las cinco secciones y un BC aprobado no gana issues (WO-802)', () => {
-    expect(only(checkLifecycle([prdWith(PRD_ALL), bcApproved()], noGrandfathering), 'PRD-001')).toEqual([]);
+    expect(only(checkLifecycle([prdWith(PRD_ALL), bcApproved(), prdDesign()], noGrandfathering), 'PRD-001')).toEqual([]);
   });
 
   test('PRD sin una sección: warning por defecto y error al publicar (WO-802)', () => {
     const body = PRD_ALL.replace('## Alcance\n\n', '');
-    const edit = checkLifecycle([prdWith(body), bcApproved()], noGrandfathering).filter((i) => i.nodeId === 'PRD-001');
+    const edit = checkLifecycle([prdWith(body), bcApproved(), prdDesign()], noGrandfathering).filter((i) => i.nodeId === 'PRD-001');
     expect(edit).toEqual([{ kind: 'lifecycle_violation', severity: 'warning', nodeId: 'PRD-001', message: 'PRD-001 is missing required section(s): ## Alcance' }]);
-    const publish = checkLifecycle([prdWith(body), bcApproved()], { ...noGrandfathering, mode: 'publish' }).filter((i) => i.nodeId === 'PRD-001');
+    const publish = checkLifecycle([prdWith(body), bcApproved(), prdDesign()], { ...noGrandfathering, mode: 'publish' }).filter((i) => i.nodeId === 'PRD-001');
     expect(publish).toEqual([{ ...edit[0], severity: 'error' }]);
   });
 
