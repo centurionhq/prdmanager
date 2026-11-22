@@ -1008,6 +1008,79 @@ describe('ProjectGraph (árbol de features)', () => {
       expect(within(table).getAllByRole('row')).toHaveLength(26);
     });
 
+    // Rework de WO-769 (FB-318): en el payload real `refKey` es el path, así que el mismo archivo aparece
+    // como una fila por blueprint que lo referencia. Con `refKey` como identidad de fila las keys se repiten
+    // y, cuando el conjunto cambia (filtro → «Limpiar»), React no puede reconciliar: quedan `<tr>` pegados y
+    // el DOM muestra 31/37 filas mientras la línea del recorte sigue diciendo 25.
+    it('al limpiar el filtro no quedan filas pegadas: el mismo path en dos blueprints es otra fila (FB-318)', async () => {
+      const base = Date.UTC(2026, 0, 1);
+      const routes = ['SDD-005', 'SDD-006'].flatMap((blueprintId, blueprintIndex) =>
+        Array.from({ length: 20 }, (_, index) => {
+          const path = `packages/app/src/routes/file-${index}.tsx`;
+          return {
+            projectId: 'p1',
+            orgId: 'o1',
+            blueprintId,
+            refKey: path,
+            path,
+            symbol: null,
+            hash: null,
+            hashAlgoVersion: 1,
+            reportId: 'r1',
+            headSha: 'abc1234',
+            updatedAt: new Date(base + (blueprintIndex * 20 + index) * 60_000).toISOString(),
+          };
+        }),
+      );
+      const ui = Array.from({ length: 6 }, (_, index) => {
+        const path = `packages/app/src/ui/file-${index}.tsx`;
+        return {
+          projectId: 'p1',
+          orgId: 'o1',
+          blueprintId: 'SDD-005',
+          refKey: path,
+          path,
+          symbol: null,
+          hash: null,
+          hashAlgoVersion: 1,
+          reportId: 'r1',
+          headSha: 'abc1234',
+          updatedAt: new Date(base + (100 + index) * 60_000).toISOString(),
+        };
+      });
+      vi.spyOn(client, 'getTree').mockResolvedValue({ forest: FOREST });
+      vi.spyOn(client, 'getNode').mockImplementation((_o, _p, ref) => Promise.resolve(nodeDetailFor(ref)));
+      vi.spyOn(client, 'getFeatureBranch').mockResolvedValue({
+        nodes: [
+          { ref: 'SDD-005', label: 'Blueprint', kind: 'SDD', title: 'Diseño', status: 'published' },
+          { ref: 'SDD-006', label: 'Blueprint', kind: 'SDD', title: 'Diseño del importador', status: 'published' },
+        ],
+        edges: [],
+      });
+      vi.spyOn(client, 'listCommits').mockResolvedValue({ items: [], nextCursor: null });
+      vi.spyOn(client, 'listCodeRefs').mockResolvedValue([...ui, ...routes]);
+
+      renderPage('FR-001');
+
+      const table = await screen.findByRole('table', { name: /código gobernado por FR-001/i });
+      expect(within(table).getAllByRole('row')).toHaveLength(26);
+
+      await userEvent.type(await screen.findByLabelText('Filtrar por ruta o símbolo'), 'packages/app/src/routes');
+      await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(26));
+      expect(within(table).queryByText('packages/app/src/ui/file-0.tsx')).toBeNull();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Limpiar' }));
+      await waitFor(() => expect(within(table).getByText('packages/app/src/ui/file-0.tsx')).toBeTruthy());
+      expect(within(table).getAllByRole('row')).toHaveLength(26);
+
+      // Un segundo ciclo filtro → limpiar tampoco acumula residuo (hoy: 37 filas).
+      await userEvent.type(await screen.findByLabelText('Filtrar por ruta o símbolo'), 'packages/app/src/routes');
+      await waitFor(() => expect(within(table).queryByText('packages/app/src/ui/file-0.tsx')).toBeNull());
+      await userEvent.click(screen.getByRole('button', { name: 'Limpiar' }));
+      await waitFor(() => expect(within(table).getByText('packages/app/src/ui/file-0.tsx')).toBeTruthy());
+      expect(within(table).getAllByRole('row')).toHaveLength(26);
+    });
+
     it('con N <= 25 no corta ni muestra la línea (C6)', async () => {
       mockPanel(codeRefsFor('SDD-005', 11));
 

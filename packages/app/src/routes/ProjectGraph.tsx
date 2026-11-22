@@ -209,7 +209,10 @@ const ORDER_COLUMNS: readonly DataTableColumn<FeatureOrderRow>[] = [
 ];
 
 interface CodeRefRow {
-  readonly refKey: string;
+  /** Rework de WO-769 (FB-318): identidad de fila única. `refKey` es el path en el payload real, así que
+   * una feature con dos blueprints que tocan el mismo archivo produce dos filas con la misma key y React
+   * deja `<tr>` huérfanos cuando el conjunto cambia (filtro → «Limpiar»). `blueprintId|refKey` sí es único. */
+  readonly rowId: string;
   readonly path: string;
   readonly symbol: string | null;
 }
@@ -273,7 +276,9 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
   const orderedCodeRefs = [...relatedCodeRefs].sort(byMostRecentCodeRef);
   const matchingCodeRefs = codeNeedle === '' ? orderedCodeRefs : orderedCodeRefs.filter((ref) => matchesCodeFilter(ref, codeNeedle));
   // WO-769 (C6): la tabla es un resumen -- se corta ANTES de montar, nunca se renderizan las N completas.
-  const codeRows = matchingCodeRefs.slice(0, CODE_LIMIT).map((ref) => ({ refKey: ref.refKey, path: ref.path, symbol: ref.symbol }));
+  const codeRows = matchingCodeRefs
+    .slice(0, CODE_LIMIT)
+    .map((ref) => ({ rowId: `${ref.blueprintId}|${ref.refKey}`, path: ref.path, symbol: ref.symbol }));
 
   // WO-459: each work order's own commit is whichever commit's `refs` names that order's id directly --
   // the trailer convention every commit in this repo already follows (`Refs: WO-xxx`).
@@ -423,7 +428,7 @@ function TraceabilityPanel({ detail, branch, codeRefs, commits, canClose, orders
             caption={`Código gobernado por ${view.id}`}
             columns={CODE_COLUMNS}
             rows={codeRows}
-            getRowId={(row) => row.refKey}
+            getRowId={(row) => row.rowId}
             emptyState={codeNeedle !== '' ? <span>Ninguna referencia coincide con «{codeFilter.trim()}».</span> : null}
           />
           {codeNeedle !== '' ? (
